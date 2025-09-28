@@ -3,6 +3,7 @@ import { AppError, ErrorCode } from "@quickstart/errors";
 import type { AgentClient } from "../clients/agent.client.js";
 import type { ConversationClient, MessageInfo } from "../clients/conversation.client.js";
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
+import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 
 export type ExecuteTurnInput = {
@@ -26,6 +27,7 @@ export type TurnResult = {
 };
 
 const MAX_RETRIEVAL_CHARS = 4000;
+const MAX_MEMORY_INJECT_CHARS = 2000;
 
 export class TurnsService {
   constructor(
@@ -33,6 +35,7 @@ export class TurnsService {
     private readonly conversationClient: ConversationClient,
     private readonly modelGatewayClient: ModelGatewayClient,
     private readonly knowledgeClient?: KnowledgeClient,
+    private readonly memoryClient?: MemoryClient,
   ) {}
 
   async executeTurn(input: ExecuteTurnInput): Promise<TurnResult> {
@@ -148,6 +151,24 @@ export class TurnsService {
         `Use the following knowledge snippets when answering:\n\n${knowledgeContext}`,
       );
     }
+
+    const subjectKey = conversation.subject_key?.trim();
+    if (this.memoryClient && subjectKey) {
+      const memoryFacts = await this.memoryClient.listFacts(
+        workspaceId,
+        subjectKey,
+        requestId,
+        20,
+      );
+      if (memoryFacts.length > 0) {
+        const memoryBlock = memoryFacts
+          .map((f) => `- ${f.fact_text}`)
+          .join("\n")
+          .slice(0, MAX_MEMORY_INJECT_CHARS);
+        systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
+      }
+    }
+
     if (systemParts.length > 0) {
       chatMessages.push({
         role: "system",

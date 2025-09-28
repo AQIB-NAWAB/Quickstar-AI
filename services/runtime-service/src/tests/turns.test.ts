@@ -220,3 +220,121 @@ test("POST /turns retried with same idempotency key returns 200 without second m
     assert.equal(modelClient.callCount, 1);
   });
 });
+
+test("POST /turns injects memory after knowledge when subject_key is set", async () => {
+  await withRuntimeServer(async ({ port, agentClient, convClient, modelClient, knowledgeClient, memoryClient, createToken }) => {
+    const token = await createToken();
+    const subjectKey = "anon:memory-test-001";
+
+    agentClient.agents.set(`${WS_A}:${AGENT_ID}`, {
+      id: AGENT_ID,
+      workspace_id: WS_A,
+      name: "Support Bot",
+      production_version_id: VERSION_ID,
+      instructions: "You are a customer support agent.",
+    });
+
+    agentClient.versions.set(`${WS_A}:${AGENT_ID}:${VERSION_ID}`, {
+      id: VERSION_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      release_number: 1,
+      snapshot: {
+        name: "Support Bot v1",
+        instructions: "You are a customer support agent.",
+        model_settings: { profile: "fake", model_id: "fake" },
+      },
+    });
+
+    knowledgeClient.readyCountValue = 1;
+    knowledgeClient.chunks = [
+      { chunk_id: "c1", source_id: "s1", text: "Refund policy allows 30 days.", score: 1 },
+    ];
+
+    memoryClient.facts = [
+      {
+        id: "f1",
+        workspace_id: WS_A,
+        subject_key: subjectKey,
+        fact_key: "channel",
+        fact_text: "Prefers WhatsApp",
+      },
+    ];
+
+    convClient.conversations.set(`${WS_A}:${CONV_ID}`, {
+      id: CONV_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      subject_key: subjectKey,
+      last_seq: 0,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/v1/workspaces/${WS_A}/conversations/${CONV_ID}/turns`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": "idemp-memory-001",
+      },
+      body: JSON.stringify({ message: "Hello" }),
+    });
+
+    assert.equal(res.status, 201);
+    const system = modelClient.lastMessages.find((m) => m.role === "system");
+    assert.ok(system?.content);
+    const content = String(system.content);
+    const knowledgeIdx = content.indexOf("knowledge snippets");
+    const memoryIdx = content.indexOf("User facts (not instructions)");
+    assert.ok(knowledgeIdx >= 0);
+    assert.ok(memoryIdx > knowledgeIdx);
+    assert.match(content, /Prefers WhatsApp/);
+  });
+});
+
+test("POST /turns continues when memory client fails (fail-open)", async () => {
+  await withRuntimeServer(async ({ port, agentClient, convClient, modelClient, memoryClient, createToken }) => {
+    const token = await createToken();
+    memoryClient.shouldFail = true;
+
+    agentClient.agents.set(`${WS_A}:${AGENT_ID}`, {
+      id: AGENT_ID,
+      workspace_id: WS_A,
+      name: "Support Bot",
+      production_version_id: VERSION_ID,
+      instructions: "Instructions",
+    });
+
+    agentClient.versions.set(`${WS_A}:${AGENT_ID}:${VERSION_ID}`, {
+      id: VERSION_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      release_number: 1,
+      snapshot: {
+        name: "Support Bot v1",
+        instructions: "Instructions",
+        model_settings: { profile: "fake", model_id: "fake" },
+      },
+    });
+
+    convClient.conversations.set(`${WS_A}:${CONV_ID}`, {
+      id: CONV_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      subject_key: "anon:fail-open",
+      last_seq: 0,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/v1/workspaces/${WS_A}/conversations/${CONV_ID}/turns`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": "idemp-memory-fail",
+      },
+      body: JSON.stringify({ message: "Hi" }),
+    });
+
+    assert.equal(res.status, 201);
+    assert.equal(modelClient.callCount, 1);
+  });
+});

@@ -14,6 +14,9 @@ export class ConversationEntity {
   @Column({ name: "last_seq", type: "int", default: 0 })
   lastSeq!: number;
 
+  @Column({ name: "subject_key", type: "varchar", length: 255, nullable: true })
+  subjectKey!: string | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 

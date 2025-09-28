@@ -3,6 +3,7 @@ import type { Conversation, Message } from "../domain/types.js";
 export type CreateConversationInput = {
   workspaceId: string;
   agentId?: string | null;
+  subjectKey?: string | null;
 };
 
 export type AppendMessageInput = {

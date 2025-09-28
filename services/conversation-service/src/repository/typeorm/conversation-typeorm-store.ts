@@ -34,6 +34,7 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
         id: randomUUID(),
         workspaceId: input.workspaceId,
         agentId: input.agentId ?? null,
+        subjectKey: input.subjectKey ?? null,
         lastSeq: 0,
         createdAt: now,
         updatedAt: now,

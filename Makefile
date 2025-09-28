@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate web-fetch-migrate knowledge-migrate knowledge-smoke data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate web-fetch-migrate knowledge-migrate knowledge-smoke memory-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -38,6 +38,10 @@ web-fetch-migrate:
 knowledge-migrate:
 	pnpm --filter @quickstart/service-knowledge build
 	pnpm --filter @quickstart/service-knowledge migrate
+
+memory-migrate:
+	pnpm --filter @quickstart/service-memory build
+	pnpm --filter @quickstart/service-memory migrate
 
 web-acquisition-migrate: web-fetch-migrate
 

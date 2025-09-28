@@ -2,6 +2,7 @@ export type Conversation = {
   id: string;
   workspaceId: string;
   agentId: string | null;
+  subjectKey: string | null;
   lastSeq: number;
   createdAt: Date;
   updatedAt: Date;
@@ -24,6 +25,7 @@ export type ConversationJson = {
   id: string;
   workspace_id: string;
   agent_id: string | null;
+  subject_key: string | null;
   last_seq: number;
   created_at: string;
   updated_at: string;
@@ -47,6 +49,7 @@ export function toConversationJson(c: Conversation): ConversationJson {
     id: c.id,
     workspace_id: c.workspaceId,
     agent_id: c.agentId,
+    subject_key: c.subjectKey,
     last_seq: c.lastSeq,
     created_at: c.createdAt.toISOString(),
     updated_at: c.updatedAt.toISOString(),

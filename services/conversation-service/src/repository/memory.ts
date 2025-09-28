@@ -21,6 +21,7 @@ export class MemoryConversationStore implements ConversationStore {
       id,
       workspaceId: input.workspaceId,
       agentId: input.agentId ?? null,
+      subjectKey: input.subjectKey ?? null,
       lastSeq: 0,
       createdAt: now,
       updatedAt: now,
