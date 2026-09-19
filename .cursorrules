@@ -1,0 +1,5 @@
+# Git Commit Rules
+- NEVER add "Co-authored-by" tags to commit messages.
+- NEVER add AI attribution (like "Generated with Cursor", "Co-authored-by: Cursor", or "Co-authored-by: cursoragent") to commits.
+- Keep commit messages clean, professional, and strictly human-authored.
+- Do not include any AI signatures or metadata in the git commit body.
