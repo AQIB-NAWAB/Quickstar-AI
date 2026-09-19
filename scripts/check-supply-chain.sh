@@ -22,8 +22,17 @@ if git grep -n "global\\['!'\\]" -- . "${code_paths[@]}" >/dev/null 2>&1; then
   git grep -n "global\\['!'\\]" -- . "${code_paths[@]}" || true
 fi
 
+if git grep -nE '_0x[0-9a-fA-F]{4,}' -- '*.js' '*.cjs' '*.mjs' '*.ts' '*.tsx' >/dev/null 2>&1; then
+  fail "obfuscated hex identifier payload found in source"
+  git grep -nE '_0x[0-9a-fA-F]{4,}' -- '*.js' '*.cjs' '*.mjs' '*.ts' '*.tsx' || true
+fi
+
 if git grep -n "PolinRider" -- . "${code_paths[@]}" >/dev/null 2>&1; then
   fail "PolinRider marker found"
+fi
+
+if git ls-files -- '.vscode/tasks.json' '.vscode/settings.json' | grep -q .; then
+  fail "VS Code settings/tasks are tracked; they were the folder-open RCE vector"
 fi
 
 if [ -e .vscode/tasks.json ]; then
@@ -38,6 +47,16 @@ fi
 
 if git ls-files --error-unmatch 'apps/web/src/app/dashboard/projects/[id]/analytics/public/fonts/fa-solid-400.woff2' >/dev/null 2>&1; then
   fail "fake font payload is still tracked"
+fi
+
+if git ls-files -- '*.woff2' '*.woff' '*.eot' '*.ttf' | grep -q .; then
+  fail "unexpected font binaries are tracked (previous attack hid JS in a fake .woff2)"
+  git ls-files -- '*.woff2' '*.woff' '*.eot' '*.ttf' || true
+fi
+
+if git grep -nE '"preinstall"|"postinstall"|"prepare"' -- ':(glob)**/package.json' >/dev/null 2>&1; then
+  fail "npm lifecycle hook found in a package.json"
+  git grep -nE '"preinstall"|"postinstall"|"prepare"' -- ':(glob)**/package.json' || true
 fi
 
 gitignore="$(tr -d '\r' < .gitignore)"
