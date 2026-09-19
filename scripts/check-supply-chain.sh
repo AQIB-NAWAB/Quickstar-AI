@@ -40,15 +40,17 @@ if git ls-files --error-unmatch 'apps/web/src/app/dashboard/projects/[id]/analyt
   fail "fake font payload is still tracked"
 fi
 
-if git grep -n '^config\\.bat$' -- .gitignore >/dev/null 2>&1; then
+gitignore="$(tr -d '\r' < .gitignore)"
+
+if printf '%s\n' "$gitignore" | grep -Fxq 'config.bat'; then
   fail ".gitignore still contains attacker entry config.bat"
 fi
 
-if ! grep -qx '.env' .gitignore; then
+if ! printf '%s\n' "$gitignore" | grep -Fxq '.env'; then
   fail ".gitignore must ignore .env"
 fi
 
-if ! grep -qx '.vscode/*' .gitignore; then
+if ! printf '%s\n' "$gitignore" | grep -Fxq '.vscode/*'; then
   fail ".gitignore must ignore .vscode/* so folder-open tasks cannot be committed"
 fi
 
