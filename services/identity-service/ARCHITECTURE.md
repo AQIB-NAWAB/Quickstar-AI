@@ -38,4 +38,6 @@ src/
   tests/
 ```
 
-**Request path:** `middleware` (trace, request id) → `router` → `*.controller` → `*.service` → `repository/postgres`.
+**HTTP stack:** Express via `@quickstart/http-server` (request id → trace → timeout → JSON body → rate limit → routes → errors). See [HTTP layers](../../docs/architecture/http-layers.md) for gateway vs service middleware.
+
+**Request path:** platform middleware → Express routes → `*.controller` → `*.service` → `repository/postgres`.

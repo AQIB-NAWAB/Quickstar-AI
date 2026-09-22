@@ -12,6 +12,7 @@
     "dev": "node --watch dist/index.js"
   },
   "dependencies": {
+    "@quickstart/http-server": "workspace:*",
     "@quickstart/auth": "workspace:*",
     "@quickstart/contracts": "workspace:*",
     "@quickstart/errors": "workspace:*",

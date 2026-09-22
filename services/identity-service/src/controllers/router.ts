@@ -1,130 +1,170 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
-import { handleRequestError, requireAuth, withRequestTracing } from "../middleware/index.js";
+import {
+  asyncHandler,
+  createPlatformApp,
+  createRateLimitMiddleware,
+  requestIdFromResponse,
+  type Application,
+} from "@quickstart/http-server";
+import { requireAuthMiddleware } from "../middleware/index.js";
 import type { IdentityServices } from "../services/index.js";
 import * as apiKeysController from "./api-keys.controller.js";
 import * as authController from "./auth.controller.js";
 import { handleHealth } from "./health.controller.js";
 import * as organizationsController from "./organizations.controller.js";
 import * as usersController from "./users.controller.js";
+import { routeParam } from "../utils/route-param.js";
 
 export { SERVICE_NAME } from "./health.controller.js";
 
 export type CreateHttpServerOptions = {
   logger: Logger;
   services: IdentityServices;
+  requestTimeoutMs?: number;
+  rateLimitWindowMs?: number;
+  rateLimitMax?: number;
+  authRateLimitMax?: number;
 };
 
-export function createHttpServer(options: CreateHttpServerOptions) {
+export function createHttpServer(options: CreateHttpServerOptions): Application {
   const { logger, services } = options;
+  const authGuard = requireAuthMiddleware(services.auth);
+  const authRateLimit = createRateLimitMiddleware({
+    windowMs: options.rateLimitWindowMs ?? 60_000,
+    max: options.authRateLimitMax ?? 20,
+    message: "Too many authentication attempts",
+  });
 
-  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    await withRequestTracing(req, logger, async ({ requestId, method, url }) => {
-      try {
-        if (method === "GET" && (url === "/healthz" || url === "/health")) {
-          handleHealth(res);
-          return;
-        }
+  return createPlatformApp({
+    logger,
+    requestTimeoutMs: options.requestTimeoutMs,
+    globalRateLimit: {
+      windowMs: options.rateLimitWindowMs ?? 60_000,
+      max: options.rateLimitMax ?? 120,
+      skipPaths: ["/healthz", "/health"],
+    },
+    registerRoutes: (router) => {
+      router.get("/healthz", (_req, res) => handleHealth(res));
+      router.get("/health", (_req, res) => handleHealth(res));
 
-        if (method === "POST" && url === "/v1/register") {
+      router.post(
+        "/v1/register",
+        authRateLimit,
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
           await authController.handleRegister(req, res, requestId, services.auth);
-          return;
-        }
-        if (method === "POST" && url === "/v1/login") {
+        }),
+      );
+      router.post(
+        "/v1/login",
+        authRateLimit,
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
           await authController.handleLogin(req, res, requestId, services.auth);
-          return;
-        }
-        if (method === "POST" && url === "/v1/refresh") {
+        }),
+      );
+      router.post(
+        "/v1/refresh",
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
           await authController.handleRefresh(req, res, requestId, services.auth);
-          return;
-        }
-        if (method === "POST" && url === "/v1/logout") {
+        }),
+      );
+      router.post(
+        "/v1/logout",
+        asyncHandler(async (req, res) => {
           await authController.handleLogout(req, res, services.auth);
-          return;
-        }
+        }),
+      );
 
-        if (method === "GET" && url === "/v1/me") {
-          const auth = await requireAuth(req, services.auth);
+      router.get(
+        "/v1/me",
+        authGuard,
+        asyncHandler(async (_req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = res.locals.identityAuth!;
           await usersController.handleGetMe(res, requestId, auth.userId, services.users);
-          return;
-        }
+        }),
+      );
 
-        if (method === "GET" && url === "/v1/organizations") {
-          const auth = await requireAuth(req, services.auth);
+      router.get(
+        "/v1/organizations",
+        authGuard,
+        asyncHandler(async (_req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = res.locals.identityAuth!;
           await organizationsController.handleListOrganizations(
             res,
             requestId,
             auth.userId,
             services.organizations,
           );
-          return;
-        }
+        }),
+      );
 
-        const orgMatch = url.match(/^\/v1\/organizations\/([^/]+)(\/api-keys(?:\/([^/]+))?)?$/);
-        if (orgMatch) {
-          const orgId = decodeURIComponent(orgMatch[1]);
-          const apiKeysSuffix = orgMatch[2];
+      router.get(
+        "/v1/organizations/:orgId",
+        authGuard,
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = res.locals.identityAuth!;
+          await organizationsController.handleGetOrganization(
+            res,
+            requestId,
+            routeParam(req.params.orgId),
+            auth.userId,
+            services.organizations,
+          );
+        }),
+      );
 
-          if (method === "GET" && !apiKeysSuffix) {
-            const auth = await requireAuth(req, services.auth);
-            await organizationsController.handleGetOrganization(
-              res,
-              requestId,
-              orgId,
-              auth.userId,
-              services.organizations,
-            );
-            return;
-          }
+      router.post(
+        "/v1/organizations/:orgId/api-keys",
+        authGuard,
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = res.locals.identityAuth!;
+          await apiKeysController.handleCreateApiKey(
+            req,
+            res,
+            requestId,
+            routeParam(req.params.orgId),
+            auth.userId,
+            services.apiKeys,
+          );
+        }),
+      );
 
-          if (apiKeysSuffix === "/api-keys" && method === "POST") {
-            const auth = await requireAuth(req, services.auth);
-            await apiKeysController.handleCreateApiKey(
-              req,
-              res,
-              requestId,
-              orgId,
-              auth.userId,
-              services.apiKeys,
-            );
-            return;
-          }
+      router.get(
+        "/v1/organizations/:orgId/api-keys",
+        authGuard,
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = res.locals.identityAuth!;
+          await apiKeysController.handleListApiKeys(
+            res,
+            requestId,
+            routeParam(req.params.orgId),
+            auth.userId,
+            services.apiKeys,
+          );
+        }),
+      );
 
-          if (apiKeysSuffix === "/api-keys" && method === "GET") {
-            const auth = await requireAuth(req, services.auth);
-            await apiKeysController.handleListApiKeys(
-              res,
-              requestId,
-              orgId,
-              auth.userId,
-              services.apiKeys,
-            );
-            return;
-          }
-
-          const deleteKeyMatch = url.match(/^\/v1\/organizations\/([^/]+)\/api-keys\/([^/]+)$/);
-          if (deleteKeyMatch && method === "DELETE") {
-            const auth = await requireAuth(req, services.auth);
-            await apiKeysController.handleRevokeApiKey(
-              res,
-              decodeURIComponent(deleteKeyMatch[1]),
-              auth.userId,
-              decodeURIComponent(deleteKeyMatch[2]),
-              services.apiKeys,
-            );
-            return;
-          }
-        }
-
-        throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Route not found", requestId });
-      } catch (error) {
-        handleRequestError(res, error, requestId, logger);
-      }
-    });
-  }
-
-  return createServer((req, res) => {
-    void handle(req, res);
+      router.delete(
+        "/v1/organizations/:orgId/api-keys/:keyId",
+        authGuard,
+        asyncHandler(async (req, res) => {
+          const auth = res.locals.identityAuth!;
+          await apiKeysController.handleRevokeApiKey(
+            res,
+            routeParam(req.params.orgId),
+            auth.userId,
+            routeParam(req.params.keyId),
+            services.apiKeys,
+          );
+        }),
+      );
+    },
   });
 }

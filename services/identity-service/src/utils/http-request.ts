@@ -1,6 +1,12 @@
 import type { IncomingMessage } from "node:http";
 
-export async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
+type RequestWithBody = IncomingMessage & { body?: unknown };
+
+/** Read JSON from Express-parsed body or raw stream (tests). */
+export async function readJsonBody<T>(req: RequestWithBody): Promise<T> {
+  if (req.body !== undefined && req.body !== null && typeof req.body === "object") {
+    return req.body as T;
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);

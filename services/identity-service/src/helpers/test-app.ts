@@ -11,6 +11,10 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     jwtAccessSecret: "test-secret-at-least-32-characters-long!!",
     jwtAccessTtlSeconds: 900,
     refreshTtlSeconds: 604_800,
+    httpRequestTimeoutMs: 30_000,
+    httpRateLimitWindowMs: 60_000,
+    httpRateLimitMax: 10_000,
+    httpAuthRateLimitMax: 10_000,
     ...overrides,
   };
 }

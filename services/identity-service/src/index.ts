@@ -1,3 +1,4 @@
+import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import { createLogger } from "@quickstart/logging";
@@ -12,7 +13,11 @@ import {
   createRedisSessionRevocation,
 } from "./utils/session-revocation.js";
 
-export async function startIdentityServer(options?: { useRedis?: boolean }) {
+export async function startIdentityServer(options?: { useRedis?: boolean }): Promise<{
+  server: Server;
+  shutdown: () => Promise<void>;
+  pool: Pool;
+}> {
   const config = loadServiceConfig();
   const logger = createLogger({ service: SERVICE_NAME });
 
@@ -37,10 +42,17 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
   }
 
   const services = createIdentityServices({ repository, sessions, config });
-  const server = createHttpServer({ logger, services });
+  const app = createHttpServer({
+    logger,
+    services,
+    requestTimeoutMs: config.httpRequestTimeoutMs,
+    rateLimitWindowMs: config.httpRateLimitWindowMs,
+    rateLimitMax: config.httpRateLimitMax,
+    authRateLimitMax: config.httpAuthRateLimitMax,
+  });
 
-  await new Promise<void>((resolve) => {
-    server.listen(config.port, "0.0.0.0", () => resolve());
+  const server: Server = await new Promise((resolve) => {
+    const httpServer = app.listen(config.port, "0.0.0.0", () => resolve(httpServer));
   });
 
   logger.info("listening", { port: config.port, service: SERVICE_NAME });
@@ -48,7 +60,7 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
   const shutdown = async () => {
     logger.info("shutdown", { service: SERVICE_NAME });
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
+      server.close((err?: Error) => (err ? reject(err) : resolve()));
     });
     if (redisClient?.isOpen) {
       await redisClient.quit();

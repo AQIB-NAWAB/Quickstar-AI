@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { Server } from "node:http";
 import test from "node:test";
 import { createLogger } from "@quickstart/logging";
 import { createHttpServer } from "../controllers/router.js";
@@ -6,20 +7,22 @@ import { createTestIdentityServices } from "../helpers/test-app.js";
 
 async function withServer(run: (port: number) => Promise<void>): Promise<void> {
   const { services } = createTestIdentityServices();
-  const server = createHttpServer({
+  const app = createHttpServer({
     services,
     logger: createLogger({ service: "service-identity-test" }),
   });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("expected bound port");
-  }
+  const server = await new Promise<Server>((resolve) => {
+    const httpServer = app.listen(0, () => resolve(httpServer));
+  });
   try {
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("expected bound port");
+    }
     await run(address.port);
   } finally {
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
+      server.close((err?: Error) => (err ? reject(err) : resolve()));
     });
   }
 }

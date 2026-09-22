@@ -1,12 +1,17 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { HealthResponse } from "@quickstart/contracts";
 import { extractAuthContext } from "@quickstart/auth";
-import { AppError, ErrorCode, httpStatusForError, toErrorEnvelope } from "@quickstart/errors";
+import { AppError, ErrorCode } from "@quickstart/errors";
 import { createLogger, type Logger } from "@quickstart/logging";
-import { getTraceIds, initTracing, runWithSpan, shutdownTracing } from "@quickstart/tracing";
+import {
+  asyncHandler,
+  createPlatformApp,
+  requestIdFromResponse,
+  sendPlatformJson,
+  type Application,
+} from "@quickstart/http-server";
+import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { fetchWithPolicy } from "@quickstart/utilities";
-import { getRequestId, headerRecord } from "./http-utils.js";
 
 export const SERVICE_NAME = "service-template";
 const PORT = Number(process.env.PORT ?? 3000);
@@ -16,56 +21,55 @@ export type AppServerOptions = {
   port?: number;
 };
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json" });
-  res.end(JSON.stringify(body));
+function headerRecord(req: { headers: Record<string, string | string[] | undefined> }) {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue;
+    out[key] = Array.isArray(value) ? (value[0] ?? "") : value;
+  }
+  return out;
 }
 
-function sendError(res: ServerResponse, error: unknown, requestId: string): void {
-  const status = httpStatusForError(error);
-  sendJson(res, status, toErrorEnvelope(error, requestId));
-}
+export function createAppServer(options: AppServerOptions = {}): Application {
+  const logger = options.logger ?? createLogger({ service: SERVICE_NAME });
 
-async function handleRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  logger: Logger,
-): Promise<void> {
-  const requestId = getRequestId(req);
-  const auth = extractAuthContext(headerRecord(req));
-  const tenantId = auth?.tenantId;
-
-  await runWithSpan(
-    `${req.method ?? "GET"} ${req.url ?? "/"}`,
-    { requestId, tenantId },
-    async () => {
-      const traceIds = getTraceIds();
-      logger.info("request.received", {
-        request_id: requestId,
-        method: req.method,
-        path: req.url,
-        trace_id: traceIds.traceId,
-        span_id: traceIds.spanId,
-        tenant_id: tenantId,
+  return createPlatformApp({
+    logger,
+    globalRateLimit: {
+      windowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
+      max: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 300),
+      skipPaths: ["/healthz", "/health"],
+    },
+    requestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
+    registerRoutes: (router) => {
+      router.get("/healthz", (_req, res) => {
+        const body: HealthResponse = { status: "ok", service: SERVICE_NAME };
+        sendPlatformJson(res, 200, body);
+      });
+      router.get("/health", (_req, res) => {
+        const body: HealthResponse = { status: "ok", service: SERVICE_NAME };
+        sendPlatformJson(res, 200, body);
       });
 
-      try {
-        if (req.method === "GET" && (req.url === "/healthz" || req.url === "/health")) {
-          const body: HealthResponse = { status: "ok", service: SERVICE_NAME };
-          sendJson(res, 200, body);
-          return;
-        }
-
-        if (req.method === "GET" && req.url === "/demo/error") {
+      router.get(
+        "/demo/error",
+        asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
+          const auth = extractAuthContext(headerRecord(req));
+          void auth?.tenantId;
           throw new AppError({
             code: ErrorCode.VALIDATION_FAILED,
             message: "Demo validation failure",
             requestId,
             details: { field: "example" },
           });
-        }
+        }),
+      );
 
-        if (req.method === "GET" && req.url === "/demo/outbound") {
+      router.get(
+        "/demo/outbound",
+        asyncHandler(async (_req, res) => {
+          const requestId = requestIdFromResponse(res);
           const port = Number(process.env.PORT ?? 3000);
           const response = await fetchWithPolicy(
             `http://127.0.0.1:${port}/healthz`,
@@ -73,42 +77,21 @@ async function handleRequest(
             { timeoutMs: 2_000, maxRetries: 2 },
           );
           const payload = await response.json();
-          sendJson(res, response.status, { request_id: requestId, upstream: payload });
-          return;
-        }
-
-        throw new AppError({
-          code: ErrorCode.NOT_FOUND,
-          message: "Route not found",
-          requestId,
-        });
-      } catch (error) {
-        logger.warn("request.failed", {
-          request_id: requestId,
-          error: error instanceof Error ? error.message : "unknown",
-        });
-        sendError(res, error, requestId);
-      }
+          sendPlatformJson(res, response.status, { request_id: requestId, upstream: payload });
+        }),
+      );
     },
-  );
-}
-
-export function createAppServer(options: AppServerOptions = {}) {
-  const logger = options.logger ?? createLogger({ service: SERVICE_NAME });
-
-  return createServer((req, res) => {
-    void handleRequest(req, res, logger);
   });
 }
 
 export async function startServer(options: AppServerOptions = {}) {
   await initTracing({ serviceName: SERVICE_NAME });
   const logger = options.logger ?? createLogger({ service: SERVICE_NAME });
-  const server = createAppServer({ ...options, logger });
+  const app = createAppServer({ ...options, logger });
   const port = options.port ?? PORT;
 
-  await new Promise<void>((resolve) => {
-    server.listen(port, "0.0.0.0", () => resolve());
+  const server = await new Promise<ReturnType<Application["listen"]>>((resolve) => {
+    const httpServer = app.listen(port, "0.0.0.0", () => resolve(httpServer));
   });
 
   logger.info("listening", { port, service: SERVICE_NAME });
@@ -116,7 +99,7 @@ export async function startServer(options: AppServerOptions = {}) {
   const shutdown = async () => {
     logger.info("shutdown", { service: SERVICE_NAME });
     await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
+      server.close((err?: Error) => (err ? reject(err) : resolve()));
     });
     await shutdownTracing();
   };
@@ -128,7 +111,7 @@ export async function startServer(options: AppServerOptions = {}) {
     void shutdown().finally(() => process.exit(0));
   });
 
-  return server;
+  return app;
 }
 
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
