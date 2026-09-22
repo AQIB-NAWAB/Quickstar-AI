@@ -26,6 +26,8 @@ docs/         Product spec, roadmap, ADRs, runbooks
 
 **Slot 03:** shared platform libraries (`@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`) wired into `services/_template`.
 
+**Slot 04:** `services/identity` — register/login/refresh, organizations, org API keys. See [ADR 0004](docs/adr/0004-identity.md) and [services/identity/README.md](services/identity/README.md).
+
 ## Prerequisites
 
 - Node.js **22+**

@@ -176,7 +176,7 @@ Simple rules:
 Update these three lines every day.
 
 - **Current day:** Day 7
-- **Current slot:** Slot 04 — Identity
+- **Current slot:** Slot 05 — Workspace and tenancy
 - **Overall progress:** 6 / 60 days (10%)
 
 | Slot | Days  | Theme                                | Learn | Build | Status        |
@@ -184,7 +184,7 @@ Update these three lines every day.
 | 01   | 1–2   | Engineering foundation               | [ ]   | [x]   | `done`        |
 | 02   | 3–4   | Local data plane                     | [x]   | [x]   | `done`        |
 | 03   | 5–6   | Shared platform libraries            | [x]   | [x]   | `done`        |
-| 04   | 7–8   | Identity                             | [ ]   | [ ]   | `not_started` |
+| 04   | 7–8   | Identity                             | [x]   | [x]   | `done`        |
 | 05   | 9–10  | Workspace and tenancy                | [ ]   | [ ]   | `not_started` |
 | 06   | 11–12 | API gateway                          | [ ]   | [ ]   | `not_started` |
 | 07   | 13–14 | Agent service                        | [ ]   | [ ]   | `not_started` |
@@ -574,10 +574,10 @@ Another service can import these packages. Template service shows a trace in the
 | ------ | ------------------ |
 | Days   | 7–8                |
 | Wave   | A                  |
-| Status | `not_started`      |
+| Status | `done`             |
 | Read   | sections 12–13, 47 |
 
-**What we already have:** auth _types_, not real users.
+**What we already have:** `services/identity`, ADR 0004, JWT helpers in `@quickstart/auth`, org API keys.
 
 **What we add now:** users, login, tokens, API keys, first organization.
 
@@ -587,7 +587,7 @@ Another service can import these packages. Template service shows a trace in the
 
 ### Day 7 — LEARN: identity models
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 #### Options
 
@@ -608,10 +608,10 @@ Another service can import these packages. Template service shows a trace in the
 
 #### Learn tasks
 
-- [ ] Write `docs/adr/0004-identity.md`
-- [ ] Short threat list: credential stuffing, token theft, key leak
-- [ ] Spike: register/login against local Postgres
-- [ ] Day 8 LLD: tables `users`, `organizations`, `org_memberships`, `api_keys`, `refresh_tokens`
+- [x] Write `docs/adr/0004-identity.md`
+- [x] Short threat list: credential stuffing, token theft, key leak
+- [x] Spike: register/login against local Postgres
+- [x] Day 8 LLD: tables `users`, `organizations`, `org_memberships`, `api_keys`, `refresh_tokens`
 
 #### Day notes
 
@@ -623,17 +623,17 @@ Another service can import these packages. Template service shows a trace in the
 
 ### Day 8 — BUILD: Identity Service
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 #### Build tasks
 
-- [ ] `services/identity` from the template
-- [ ] Register, login, logout/refresh, me
-- [ ] Create organization + first owner
-- [ ] API key issue / revoke
-- [ ] Password hashing, token revocation
-- [ ] Tests: wrong password, refresh reuse, IDOR on membership
-- [ ] Healthz + migrations
+- [x] `services/identity` from the template
+- [x] Register, login, logout/refresh, me
+- [x] Create organization + first owner
+- [x] API key issue / revoke
+- [x] Password hashing, token revocation
+- [x] Tests: wrong password, refresh reuse, IDOR on membership
+- [x] Healthz + migrations
 
 #### Done when
 
