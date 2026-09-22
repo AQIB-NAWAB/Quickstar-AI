@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info:
+  title: QuickStart Service Template
+  version: 0.0.0
+  description: Stub OpenAPI document — copy when creating a new service.
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: getHealthz
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  service:
+                    type: string
