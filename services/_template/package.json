@@ -12,6 +12,11 @@
     "dev": "node --watch dist/index.js"
   },
   "dependencies": {
-    "@quickstart/contracts": "workspace:*"
+    "@quickstart/auth": "workspace:*",
+    "@quickstart/contracts": "workspace:*",
+    "@quickstart/errors": "workspace:*",
+    "@quickstart/logging": "workspace:*",
+    "@quickstart/tracing": "workspace:*",
+    "@quickstart/utilities": "workspace:*"
   }
 }

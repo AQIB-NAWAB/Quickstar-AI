@@ -11,9 +11,9 @@
     "build": "pnpm -r run build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "pnpm --filter @quickstart/contracts run build && pnpm -r run typecheck",
+    "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run build && pnpm run test"
+    "check": "pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

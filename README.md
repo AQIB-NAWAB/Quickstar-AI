@@ -12,7 +12,7 @@ Production-scale, multi-tenant AI agent platform — rebuilt incrementally on th
 
 ```text
 services/     Deployable domain services (copy services/_template to add one)
-packages/     Shared libraries (contracts, logging, …)
+packages/     Shared libraries (contracts, errors, logging, tracing, auth, utilities)
 sdk/          Client SDKs (later)
 infra/        Terraform (later)
 deploy/       Helm / environment configs (later)
@@ -23,6 +23,8 @@ docs/         Product spec, roadmap, ADRs, runbooks
 **Slot 01:** monorepo scaffold and `services/_template` with `GET /healthz` only.
 
 **Slot 02:** local data plane via Docker Compose (Postgres, Valkey, Kafka, OpenSearch, OTel, SQS-compatible queue). See [local data plane](docs/architecture/local-data-plane.md).
+
+**Slot 03:** shared platform libraries (`@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`) wired into `services/_template`.
 
 ## Prerequisites
 
