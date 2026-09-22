@@ -1,0 +1,29 @@
+export const ErrorCode = {
+  VALIDATION_FAILED: "VALIDATION_FAILED",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  RATE_LIMITED: "RATE_LIMITED",
+  UPSTREAM_TIMEOUT: "UPSTREAM_TIMEOUT",
+  UPSTREAM_UNAVAILABLE: "UPSTREAM_UNAVAILABLE",
+  INTERNAL: "INTERNAL",
+} as const;
+
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+const DEFAULT_STATUS: Record<ErrorCode, number> = {
+  VALIDATION_FAILED: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  RATE_LIMITED: 429,
+  UPSTREAM_TIMEOUT: 504,
+  UPSTREAM_UNAVAILABLE: 503,
+  INTERNAL: 500,
+};
+
+export function httpStatusForCode(code: ErrorCode): number {
+  return DEFAULT_STATUS[code];
+}

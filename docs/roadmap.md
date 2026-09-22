@@ -175,15 +175,15 @@ Simple rules:
 
 Update these three lines every day.
 
-- **Current day:** Day 5
-- **Current slot:** Slot 03 — Shared platform libraries
-- **Overall progress:** 4 / 60 days (~7%)
+- **Current day:** Day 7
+- **Current slot:** Slot 04 — Identity
+- **Overall progress:** 6 / 60 days (10%)
 
 | Slot | Days  | Theme                                | Learn | Build | Status        |
 | ---- | ----- | ------------------------------------ | ----- | ----- | ------------- |
 | 01   | 1–2   | Engineering foundation               | [ ]   | [x]   | `done`        |
 | 02   | 3–4   | Local data plane                     | [x]   | [x]   | `done`        |
-| 03   | 5–6   | Shared platform libraries            | [ ]   | [ ]   | `not_started` |
+| 03   | 5–6   | Shared platform libraries            | [x]   | [x]   | `done`        |
 | 04   | 7–8   | Identity                             | [ ]   | [ ]   | `not_started` |
 | 05   | 9–10  | Workspace and tenancy                | [ ]   | [ ]   | `not_started` |
 | 06   | 11–12 | API gateway                          | [ ]   | [ ]   | `not_started` |
@@ -469,10 +469,10 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 | ------ | -------------------------- |
 | Days   | 5–6                        |
 | Wave   | A                          |
-| Status | `not_started`              |
+| Status | `done`                     |
 | Read   | sections 38, 41–42, 44, 59 |
 
-**What we already have:** repo + running local data plane.
+**What we already have:** `@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`; template uses envelope + traces.
 
 **What we add now:** shared errors, logging, tracing, auth context, HTTP client (timeout / retry / circuit breaker), idempotency helpers.
 
@@ -484,7 +484,7 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ### Day 5 — LEARN: shared standards
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 #### Options — errors
 
@@ -527,11 +527,11 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 #### Learn tasks
 
-- [ ] Write `docs/adr/0003-platform-libraries.md`
-- [ ] Error envelope: `code`, `message`, `request_id`, `details`
-- [ ] Span fields: `trace_id`, `span_id`, `request_id`, `tenant_id`, `agent_id`, `conversation_id`
-- [ ] Spike: one OTel trace from template service to collector
-- [ ] Day 6 LLD for `packages/errors`, `logging`, `tracing`, `auth`, `utilities`
+- [x] Write `docs/adr/0003-platform-libraries.md`
+- [x] Error envelope: `code`, `message`, `request_id`, `details`
+- [x] Span fields: `trace_id`, `span_id`, `request_id`, `tenant_id`, `agent_id`, `conversation_id`
+- [x] Spike: one OTel trace from template service to collector
+- [x] Day 6 LLD for `packages/errors`, `logging`, `tracing`, `auth`, `utilities`
 
 #### Day notes
 
@@ -543,17 +543,17 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ### Day 6 — BUILD: shared packages
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 #### Build tasks
 
-- [ ] `packages/errors` + unit tests
-- [ ] `packages/logging` JSON logs + redaction helper
-- [ ] `packages/tracing` OTel bootstrap
-- [ ] `packages/auth` context type + extractor (no password login yet)
-- [ ] `packages/utilities`: timeout, retry + backoff, circuit breaker, idempotency key, Redis lock
-- [ ] Template service sends one traced request and uses the error envelope
-- [ ] Test: retry does **not** retry an unsafe POST
+- [x] `packages/errors` + unit tests
+- [x] `packages/logging` JSON logs + redaction helper
+- [x] `packages/tracing` OTel bootstrap
+- [x] `packages/auth` context type + extractor (no password login yet)
+- [x] `packages/utilities`: timeout, retry + backoff, circuit breaker, idempotency key, Redis lock
+- [x] Template service sends one traced request and uses the error envelope
+- [x] Test: retry does **not** retry an unsafe POST
 
 #### Done when
 
