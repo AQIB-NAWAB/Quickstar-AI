@@ -1,5 +1,5 @@
 import type { ServiceConfig } from "../config/environment.js";
-import type { IdentityStore } from "../repository/identity-store.types.js";
+import type { IdentityStore } from "../repository/types.js";
 import type { SessionRevocation } from "../utils/session-revocation.js";
 import { createApiKeysService } from "./api-keys.service.js";
 import { createAuthService } from "./auth.service.js";

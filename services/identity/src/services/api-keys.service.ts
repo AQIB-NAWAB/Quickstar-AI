@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { IdentityStore } from "../repository/identity-store.types.js";
+import type { IdentityStore } from "../repository/types.js";
 import { apiKeyMaterial, hashToken } from "../utils/password-hasher.js";
 
 export function createApiKeysService(repository: IdentityStore) {

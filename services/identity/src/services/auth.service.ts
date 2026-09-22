@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { signAccessToken, verifyAccessToken } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { ServiceConfig } from "../config/environment.js";
-import type { IdentityStore } from "../repository/identity-store.types.js";
+import type { IdentityStore } from "../repository/types.js";
 import type { AuthenticatedUser, TokenPair } from "../utils/auth.types.js";
 import { hashPassword, hashToken, randomToken, verifyPassword } from "../utils/password-hasher.js";
 import type { SessionRevocation } from "../utils/session-revocation.js";

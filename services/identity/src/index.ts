@@ -3,9 +3,9 @@ import { Pool } from "pg";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
-import { createHttpServer, SERVICE_NAME } from "./controllers/http.controller.js";
 import { loadServiceConfig } from "./config/environment.js";
-import { createPostgresRepository } from "./repository/postgres.repository.js";
+import { createHttpServer, SERVICE_NAME } from "./controllers/router.js";
+import { createPostgresRepository } from "./repository/postgres.js";
 import { createIdentityServices } from "./services/index.js";
 import {
   createNoopSessionRevocation,

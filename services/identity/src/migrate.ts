@@ -1,5 +1,9 @@
+/**
+ * One-off command: create/update Postgres tables for Identity.
+ * Wired as `pnpm migrate` — not part of the running API server.
+ */
 import { Pool } from "pg";
-import { runMigrations } from "../repository/migration-runner.js";
+import { runMigrations } from "./repository/migrate.js";
 
 async function main(): Promise<void> {
   const databaseUrl =

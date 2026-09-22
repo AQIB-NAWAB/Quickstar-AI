@@ -6,7 +6,7 @@ import type {
   OrganizationRecord,
   RefreshTokenRecord,
   UserRecord,
-} from "./identity-store.types.js";
+} from "./types.js";
 
 export function createPostgresRepository(pool: Pool): IdentityStore {
   return {

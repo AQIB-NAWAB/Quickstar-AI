@@ -1,5 +1,5 @@
 import type { ServiceConfig } from "../config/environment.js";
-import { createMemoryRepository } from "../repository/memory.repository.js";
+import { createMemoryRepository } from "../repository/memory.js";
 import { createIdentityServices } from "../services/index.js";
 import { createNoopSessionRevocation } from "../utils/session-revocation.js";
 

@@ -1,5 +1,5 @@
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { IdentityStore } from "../repository/identity-store.types.js";
+import type { IdentityStore } from "../repository/types.js";
 
 export function createUsersService(repository: IdentityStore) {
   return {

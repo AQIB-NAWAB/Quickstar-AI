@@ -1,3 +1,4 @@
+/** Row shapes + IdentityStore: the DB operations services may call. */
 export type OrgRole = "owner" | "member";
 
 export type UserRecord = {

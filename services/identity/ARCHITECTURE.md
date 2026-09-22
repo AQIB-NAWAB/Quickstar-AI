@@ -1,46 +1,32 @@
 # Identity service layout
 
-Simple, conventional folders — easy to navigate without extra layering jargon.
-
 ```text
 src/
-  index.ts                 # Start server (composition)
+  index.ts              # Start HTTP server (pnpm start)
+  migrate.ts            # Create DB tables (pnpm migrate) — not the API
 
-  config/
-    environment.ts           # Env vars → ServiceConfig
+  config/environment.ts
 
-  controllers/
-    http.controller.ts       # HTTP routes (transport)
+  controllers/          # HTTP: parse request, call service, send response
+    router.ts           # Matches URL → right controller
+    auth.controller.ts
+    users.controller.ts
+    organizations.controller.ts
+    api-keys.controller.ts
+    health.controller.ts
+    require-auth.ts
 
-  services/
-    auth.service.ts
-    users.service.ts
-    organizations.service.ts
-    api-keys.service.ts
-    index.ts                 # createIdentityServices()
+  services/             # Business rules (same names as controllers)
 
-  repository/
-    identity-store.types.ts  # Repository contract + row types
-    postgres.repository.ts
-    memory.repository.ts     # Tests
-    migration-runner.ts
+  repository/           # Database access — see repository/README.md
+    types.ts
+    postgres.ts
+    memory.ts
+    migrate.ts
 
   utils/
-    password-hasher.ts
-    session-revocation.ts
-    http-request.ts
-    http-response.ts
-    auth.types.ts
-
-  helpers/
-    test-app.ts              # Test wiring
-
+  helpers/              # Test wiring only
   tests/
-    *.test.ts
-
-  cli/
-    migrate.ts               # pnpm migrate
 ```
 
-**Flow:** `controllers` → `services` → `repository`.  
-**Utils** = shared technical helpers. **Helpers** = test/dev setup only.
+**Request path:** `router` → `*.controller` → `*.service` → `repository/postgres`.
