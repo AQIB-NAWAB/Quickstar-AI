@@ -44,13 +44,13 @@ Do not start the next slot if this slot is not done.
 
 ### Status meaning
 
-| Status | Meaning |
-| --- | --- |
-| `not_started` | We did not start this day |
-| `in_progress` | This is today |
-| `done` | The "Done when" list is true. Not only "some code exists" |
-| `blocked` | We cannot finish. Write the reason in Day notes |
-| `slipped` | We started, but it is not done. Finish this before the next slot |
+| Status        | Meaning                                                          |
+| ------------- | ---------------------------------------------------------------- |
+| `not_started` | We did not start this day                                        |
+| `in_progress` | This is today                                                    |
+| `done`        | The "Done when" list is true. Not only "some code exists"        |
+| `blocked`     | We cannot finish. Write the reason in Day notes                  |
+| `slipped`     | We started, but it is not done. Finish this before the next slot |
 
 ---
 
@@ -58,22 +58,22 @@ Do not start the next slot if this slot is not done.
 
 ### Time
 
-| Item | Rule |
-| --- | --- |
-| Calendar | 60 days, every day |
-| Hours each day | 6 hours |
-| Total | 360 hours |
-| Odd days (1, 3, 5...) | Learn |
-| Even days (2, 4, 6...) | Build |
+| Item                   | Rule               |
+| ---------------------- | ------------------ |
+| Calendar               | 60 days, every day |
+| Hours each day         | 6 hours            |
+| Total                  | 360 hours          |
+| Odd days (1, 3, 5...)  | Learn              |
+| Even days (2, 4, 6...) | Build              |
 
 ### Learn day (6 hours)
 
-| Time | What to do |
-| --- | --- |
-| 0:00–0:45 | Read the listed `project_details.md` parts. Write "What we already have" |
-| 0:45–2:30 | Study the options. For each option, write: what it is, what can fail, cost to run |
-| 2:30–3:30 | Write the ADR. Say which option we choose, and why |
-| 3:30–5:00 | Do a small spike. One working proof. Do not build the product feature yet |
+| Time      | What to do                                                                         |
+| --------- | ---------------------------------------------------------------------------------- |
+| 0:00–0:45 | Read the listed `project_details.md` parts. Write "What we already have"           |
+| 0:45–2:30 | Study the options. For each option, write: what it is, what can fail, cost to run  |
+| 2:30–3:30 | Write the ADR. Say which option we choose, and why                                 |
+| 3:30–5:00 | Do a small spike. One working proof. Do not build the product feature yet          |
 | 5:00–6:00 | Write tomorrow LLD: files, APIs, tables, tests, "Done when". Mark learn day `done` |
 
 Learn day is done only when we have:
@@ -84,12 +84,12 @@ Learn day is done only when we have:
 
 ### Build day (6 hours)
 
-| Time | What to do |
-| --- | --- |
-| 0:00–0:30 | Read yesterday ADR + LLD. Do not redesign unless the LLD is wrong |
+| Time      | What to do                                                                              |
+| --------- | --------------------------------------------------------------------------------------- |
+| 0:00–0:30 | Read yesterday ADR + LLD. Do not redesign unless the LLD is wrong                       |
 | 0:30–4:00 | Build with AI. You still decide: service boundary, tenant isolation, failure, API shape |
-| 4:00–5:15 | Tests: happy path, tenant isolation, one timeout/retry/failure case |
-| 5:15–6:00 | Logs/traces, tick boxes, commit. Mark `done` only if "Done when" is true |
+| 4:00–5:15 | Tests: happy path, tenant isolation, one timeout/retry/failure case                     |
+| 5:15–6:00 | Logs/traces, tick boxes, commit. Mark `done` only if "Done when" is true                |
 
 ### How we use AI
 
@@ -175,55 +175,55 @@ Simple rules:
 
 Update these three lines every day.
 
-- **Current day:** Day 1
-- **Current slot:** Slot 01 — Engineering foundation
-- **Overall progress:** 0 / 60 days (0%)
+- **Current day:** Day 3
+- **Current slot:** Slot 02 — Local data plane
+- **Overall progress:** 2 / 60 days (~3%)
 
-| Slot | Days | Theme | Learn | Build | Status |
-| --- | --- | --- | --- | --- | --- |
-| 01 | 1–2 | Engineering foundation | [ ] | [ ] | `not_started` |
-| 02 | 3–4 | Local data plane | [ ] | [ ] | `not_started` |
-| 03 | 5–6 | Shared platform libraries | [ ] | [ ] | `not_started` |
-| 04 | 7–8 | Identity | [ ] | [ ] | `not_started` |
-| 05 | 9–10 | Workspace and tenancy | [ ] | [ ] | `not_started` |
-| 06 | 11–12 | API gateway | [ ] | [ ] | `not_started` |
-| 07 | 13–14 | Agent service | [ ] | [ ] | `not_started` |
-| 08 | 15–16 | Agent lifecycle and versions | [ ] | [ ] | `not_started` |
-| 09 | 17–18 | Conversation service | [ ] | [ ] | `not_started` |
-| 10 | 19–20 | Model gateway | [ ] | [ ] | `not_started` |
-| 11 | 21–22 | Agent runtime | [ ] | [ ] | `not_started` |
-| 12 | 23–24 | Knowledge ingestion | [ ] | [ ] | `not_started` |
-| 13 | 25–26 | Retrieval in the runtime | [ ] | [ ] | `not_started` |
-| 14 | 27–28 | Memory | [ ] | [ ] | `not_started` |
-| 15 | 29–30 | Tools and MCP | [ ] | [ ] | `not_started` |
-| 16 | 31–32 | Secrets | [ ] | [ ] | `not_started` |
-| 17 | 33–34 | Website chat widget | [ ] | [ ] | `not_started` |
-| 18 | 35–36 | Inbox and human handoff | [ ] | [ ] | `not_started` |
-| 19 | 37–38 | Event platform | [ ] | [ ] | `not_started` |
-| 20 | 39–40 | Workflow automation | [ ] | [ ] | `not_started` |
-| 21 | 41–42 | Voice path | [ ] | [ ] | `not_started` |
-| 22 | 43–44 | Voice reliability | [ ] | [ ] | `not_started` |
-| 23 | 45–46 | Campaigns | [ ] | [ ] | `not_started` |
-| 24 | 47–48 | Leads | [ ] | [ ] | `not_started` |
-| 25 | 49–50 | Evaluation | [ ] | [ ] | `not_started` |
-| 26 | 51–52 | Usage, cost, billing | [ ] | [ ] | `not_started` |
-| 27 | 53–54 | Audit and security | [ ] | [ ] | `not_started` |
-| 28 | 55–56 | Observability, alerts, notifications | [ ] | [ ] | `not_started` |
-| 29 | 57–58 | AWS, EKS, Terraform, CI/CD | [ ] | [ ] | `not_started` |
-| 30 | 59–60 | Load, failure, DR, SDKs, closeout | [ ] | [ ] | `not_started` |
+| Slot | Days  | Theme                                | Learn | Build | Status        |
+| ---- | ----- | ------------------------------------ | ----- | ----- | ------------- |
+| 01   | 1–2   | Engineering foundation               | [ ]   | [x]   | `done`        |
+| 02   | 3–4   | Local data plane                     | [ ]   | [ ]   | `not_started` |
+| 03   | 5–6   | Shared platform libraries            | [ ]   | [ ]   | `not_started` |
+| 04   | 7–8   | Identity                             | [ ]   | [ ]   | `not_started` |
+| 05   | 9–10  | Workspace and tenancy                | [ ]   | [ ]   | `not_started` |
+| 06   | 11–12 | API gateway                          | [ ]   | [ ]   | `not_started` |
+| 07   | 13–14 | Agent service                        | [ ]   | [ ]   | `not_started` |
+| 08   | 15–16 | Agent lifecycle and versions         | [ ]   | [ ]   | `not_started` |
+| 09   | 17–18 | Conversation service                 | [ ]   | [ ]   | `not_started` |
+| 10   | 19–20 | Model gateway                        | [ ]   | [ ]   | `not_started` |
+| 11   | 21–22 | Agent runtime                        | [ ]   | [ ]   | `not_started` |
+| 12   | 23–24 | Knowledge ingestion                  | [ ]   | [ ]   | `not_started` |
+| 13   | 25–26 | Retrieval in the runtime             | [ ]   | [ ]   | `not_started` |
+| 14   | 27–28 | Memory                               | [ ]   | [ ]   | `not_started` |
+| 15   | 29–30 | Tools and MCP                        | [ ]   | [ ]   | `not_started` |
+| 16   | 31–32 | Secrets                              | [ ]   | [ ]   | `not_started` |
+| 17   | 33–34 | Website chat widget                  | [ ]   | [ ]   | `not_started` |
+| 18   | 35–36 | Inbox and human handoff              | [ ]   | [ ]   | `not_started` |
+| 19   | 37–38 | Event platform                       | [ ]   | [ ]   | `not_started` |
+| 20   | 39–40 | Workflow automation                  | [ ]   | [ ]   | `not_started` |
+| 21   | 41–42 | Voice path                           | [ ]   | [ ]   | `not_started` |
+| 22   | 43–44 | Voice reliability                    | [ ]   | [ ]   | `not_started` |
+| 23   | 45–46 | Campaigns                            | [ ]   | [ ]   | `not_started` |
+| 24   | 47–48 | Leads                                | [ ]   | [ ]   | `not_started` |
+| 25   | 49–50 | Evaluation                           | [ ]   | [ ]   | `not_started` |
+| 26   | 51–52 | Usage, cost, billing                 | [ ]   | [ ]   | `not_started` |
+| 27   | 53–54 | Audit and security                   | [ ]   | [ ]   | `not_started` |
+| 28   | 55–56 | Observability, alerts, notifications | [ ]   | [ ]   | `not_started` |
+| 29   | 57–58 | AWS, EKS, Terraform, CI/CD           | [ ]   | [ ]   | `not_started` |
+| 30   | 59–60 | Load, failure, DR, SDKs, closeout    | [ ]   | [ ]   | `not_started` |
 
 ---
 
 ## 5. Six waves
 
-| Wave | Days | When this wave ends, we have | Do not start yet |
-| --- | --- | --- | --- |
-| A Foundation | 1–10 | Repo, local Postgres / Redis / Kafka / OpenSearch / OTel, shared libs, identity, workspaces | Agents, chat, AWS |
-| B Core objects | 11–20 | API gateway, agents, versions, conversations, model gateway | Runtime replies, RAG, voice |
-| C Working agent | 21–30 | Streaming runtime, knowledge pipeline, retrieval, memory, tools / MCP | Widget, inbox, product Kafka events |
-| D Channel + ops | 31–40 | Secrets, website chat, inbox / handoff, events, workflows | Voice, campaigns, billing |
-| E Voice + growth | 41–50 | Voice calls, reliable realtime path, campaigns, leads, eval | Cloud deploy, DR |
-| F Harden + ship | 51–60 | Usage / billing, audit / security, alerts, AWS / EKS / CI, load / failure / DR, SDKs | New product domains |
+| Wave             | Days  | When this wave ends, we have                                                                | Do not start yet                    |
+| ---------------- | ----- | ------------------------------------------------------------------------------------------- | ----------------------------------- |
+| A Foundation     | 1–10  | Repo, local Postgres / Redis / Kafka / OpenSearch / OTel, shared libs, identity, workspaces | Agents, chat, AWS                   |
+| B Core objects   | 11–20 | API gateway, agents, versions, conversations, model gateway                                 | Runtime replies, RAG, voice         |
+| C Working agent  | 21–30 | Streaming runtime, knowledge pipeline, retrieval, memory, tools / MCP                       | Widget, inbox, product Kafka events |
+| D Channel + ops  | 31–40 | Secrets, website chat, inbox / handoff, events, workflows                                   | Voice, campaigns, billing           |
+| E Voice + growth | 41–50 | Voice calls, reliable realtime path, campaigns, leads, eval                                 | Cloud deploy, DR                    |
+| F Harden + ship  | 51–60 | Usage / billing, audit / security, alerts, AWS / EKS / CI, load / failure / DR, SDKs        | New product domains                 |
 
 Jump to a wave:
 
@@ -257,14 +257,14 @@ Each slot has the same shape:
 
 ## Slot 01 — Engineering foundation
 
-| | |
-| --- | --- |
-| Days | 1–2 |
-| Wave | A |
-| Status | `not_started` |
-| Read | `project_details.md` sections 1–3, 36, 59–61, 64–66 |
+|        |                                                     |
+| ------ | --------------------------------------------------- |
+| Days   | 1–2                                                 |
+| Wave   | A                                                   |
+| Status | `done`                                              |
+| Read   | `project_details.md` sections 1–3, 36, 59–61, 64–66 |
 
-**What we already have:** only `docs/project_details.md` and this roadmap.
+**What we already have:** monorepo scaffold, ADR 0001, `packages/contracts`, `services/_template`, root `pnpm check`.
 
 **What we add now:** repo shape, engineering rules, ADR habit (write the decision before code).
 
@@ -282,11 +282,11 @@ Each slot has the same shape:
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Polyrepo | One git repo per service | Small team. Many PRs. Contracts drift |
-| B. Monolith first | One app now, split later | Fast week 1. Big rewrite when events and voice come |
-| C. Monorepo + services + packages | One repo. Many deployable services. Shared libraries | Matches section 60. This is what we want |
+| Option                            | Idea                                                 | Problem                                             |
+| --------------------------------- | ---------------------------------------------------- | --------------------------------------------------- |
+| A. Polyrepo                       | One git repo per service                             | Small team. Many PRs. Contracts drift               |
+| B. Monolith first                 | One app now, split later                             | Fast week 1. Big rewrite when events and voice come |
+| C. Monorepo + services + packages | One repo. Many deployable services. Shared libraries | Matches section 60. This is what we want            |
 
 **We choose: C.**
 
@@ -319,20 +319,20 @@ Each slot has the same shape:
 
 ### Day 2 — BUILD: repo and service template
 
-**Status:** `not_started` · **Hours:** 6 · **Needs:** Day 1 ADR
+**Status:** `done` · **Hours:** 6 · **Needs:** Day 1 ADR
 
 **Goal:** empty but real repo that lint/test/build can run.
 
 #### Build tasks
 
-- [ ] Create root folders: `services/`, `packages/`, `sdk/`, `infra/`, `deploy/`, `tests/`, `docs/`
-- [ ] Add `docs/adr/`, `docs/architecture/`, `docs/api/`, `docs/events/`, `docs/runbooks/`
-- [ ] Root README points to `project_details.md` and this roadmap
-- [ ] Add `.gitignore`, lint, format, typecheck, test scripts
-- [ ] Add `packages/contracts` as a buildable empty package
-- [ ] Add `services/_template` with `healthz` only. No identity / agent / voice yet
-- [ ] One command runs `lint`, `test`, `build`
-- [ ] Commit. Mention Slot 01
+- [x] Create root folders: `services/`, `packages/`, `sdk/`, `infra/`, `deploy/`, `tests/`, `docs/`
+- [x] Add `docs/adr/`, `docs/architecture/`, `docs/api/`, `docs/events/`, `docs/runbooks/`
+- [x] Root README points to `project_details.md` and this roadmap
+- [x] Add `.gitignore`, lint, format, typecheck, test scripts
+- [x] Add `packages/contracts` as a buildable empty package
+- [x] Add `services/_template` with `healthz` only. No identity / agent / voice yet
+- [x] One command runs `lint`, `test`, `build`
+- [x] Commit. Mention Slot 01
 
 #### Done when
 
@@ -349,12 +349,12 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ## Slot 02 — Local data plane
 
-| | |
-| --- | --- |
-| Days | 3–4 |
-| Wave | A |
-| Status | `not_started` |
-| Read | sections 9, 35, 51–52 |
+|        |                       |
+| ------ | --------------------- |
+| Days   | 3–4                   |
+| Wave   | A                     |
+| Status | `not_started`         |
+| Read   | sections 9, 35, 51–52 |
 
 **What we already have:** repo tree, service template, ADR habit.
 
@@ -374,51 +374,51 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 #### Options — transactional data
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Mongo first | Flexible documents | Weak for membership, versions, billing |
-| B. One Postgres for everything | Simple | Search and event replay do not belong here |
-| C. Aurora PostgreSQL, local Postgres | Users, orgs, agents, conversations, billing, permissions | This is the right transactional store |
+| Option                               | Idea                                                     | Problem                                    |
+| ------------------------------------ | -------------------------------------------------------- | ------------------------------------------ |
+| A. Mongo first                       | Flexible documents                                       | Weak for membership, versions, billing     |
+| B. One Postgres for everything       | Simple                                                   | Search and event replay do not belong here |
+| C. Aurora PostgreSQL, local Postgres | Users, orgs, agents, conversations, billing, permissions | This is the right transactional store      |
 
 **We choose: C.** Why: transactions, constraints, and later read replicas fit well.
 
 #### Options — cache / short state
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. In-process memory | Fast | Dies with the process. Bad for rate limits and locks |
-| B. Redis / Valkey | Cache, sessions, rate limits, idempotency keys, locks | Good. Not the source of truth |
-| C. Redis as conversation database | Fast | We will lose data |
+| Option                            | Idea                                                  | Problem                                              |
+| --------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| A. In-process memory              | Fast                                                  | Dies with the process. Bad for rate limits and locks |
+| B. Redis / Valkey                 | Cache, sessions, rate limits, idempotency keys, locks | Good. Not the source of truth                        |
+| C. Redis as conversation database | Fast                                                  | We will lose data                                    |
 
 **We choose: B.** Why: Redis is never the system of record.
 
 #### Options — async work
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Kafka for every job | Replay is strong | Simple retries / DLQ become heavy |
-| B. SQS only | Good for jobs | Weak for many consumers and replay |
-| C. Kafka for business events, SQS for jobs | Each tool does its real job | This is the production split |
+| Option                                     | Idea                        | Problem                            |
+| ------------------------------------------ | --------------------------- | ---------------------------------- |
+| A. Kafka for every job                     | Replay is strong            | Simple retries / DLQ become heavy  |
+| B. SQS only                                | Good for jobs               | Weak for many consumers and replay |
+| C. Kafka for business events, SQS for jobs | Each tool does its real job | This is the production split       |
 
 **We choose: C.** Why: we learn both, and we use each one for the right work.
 
 #### Options — search / vectors
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. pgvector in primary DB | Fine for demo | Search load hits transactional DB |
-| B. Pinecone/Qdrant + another search engine | Two systems | Extra cost and extra ops |
+| Option                                      | Idea              | Problem                                   |
+| ------------------------------------------- | ----------------- | ----------------------------------------- |
+| A. pgvector in primary DB                   | Fine for demo     | Search load hits transactional DB         |
+| B. Pinecone/Qdrant + another search engine  | Two systems       | Extra cost and extra ops                  |
 | C. OpenSearch for keyword + vector / hybrid | One search system | Also useful later for conversation search |
 
 **We choose: C.**
 
 #### Options — local run
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Develop only on AWS | Cloud-real | Slow. Breaks section 52 |
-| B. Local Kubernetes from day 3 | Production-like | Too much YAML too early |
-| C. Docker Compose for daily work | Fast feedback | Kubernetes comes in Slot 29 |
+| Option                           | Idea            | Problem                     |
+| -------------------------------- | --------------- | --------------------------- |
+| A. Develop only on AWS           | Cloud-real      | Slow. Breaks section 52     |
+| B. Local Kubernetes from day 3   | Production-like | Too much YAML too early     |
+| C. Docker Compose for daily work | Fast feedback   | Kubernetes comes in Slot 29 |
 
 **We choose: C.**
 
@@ -465,12 +465,12 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ## Slot 03 — Shared platform libraries
 
-| | |
-| --- | --- |
-| Days | 5–6 |
-| Wave | A |
-| Status | `not_started` |
-| Read | sections 38, 41–42, 44, 59 |
+|        |                            |
+| ------ | -------------------------- |
+| Days   | 5–6                        |
+| Wave   | A                          |
+| Status | `not_started`              |
+| Read   | sections 38, 41–42, 44, 59 |
 
 **What we already have:** repo + running local data plane.
 
@@ -488,40 +488,40 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 #### Options — errors
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Raw strings / vendor errors | Fast | Clients cannot handle errors |
-| B. Each service has its own format | Easy now | Gateway becomes messy |
-| C. Shared error codes + HTTP map + `request_id` | One envelope | Best for a platform |
+| Option                                          | Idea         | Problem                      |
+| ----------------------------------------------- | ------------ | ---------------------------- |
+| A. Raw strings / vendor errors                  | Fast         | Clients cannot handle errors |
+| B. Each service has its own format              | Easy now     | Gateway becomes messy        |
+| C. Shared error codes + HTTP map + `request_id` | One envelope | Best for a platform          |
 
 **We choose: C.**
 
 #### Options — tracing
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. `console.log` IDs only | Simple | Cannot follow a request across services |
-| B. One vendor APM only | Fast | Hard to move |
-| C. OpenTelemetry + W3C trace context | Traces, metrics, logs | Required by section 44 |
+| Option                               | Idea                  | Problem                                 |
+| ------------------------------------ | --------------------- | --------------------------------------- |
+| A. `console.log` IDs only            | Simple                | Cannot follow a request across services |
+| B. One vendor APM only               | Fast                  | Hard to move                            |
+| C. OpenTelemetry + W3C trace context | Traces, metrics, logs | Required by section 44                  |
 
 **We choose: C.**
 
 #### Options — outbound HTTP
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Default fetch, no timeout | Easy | Process can hang |
-| B. Retry every call | Seems safe | Double charge, double tool call |
-| C. Client wrapper: required timeout, retry only safe calls, backoff, circuit breaker, concurrency cap | Production | This is the bar |
+| Option                                                                                                | Idea       | Problem                         |
+| ----------------------------------------------------------------------------------------------------- | ---------- | ------------------------------- |
+| A. Default fetch, no timeout                                                                          | Easy       | Process can hang                |
+| B. Retry every call                                                                                   | Seems safe | Double charge, double tool call |
+| C. Client wrapper: required timeout, retry only safe calls, backoff, circuit breaker, concurrency cap | Production | This is the bar                 |
 
 **We choose: C.**
 
 #### Options — auth context
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Pass `userId` in query | Easy | Easy to fake |
-| B. Internal token/header with `tenant_id`, `actor_id`, `roles`, `request_id` | Gateway checks, services trust the context | Safer |
+| Option                                                                       | Idea                                       | Problem      |
+| ---------------------------------------------------------------------------- | ------------------------------------------ | ------------ |
+| A. Pass `userId` in query                                                    | Easy                                       | Easy to fake |
+| B. Internal token/header with `tenant_id`, `actor_id`, `roles`, `request_id` | Gateway checks, services trust the context | Safer        |
 
 **We choose: B.** Internal services must not invent the user from the request body.
 
@@ -570,14 +570,14 @@ Another service can import these packages. Template service shows a trace in the
 
 ## Slot 04 — Identity
 
-| | |
-| --- | --- |
-| Days | 7–8 |
-| Wave | A |
-| Status | `not_started` |
-| Read | sections 12–13, 47 |
+|        |                    |
+| ------ | ------------------ |
+| Days   | 7–8                |
+| Wave   | A                  |
+| Status | `not_started`      |
+| Read   | sections 12–13, 47 |
 
-**What we already have:** auth *types*, not real users.
+**What we already have:** auth _types_, not real users.
 
 **What we add now:** users, login, tokens, API keys, first organization.
 
@@ -591,20 +591,20 @@ Another service can import these packages. Template service shows a trace in the
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Only Auth0 / Clerk / Cognito | Fast UI | Weak learning. Hard later for service identity, tool permissions, audit |
-| B. Write our own crypto | Full control | Dangerous. Do not invent hashing or JWT algorithms |
-| C. Our Identity Service + standard primitives | We own users/orgs APIs. argon2/bcrypt. JWT or opaque sessions | We can add OIDC/SSO later without replacing the service |
+| Option                                        | Idea                                                          | Problem                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| A. Only Auth0 / Clerk / Cognito               | Fast UI                                                       | Weak learning. Hard later for service identity, tool permissions, audit |
+| B. Write our own crypto                       | Full control                                                  | Dangerous. Do not invent hashing or JWT algorithms                      |
+| C. Our Identity Service + standard primitives | We own users/orgs APIs. argon2/bcrypt. JWT or opaque sessions | We can add OIDC/SSO later without replacing the service                 |
 
 **We choose: C.** Why: identity is a domain, not a small login form.
 
 #### Also choose
 
-| Topic | Options | We choose |
-| --- | --- | --- |
-| Session | JWT only vs server session only | Short-lived access JWT + hashed refresh token. Session metadata in Redis so we can revoke |
-| API keys | Store raw vs hash | Hash at rest. Show the raw key only once |
+| Topic    | Options                         | We choose                                                                                 |
+| -------- | ------------------------------- | ----------------------------------------------------------------------------------------- |
+| Session  | JWT only vs server session only | Short-lived access JWT + hashed refresh token. Session metadata in Redis so we can revoke |
+| API keys | Store raw vs hash               | Hash at rest. Show the raw key only once                                                  |
 
 #### Learn tasks
 
@@ -650,12 +650,12 @@ We can create a user and org by API. Tokens work. Keys are hashed. Identity is i
 
 ## Slot 05 — Workspace and tenancy
 
-| | |
-| --- | --- |
-| Days | 9–10 |
-| Wave | A |
-| Status | `not_started` |
-| Read | sections 12–13, 41, 47 |
+|        |                        |
+| ------ | ---------------------- |
+| Days   | 9–10                   |
+| Wave   | A                      |
+| Status | `not_started`          |
+| Read   | sections 12–13, 41, 47 |
 
 **What we already have:** users and organizations.
 
@@ -671,11 +671,11 @@ We can create a user and org by API. Tokens work. Keys are hashed. Identity is i
 
 #### Options — isolation
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Database per tenant | Strong isolation | Too heavy for 10k orgs in 60 days |
-| B. Schema per tenant | Medium isolation | Migrations hurt |
-| C. Shared schema + `tenant_id` on every row | App and data layer always require tenant | Right for this SaaS scale |
+| Option                                      | Idea                                     | Problem                           |
+| ------------------------------------------- | ---------------------------------------- | --------------------------------- |
+| A. Database per tenant                      | Strong isolation                         | Too heavy for 10k orgs in 60 days |
+| B. Schema per tenant                        | Medium isolation                         | Migrations hurt                   |
+| C. Shared schema + `tenant_id` on every row | App and data layer always require tenant | Right for this SaaS scale         |
 
 **We choose: C.** Hard rule: repository methods take `TenantContext`. It is not an optional filter.
 
@@ -685,9 +685,9 @@ We can create a user and org by API. Tokens work. Keys are hashed. Identity is i
 
 #### Options — permissions
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. `if role === admin` everywhere | Fast | Becomes a mess |
+| Option                                               | Idea        | Problem                    |
+| ---------------------------------------------------- | ----------- | -------------------------- |
+| A. `if role === admin` everywhere                    | Fast        | Becomes a mess             |
 | B. Permission strings like `workspace.agent.publish` | One checker | Tools can reuse this later |
 
 **We choose: B.**
@@ -741,12 +741,12 @@ Tenancy is a platform rule. Wave A is complete.
 
 ## Slot 06 — API gateway / BFF
 
-| | |
-| --- | --- |
-| Days | 11–12 |
-| Wave | B |
-| Status | `not_started` |
-| Read | sections 5, 36–38, 47 |
+|        |                       |
+| ------ | --------------------- |
+| Days   | 11–12                 |
+| Wave   | B                     |
+| Status | `not_started`         |
+| Read   | sections 5, 36–38, 47 |
 
 **What we already have:** Identity and Workspace as separate services.
 
@@ -762,19 +762,19 @@ Tenancy is a platform rule. Wave A is complete.
 
 #### Options — entry
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Browser talks to every microservice | Direct | CORS/auth explode. Easy tenant leak |
-| B. Service mesh only | Good later inside EKS | Not a public door |
-| C. API Gateway / BFF | Check JWT, rate limit, hide internal URLs | This is the public entry |
+| Option                                 | Idea                                      | Problem                             |
+| -------------------------------------- | ----------------------------------------- | ----------------------------------- |
+| A. Browser talks to every microservice | Direct                                    | CORS/auth explode. Easy tenant leak |
+| B. Service mesh only                   | Good later inside EKS                     | Not a public door                   |
+| C. API Gateway / BFF                   | Check JWT, rate limit, hide internal URLs | This is the public entry            |
 
 **We choose: C.**
 
 #### Options — rate limit
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. In-memory per process | Simple | Wrong with many replicas |
+| Option                                 | Idea                     | Problem                    |
+| -------------------------------------- | ------------------------ | -------------------------- |
+| A. In-memory per process               | Simple                   | Wrong with many replicas   |
 | B. Redis sliding window / token bucket | Key by IP, user, API key | Correct for multi-instance |
 
 **We choose: B.**
@@ -824,12 +824,12 @@ All external clients use the gateway. Internal services are not public.
 
 ## Slot 07 — Agent service
 
-| | |
-| --- | --- |
-| Days | 13–14 |
-| Wave | B |
-| Status | `not_started` |
-| Read | sections 10, 14 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 13–14           |
+| Wave   | B               |
+| Status | `not_started`   |
+| Read   | sections 10, 14 |
 
 **What we already have:** a workspace that can own things.
 
@@ -845,19 +845,19 @@ All external clients use the gateway. Internal services are not public.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. One JSON blob column | Quick | Hard to query and version |
-| B. Workflow graph editor first | Looks powerful | We are not building n8n on day 13 |
-| C. Agent with clear fields (section 10) | Relational fields. JSON only for open model params | This is the core object |
+| Option                                  | Idea                                               | Problem                           |
+| --------------------------------------- | -------------------------------------------------- | --------------------------------- |
+| A. One JSON blob column                 | Quick                                              | Hard to query and version         |
+| B. Workflow graph editor first          | Looks powerful                                     | We are not building n8n on day 13 |
+| C. Agent with clear fields (section 10) | Relational fields. JSON only for open model params | This is the core object           |
 
 **We choose: C.**
 
 #### Environment
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Edit the same production row | Simple | No safe publish |
+| Option                                              | Idea              | Problem                |
+| --------------------------------------------------- | ----------------- | ---------------------- |
+| A. Edit the same production row                     | Simple            | No safe publish        |
 | B. `environment` now + immutable versions next slot | Draft is editable | Slot 08 completes this |
 
 **We choose: B.**
@@ -904,12 +904,12 @@ A workspace can manage agents. Nothing runs them yet.
 
 ## Slot 08 — Agent lifecycle and versions
 
-| | |
-| --- | --- |
-| Days | 15–16 |
-| Wave | B |
-| Status | `not_started` |
-| Read | sections 11, 41 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 15–16           |
+| Wave   | B               |
+| Status | `not_started`   |
+| Read   | sections 11, 41 |
 
 **What we already have:** editable agent rows.
 
@@ -925,10 +925,10 @@ A workspace can manage agents. Nothing runs them yet.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Overwrite the agent row | Simple | No rollback, no compare, no audit |
-| B. Git repo per agent | Powerful | Hard to query |
+| Option                                             | Idea                                                               | Problem                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| A. Overwrite the agent row                         | Simple                                                             | No rollback, no compare, no audit          |
+| B. Git repo per agent                              | Powerful                                                           | Hard to query                              |
 | C. Immutable `agent_versions` + production pointer | Publish copies draft. Rollback moves pointer. Draft stays editable | Strong consistency on publish (section 41) |
 
 **We choose: C.**
@@ -976,12 +976,12 @@ Production points to an immutable version. Agent service is ready for runtime to
 
 ## Slot 09 — Conversation service
 
-| | |
-| --- | --- |
-| Days | 17–18 |
-| Wave | B |
-| Status | `not_started` |
-| Read | sections 6, 21 |
+|        |                |
+| ------ | -------------- |
+| Days   | 17–18          |
+| Wave   | B              |
+| Status | `not_started`  |
+| Read   | sections 6, 21 |
 
 **What we already have:** agents. Still no model messages.
 
@@ -997,20 +997,20 @@ Production points to an immutable version. Agent service is ready for runtime to
 
 #### Options — where history lives
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Redis only | Fast | Not durable. Hard to search |
-| B. Store chat only at the LLM vendor | Easy | We do not own history or handoff |
-| C. Conversation Service in Postgres | Redis may hold a short session cursor only | We own the log |
+| Option                               | Idea                                       | Problem                          |
+| ------------------------------------ | ------------------------------------------ | -------------------------------- |
+| A. Redis only                        | Fast                                       | Not durable. Hard to search      |
+| B. Store chat only at the LLM vendor | Easy                                       | We do not own history or handoff |
+| C. Conversation Service in Postgres  | Redis may hold a short session cursor only | We own the log                   |
 
 **We choose: C.**
 
 #### Options — how we append
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. One big JSON array | Simple | Lost updates. Huge rows |
-| B. Append-only `messages` table | Ordered by `seq` | Production pattern |
+| Option                          | Idea             | Problem                 |
+| ------------------------------- | ---------------- | ----------------------- |
+| A. One big JSON array           | Simple           | Lost updates. Huge rows |
+| B. Append-only `messages` table | Ordered by `seq` | Production pattern      |
 
 **We choose: B.**
 
@@ -1057,12 +1057,12 @@ History lives without the LLM. Runtime will write here. Runtime will not make a 
 
 ## Slot 10 — Model gateway
 
-| | |
-| --- | --- |
-| Days | 19–20 |
-| Wave | B |
-| Status | `not_started` |
-| Read | sections 17, 32, 38 |
+|        |                     |
+| ------ | ------------------- |
+| Days   | 19–20               |
+| Wave   | B                   |
+| Status | `not_started`       |
+| Read   | sections 17, 32, 38 |
 
 **What we already have:** no LLM calls yet. This is on purpose.
 
@@ -1078,21 +1078,21 @@ History lives without the LLM. Runtime will write here. Runtime will not make a 
 
 #### Options — gateway
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Call OpenAI / Groq / Anthropic from runtime | Fast | First outage forces a rewrite |
-| B. LiteLLM as the product | Useful adapter | We still need our policy, tenancy, and cost records |
-| C. Our Model Gateway | Our interface. Inside we may use an SDK | Platform boundary is ours |
+| Option                                         | Idea                                    | Problem                                             |
+| ---------------------------------------------- | --------------------------------------- | --------------------------------------------------- |
+| A. Call OpenAI / Groq / Anthropic from runtime | Fast                                    | First outage forces a rewrite                       |
+| B. LiteLLM as the product                      | Useful adapter                          | We still need our policy, tenancy, and cost records |
+| C. Our Model Gateway                           | Our interface. Inside we may use an SDK | Platform boundary is ours                           |
 
 **We choose: C.**
 
 #### Options — fallback
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Fail at once | Simple | Bad UX |
-| B. Retry same model forever | Seems strong | Retry storm |
-| C. Timeout → retry once if safe → fallback model if set → typed error | Controlled | Production |
+| Option                                                                | Idea         | Problem     |
+| --------------------------------------------------------------------- | ------------ | ----------- |
+| A. Fail at once                                                       | Simple       | Bad UX      |
+| B. Retry same model forever                                           | Seems strong | Retry storm |
+| C. Timeout → retry once if safe → fallback model if set → typed error | Controlled   | Production  |
 
 **We choose: C.**
 
@@ -1145,12 +1145,12 @@ Runtime can call one internal model API. Wave B is complete. Next wave: the agen
 
 ## Slot 11 — Agent runtime
 
-| | |
-| --- | --- |
-| Days | 21–22 |
-| Wave | C |
+|        |               |
+| ------ | ------------- |
+| Days   | 21–22         |
+| Wave   | C             |
 | Status | `not_started` |
-| Read | section 16 |
+| Read   | section 16    |
 
 **What we already have:** agent versions, conversations, model gateway.
 
@@ -1166,19 +1166,19 @@ Runtime can call one internal model API. Wave B is complete. Next wave: the agen
 
 #### Options — runtime
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. LangChain / LangGraph as runtime | Fast graphs | Weak control of cancel, tenancy, tracing. High rewrite risk |
-| B. One big function in the API | Works today | Cannot scale as its own service |
-| C. Our Agent Runtime service | Fixed pipeline of stages | Later slots add retrieve / memory / tools |
+| Option                              | Idea                     | Problem                                                     |
+| ----------------------------------- | ------------------------ | ----------------------------------------------------------- |
+| A. LangChain / LangGraph as runtime | Fast graphs              | Weak control of cancel, tenancy, tracing. High rewrite risk |
+| B. One big function in the API      | Works today              | Cannot scale as its own service                             |
+| C. Our Agent Runtime service        | Fixed pipeline of stages | Later slots add retrieve / memory / tools                   |
 
 **We choose: C.**
 
 #### Options — streaming
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Wait for full answer | Simple | Chat and voice feel dead |
+| Option                                                      | Idea      | Problem                    |
+| ----------------------------------------------------------- | --------- | -------------------------- |
+| A. Wait for full answer                                     | Simple    | Chat and voice feel dead   |
 | B. Stream tokens through gateway. Save final message at end | Better UX | Needed for voice later too |
 
 **We choose: B.**
@@ -1230,12 +1230,12 @@ A logged-in user can do multi-turn chat with a production agent version. No RAG.
 
 ## Slot 12 — Knowledge ingestion
 
-| | |
-| --- | --- |
-| Days | 23–24 |
-| Wave | C |
-| Status | `not_started` |
-| Read | sections 15, 35, 37 |
+|        |                     |
+| ------ | ------------------- |
+| Days   | 23–24               |
+| Wave   | C                   |
+| Status | `not_started`       |
+| Read   | sections 15, 35, 37 |
 
 **What we already have:** agents that answer from instructions only.
 
@@ -1251,19 +1251,19 @@ A logged-in user can do multi-turn chat with a production agent version. No RAG.
 
 #### Options — jobs
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Embed on the HTTP request | Simple | PDF will time out |
-| B. Threads inside the API process | No extra queue | Dies with the pod. No DLQ |
-| C. Knowledge Service + SQS + DLQ + source status | Async | Section 37 says document processing is async |
+| Option                                           | Idea           | Problem                                      |
+| ------------------------------------------------ | -------------- | -------------------------------------------- |
+| A. Embed on the HTTP request                     | Simple         | PDF will time out                            |
+| B. Threads inside the API process                | No extra queue | Dies with the pod. No DLQ                    |
+| C. Knowledge Service + SQS + DLQ + source status | Async          | Section 37 says document processing is async |
 
 **We choose: C.**
 
 #### Options — chunking
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Fixed character slices only | Easy | Breaks meaning |
+| Option                                         | Idea                     | Problem                |
+| ---------------------------------------------- | ------------------------ | ---------------------- |
+| A. Fixed character slices only                 | Easy                     | Breaks meaning         |
 | B. Structure-aware chunks + overlap + metadata | `source_id`, `tenant_id` | Better retrieval later |
 
 **We choose: B.** Embeddings go to **OpenSearch**, not Postgres. If a source is deleted, chunks must be deleted too.
@@ -1311,12 +1311,12 @@ Documents are in the search index. Runtime still does not retrieve. That is the 
 
 ## Slot 13 — Retrieval in the runtime
 
-| | |
-| --- | --- |
-| Days | 25–26 |
-| Wave | C |
-| Status | `not_started` |
-| Read | sections 15–16 |
+|        |                |
+| ------ | -------------- |
+| Days   | 25–26          |
+| Wave   | C              |
+| Status | `not_started`  |
+| Read   | sections 15–16 |
 
 **What we already have:** an index, and a runtime `Retriever` port.
 
@@ -1332,11 +1332,11 @@ Documents are in the search index. Runtime still does not retrieve. That is the 
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Put the whole corpus in the prompt | Simple | Dies with real document size |
-| B. Vector-only kNN | Semantic | Misses exact tokens (order IDs, SKUs) |
-| C. Hybrid lexical + vector, then rerank, then limited context, with citations | Balanced | Production RAG |
+| Option                                                                        | Idea     | Problem                               |
+| ----------------------------------------------------------------------------- | -------- | ------------------------------------- |
+| A. Put the whole corpus in the prompt                                         | Simple   | Dies with real document size          |
+| B. Vector-only kNN                                                            | Semantic | Misses exact tokens (order IDs, SKUs) |
+| C. Hybrid lexical + vector, then rerank, then limited context, with citations | Balanced | Production RAG                        |
 
 **We choose: C.** Tenant filter is a **hard filter**, not a prompt sentence.
 
@@ -1381,12 +1381,12 @@ Answers can use company knowledge. Same loop as Slot 11, plus one stage.
 
 ## Slot 14 — Memory
 
-| | |
-| --- | --- |
-| Days | 27–28 |
-| Wave | C |
+|        |               |
+| ------ | ------------- |
+| Days   | 27–28         |
+| Wave   | C             |
 | Status | `not_started` |
-| Read | section 20 |
+| Read   | section 20    |
 
 **What we already have:** knowledge (org facts) and conversation history (short-term).
 
@@ -1402,11 +1402,11 @@ Answers can use company knowledge. Same loop as Slot 11, plus one stage.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Save memory as more RAG documents | Easy | Mixes "user likes dark mode" into company docs |
-| B. Always dump summaries into the system prompt | Easy | Grows forever. Stale. Hard to delete |
-| C. Separate memory records per customer/agent | TTL, retrieve a few, forget API | Clear split |
+| Option                                          | Idea                            | Problem                                        |
+| ----------------------------------------------- | ------------------------------- | ---------------------------------------------- |
+| A. Save memory as more RAG documents            | Easy                            | Mixes "user likes dark mode" into company docs |
+| B. Always dump summaries into the system prompt | Easy                            | Grows forever. Stale. Hard to delete           |
+| C. Separate memory records per customer/agent   | TTL, retrieve a few, forget API | Clear split                                    |
 
 **We choose: C.**
 
@@ -1458,18 +1458,18 @@ The three storage problems are separate in code and in docs.
 
 ## Slot 15 — Tools and MCP
 
-| | |
-| --- | --- |
-| Days | 29–30 |
-| Wave | C |
-| Status | `not_started` |
-| Read | sections 18, 13 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 29–30           |
+| Wave   | C               |
+| Status | `not_started`   |
+| Read   | sections 18, 13 |
 
 **What we already have:** a runtime that can talk and retrieve. It cannot act.
 
 **What we add now:** common tool interface, internal tools, HTTP tools, MCP, permissions, timeouts.
 
-**Not now:** secrets backend (Slot 16). Tools may store secret *ids* only.
+**Not now:** secrets backend (Slot 16). Tools may store secret _ids_ only.
 
 ---
 
@@ -1479,11 +1479,11 @@ The three storage problems are separate in code and in docs.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. `if (name === "create_lead")` in runtime | Fast | Every new tool needs a runtime deploy |
-| B. Model may call any URL | Flexible | Prompt injection can steal data or call bad APIs |
-| C. Tool / Integration Service | Register name, schema, auth ref, permissions, timeout, retry. Runtime runs only allow-listed tools | Production |
+| Option                                      | Idea                                                                                               | Problem                                          |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| A. `if (name === "create_lead")` in runtime | Fast                                                                                               | Every new tool needs a runtime deploy            |
+| B. Model may call any URL                   | Flexible                                                                                           | Prompt injection can steal data or call bad APIs |
+| C. Tool / Integration Service               | Register name, schema, auth ref, permissions, timeout, retry. Runtime runs only allow-listed tools | Production                                       |
 
 **We choose: C.**
 
@@ -1539,12 +1539,12 @@ Wave C is complete. A production agent can use knowledge, memory, and tools. No 
 
 ## Slot 16 — Secrets
 
-| | |
-| --- | --- |
-| Days | 31–32 |
-| Wave | D |
-| Status | `not_started` |
-| Read | sections 19, 47 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 31–32           |
+| Wave   | D               |
+| Status | `not_started`   |
+| Read   | sections 19, 47 |
 
 **What we already have:** tools that point to credentials.
 
@@ -1560,11 +1560,11 @@ Wave C is complete. A production agent can use knowledge, memory, and tools. No 
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Plain env / config JSON | Easy | Keys land in tickets and logs |
-| B. Encrypt in Postgres, key in env | Better | Weak rotation and access control |
-| C. Secrets interface → local encrypted store now, AWS Secrets Manager later | Envelope encryption, access control, audit, mask on read | Production path |
+| Option                                                                      | Idea                                                     | Problem                          |
+| --------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------- |
+| A. Plain env / config JSON                                                  | Easy                                                     | Keys land in tickets and logs    |
+| B. Encrypt in Postgres, key in env                                          | Better                                                   | Weak rotation and access control |
+| C. Secrets interface → local encrypted store now, AWS Secrets Manager later | Envelope encryption, access control, audit, mask on read | Production path                  |
 
 **We choose: C.** After create, show the raw secret only once. Never in list APIs.
 
@@ -1608,12 +1608,12 @@ Integrations can be production-safe. Widget work can start.
 
 ## Slot 17 — Website chat widget
 
-| | |
-| --- | --- |
-| Days | 33–34 |
-| Wave | D |
-| Status | `not_started` |
-| Read | sections 23, 24 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 33–34           |
+| Wave   | D               |
+| Status | `not_started`   |
+| Read   | sections 23, 24 |
 
 **What we already have:** a complete server-side agent. No customer channel.
 
@@ -1629,11 +1629,11 @@ Integrations can be production-safe. Widget work can start.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. iframe to dashboard chat | Easy | Ugly. Auth and CSS pain |
-| B. Big JS snippet with secret keys | Fast | Keys leak in the browser |
-| C. Widget package + publishable key + origin allowlist + streaming API | Secret keys never in the browser | Production |
+| Option                                                                 | Idea                             | Problem                  |
+| ---------------------------------------------------------------------- | -------------------------------- | ------------------------ |
+| A. iframe to dashboard chat                                            | Easy                             | Ugly. Auth and CSS pain  |
+| B. Big JS snippet with secret keys                                     | Fast                             | Keys leak in the browser |
+| C. Widget package + publishable key + origin allowlist + streaming API | Secret keys never in the browser | Production               |
 
 **We choose: C.**
 
@@ -1682,12 +1682,12 @@ A real website can embed the agent. This is the first customer channel.
 
 ## Slot 18 — Inbox and human handoff
 
-| | |
-| --- | --- |
-| Days | 35–36 |
-| Wave | D |
-| Status | `not_started` |
-| Read | sections 21–22 |
+|        |                |
+| ------ | -------------- |
+| Days   | 35–36          |
+| Wave   | D              |
+| Status | `not_started`  |
+| Read   | sections 21–22 |
 
 **What we already have:** AI conversations. No human operator screen.
 
@@ -1703,11 +1703,11 @@ A real website can embed the agent. This is the first customer channel.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Copy transcript into a ticket product | Looks like support | Two sources of truth |
-| B. Stop chat and email someone | Simple | Not an inbox |
-| C. Same conversation, new participant, state `waiting_human` | Runtime pauses until return | One transcript |
+| Option                                                       | Idea                        | Problem              |
+| ------------------------------------------------------------ | --------------------------- | -------------------- |
+| A. Copy transcript into a ticket product                     | Looks like support          | Two sources of truth |
+| B. Stop chat and email someone                               | Simple                      | Not an inbox         |
+| C. Same conversation, new participant, state `waiting_human` | Runtime pauses until return | One transcript       |
 
 **We choose: C.** Claim/release with optimistic locking, so two humans do not take the same thread.
 
@@ -1752,12 +1752,12 @@ Ops can run the chat channel. Next slot can emit real events.
 
 ## Slot 19 — Event platform
 
-| | |
-| --- | --- |
-| Days | 37–38 |
-| Wave | D |
-| Status | `not_started` |
-| Read | sections 8, 29, 35, 37 |
+|        |                        |
+| ------ | ---------------------- |
+| Days   | 37–38                  |
+| Wave   | D                      |
+| Status | `not_started`          |
+| Read   | sections 8, 29, 35, 37 |
 
 **What we already have:** real domain actions that should emit events.
 
@@ -1773,11 +1773,11 @@ Ops can run the chat channel. Next slot can emit real events.
 
 #### Options — bus
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Webhooks only | Easy | No replay. Weak internal fan-out |
-| B. SQS for all business events | Good retries | Weak for many consumers + replay |
-| C. Kafka for business events, SQS still for jobs | Durable events | Production split |
+| Option                                           | Idea           | Problem                          |
+| ------------------------------------------------ | -------------- | -------------------------------- |
+| A. Webhooks only                                 | Easy           | No replay. Weak internal fan-out |
+| B. SQS for all business events                   | Good retries   | Weak for many consumers + replay |
+| C. Kafka for business events, SQS still for jobs | Durable events | Production split                 |
 
 **We choose: C.**
 
@@ -1785,10 +1785,10 @@ The service that owns the write emits the event.
 
 #### Options — outbox
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Emit after commit and hope | Fast | Lost or duplicate events |
-| B. Transactional outbox | Same Postgres transaction writes the row. Publisher sends to Kafka. Consumers are idempotent | Production events |
+| Option                        | Idea                                                                                         | Problem                  |
+| ----------------------------- | -------------------------------------------------------------------------------------------- | ------------------------ |
+| A. Emit after commit and hope | Fast                                                                                         | Lost or duplicate events |
+| B. Transactional outbox       | Same Postgres transaction writes the row. Publisher sends to Kafka. Consumers are idempotent | Production events        |
 
 **We choose: B.** This is the difference between demo events and production events.
 
@@ -1834,12 +1834,12 @@ New features emit events. They do not invent extra side callbacks.
 
 ## Slot 20 — Workflow automation
 
-| | |
-| --- | --- |
-| Days | 39–40 |
-| Wave | D |
+|        |               |
+| ------ | ------------- |
+| Days   | 39–40         |
+| Wave   | D             |
 | Status | `not_started` |
-| Read | section 30 |
+| Read   | section 30    |
 
 **What we already have:** events. Leads do not exist yet. Build the **engine** on events we have, like `agent.escalated`.
 
@@ -1855,11 +1855,11 @@ New features emit events. They do not invent extra side callbacks.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Temporal / Cadence now | Great for long-running work | Extra platform in 6 hours |
-| B. n8n / Zapier embed | Fast | Not our reliability story |
-| C. Our Workflow Service | Kafka trigger, JSON condition, SQS step retries | We can explain every failure |
+| Option                    | Idea                                            | Problem                      |
+| ------------------------- | ----------------------------------------------- | ---------------------------- |
+| A. Temporal / Cadence now | Great for long-running work                     | Extra platform in 6 hours    |
+| B. n8n / Zapier embed     | Fast                                            | Not our reliability story    |
+| C. Our Workflow Service   | Kafka trigger, JSON condition, SQS step retries | We can explain every failure |
 
 **We choose: C for 60 days.** Write in the ADR: Temporal is the later upgrade if we need very long timers.
 
@@ -1913,12 +1913,12 @@ Wave D is complete. Automation exists. Voice can be a new channel. We do not red
 
 ## Slot 21 — Voice path
 
-| | |
-| --- | --- |
-| Days | 41–42 |
-| Wave | E |
-| Status | `not_started` |
-| Read | sections 7, 25 |
+|        |                |
+| ------ | -------------- |
+| Days   | 41–42          |
+| Wave   | E              |
+| Status | `not_started`  |
+| Read   | sections 7, 25 |
 
 **What we already have:** runtime, conversations, tools. No audio.
 
@@ -1934,11 +1934,11 @@ Wave D is complete. Automation exists. Voice can be a new channel. We do not red
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Record whole call, then transcribe, then answer | Easy | Not a voice agent |
-| B. Vendor "AI phone" with no our runtime | Fast | Cannot reuse tools / knowledge / versions |
-| C. Our Voice Service + vendor telephony + STT/TTS stream + **same Agent Runtime** | Reuse the platform | Production |
+| Option                                                                            | Idea               | Problem                                   |
+| --------------------------------------------------------------------------------- | ------------------ | ----------------------------------------- |
+| A. Record whole call, then transcribe, then answer                                | Easy               | Not a voice agent                         |
+| B. Vendor "AI phone" with no our runtime                                          | Fast               | Cannot reuse tools / knowledge / versions |
+| C. Our Voice Service + vendor telephony + STT/TTS stream + **same Agent Runtime** | Reuse the platform | Production                                |
 
 **We choose: C.**
 
@@ -1990,12 +1990,12 @@ We can place or receive a call. The **same** agent version talks. Reliability is
 
 ## Slot 22 — Voice reliability
 
-| | |
-| --- | --- |
-| Days | 43–44 |
-| Wave | E |
+|        |               |
+| ------ | ------------- |
+| Days   | 43–44         |
+| Wave   | E             |
 | Status | `not_started` |
-| Read | section 26 |
+| Read   | section 26    |
 
 **What we already have:** happy-path voice.
 
@@ -2023,10 +2023,10 @@ Cover: STT timeout, TTS failure, LLM latency, caller disconnect, barge-in, silen
 
 #### Options — barge-in
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Ignore barge-in | Simple | User talks over long TTS. Feels broken |
-| B. On VAD speech, stop TTS, cancel in-flight LLM if needed, start a new turn | Real voice | Production |
+| Option                                                                       | Idea       | Problem                                |
+| ---------------------------------------------------------------------------- | ---------- | -------------------------------------- |
+| A. Ignore barge-in                                                           | Simple     | User talks over long TTS. Feels broken |
+| B. On VAD speech, stop TTS, cancel in-flight LLM if needed, start a new turn | Real voice | Production                             |
 
 **We choose: B.** Recording audio goes to S3. Transcript goes on the conversation. Not a mystery blob in Redis.
 
@@ -2073,12 +2073,12 @@ Voice is a production subsystem, not a demo ringtone.
 
 ## Slot 23 — Outbound campaigns
 
-| | |
-| --- | --- |
-| Days | 45–46 |
-| Wave | E |
+|        |               |
+| ------ | ------------- |
+| Days   | 45–46         |
+| Wave   | E             |
 | Status | `not_started` |
-| Read | section 27 |
+| Read   | section 27    |
 
 **What we already have:** outbound call API + events.
 
@@ -2094,11 +2094,11 @@ Voice is a production subsystem, not a demo ringtone.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. For-loop calls in one HTTP request | Fast | Process dies. Double-dial |
-| B. Cron dumps all calls at 09:00 | Simple | No pacing, timezone, or opt-out |
-| C. Campaign Service | Audience rows, scheduler, SQS work, Redis concurrency, idempotent dial keys | Production |
+| Option                                | Idea                                                                        | Problem                         |
+| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------- |
+| A. For-loop calls in one HTTP request | Fast                                                                        | Process dies. Double-dial       |
+| B. Cron dumps all calls at 09:00      | Simple                                                                      | No pacing, timezone, or opt-out |
+| C. Campaign Service                   | Audience rows, scheduler, SQS work, Redis concurrency, idempotent dial keys | Production                      |
 
 **We choose: C.** Check opt-out **at dial time**, not only at import.
 
@@ -2143,12 +2143,12 @@ Outbound voice is a campaign, not one API click.
 
 ## Slot 24 — Lead generation
 
-| | |
-| --- | --- |
-| Days | 47–48 |
-| Wave | E |
+|        |               |
+| ------ | ------------- |
+| Days   | 47–48         |
+| Wave   | E             |
 | Status | `not_started` |
-| Read | section 28 |
+| Read   | section 28    |
 
 **What we already have:** campaigns, and agents that can qualify.
 
@@ -2164,10 +2164,10 @@ Outbound voice is a campaign, not one API click.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Store leads as conversation metadata | No new service | Hard to score and campaign |
-| B. Lead Service | Status, score, owner, source, links to conversation/campaign | Clear domain |
+| Option                                  | Idea                                                         | Problem                    |
+| --------------------------------------- | ------------------------------------------------------------ | -------------------------- |
+| A. Store leads as conversation metadata | No new service                                               | Hard to score and campaign |
+| B. Lead Service                         | Status, score, owner, source, links to conversation/campaign | Clear domain               |
 
 **We choose: B.**
 
@@ -2213,12 +2213,12 @@ Growth loop sits on agents + events + workflows + campaigns.
 
 ## Slot 25 — Evaluation
 
-| | |
-| --- | --- |
-| Days | 49–50 |
-| Wave | E |
-| Status | `not_started` |
-| Read | sections 31, 55 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 49–50           |
+| Wave   | E               |
+| Status | `not_started`   |
+| Read   | sections 31, 55 |
 
 **What we already have:** a real agent with versions. We have been changing it without numbers.
 
@@ -2232,11 +2232,11 @@ Growth loop sits on agents + events + workflows + campaigns.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Click around the dashboard | Fast | Not regression |
-| B. LLM-as-judge only | Useful for open answers | Noisy. Easy to game |
-| C. Golden dataset + deterministic checks + optional LLM judge + latency/failure metrics | Input, expected behavior, expected tool, expected answer | Production eval |
+| Option                                                                                  | Idea                                                     | Problem             |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
+| A. Click around the dashboard                                                           | Fast                                                     | Not regression      |
+| B. LLM-as-judge only                                                                    | Useful for open answers                                  | Noisy. Easy to game |
+| C. Golden dataset + deterministic checks + optional LLM judge + latency/failure metrics | Input, expected behavior, expected tool, expected answer | Production eval     |
 
 **We choose: C.** Eval runs are SQS jobs, not a 10-minute HTTP request.
 
@@ -2286,12 +2286,12 @@ Wave E is complete. Quality is a number. We can compare a change.
 
 ## Slot 26 — Usage, cost, and billing
 
-| | |
-| --- | --- |
-| Days | 51–52 |
-| Wave | F |
-| Status | `not_started` |
-| Read | sections 32–33 |
+|        |                |
+| ------ | -------------- |
+| Days   | 51–52          |
+| Wave   | F              |
+| Status | `not_started`  |
+| Read   | sections 32–33 |
 
 **What we already have:** token hooks, voice minutes, tool executions, conversations.
 
@@ -2305,10 +2305,10 @@ Wave E is complete. Quality is a number. We can compare a change.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Stripe as source of truth for AI/voice usage | Fast checkout | Hard to meter tokens and minutes |
-| B. Our usage ledger + billing view. Stripe (or stub) for collection later | We own meters | Production billing foundation |
+| Option                                                                    | Idea          | Problem                          |
+| ------------------------------------------------------------------------- | ------------- | -------------------------------- |
+| A. Stripe as source of truth for AI/voice usage                           | Fast checkout | Hard to meter tokens and minutes |
+| B. Our usage ledger + billing view. Stripe (or stub) for collection later | We own meters | Production billing foundation    |
 
 **We choose: B.** Ledger writes are **strongly consistent**. Dashboard rollups may be eventual. Quota checks use Redis counters fed from the ledger.
 
@@ -2353,12 +2353,12 @@ Cost is visible and we can limit it. Fancy tax / dunning is not required.
 
 ## Slot 27 — Audit and security
 
-| | |
-| --- | --- |
-| Days | 53–54 |
-| Wave | F |
-| Status | `not_started` |
-| Read | sections 34, 47 |
+|        |                 |
+| ------ | --------------- |
+| Days   | 53–54           |
+| Wave   | F               |
+| Status | `not_started`   |
+| Read   | sections 34, 47 |
 
 **What we already have:** many write APIs, almost no immutable audit trail.
 
@@ -2372,21 +2372,21 @@ Cost is visible and we can limit it. Fancy tax / dunning is not required.
 
 #### Options — audit
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Grep logs | Easy | Not an audit system |
-| B. Audit rows only inside each service | Local | Hard to query tenant-wide |
-| C. Audit Service consumes audit events | Actor, tenant, action, resource, time, request_id, metadata. Immutable | Production |
+| Option                                 | Idea                                                                   | Problem                   |
+| -------------------------------------- | ---------------------------------------------------------------------- | ------------------------- |
+| A. Grep logs                           | Easy                                                                   | Not an audit system       |
+| B. Audit rows only inside each service | Local                                                                  | Hard to query tenant-wide |
+| C. Audit Service consumes audit events | Actor, tenant, action, resource, time, request_id, metadata. Immutable | Production                |
 
 **We choose: C.**
 
 #### Service-to-service auth
 
-| Option | Idea | We choose |
-| --- | --- | --- |
-| Open cluster DNS | Too open | No |
-| Signed internal JWT or HMAC now | Good enough now | **Yes** |
-| mTLS on EKS later | Stronger | If time after JWT/HMAC |
+| Option                          | Idea            | We choose              |
+| ------------------------------- | --------------- | ---------------------- |
+| Open cluster DNS                | Too open        | No                     |
+| Signed internal JWT or HMAC now | Good enough now | **Yes**                |
+| mTLS on EKS later               | Stronger        | If time after JWT/HMAC |
 
 Also learn: prompt injection, retrieval poisoning, why tools stay allow-listed, IDOR, secret leak, cross-tenant search.
 
@@ -2433,12 +2433,12 @@ Security is enforced and we have evidence. We do not only assume it.
 
 ## Slot 28 — Observability, alerts, notifications
 
-| | |
-| --- | --- |
-| Days | 55–56 |
-| Wave | F |
-| Status | `not_started` |
-| Read | sections 44–46, 36 |
+|        |                    |
+| ------ | ------------------ |
+| Days   | 55–56              |
+| Wave   | F                  |
+| Status | `not_started`      |
+| Read   | sections 44–46, 36 |
 
 **What we already have:** OTel hooks from Slot 03, some metrics. Incomplete dashboards. No alert policy.
 
@@ -2452,19 +2452,19 @@ Security is enforced and we have evidence. We do not only assume it.
 
 #### Options — alerts
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Log everything, alert everything | Feels complete | Noise. People ignore pages |
-| B. Golden signals + AI / voice / business metrics (section 45). Alerts only for section 46 with real thresholds | Useful | Production ops |
+| Option                                                                                                          | Idea           | Problem                    |
+| --------------------------------------------------------------------------------------------------------------- | -------------- | -------------------------- |
+| A. Log everything, alert everything                                                                             | Feels complete | Noise. People ignore pages |
+| B. Golden signals + AI / voice / business metrics (section 45). Alerts only for section 46 with real thresholds | Useful         | Production ops             |
 
 **We choose: B.**
 
 #### Options — notifications
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. SMTP inside every service | Fast | Duplicated, hard to retry |
-| B. Notification Service | Consumes events / alert hooks. Email / Slack / webhook | One place |
+| Option                       | Idea                                                   | Problem                   |
+| ---------------------------- | ------------------------------------------------------ | ------------------------- |
+| A. SMTP inside every service | Fast                                                   | Duplicated, hard to retry |
+| B. Notification Service      | Consumes events / alert hooks. Email / Slack / webhook | One place                 |
 
 **We choose: B.**
 
@@ -2509,12 +2509,12 @@ We can operate the system we already built.
 
 ## Slot 29 — AWS, Kubernetes, Terraform, CI/CD
 
-| | |
-| --- | --- |
-| Days | 57–58 |
-| Wave | F |
-| Status | `not_started` |
-| Read | sections 48–54 |
+|        |                |
+| ------ | -------------- |
+| Days   | 57–58          |
+| Wave   | F              |
+| Status | `not_started`  |
+| Read   | sections 48–54 |
 
 **What we already have:** a platform that runs locally. Cloud must **deploy this**. Cloud must not invent a new app.
 
@@ -2528,11 +2528,11 @@ We can operate the system we already built.
 
 #### Options
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Click in AWS console | Fast | Cannot reproduce. Breaks section 50 |
-| B. ECS / Fargate only | Valid AWS | Weaker Kubernetes learning vs the project goal |
-| C. Terraform + EKS + ECR + managed data services, mapped from Compose | Reproducible | Matches the project |
+| Option                                                                | Idea         | Problem                                        |
+| --------------------------------------------------------------------- | ------------ | ---------------------------------------------- |
+| A. Click in AWS console                                               | Fast         | Cannot reproduce. Breaks section 50            |
+| B. ECS / Fargate only                                                 | Valid AWS    | Weaker Kubernetes learning vs the project goal |
+| C. Terraform + EKS + ECR + managed data services, mapped from Compose | Reproducible | Matches the project                            |
 
 **We choose: C.**
 
@@ -2590,12 +2590,12 @@ Infrastructure is code. A bad deploy has a written reverse path.
 
 ## Slot 30 — Load, failure, DR, SDKs, closeout
 
-| | |
-| --- | --- |
-| Days | 59–60 |
-| Wave | F |
-| Status | `not_started` |
-| Read | sections 24, 55–63 |
+|        |                    |
+| ------ | ------------------ |
+| Days   | 59–60              |
+| Wave   | F                  |
+| Status | `not_started`      |
+| Read   | sections 24, 55–63 |
 
 **What we already have:** the system, and a way to deploy it.
 
@@ -2611,36 +2611,36 @@ Infrastructure is code. A bad deploy has a written reverse path.
 
 #### Options — load test
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Click the widget ten times | Fast | Not scale |
+| Option                                                | Idea                                                                  | Problem                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| A. Click the widget ten times                         | Fast                                                                  | Not scale                                                               |
 | B. Scripted load on gateway + runtime + conversations | Measure throughput, P50/P95/P99, errors, DB, Redis, queues, Kafka lag | We may not hit 1,000 RPS on a laptop. We will find the first bottleneck |
 
 **We choose: B.**
 
 #### Options — failure test
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. Only unit mocks | Fast | Not real failure |
+| Option                            | Idea                                                                        | Problem                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| A. Only unit mocks                | Fast                                                                        | Not real failure                                                                 |
 | B. Break one dependency at a time | Postgres, Redis, Kafka consumer, SQS worker, model provider, STT/TTS, a pod | Check detect → log/alert → retry/fallback → recover → no cross-tenant corruption |
 
 **We choose: B.** This is planned chaos. Not Netflix-scale chaos automation.
 
 #### Options — DR
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. "We have Terraform so we are fine" | Optimistic | No restore practice |
-| B. Write RTO/RPO, backup/restore Postgres and S3, Kafka replay, recreate from Terraform, one restore rehearsal | Honest | Production thinking |
+| Option                                                                                                         | Idea       | Problem             |
+| -------------------------------------------------------------------------------------------------------------- | ---------- | ------------------- |
+| A. "We have Terraform so we are fine"                                                                          | Optimistic | No restore practice |
+| B. Write RTO/RPO, backup/restore Postgres and S3, Kafka replay, recreate from Terraform, one restore rehearsal | Honest     | Production thinking |
 
 **We choose: B.**
 
 #### Options — SDK
 
-| Option | Idea | Problem |
-| --- | --- | --- |
-| A. OpenAPI file is the SDK | Lazy | Developers still copy HTTP |
+| Option                                                                                                           | Idea                    | Problem                                                |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| A. OpenAPI file is the SDK                                                                                       | Lazy                    | Developers still copy HTTP                             |
 | B. TypeScript SDK for `agent.run/stream`, `conversation.create/send`, `knowledge.search`. Python if time remains | Real developer platform | TypeScript is required. Python must not delay runbooks |
 
 **We choose: B.**
@@ -2667,13 +2667,13 @@ Infrastructure is code. A bad deploy has a written reverse path.
 
 Do this order. Do not polish the SDK if proof work is not done.
 
-| Hours | Work |
-| --- | --- |
-| 0:00–2:00 | Load test chat/runtime. Save results in `tests/load/`. Write the bottleneck |
+| Hours     | Work                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------- |
+| 0:00–2:00 | Load test chat/runtime. Save results in `tests/load/`. Write the bottleneck                                   |
 | 2:00–3:30 | Failure tests: Redis down, model timeout, SQS worker crash, duplicate Kafka message. Save in `tests/failure/` |
-| 3:30–4:15 | DR notes + one backup/restore or Terraform recreate dry-run. Fill RTO/RPO |
-| 4:15–5:15 | TypeScript SDK + example README |
-| 5:15–6:00 | Runbooks, section 63 checklist, progress board, commit |
+| 3:30–4:15 | DR notes + one backup/restore or Terraform recreate dry-run. Fill RTO/RPO                                     |
+| 4:15–5:15 | TypeScript SDK + example README                                                                               |
+| 5:15–6:00 | Runbooks, section 63 checklist, progress board, commit                                                        |
 
 #### Build tasks
 
@@ -2704,47 +2704,47 @@ We can show a platform: multi-tenant agents on chat and voice, knowledge, tools,
 
 Use this so a later part of `project_details.md` does not feel like a new project. When a slot is done, mark the rows.
 
-| Details section | Topic | Slot | Status |
-| --- | --- | --- | --- |
-| 1–3, 64–66 | Purpose, philosophy, anti-goals | 01 | `not_started` |
-| 4–5 | Scale targets (design, not 1k RPS on day 1) | 01, 06, 30 | `not_started` |
-| 6 | Conversations | 09, 17, 18 | `not_started` |
-| 7, 25–26 | Voice | 21, 22 | `not_started` |
-| 8, 29 | Events | 19 | `not_started` |
-| 9, 35 | Data architecture | 02 | `not_started` |
-| 10, 14 | Agent + builder | 07 | `not_started` |
-| 11 | Agent versions | 08 | `not_started` |
-| 12 | Multi-tenant hierarchy | 04, 05 | `not_started` |
-| 13 | IAM, RBAC, API keys | 04, 05, 15 | `not_started` |
-| 15 | Knowledge / RAG | 12, 13 | `not_started` |
-| 16 | Runtime | 11 | `not_started` |
-| 17 | Model gateway | 10 | `not_started` |
-| 18 | Tools, MCP | 15 | `not_started` |
-| 19 | Secrets | 16 | `not_started` |
-| 20 | Knowledge vs short-term vs memory | 09, 14 | `not_started` |
-| 21–22 | Inbox, handoff | 09, 18 | `not_started` |
-| 23 | Website chat | 17 | `not_started` |
-| 24 | SDKs | 06, 30 | `not_started` |
-| 27 | Campaigns | 23 | `not_started` |
-| 28 | Leads | 24 | `not_started` |
-| 30 | Workflows | 20 | `not_started` |
-| 31 | Evaluation | 25 | `not_started` |
-| 32–33 | Usage, billing | 26 | `not_started` |
-| 34 | Audit | 27 | `not_started` |
-| 36–37 | Services and communication | 01, 06, 19 | `not_started` |
-| 38–40 | Reliability, HA, failure | 03, 22, 29, 30 | `not_started` |
-| 41 | Consistency | 08, 19, 26 | `not_started` |
-| 42 | Caching | 03, 07, 16 | `not_started` |
-| 43 | Read replicas | 08, 29 | `not_started` |
-| 44–46 | Observability | 03, 28 | `not_started` |
-| 47 | Security | 04, 05, 16, 27 | `not_started` |
-| 48–52 | AWS, K8s, Terraform, environments | 02, 29 | `not_started` |
-| 53–54 | CI/CD, deploy | 29 | `not_started` |
-| 55–56 | Testing, load | every build day, 30 | `not_started` |
-| 57–58 | DR, chaos | 30 | `not_started` |
-| 59 | Developer experience | 01, 30 | `not_started` |
-| 60–62 | Repo, ADRs, runbooks | 01, 30 | `not_started` |
-| 63 | Final demonstration list | 30 | `not_started` |
+| Details section | Topic                                       | Slot                | Status        |
+| --------------- | ------------------------------------------- | ------------------- | ------------- |
+| 1–3, 64–66      | Purpose, philosophy, anti-goals             | 01                  | `not_started` |
+| 4–5             | Scale targets (design, not 1k RPS on day 1) | 01, 06, 30          | `not_started` |
+| 6               | Conversations                               | 09, 17, 18          | `not_started` |
+| 7, 25–26        | Voice                                       | 21, 22              | `not_started` |
+| 8, 29           | Events                                      | 19                  | `not_started` |
+| 9, 35           | Data architecture                           | 02                  | `not_started` |
+| 10, 14          | Agent + builder                             | 07                  | `not_started` |
+| 11              | Agent versions                              | 08                  | `not_started` |
+| 12              | Multi-tenant hierarchy                      | 04, 05              | `not_started` |
+| 13              | IAM, RBAC, API keys                         | 04, 05, 15          | `not_started` |
+| 15              | Knowledge / RAG                             | 12, 13              | `not_started` |
+| 16              | Runtime                                     | 11                  | `not_started` |
+| 17              | Model gateway                               | 10                  | `not_started` |
+| 18              | Tools, MCP                                  | 15                  | `not_started` |
+| 19              | Secrets                                     | 16                  | `not_started` |
+| 20              | Knowledge vs short-term vs memory           | 09, 14              | `not_started` |
+| 21–22           | Inbox, handoff                              | 09, 18              | `not_started` |
+| 23              | Website chat                                | 17                  | `not_started` |
+| 24              | SDKs                                        | 06, 30              | `not_started` |
+| 27              | Campaigns                                   | 23                  | `not_started` |
+| 28              | Leads                                       | 24                  | `not_started` |
+| 30              | Workflows                                   | 20                  | `not_started` |
+| 31              | Evaluation                                  | 25                  | `not_started` |
+| 32–33           | Usage, billing                              | 26                  | `not_started` |
+| 34              | Audit                                       | 27                  | `not_started` |
+| 36–37           | Services and communication                  | 01, 06, 19          | `not_started` |
+| 38–40           | Reliability, HA, failure                    | 03, 22, 29, 30      | `not_started` |
+| 41              | Consistency                                 | 08, 19, 26          | `not_started` |
+| 42              | Caching                                     | 03, 07, 16          | `not_started` |
+| 43              | Read replicas                               | 08, 29              | `not_started` |
+| 44–46           | Observability                               | 03, 28              | `not_started` |
+| 47              | Security                                    | 04, 05, 16, 27      | `not_started` |
+| 48–52           | AWS, K8s, Terraform, environments           | 02, 29              | `not_started` |
+| 53–54           | CI/CD, deploy                               | 29                  | `not_started` |
+| 55–56           | Testing, load                               | every build day, 30 | `not_started` |
+| 57–58           | DR, chaos                                   | 30                  | `not_started` |
+| 59              | Developer experience                        | 01, 30              | `not_started` |
+| 60–62           | Repo, ADRs, runbooks                        | 01, 30              | `not_started` |
+| 63              | Final demonstration list                    | 30                  | `not_started` |
 
 ---
 
