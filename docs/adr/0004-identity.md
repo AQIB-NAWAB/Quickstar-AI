@@ -57,20 +57,20 @@ Signing secret: `JWT_ACCESS_SECRET` (local `.env`; production **AWS Secrets Mana
 
 ### HTTP surface (v1)
 
-| Method | Path                                       | Auth                        |
-| ------ | ------------------------------------------ | --------------------------- |
-| POST   | `/v1/register`                             | —                           |
-| POST   | `/v1/login`                                | —                           |
-| POST   | `/v1/refresh`                              | body refresh_token          |
-| POST   | `/v1/logout`                               | Bearer or refresh body      |
-| GET    | `/v1/me`                                   | Bearer                      |
-| GET    | `/v1/organizations`                        | Bearer                      |
-| GET    | `/v1/organizations/:orgId`                 | Bearer (member)             |
-| POST   | `/v1/organizations/:orgId/api-keys`        | Bearer (member+)            |
-| GET    | `/v1/organizations/:orgId/api-keys`        | Bearer (member+)            |
-| DELETE | `/v1/organizations/:orgId/api-keys/:keyId` | Bearer (member+)            |
-| GET    | `/healthz`                                 | —                           |
-| GET    | `/readyz`                                  | — (DB + Redis if connected) |
+| Method | Path                                       | Auth                   |
+| ------ | ------------------------------------------ | ---------------------- |
+| POST   | `/v1/register`                             | —                      |
+| POST   | `/v1/login`                                | —                      |
+| POST   | `/v1/refresh`                              | body refresh_token     |
+| POST   | `/v1/logout`                               | Bearer or refresh body |
+| GET    | `/v1/me`                                   | Bearer                 |
+| GET    | `/v1/organizations`                        | Bearer                 |
+| GET    | `/v1/organizations/:orgId`                 | Bearer (member)        |
+| POST   | `/v1/organizations/:orgId/api-keys`        | Bearer (member+)       |
+| GET    | `/v1/organizations/:orgId/api-keys`        | Bearer (member+)       |
+| DELETE | `/v1/organizations/:orgId/api-keys/:keyId` | Bearer (member+)       |
+| GET    | `/healthz`                                 | —                      |
+| GET    | `/readyz`                                  | — (DB + Valkey)        |
 
 Errors use `@quickstart/errors` envelope. Requests use `@quickstart/tracing` + structured logs (no passwords/tokens in logs).
 
@@ -89,7 +89,7 @@ Errors use `@quickstart/errors` envelope. Requests use `@quickstart/tracing` + s
 - `packages/auth` exports JWT sign/verify helpers for identity now and gateway later.
 - **Schema changes are explicit:** run `make identity-migrate` or `pnpm --filter @quickstart/service-identity migrate` — not on HTTP server startup. See [database migrations](../architecture/database-migrations.md).
 - Optional Postgres integration test: `IDENTITY_INTEGRATION_TEST=1 DATABASE_URL=... pnpm --filter @quickstart/service-identity test` (see `src/tests/postgres.integration.test.ts`).
-- Production should set `REDIS_REQUIRED=1` so session revocation is not silently disabled when Valkey is down.
+- **Valkey/Redis is mandatory** at server startup (local and production). Session revocation is not optional.
 
 ## Alternatives rejected
 

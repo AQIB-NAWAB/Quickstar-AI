@@ -17,6 +17,7 @@ export function createRedisSessionRevocation(client: RedisClientType): SessionRe
   };
 }
 
+/** Unit tests only. The running identity server always uses Redis session revocation. */
 export function createNoopSessionRevocation(): SessionRevocation {
   const revoked = new Set<string>();
   return {

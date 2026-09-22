@@ -8,12 +8,9 @@ import { loadServiceConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./controllers/router.js";
 import { createPostgresRepository } from "./repository/postgres.js";
 import { createIdentityServices } from "./services/index.js";
-import {
-  createNoopSessionRevocation,
-  createRedisSessionRevocation,
-} from "./utils/session-revocation.js";
+import { createRedisSessionRevocation } from "./utils/session-revocation.js";
 
-export async function startIdentityServer(options?: { useRedis?: boolean }): Promise<{
+export async function startIdentityServer(): Promise<{
   server: Server;
   shutdown: () => Promise<void>;
   pool: Pool;
@@ -25,38 +22,27 @@ export async function startIdentityServer(options?: { useRedis?: boolean }): Pro
 
   const pool = new Pool({ connectionString: config.databaseUrl });
   const repository = createPostgresRepository(pool);
-  let sessions = createNoopSessionRevocation();
-  let redisClient: ReturnType<typeof createRedisClient> | undefined;
 
-  if (options?.useRedis !== false) {
-    try {
-      redisClient = createRedisClient(config.redisUrl);
-      await redisClient.connect();
-      sessions = createRedisSessionRevocation(redisClient);
-      logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown";
-      if (config.redisRequired) {
-        throw new Error(`REDIS_REQUIRED but Valkey/Redis unavailable: ${message}`);
-      }
-      logger.warn("redis.unavailable", { message });
-    }
-  } else if (config.redisRequired) {
-    throw new Error("REDIS_REQUIRED but useRedis=false was passed to startIdentityServer");
+  const redisClient = createRedisClient(config.redisUrl);
+  try {
+    await redisClient.connect();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown";
+    throw new Error(
+      `Valkey/Redis is required for identity (session revocation). Start the data plane: make up. Detail: ${message}`,
+    );
   }
+  const sessions = createRedisSessionRevocation(redisClient);
+  logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
   const services = createIdentityServices({ repository, sessions, config });
   const readinessProbes = [
     async () => {
       await pool.query("SELECT 1");
     },
-    ...(redisClient?.isOpen
-      ? [
-          async () => {
-            await redisClient!.ping();
-          },
-        ]
-      : []),
+    async () => {
+      await redisClient.ping();
+    },
   ];
 
   const app = createHttpServer({
@@ -80,7 +66,7 @@ export async function startIdentityServer(options?: { useRedis?: boolean }): Pro
     await new Promise<void>((resolve, reject) => {
       server.close((err?: Error) => (err ? reject(err) : resolve()));
     });
-    if (redisClient?.isOpen) {
+    if (redisClient.isOpen) {
       await redisClient.quit();
     }
     await pool.end();

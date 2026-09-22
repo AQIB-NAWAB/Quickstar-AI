@@ -9,20 +9,22 @@ Source layout: [ARCHITECTURE.md](./ARCHITECTURE.md).
 Schema is **not** applied on server startup. Run migrations first (see [database migrations](../../docs/architecture/database-migrations.md)).
 
 ```bash
-make up   # Postgres + Valkey
+make up   # Postgres + Valkey (both required)
 export DATABASE_URL=postgresql://quickstart:quickstart@localhost:5432/quickstart
+export REDIS_URL=redis://localhost:6379
 make identity-migrate
 
 export JWT_ACCESS_SECRET=dev-secret-min-32-chars-for-hs256!!
-export REDIS_URL=redis://localhost:6379
 pnpm --filter @quickstart/service-identity build
 pnpm --filter @quickstart/service-identity start
 ```
 
+Identity **does not start** without Postgres (migrations) and Valkey/Redis (session revoke). Same rule locally and in production.
+
 Default port: **3001** (`PORT` or `IDENTITY_PORT`).
 
-- **`GET /readyz`** — checks Postgres (and Redis when connected). Use for orchestrator readiness.
-- **`REDIS_REQUIRED=1`** — refuse to start if Valkey/Redis is down (recommended for production).
+- **`GET /readyz`** — Postgres + Valkey ping.
+- **`GET /healthz`** — process liveness only.
 
 ## Smoke
 
