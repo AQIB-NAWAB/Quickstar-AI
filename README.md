@@ -47,9 +47,18 @@ pnpm check
 ```bash
 make up
 make smoke
+make playground   # Postgres/Valkey/OpenSearch + template HTTP demos + traces
 ```
 
 Connection defaults are in [`.env.example`](.env.example).
+
+**Try the template yourself** (with data plane + service running):
+
+```bash
+curl http://127.0.0.1:3000/healthz
+curl http://127.0.0.1:3000/demo/error
+curl http://127.0.0.1:3000/demo/outbound
+```
 
 ## Commit messages
 
