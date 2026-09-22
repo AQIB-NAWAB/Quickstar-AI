@@ -112,6 +112,49 @@ export function createPostgresRepository(pool: Pool): IdentityStore {
       ]);
     },
 
+    async rotateRefreshToken(input) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const { rows } = await client.query<RefreshTokenRecord>(
+          `SELECT id, user_id AS "userId", session_id AS "sessionId", token_hash AS "tokenHash",
+                  expires_at AS "expiresAt", replaced_by_id AS "replacedById", revoked_at AS "revokedAt"
+           FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
+          [input.tokenHash],
+        );
+        const row = rows[0];
+        if (!row) {
+          await client.query("ROLLBACK");
+          return { status: "invalid" as const };
+        }
+        if (row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
+          await client.query("ROLLBACK");
+          return { status: "invalid" as const };
+        }
+        if (row.replacedById) {
+          await client.query("ROLLBACK");
+          return { status: "reuse" as const, sessionId: row.sessionId, userId: row.userId };
+        }
+
+        await client.query(
+          `INSERT INTO refresh_tokens (id, user_id, session_id, token_hash, expires_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [input.newRefreshId, row.userId, row.sessionId, input.newTokenHash, input.expiresAt],
+        );
+        await client.query(`UPDATE refresh_tokens SET replaced_by_id = $2 WHERE id = $1`, [
+          row.id,
+          input.newRefreshId,
+        ]);
+        await client.query("COMMIT");
+        return { status: "rotated" as const, userId: row.userId, sessionId: row.sessionId };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
     async revokeRefreshToken(id) {
       await pool.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1`, [id]);
     },

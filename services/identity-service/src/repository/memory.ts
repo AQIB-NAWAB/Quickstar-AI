@@ -96,6 +96,33 @@ export function createMemoryRepository(): IdentityStore {
       }
     },
 
+    async rotateRefreshToken(input) {
+      const row = refreshByHash.get(input.tokenHash);
+      if (!row) {
+        return { status: "invalid" as const };
+      }
+      if (row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
+        return { status: "invalid" as const };
+      }
+      if (row.replacedById) {
+        return { status: "reuse" as const, sessionId: row.sessionId, userId: row.userId };
+      }
+
+      const successor: RefreshTokenRecord = {
+        id: input.newRefreshId,
+        userId: row.userId,
+        sessionId: row.sessionId,
+        tokenHash: input.newTokenHash,
+        expiresAt: input.expiresAt,
+        replacedById: null,
+        revokedAt: null,
+      };
+      refreshByHash.set(input.newTokenHash, successor);
+      refreshById.set(successor.id, successor);
+      row.replacedById = input.newRefreshId;
+      return { status: "rotated" as const, userId: row.userId, sessionId: row.sessionId };
+    },
+
     async revokeRefreshToken(id) {
       const row = refreshById.get(id);
       if (row) {

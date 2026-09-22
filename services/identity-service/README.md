@@ -21,6 +21,9 @@ pnpm --filter @quickstart/service-identity start
 
 Default port: **3001** (`PORT` or `IDENTITY_PORT`).
 
+- **`GET /readyz`** — checks Postgres (and Redis when connected). Use for orchestrator readiness.
+- **`REDIS_REQUIRED=1`** — refuse to start if Valkey/Redis is down (recommended for production).
+
 ## Smoke
 
 ```bash

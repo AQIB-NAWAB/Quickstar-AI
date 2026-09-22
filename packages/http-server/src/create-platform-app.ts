@@ -1,6 +1,7 @@
 import type { Logger } from "@quickstart/logging";
 import express, { type Application, type Router } from "express";
 import { notFoundMiddleware, platformErrorMiddleware } from "./middleware/errors.js";
+import { jsonBodyErrorMiddleware } from "./middleware/json-body-error.js";
 import { createRateLimitMiddleware, type RateLimitOptions } from "./middleware/rate-limit.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requestTimeoutMiddleware } from "./middleware/timeout.js";
@@ -34,6 +35,7 @@ export function createPlatformApp(options: PlatformHttpOptions): Application {
   app.use(tracingMiddleware(options.logger));
   app.use(requestTimeoutMiddleware(options.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS));
   app.use(express.json({ limit: options.jsonBodyLimit ?? DEFAULT_JSON_LIMIT }));
+  app.use(jsonBodyErrorMiddleware());
 
   if (options.globalRateLimit) {
     app.use(createRateLimitMiddleware(options.globalRateLimit));

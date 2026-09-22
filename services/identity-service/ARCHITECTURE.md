@@ -19,11 +19,9 @@ src/
     api-keys.controller.ts
     health.controller.ts
 
-  middleware/           # Cross-cutting HTTP concerns
+  middleware/           # Identity-only HTTP (Bearer guard)
     auth.middleware.ts
-    request-id.middleware.ts
-    tracing.middleware.ts
-    error.middleware.ts
+    # request id, tracing, timeout, rate limit, errors → @quickstart/http-server
 
   services/             # Business rules (same names as controllers)
 

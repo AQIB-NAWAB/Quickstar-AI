@@ -3,6 +3,7 @@ import { signAccessToken, verifyAccessToken } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { ServiceConfig } from "../config/environment.js";
 import type { IdentityStore } from "../repository/types.js";
+import { rethrowDatabaseError } from "../utils/database-error.js";
 import type { AuthenticatedUser, TokenPair } from "../utils/auth.types.js";
 import { hashPassword, hashToken, randomToken, verifyPassword } from "../utils/password-hasher.js";
 import type { SessionRevocation } from "../utils/session-revocation.js";
@@ -84,20 +85,24 @@ export function createAuthService(deps: AuthServiceDeps) {
     if (existing) {
       throw new AppError({
         code: ErrorCode.CONFLICT,
-        message: "Email already registered",
+        message: "Unable to register with these details",
       });
     }
 
     const userId = randomUUID();
     const orgId = randomUUID();
     const passwordHash = await hashPassword(input.password);
-    await store.createUserWithOrg({
-      userId,
-      email,
-      passwordHash,
-      orgId,
-      orgName: input.organizationName.trim(),
-    });
+    try {
+      await store.createUserWithOrg({
+        userId,
+        email,
+        passwordHash,
+        orgId,
+        orgName: input.organizationName.trim(),
+      });
+    } catch (error) {
+      rethrowDatabaseError(error);
+    }
 
     const sessionId = randomUUID();
     const tokens = await issueTokens(userId, orgId, sessionId);
@@ -120,44 +125,40 @@ export function createAuthService(deps: AuthServiceDeps) {
 
   async function refreshSession(refreshToken: string): Promise<TokenPair> {
     const tokenHash = hashToken(refreshToken);
-    const row = await store.findRefreshByHash(tokenHash);
-    if (!row) {
+    const newRefreshRaw = randomToken(32);
+    const newRefreshId = randomUUID();
+    const expiresAt = new Date(Date.now() + config.refreshTtlSeconds * 1000);
+
+    const outcome = await store.rotateRefreshToken({
+      tokenHash,
+      newRefreshId,
+      newTokenHash: hashToken(newRefreshRaw),
+      expiresAt,
+    });
+
+    if (outcome.status === "invalid") {
       throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Invalid refresh token" });
     }
 
-    if (row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
-      throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Refresh token expired" });
-    }
-
-    if (await sessions.isRevoked(row.sessionId)) {
-      throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Session revoked" });
-    }
-
-    if (row.replacedById) {
-      await sessions.revoke(row.sessionId, config.refreshTtlSeconds);
-      await store.revokeSessionTokens(row.sessionId);
+    if (outcome.status === "reuse") {
+      if (await sessions.isRevoked(outcome.sessionId)) {
+        throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Session revoked" });
+      }
+      await sessions.revoke(outcome.sessionId, config.refreshTtlSeconds);
+      await store.revokeSessionTokens(outcome.sessionId);
       throw new AppError({
         code: ErrorCode.UNAUTHORIZED,
         message: "Refresh token reuse detected",
       });
     }
 
-    const orgId = await resolveOrgForUser(row.userId);
-    const newRefreshRaw = randomToken(32);
-    const newRefreshId = randomUUID();
-    const expiresAt = new Date(Date.now() + config.refreshTtlSeconds * 1000);
+    if (await sessions.isRevoked(outcome.sessionId)) {
+      throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Session revoked" });
+    }
 
-    await store.insertRefreshToken({
-      id: newRefreshId,
-      userId: row.userId,
-      sessionId: row.sessionId,
-      tokenHash: hashToken(newRefreshRaw),
-      expiresAt,
-    });
-    await store.markRefreshReplaced(row.id, newRefreshId);
-
+    const orgId = await resolveOrgForUser(outcome.userId);
     const access_token = await signAccessToken(
-      { sub: row.userId, org_id: orgId, sid: row.sessionId },
+      { sub: outcome.userId, org_id: orgId, sid: outcome.sessionId },
       { secret: config.jwtAccessSecret, ttlSeconds: config.jwtAccessTtlSeconds },
     );
 
@@ -201,11 +202,7 @@ export function createAuthService(deps: AuthServiceDeps) {
       throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "User not found" });
     }
 
-    const membership = await store.getMembership(claims.org_id, claims.sub);
-    if (!membership) {
-      throw new AppError({ code: ErrorCode.FORBIDDEN, message: "Not a member of organization" });
-    }
-
+    // Org membership is checked on org routes (organizations / api-keys), not on every Bearer call.
     return { userId: claims.sub, orgId: claims.org_id, sessionId: claims.sid };
   }
 }

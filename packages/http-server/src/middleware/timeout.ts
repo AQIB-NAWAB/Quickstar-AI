@@ -14,6 +14,7 @@ export function requestTimeoutMiddleware(timeoutMs: number): RequestHandler {
         return;
       }
       finished = true;
+      res.locals.requestTimedOut = true;
       sendPlatformError(
         res,
         new AppError({

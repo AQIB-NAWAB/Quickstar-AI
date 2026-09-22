@@ -35,13 +35,30 @@ export async function startIdentityServer(options?: { useRedis?: boolean }): Pro
       sessions = createRedisSessionRevocation(redisClient);
       logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
     } catch (error) {
-      logger.warn("redis.unavailable", {
-        message: error instanceof Error ? error.message : "unknown",
-      });
+      const message = error instanceof Error ? error.message : "unknown";
+      if (config.redisRequired) {
+        throw new Error(`REDIS_REQUIRED but Valkey/Redis unavailable: ${message}`);
+      }
+      logger.warn("redis.unavailable", { message });
     }
+  } else if (config.redisRequired) {
+    throw new Error("REDIS_REQUIRED but useRedis=false was passed to startIdentityServer");
   }
 
   const services = createIdentityServices({ repository, sessions, config });
+  const readinessProbes = [
+    async () => {
+      await pool.query("SELECT 1");
+    },
+    ...(redisClient?.isOpen
+      ? [
+          async () => {
+            await redisClient!.ping();
+          },
+        ]
+      : []),
+  ];
+
   const app = createHttpServer({
     logger,
     services,
@@ -49,6 +66,7 @@ export async function startIdentityServer(options?: { useRedis?: boolean }): Pro
     rateLimitWindowMs: config.httpRateLimitWindowMs,
     rateLimitMax: config.httpRateLimitMax,
     authRateLimitMax: config.httpAuthRateLimitMax,
+    readinessProbes,
   });
 
   const server: Server = await new Promise((resolve) => {

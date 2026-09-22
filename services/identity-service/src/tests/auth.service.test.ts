@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { signAccessToken } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { createTestIdentityServices } from "../helpers/test-app.js";
 
@@ -57,6 +59,23 @@ test("refresh rotation and reuse detection", async () => {
       return true;
     },
   );
+});
+
+test("access token valid even when org_id claim is not a current membership", async () => {
+  const { services, config } = createTestIdentityServices();
+  const reg = await services.auth.register({
+    email: "stale-org@example.com",
+    password: "password123",
+    organizationName: "Real Org",
+  });
+  const staleOrgId = randomUUID();
+  const token = await signAccessToken(
+    { sub: reg.user_id, org_id: staleOrgId, sid: randomUUID() },
+    { secret: config.jwtAccessSecret, ttlSeconds: config.jwtAccessTtlSeconds },
+  );
+  const auth = await services.auth.validateAccessToken(token);
+  assert.equal(auth.userId, reg.user_id);
+  assert.equal(auth.orgId, staleOrgId);
 });
 
 test("IDOR: user cannot read other org", async () => {

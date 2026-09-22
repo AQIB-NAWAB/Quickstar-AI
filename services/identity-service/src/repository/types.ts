@@ -67,6 +67,20 @@ export type IdentityStore = {
 
   findRefreshByHash(tokenHash: string): Promise<RefreshTokenRecord | null>;
   markRefreshReplaced(id: string, replacedById: string): Promise<void>;
+  /**
+   * Atomically rotate one refresh token (lock row → insert successor → mark replaced).
+   * Prevents two parallel refreshes from both succeeding.
+   */
+  rotateRefreshToken(input: {
+    tokenHash: string;
+    newRefreshId: string;
+    newTokenHash: string;
+    expiresAt: Date;
+  }): Promise<
+    | { status: "rotated"; userId: string; sessionId: string }
+    | { status: "reuse"; sessionId: string; userId: string }
+    | { status: "invalid" }
+  >;
   revokeRefreshToken(id: string): Promise<void>;
   revokeSessionTokens(sessionId: string): Promise<void>;
 

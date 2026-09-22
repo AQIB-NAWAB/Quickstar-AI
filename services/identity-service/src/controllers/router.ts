@@ -10,10 +10,11 @@ import { requireAuthMiddleware } from "../middleware/index.js";
 import type { IdentityServices } from "../services/index.js";
 import * as apiKeysController from "./api-keys.controller.js";
 import * as authController from "./auth.controller.js";
-import { handleHealth } from "./health.controller.js";
+import { handleHealth, handleReady, type ReadinessProbe } from "./health.controller.js";
 import * as organizationsController from "./organizations.controller.js";
 import * as usersController from "./users.controller.js";
 import { routeParam } from "../utils/route-param.js";
+import { requireUuid } from "../utils/uuid-param.js";
 
 export { SERVICE_NAME } from "./health.controller.js";
 
@@ -24,6 +25,7 @@ export type CreateHttpServerOptions = {
   rateLimitWindowMs?: number;
   rateLimitMax?: number;
   authRateLimitMax?: number;
+  readinessProbes?: ReadinessProbe[];
 };
 
 export function createHttpServer(options: CreateHttpServerOptions): Application {
@@ -41,11 +43,18 @@ export function createHttpServer(options: CreateHttpServerOptions): Application 
     globalRateLimit: {
       windowMs: options.rateLimitWindowMs ?? 60_000,
       max: options.rateLimitMax ?? 120,
-      skipPaths: ["/healthz", "/health"],
+      skipPaths: ["/healthz", "/health", "/readyz"],
     },
     registerRoutes: (router) => {
+      const probes = options.readinessProbes ?? [];
       router.get("/healthz", (_req, res) => handleHealth(res));
       router.get("/health", (_req, res) => handleHealth(res));
+      router.get(
+        "/readyz",
+        asyncHandler(async (_req, res) => {
+          await handleReady(res, probes);
+        }),
+      );
 
       router.post(
         "/v1/register",
@@ -108,10 +117,11 @@ export function createHttpServer(options: CreateHttpServerOptions): Application 
         asyncHandler(async (req, res) => {
           const requestId = requestIdFromResponse(res);
           const auth = res.locals.identityAuth!;
+          const orgId = requireUuid(routeParam(req.params.orgId), "organization id", requestId);
           await organizationsController.handleGetOrganization(
             res,
             requestId,
-            routeParam(req.params.orgId),
+            orgId,
             auth.userId,
             services.organizations,
           );
@@ -124,11 +134,12 @@ export function createHttpServer(options: CreateHttpServerOptions): Application 
         asyncHandler(async (req, res) => {
           const requestId = requestIdFromResponse(res);
           const auth = res.locals.identityAuth!;
+          const orgId = requireUuid(routeParam(req.params.orgId), "organization id", requestId);
           await apiKeysController.handleCreateApiKey(
             req,
             res,
             requestId,
-            routeParam(req.params.orgId),
+            orgId,
             auth.userId,
             services.apiKeys,
           );
@@ -141,10 +152,11 @@ export function createHttpServer(options: CreateHttpServerOptions): Application 
         asyncHandler(async (req, res) => {
           const requestId = requestIdFromResponse(res);
           const auth = res.locals.identityAuth!;
+          const orgId = requireUuid(routeParam(req.params.orgId), "organization id", requestId);
           await apiKeysController.handleListApiKeys(
             res,
             requestId,
-            routeParam(req.params.orgId),
+            orgId,
             auth.userId,
             services.apiKeys,
           );
@@ -155,12 +167,15 @@ export function createHttpServer(options: CreateHttpServerOptions): Application 
         "/v1/organizations/:orgId/api-keys/:keyId",
         authGuard,
         asyncHandler(async (req, res) => {
+          const requestId = requestIdFromResponse(res);
           const auth = res.locals.identityAuth!;
+          const orgId = requireUuid(routeParam(req.params.orgId), "organization id", requestId);
+          const keyId = requireUuid(routeParam(req.params.keyId), "api key id", requestId);
           await apiKeysController.handleRevokeApiKey(
             res,
-            routeParam(req.params.orgId),
+            orgId,
             auth.userId,
-            routeParam(req.params.keyId),
+            keyId,
             services.apiKeys,
           );
         }),
