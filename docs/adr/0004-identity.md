@@ -85,7 +85,7 @@ Errors use `@quickstart/errors` envelope. Requests use `@quickstart/tracing` + s
 ## Consequences
 
 - `packages/auth` exports JWT sign/verify helpers for identity now and gateway later.
-- Migrations run on identity startup when `IDENTITY_AUTO_MIGRATE=true` (default local).
+- **Schema changes are explicit:** run `make identity-migrate` or `pnpm --filter @quickstart/service-identity migrate` — not on HTTP server startup. See [database migrations](../architecture/database-migrations.md).
 - Integration tests against Postgres are optional (`IDENTITY_INTEGRATION_TEST=1`).
 
 ## Alternatives rejected
@@ -101,3 +101,4 @@ Errors use `@quickstart/errors` envelope. Requests use `@quickstart/tracing` + s
 - `docs/project_details.md` — §12–13, §19, §47–48
 - `docs/roadmap.md` — Slot 04
 - `docs/security/identity-threats.md`
+- `docs/architecture/database-migrations.md`

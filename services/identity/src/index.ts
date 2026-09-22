@@ -5,7 +5,6 @@ import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
 import { createIdentityApp, SERVICE_NAME } from "./app.js";
 import { loadConfig } from "./config.js";
-import { runMigrations } from "./db/migrate.js";
 import { createIdentityService } from "./identity-service.js";
 import { createNoopSessionRevocation, createRedisSessionRevocation } from "./session-revocation.js";
 import { createPgStore } from "./store/pg-store.js";
@@ -17,10 +16,6 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
   await initTracing({ serviceName: SERVICE_NAME });
 
   const pool = new Pool({ connectionString: config.databaseUrl });
-  if (config.autoMigrate) {
-    await runMigrations(pool);
-  }
-
   const store = createPgStore(pool);
   let sessions = createNoopSessionRevocation();
   let redisClient: ReturnType<typeof createRedisClient> | undefined;

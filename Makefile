@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground identity-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -10,6 +10,10 @@ smoke: data-plane-smoke
 playground:
 	@chmod +x scripts/local-playground.sh
 	@./scripts/local-playground.sh
+
+identity-migrate:
+	pnpm --filter @quickstart/service-identity build
+	pnpm --filter @quickstart/service-identity migrate
 
 data-plane-up:
 	$(COMPOSE) up -d --wait

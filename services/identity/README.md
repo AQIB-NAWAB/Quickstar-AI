@@ -4,10 +4,14 @@ Authentication, organizations, org membership, and org-scoped API keys.
 
 ## Run locally
 
+Schema is **not** applied on server startup. Run migrations first (see [database migrations](../../docs/architecture/database-migrations.md)).
+
 ```bash
 make up   # Postgres + Valkey
-export JWT_ACCESS_SECRET=dev-secret-min-32-chars-for-hs256!!
 export DATABASE_URL=postgresql://quickstart:quickstart@localhost:5432/quickstart
+make identity-migrate
+
+export JWT_ACCESS_SECRET=dev-secret-min-32-chars-for-hs256!!
 export REDIS_URL=redis://localhost:6379
 pnpm --filter @quickstart/service-identity build
 pnpm --filter @quickstart/service-identity start

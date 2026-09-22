@@ -11,7 +11,6 @@ export function testConfig(overrides: Partial<IdentityConfig> = {}): IdentityCon
     jwtAccessSecret: "test-secret-at-least-32-characters-long!!",
     jwtAccessTtlSeconds: 900,
     refreshTtlSeconds: 604_800,
-    autoMigrate: false,
     ...overrides,
   };
 }

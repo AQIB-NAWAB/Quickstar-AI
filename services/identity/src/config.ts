@@ -5,7 +5,6 @@ export type IdentityConfig = {
   jwtAccessSecret: string;
   jwtAccessTtlSeconds: number;
   refreshTtlSeconds: number;
-  autoMigrate: boolean;
 };
 
 export function loadConfig(): IdentityConfig {
@@ -22,6 +21,5 @@ export function loadConfig(): IdentityConfig {
     jwtAccessSecret,
     jwtAccessTtlSeconds: Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 900),
     refreshTtlSeconds: Number(process.env.REFRESH_TOKEN_TTL_SECONDS ?? 604_800),
-    autoMigrate: (process.env.IDENTITY_AUTO_MIGRATE ?? "true").toLowerCase() !== "false",
   };
 }
