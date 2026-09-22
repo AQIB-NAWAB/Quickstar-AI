@@ -26,7 +26,7 @@ docs/         Product spec, roadmap, ADRs, runbooks
 
 **Slot 03:** shared platform libraries (`@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`) wired into `services/_template`.
 
-**Slot 04:** `services/identity` — register/login/refresh, organizations, org API keys. Run **`make identity-migrate`** before starting the service. See [ADR 0004](docs/adr/0004-identity.md), [database migrations](docs/architecture/database-migrations.md), and [services/identity/README.md](services/identity/README.md).
+**Slot 04:** `services/identity-service` — register/login/refresh, organizations, org API keys. Run **`make identity-migrate`** before starting the service. See [ADR 0004](docs/adr/0004-identity.md), [database migrations](docs/architecture/database-migrations.md), and [services/identity-service/README.md](services/identity-service/README.md).
 
 ## Prerequisites
 

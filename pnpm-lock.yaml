@@ -83,7 +83,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/utilities
 
-  services/identity:
+  services/identity-service:
     dependencies:
       "@quickstart/auth":
         specifier: workspace:*

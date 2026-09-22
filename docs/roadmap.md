@@ -577,7 +577,7 @@ Another service can import these packages. Template service shows a trace in the
 | Status | `done`             |
 | Read   | sections 12–13, 47 |
 
-**What we already have:** `services/identity`, ADR 0004, JWT helpers in `@quickstart/auth`, org API keys.
+**What we already have:** `services/identity-service`, ADR 0004, JWT helpers in `@quickstart/auth`, org API keys.
 
 **What we add now:** users, login, tokens, API keys, first organization.
 
@@ -627,7 +627,7 @@ Another service can import these packages. Template service shows a trace in the
 
 #### Build tasks
 
-- [x] `services/identity` from the template
+- [x] `services/identity-service` from the template
 - [x] Register, login, logout/refresh, me
 - [x] Create organization + first owner
 - [x] API key issue / revoke

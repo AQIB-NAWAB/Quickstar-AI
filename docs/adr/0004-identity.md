@@ -6,7 +6,7 @@
 
 ## Context
 
-QuickStart AI is multi-tenant (§12–13 in `project_details.md`). Slot 03 provides platform libraries and an internal `AuthContext` header stub; **no real users or credentials** exist yet. Slot 04 introduces **`services/identity`** as the bounded context for authentication, organization membership, and org-scoped API keys.
+QuickStart AI is multi-tenant (§12–13 in `project_details.md`). Slot 03 provides platform libraries and an internal `AuthContext` header stub; **no real users or credentials** exist yet. Slot 04 introduces **`services/identity-service`** (`@quickstart/service-identity`) as the bounded context for authentication, organization membership, and org-scoped API keys.
 
 Workspace RBAC, gateway JWT validation, and SSO remain later slots (05–06).
 

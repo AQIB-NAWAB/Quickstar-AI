@@ -51,12 +51,12 @@ Local dev matches that idea: **you run migrate once** (or after pulling new SQL)
 
 ## Identity migrations in this repo
 
-| Item   | Location                                                                            |
-| ------ | ----------------------------------------------------------------------------------- |
-| SQL    | `services/identity/migrations/001_identity_schema.sql`                              |
-| Runner | `services/identity/src/repository/migrate.ts` (logic), `src/migrate.ts` (CLI entry) |
-| CLI    | `pnpm --filter @quickstart/service-identity migrate`                                |
-| Make   | `make identity-migrate` (from repo root)                                            |
+| Item   | Location                                                                                    |
+| ------ | ------------------------------------------------------------------------------------------- |
+| SQL    | `services/identity-service/migrations/001_identity_schema.sql`                              |
+| Runner | `services/identity-service/src/repository/migrate.ts` (logic), `src/migrate.ts` (CLI entry) |
+| CLI    | `pnpm --filter @quickstart/service-identity migrate`                                        |
+| Make   | `make identity-migrate` (from repo root)                                                    |
 
 Requires **`DATABASE_URL`** (see [`.env.example`](../../.env.example)).
 
@@ -77,7 +77,7 @@ Same as migrate CLI, but explicit:
 
 ```bash
 docker compose exec -T postgres psql -U quickstart -d quickstart \
-  < services/identity/migrations/001_identity_schema.sql
+  < services/identity-service/migrations/001_identity_schema.sql
 ```
 
 Prefer the CLI so `schema_migrations` stays in sync.
