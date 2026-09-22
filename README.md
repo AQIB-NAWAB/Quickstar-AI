@@ -20,12 +20,16 @@ tests/        Cross-service tests (later)
 docs/         Product spec, roadmap, ADRs, runbooks
 ```
 
-**Slot 01 (current):** monorepo scaffold and `services/_template` with `GET /healthz` only. No product APIs yet.
+**Slot 01:** monorepo scaffold and `services/_template` with `GET /healthz` only.
+
+**Slot 02:** local data plane via Docker Compose (Postgres, Valkey, Kafka, OpenSearch, OTel, SQS-compatible queue). See [local data plane](docs/architecture/local-data-plane.md).
 
 ## Prerequisites
 
 - Node.js **22+**
 - [pnpm](https://pnpm.io/) **9+**
+- **Docker Compose v2** for the local data plane
+- **AWS CLI** for the Slot 02 smoke test (SQS API against ElasticMQ)
 
 ## Setup
 
@@ -35,6 +39,15 @@ pnpm check
 ```
 
 `pnpm check` runs lint, typecheck, tests, and build for all workspaces.
+
+### Local data plane (Slot 02)
+
+```bash
+make up
+make smoke
+```
+
+Connection defaults are in [`.env.example`](.env.example).
 
 ## Commit messages
 
