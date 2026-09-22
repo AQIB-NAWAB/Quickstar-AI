@@ -175,14 +175,14 @@ Simple rules:
 
 Update these three lines every day.
 
-- **Current day:** Day 3
-- **Current slot:** Slot 02 — Local data plane
-- **Overall progress:** 2 / 60 days (~3%)
+- **Current day:** Day 5
+- **Current slot:** Slot 03 — Shared platform libraries
+- **Overall progress:** 4 / 60 days (~7%)
 
 | Slot | Days  | Theme                                | Learn | Build | Status        |
 | ---- | ----- | ------------------------------------ | ----- | ----- | ------------- |
 | 01   | 1–2   | Engineering foundation               | [ ]   | [x]   | `done`        |
-| 02   | 3–4   | Local data plane                     | [ ]   | [ ]   | `not_started` |
+| 02   | 3–4   | Local data plane                     | [x]   | [x]   | `done`        |
 | 03   | 5–6   | Shared platform libraries            | [ ]   | [ ]   | `not_started` |
 | 04   | 7–8   | Identity                             | [ ]   | [ ]   | `not_started` |
 | 05   | 9–10  | Workspace and tenancy                | [ ]   | [ ]   | `not_started` |
@@ -353,10 +353,10 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 | ------ | --------------------- |
 | Days   | 3–4                   |
 | Wave   | A                     |
-| Status | `not_started`         |
+| Status | `done`                |
 | Read   | sections 9, 35, 51–52 |
 
-**What we already have:** repo tree, service template, ADR habit.
+**What we already have:** Compose data plane, ADR 0002, `make up` / `make smoke`, `docs/architecture/local-data-plane.md`.
 
 **What we add now:** local Docker stand-ins for production stores, with health checks.
 
@@ -368,7 +368,7 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ### Day 3 — LEARN: which store for which job
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 **Goal:** one ADR that says what each store is for, and what must never go there.
 
@@ -424,10 +424,10 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 #### Learn tasks
 
-- [ ] Write `docs/adr/0002-data-plane.md` — one short paragraph per store
-- [ ] Decide Compose names, ports, volumes (local data can be ephemeral)
-- [ ] Spike: start Postgres and Redis, connect with CLI
-- [ ] Write Day 4 LLD: `docker-compose.yml`, `make up` / `make down`, smoke test
+- [x] Write `docs/adr/0002-data-plane.md` — one short paragraph per store
+- [x] Decide Compose names, ports, volumes (local data can be ephemeral)
+- [x] Spike: start Postgres and Redis, connect with CLI
+- [x] Write Day 4 LLD: `docker-compose.yml`, `make up` / `make down`, smoke test
 
 #### Day notes
 
@@ -439,16 +439,16 @@ A new person can clone, install, run lint/test, and see the tree. No product fea
 
 ### Day 4 — BUILD: Docker Compose + smoke test
 
-**Status:** `not_started` · **Hours:** 6
+**Status:** `done` · **Hours:** 6
 
 #### Build tasks
 
-- [ ] Compose: Postgres, Redis/Valkey, Kafka (KRaft), OpenSearch, OTel Collector, local SQS (LocalStack or ElasticMQ)
-- [ ] Healthchecks. `make up` waits until healthy
-- [ ] `make down` / `make logs`
-- [ ] Smoke test: write/read one record or message on each store. Fail if any store is down
-- [ ] Document ports in `docs/architecture/local-data-plane.md`
-- [ ] Do **not** create product tables yet
+- [x] Compose: Postgres, Redis/Valkey, Kafka (KRaft), OpenSearch, OTel Collector, local SQS (LocalStack or ElasticMQ)
+- [x] Healthchecks. `make up` waits until healthy
+- [x] `make down` / `make logs`
+- [x] Smoke test: write/read one record or message on each store. Fail if any store is down
+- [x] Document ports in `docs/architecture/local-data-plane.md`
+- [x] Do **not** create product tables yet
 
 #### Done when
 

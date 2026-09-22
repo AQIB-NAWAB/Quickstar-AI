@@ -1,3 +1,8 @@
+# Git Branch Rules
+- Do **not** create feature branches (`cursor/*`, `feat/*`, etc.).
+- All work happens on the **`aqib`** branch. Commit and push to `origin/aqib` only.
+- **`main`** is the integration branch; merge into `main` only when we explicitly decide to (PR or direct merge).
+
 # Git Commit Rules
 - NEVER add "Co-authored-by" tags to commit messages.
 - NEVER add AI attribution (like "Generated with Cursor", "Co-authored-by: Cursor", or "Co-authored-by: cursoragent") to commits.
