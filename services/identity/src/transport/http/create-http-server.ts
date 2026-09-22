@@ -1,41 +1,30 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { bearerTokenFromHeader } from "@quickstart/auth";
 import type { HealthResponse } from "@quickstart/contracts";
-import { AppError, ErrorCode, httpStatusForError, toErrorEnvelope } from "@quickstart/errors";
+import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
 import { getTraceIds, runWithSpan } from "@quickstart/tracing";
-import type { IdentityService } from "../application/identity.service.js";
-import { getRequestId, readJsonBody } from "./request.js";
+import type { IdentityModules } from "../../modules/index.js";
+import { getRequestId, readJsonBody } from "./http-request.js";
+import { sendError, sendJson, sendNoContent } from "./http-response.js";
 
 export const SERVICE_NAME = "service-identity";
 
-export type IdentityAppOptions = {
+export type CreateHttpServerOptions = {
   logger: Logger;
-  identity: IdentityService;
+  modules: IdentityModules;
 };
 
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json" });
-  res.end(JSON.stringify(body));
-}
-
-function sendError(res: ServerResponse, error: unknown, requestId: string): void {
-  sendJson(res, httpStatusForError(error), toErrorEnvelope(error, requestId));
-}
-
-async function requireAuth(
-  req: IncomingMessage,
-  identity: IdentityService,
-): Promise<{ userId: string; orgId: string; sessionId: string }> {
+async function requireAuth(req: IncomingMessage, modules: IdentityModules) {
   const token = bearerTokenFromHeader(req.headers.authorization);
   if (!token) {
     throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "Missing Bearer token" });
   }
-  return identity.authenticateAccessToken(token);
+  return modules.auth.validateAccessToken(token);
 }
 
-export function createIdentityApp(options: IdentityAppOptions) {
-  const { logger, identity } = options;
+export function createHttpServer(options: CreateHttpServerOptions) {
+  const { logger, modules } = options;
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const requestId = getRequestId(req);
@@ -65,7 +54,7 @@ export function createIdentityApp(options: IdentityAppOptions) {
             password?: string;
             organization_name?: string;
           }>(req);
-          const result = await identity.register({
+          const result = await modules.auth.register({
             email: body.email ?? "",
             password: body.password ?? "",
             organizationName: body.organization_name ?? "",
@@ -76,7 +65,7 @@ export function createIdentityApp(options: IdentityAppOptions) {
 
         if (method === "POST" && url === "/v1/login") {
           const body = await readJsonBody<{ email?: string; password?: string }>(req);
-          const tokens = await identity.login({
+          const tokens = await modules.auth.login({
             email: body.email ?? "",
             password: body.password ?? "",
           });
@@ -86,7 +75,7 @@ export function createIdentityApp(options: IdentityAppOptions) {
 
         if (method === "POST" && url === "/v1/refresh") {
           const body = await readJsonBody<{ refresh_token?: string }>(req);
-          const tokens = await identity.refresh(body.refresh_token ?? "");
+          const tokens = await modules.auth.refresh(body.refresh_token ?? "");
           sendJson(res, 200, { request_id: requestId, ...tokens });
           return;
         }
@@ -97,29 +86,28 @@ export function createIdentityApp(options: IdentityAppOptions) {
           let sessionId: string | undefined;
           if (token) {
             try {
-              const auth = await identity.authenticateAccessToken(token);
+              const auth = await modules.auth.validateAccessToken(token);
               sessionId = auth.sessionId;
             } catch {
               /* allow logout with refresh only */
             }
           }
-          await identity.logout({ refreshToken: body.refresh_token, sessionId });
-          res.writeHead(204);
-          res.end();
+          await modules.auth.logout({ refreshToken: body.refresh_token, sessionId });
+          sendNoContent(res);
           return;
         }
 
         if (method === "GET" && url === "/v1/me") {
-          const auth = await requireAuth(req, identity);
-          const me = await identity.me(auth.userId);
-          sendJson(res, 200, { request_id: requestId, ...me });
+          const auth = await requireAuth(req, modules);
+          const profile = await modules.users.getProfile(auth.userId);
+          sendJson(res, 200, { request_id: requestId, ...profile });
           return;
         }
 
         if (method === "GET" && url === "/v1/organizations") {
-          const auth = await requireAuth(req, identity);
-          const orgs = await identity.me(auth.userId);
-          sendJson(res, 200, { request_id: requestId, organizations: orgs.organizations });
+          const auth = await requireAuth(req, modules);
+          const organizations = await modules.organizations.listOrganizations(auth.userId);
+          sendJson(res, 200, { request_id: requestId, organizations });
           return;
         }
 
@@ -129,37 +117,36 @@ export function createIdentityApp(options: IdentityAppOptions) {
           const apiKeysSuffix = orgMatch[2];
 
           if (method === "GET" && !apiKeysSuffix) {
-            const auth = await requireAuth(req, identity);
-            const org = await identity.getOrganization(orgId, auth.userId);
+            const auth = await requireAuth(req, modules);
+            const org = await modules.organizations.getOrganization(orgId, auth.userId);
             sendJson(res, 200, { request_id: requestId, organization: org });
             return;
           }
 
           if (apiKeysSuffix === "/api-keys" && method === "POST") {
-            const auth = await requireAuth(req, identity);
+            const auth = await requireAuth(req, modules);
             const body = await readJsonBody<{ name?: string }>(req);
-            const key = await identity.createApiKey(orgId, auth.userId, body.name ?? "");
+            const key = await modules.apiKeys.createApiKey(orgId, auth.userId, body.name ?? "");
             sendJson(res, 201, { request_id: requestId, ...key });
             return;
           }
 
           if (apiKeysSuffix === "/api-keys" && method === "GET") {
-            const auth = await requireAuth(req, identity);
-            const keys = await identity.listApiKeys(orgId, auth.userId);
+            const auth = await requireAuth(req, modules);
+            const keys = await modules.apiKeys.listApiKeys(orgId, auth.userId);
             sendJson(res, 200, { request_id: requestId, api_keys: keys });
             return;
           }
 
           const deleteKeyMatch = url.match(/^\/v1\/organizations\/([^/]+)\/api-keys\/([^/]+)$/);
           if (deleteKeyMatch && method === "DELETE") {
-            const auth = await requireAuth(req, identity);
-            await identity.revokeApiKey(
+            const auth = await requireAuth(req, modules);
+            await modules.apiKeys.revokeApiKey(
               decodeURIComponent(deleteKeyMatch[1]),
               auth.userId,
               decodeURIComponent(deleteKeyMatch[2]),
             );
-            res.writeHead(204);
-            res.end();
+            sendNoContent(res);
             return;
           }
         }

@@ -3,23 +3,23 @@ import { Pool } from "pg";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
-import { createIdentityService } from "./application/identity.service.js";
-import { loadConfig } from "./config/env.js";
-import { createIdentityApp, SERVICE_NAME } from "./http/server.js";
-import { createPostgresIdentityStore } from "./persistence/postgres/identity-store.js";
+import { loadServiceConfig } from "./config/environment.js";
 import {
   createNoopSessionRevocation,
   createRedisSessionRevocation,
-} from "./security/session-revocation.js";
+} from "./infrastructure/redis/session-revocation.adapter.js";
+import { createIdentityModules } from "./modules/index.js";
+import { createPostgresIdentityRepository } from "./repositories/postgres/postgres-identity.repository.js";
+import { createHttpServer, SERVICE_NAME } from "./transport/http/create-http-server.js";
 
 export async function startIdentityServer(options?: { useRedis?: boolean }) {
-  const config = loadConfig();
+  const config = loadServiceConfig();
   const logger = createLogger({ service: SERVICE_NAME });
 
   await initTracing({ serviceName: SERVICE_NAME });
 
   const pool = new Pool({ connectionString: config.databaseUrl });
-  const store = createPostgresIdentityStore(pool);
+  const repository = createPostgresIdentityRepository(pool);
   let sessions = createNoopSessionRevocation();
   let redisClient: ReturnType<typeof createRedisClient> | undefined;
 
@@ -36,8 +36,8 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
     }
   }
 
-  const identity = createIdentityService({ store, sessions, config });
-  const server = createIdentityApp({ logger, identity });
+  const modules = createIdentityModules({ repository, sessions, config });
+  const server = createHttpServer({ logger, modules });
 
   await new Promise<void>((resolve) => {
     server.listen(config.port, "0.0.0.0", () => resolve());

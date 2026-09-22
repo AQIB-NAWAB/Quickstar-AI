@@ -1,4 +1,4 @@
-export type IdentityConfig = {
+export type ServiceConfig = {
   port: number;
   databaseUrl: string;
   redisUrl: string;
@@ -7,7 +7,7 @@ export type IdentityConfig = {
   refreshTtlSeconds: number;
 };
 
-export function loadConfig(): IdentityConfig {
+export function loadServiceConfig(): ServiceConfig {
   const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
   if (!jwtAccessSecret || jwtAccessSecret.length < 32) {
     throw new Error("JWT_ACCESS_SECRET must be set and at least 32 characters");
