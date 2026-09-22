@@ -1,18 +1,15 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
-import { getTraceIds, runWithSpan } from "@quickstart/tracing";
+import { handleRequestError, requireAuth, withRequestTracing } from "../middleware/index.js";
 import type { IdentityServices } from "../services/index.js";
-import { getRequestId } from "../utils/http-request.js";
-import { sendError } from "../utils/http-response.js";
 import * as apiKeysController from "./api-keys.controller.js";
 import * as authController from "./auth.controller.js";
-import { handleHealth, SERVICE_NAME } from "./health.controller.js";
+import { handleHealth } from "./health.controller.js";
 import * as organizationsController from "./organizations.controller.js";
-import { requireAuth } from "./require-auth.js";
 import * as usersController from "./users.controller.js";
 
-export { SERVICE_NAME };
+export { SERVICE_NAME } from "./health.controller.js";
 
 export type CreateHttpServerOptions = {
   logger: Logger;
@@ -23,20 +20,7 @@ export function createHttpServer(options: CreateHttpServerOptions) {
   const { logger, services } = options;
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const requestId = getRequestId(req);
-    const method = req.method ?? "GET";
-    const url = req.url ?? "/";
-
-    await runWithSpan(`${method} ${url}`, { requestId }, async () => {
-      const traceIds = getTraceIds();
-      logger.info("request.received", {
-        request_id: requestId,
-        method,
-        path: url,
-        trace_id: traceIds.traceId,
-        span_id: traceIds.spanId,
-      });
-
+    await withRequestTracing(req, logger, async ({ requestId, method, url }) => {
       try {
         if (method === "GET" && (url === "/healthz" || url === "/health")) {
           handleHealth(res);
@@ -135,11 +119,7 @@ export function createHttpServer(options: CreateHttpServerOptions) {
 
         throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Route not found", requestId });
       } catch (error) {
-        logger.warn("request.failed", {
-          request_id: requestId,
-          error: error instanceof Error ? error.message : "unknown",
-        });
-        sendError(res, error, requestId);
+        handleRequestError(res, error, requestId, logger);
       }
     });
   }

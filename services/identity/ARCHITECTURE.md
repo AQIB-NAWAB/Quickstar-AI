@@ -7,14 +7,19 @@ src/
 
   config/environment.ts
 
-  controllers/          # HTTP: parse request, call service, send response
-    router.ts           # Matches URL → right controller
+  controllers/          # HTTP handlers (parse body, call service)
+    router.ts
     auth.controller.ts
     users.controller.ts
     organizations.controller.ts
     api-keys.controller.ts
     health.controller.ts
-    require-auth.ts
+
+  middleware/           # Cross-cutting HTTP concerns
+    auth.middleware.ts
+    request-id.middleware.ts
+    tracing.middleware.ts
+    error.middleware.ts
 
   services/             # Business rules (same names as controllers)
 
@@ -29,4 +34,4 @@ src/
   tests/
 ```
 
-**Request path:** `router` → `*.controller` → `*.service` → `repository/postgres`.
+**Request path:** `middleware` (trace, request id) → `router` → `*.controller` → `*.service` → `repository/postgres`.
