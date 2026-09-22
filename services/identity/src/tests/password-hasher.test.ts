@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hashPassword, verifyPassword } from "./password-hasher.js";
+import { hashPassword, verifyPassword } from "../utils/password-hasher.js";
 
 test("password hash verifies", async () => {
   const hash = await hashPassword("password123");

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createLogger } from "@quickstart/logging";
-import { createTestIdentityModules } from "../../tests/helpers/test-app.js";
-import { createHttpServer } from "./create-http-server.js";
+import { createHttpServer } from "../controllers/http.controller.js";
+import { createTestIdentityServices } from "../helpers/test-app.js";
 
 async function withServer(run: (port: number) => Promise<void>): Promise<void> {
-  const { modules } = createTestIdentityModules();
+  const { services } = createTestIdentityServices();
   const server = createHttpServer({
-    modules,
+    services,
     logger: createLogger({ service: "service-identity-test" }),
   });
   await new Promise<void>((resolve) => server.listen(0, resolve));

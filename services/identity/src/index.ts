@@ -3,14 +3,14 @@ import { Pool } from "pg";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
+import { createHttpServer, SERVICE_NAME } from "./controllers/http.controller.js";
 import { loadServiceConfig } from "./config/environment.js";
+import { createPostgresRepository } from "./repository/postgres.repository.js";
+import { createIdentityServices } from "./services/index.js";
 import {
   createNoopSessionRevocation,
   createRedisSessionRevocation,
-} from "./infrastructure/redis/session-revocation.adapter.js";
-import { createIdentityModules } from "./modules/index.js";
-import { createPostgresIdentityRepository } from "./repositories/postgres/postgres-identity.repository.js";
-import { createHttpServer, SERVICE_NAME } from "./transport/http/create-http-server.js";
+} from "./utils/session-revocation.js";
 
 export async function startIdentityServer(options?: { useRedis?: boolean }) {
   const config = loadServiceConfig();
@@ -19,7 +19,7 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
   await initTracing({ serviceName: SERVICE_NAME });
 
   const pool = new Pool({ connectionString: config.databaseUrl });
-  const repository = createPostgresIdentityRepository(pool);
+  const repository = createPostgresRepository(pool);
   let sessions = createNoopSessionRevocation();
   let redisClient: ReturnType<typeof createRedisClient> | undefined;
 
@@ -36,8 +36,8 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
     }
   }
 
-  const modules = createIdentityModules({ repository, sessions, config });
-  const server = createHttpServer({ logger, modules });
+  const services = createIdentityServices({ repository, sessions, config });
+  const server = createHttpServer({ logger, services });
 
   await new Promise<void>((resolve) => {
     server.listen(config.port, "0.0.0.0", () => resolve());

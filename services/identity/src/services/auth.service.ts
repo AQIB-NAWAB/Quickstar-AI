@@ -1,16 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { signAccessToken, verifyAccessToken } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { ServiceConfig } from "../../config/environment.js";
-import type { AuthenticatedUser, TokenPair } from "../../domain/types/auth.types.js";
-import type { IdentityStore } from "../../domain/ports/identity-store.repository.js";
-import {
-  hashPassword,
-  hashToken,
-  randomToken,
-  verifyPassword,
-} from "../../infrastructure/crypto/password-hasher.js";
-import type { SessionRevocation } from "../../infrastructure/redis/session-revocation.adapter.js";
+import type { ServiceConfig } from "../config/environment.js";
+import type { IdentityStore } from "../repository/identity-store.types.js";
+import type { AuthenticatedUser, TokenPair } from "../utils/auth.types.js";
+import { hashPassword, hashToken, randomToken, verifyPassword } from "../utils/password-hasher.js";
+import type { SessionRevocation } from "../utils/session-revocation.js";
 
 export type AuthServiceDeps = {
   repository: IdentityStore;
