@@ -4,8 +4,8 @@ import type { HealthResponse } from "@quickstart/contracts";
 import { AppError, ErrorCode, httpStatusForError, toErrorEnvelope } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
 import { getTraceIds, runWithSpan } from "@quickstart/tracing";
-import type { IdentityService } from "./identity-service.js";
-import { getRequestId, readJsonBody } from "./http-utils.js";
+import type { IdentityService } from "../application/identity.service.js";
+import { getRequestId, readJsonBody } from "./request.js";
 
 export const SERVICE_NAME = "service-identity";
 

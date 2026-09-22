@@ -3,11 +3,14 @@ import { Pool } from "pg";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
-import { createIdentityApp, SERVICE_NAME } from "./app.js";
-import { loadConfig } from "./config.js";
-import { createIdentityService } from "./identity-service.js";
-import { createNoopSessionRevocation, createRedisSessionRevocation } from "./session-revocation.js";
-import { createPgStore } from "./store/pg-store.js";
+import { createIdentityService } from "./application/identity.service.js";
+import { loadConfig } from "./config/env.js";
+import { createIdentityApp, SERVICE_NAME } from "./http/server.js";
+import { createPostgresIdentityStore } from "./persistence/postgres/identity-store.js";
+import {
+  createNoopSessionRevocation,
+  createRedisSessionRevocation,
+} from "./security/session-revocation.js";
 
 export async function startIdentityServer(options?: { useRedis?: boolean }) {
   const config = loadConfig();
@@ -16,7 +19,7 @@ export async function startIdentityServer(options?: { useRedis?: boolean }) {
   await initTracing({ serviceName: SERVICE_NAME });
 
   const pool = new Pool({ connectionString: config.databaseUrl });
-  const store = createPgStore(pool);
+  const store = createPostgresIdentityStore(pool);
   let sessions = createNoopSessionRevocation();
   let redisClient: ReturnType<typeof createRedisClient> | undefined;
 

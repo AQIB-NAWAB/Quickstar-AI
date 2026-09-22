@@ -1,7 +1,7 @@
-import type { IdentityConfig } from "./config.js";
-import { createIdentityService } from "./identity-service.js";
-import { createNoopSessionRevocation } from "./session-revocation.js";
-import { createMemoryStore } from "./store/memory-store.js";
+import { createIdentityService } from "../application/identity.service.js";
+import type { IdentityConfig } from "../config/env.js";
+import { createMemoryIdentityStore } from "../persistence/memory/identity-store.js";
+import { createNoopSessionRevocation } from "../security/session-revocation.js";
 
 export function testConfig(overrides: Partial<IdentityConfig> = {}): IdentityConfig {
   return {
@@ -16,7 +16,7 @@ export function testConfig(overrides: Partial<IdentityConfig> = {}): IdentityCon
 }
 
 export function createTestIdentity() {
-  const store = createMemoryStore();
+  const store = createMemoryIdentityStore();
   const sessions = createNoopSessionRevocation();
   const config = testConfig();
   const identity = createIdentityService({ store, sessions, config });

@@ -22,7 +22,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
   }
 
   const here = dirname(fileURLToPath(import.meta.url));
-  const sqlPath = join(here, "../../migrations/001_identity_schema.sql");
+  const sqlPath = join(here, "../../../migrations/001_identity_schema.sql");
   const sql = readFileSync(sqlPath, "utf8");
 
   const client = await pool.connect();

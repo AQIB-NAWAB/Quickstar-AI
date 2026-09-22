@@ -5,9 +5,9 @@ import type {
   OrganizationRecord,
   RefreshTokenRecord,
   UserRecord,
-} from "./types.js";
+} from "../identity-store.types.js";
 
-export function createMemoryStore(): IdentityStore {
+export function createMemoryIdentityStore(): IdentityStore {
   const usersByEmail = new Map<string, UserRecord>();
   const usersById = new Map<string, UserRecord>();
   const orgs = new Map<string, OrganizationRecord>();

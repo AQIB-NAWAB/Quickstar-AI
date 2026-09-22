@@ -6,9 +6,9 @@ import type {
   OrganizationRecord,
   RefreshTokenRecord,
   UserRecord,
-} from "./types.js";
+} from "../identity-store.types.js";
 
-export function createPgStore(pool: Pool): IdentityStore {
+export function createPostgresIdentityStore(pool: Pool): IdentityStore {
   return {
     async createUserWithOrg(input) {
       const client = await pool.connect();

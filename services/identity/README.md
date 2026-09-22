@@ -2,6 +2,8 @@
 
 Authentication, organizations, org membership, and org-scoped API keys.
 
+Source layout: [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Run locally
 
 Schema is **not** applied on server startup. Run migrations first (see [database migrations](../../docs/architecture/database-migrations.md)).

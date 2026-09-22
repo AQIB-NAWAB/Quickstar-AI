@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { runMigrations } from "./db/migrate.js";
+import { runMigrations } from "../persistence/postgres/migrate.js";
 
 async function main(): Promise<void> {
   const databaseUrl =

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createLogger } from "@quickstart/logging";
-import { createIdentityApp } from "./app.js";
-import { createTestIdentity } from "./test-helpers.js";
+import { createTestIdentity } from "../testing/fixtures.js";
+import { createIdentityApp } from "./server.js";
 
 async function withServer(run: (port: number) => Promise<void>): Promise<void> {
   const { identity } = createTestIdentity();

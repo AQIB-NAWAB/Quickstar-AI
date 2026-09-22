@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { signAccessToken, verifyAccessToken } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import { apiKeyMaterial, hashToken, randomToken, verifyPassword, hashPassword } from "./crypto.js";
-import type { IdentityConfig } from "./config.js";
-import type { SessionRevocation } from "./session-revocation.js";
-import type { IdentityStore } from "./store/types.js";
+import type { IdentityConfig } from "../config/env.js";
+import type { IdentityStore } from "../persistence/identity-store.types.js";
+import {
+  apiKeyMaterial,
+  hashPassword,
+  hashToken,
+  randomToken,
+  verifyPassword,
+} from "../security/crypto.js";
+import type { SessionRevocation } from "../security/session-revocation.js";
 
 export type TokenPair = {
   access_token: string;

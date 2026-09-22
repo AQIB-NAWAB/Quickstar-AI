@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import { createTestIdentity } from "./test-helpers.js";
+import { createTestIdentity } from "../testing/fixtures.js";
 
 test("register and login issue tokens", async () => {
   const { identity } = createTestIdentity();
