@@ -14,8 +14,8 @@ On a learn day, do not jump to the full feature. Produce the topics to learn, th
 Two people work in this repo.
 
 - Aqib owns correctness, authentication, the data model, failure behavior, and shared packages (`packages/*`, migrations, gateway policy). He may take a second task only when it does not edit the same files.
-- Arshia owns a bounded slice against a stable contract: tests, HTTP examples, docs, the widget, or fixtures.
+- Hashir owns a bounded slice against a stable contract: tests, HTTP examples, docs, the widget, or fixtures.
 
-One person owns a service directory for that day. One person owns a shared package for that day. The other person only calls it. If both need a shared change, Aqib lands it on day 1 and Arshia uses it on day 2. Do not put both people in `packages/*` or in the same service in one change set.
+One person owns a service directory for that day. One person owns a shared package for that day. The other person only calls it. If both need a shared change, Aqib lands it on day 1 and Hashir uses it on day 2. Do not put both people in `packages/*` or in the same service in one change set.
 
 Do not decide service boundaries, tenant isolation, consistency, or the failure policy by default. State the decision and the failure mode so the humans can confirm it. Kubernetes and cloud accounts belong to the later roadmap slots. Earlier work still has to be safe with two replicas: no correctness that lives only in process memory.
