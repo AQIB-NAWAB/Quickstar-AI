@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
@@ -22,7 +22,9 @@ export async function runMigrations(pool: Pool): Promise<void> {
   }
 
   const here = dirname(fileURLToPath(import.meta.url));
-  const sqlPath = join(here, "../../../migrations/001_identity_schema.sql");
+  const candidate1 = join(here, "../../migrations/001_identity_schema.sql");
+  const candidate2 = join(here, "../migrations/001_identity_schema.sql");
+  const sqlPath = existsSync(candidate1) ? candidate1 : candidate2;
   const sql = readFileSync(sqlPath, "utf8");
 
   const client = await pool.connect();
