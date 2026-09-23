@@ -32,9 +32,12 @@ Override ports in `.env` (see `.env.example`) if you have conflicts.
 - `postgres_data`, `opensearch_data` — persist across restarts for faster re-up.
 - For a clean slate: `docker compose down -v` (wipes local DB/search data).
 
+## Schema (Identity and later services)
+
+Compose only starts Postgres. **Tables are not created automatically.** After Slot 04, run Identity schema with [database migrations](./database-migrations.md) (`make identity-migrate`).
+
 ## What this is not
 
-- No product tables or migrations (Identity, Agent, etc. come in later slots).
 - Not a production topology (single broker, security disabled on OpenSearch locally).
 - S3 is production object storage; optional MinIO may be added when Knowledge ingestion needs it.
 

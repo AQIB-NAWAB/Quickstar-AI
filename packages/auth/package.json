@@ -16,5 +16,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test dist/**/*.test.js",
     "lint": "eslint src"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
   }
 }
