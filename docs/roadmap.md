@@ -30,7 +30,7 @@ Please update this file every work day.
 A **slot** = 2 days. We do not add extra calendar days for the talk.
 
 - **Day 1** is technical learning first, then a small build (one spike or one narrow slice). Each person prepares half of the talk.
-- **Day 2** is the deep build. The deep focus is the failure, scale, and operations problem of that slot. At the end of day 2, Aqib and Arshia deliver the talk to each other.
+- **Day 2** is the deep build. The deep focus is the failure, scale, and operations problem of that slot. At the end of day 2, Aqib and Hashir deliver the talk to each other.
 
 Do not start the next slot if this slot is not done.
 
@@ -82,13 +82,13 @@ When a slot says "at scale", it means these numbers. A design that only works fo
 Two people work on this project. Tasks in each slot are split so they do not edit the same files on the same day.
 
 - **Aqib** owns correctness, authentication, the data model, failure behavior, and shared packages (`packages/*`, migrations, and gateway policy). Aqib may take a second task only when that second task does not edit the same files.
-- **Arshia** owns a bounded slice that compiles against a stable contract. That slice is usually tests, HTTP examples, docs, the widget, or fixtures. Arshia does not edit the service Aqib is editing that day. Arshia does not edit a shared package on the same day Aqib is changing it.
+- **Hashir** owns a bounded slice that compiles against a stable contract. That slice is usually tests, HTTP examples, docs, the widget, or fixtures. Hashir does not edit the service Aqib is editing that day. Hashir does not edit a shared package on the same day Aqib is changing it.
 
 These rules are mandatory:
 
 - One person owns one service directory for that day.
 - One person owns one shared package for that day. The other person only calls that package.
-- If both people need a change in a shared package, Aqib lands that change on day 1. Arshia uses the new API on day 2.
+- If both people need a change in a shared package, Aqib lands that change on day 1. Hashir uses the new API on day 2.
 - Do not start the next service until the previous slot's contract is on the `aqib` branch.
 
 ### Day 1 — learn, small build, prepare the talk (6 hours)
@@ -114,7 +114,7 @@ Day 1 is done only when we have:
 | Time      | What to do                                                                                                   |
 | --------- | ------------------------------------------------------------------------------------------------------------ |
 | 0:00–0:20 | Read yesterday's ADR and LLD. Do not redesign unless the LLD is wrong.                                       |
-| 0:20–4:15 | Build the owned file tree. Aqib and Arshia do not edit the same directory.                                   |
+| 0:20–4:15 | Build the owned file tree. Aqib and Hashir do not edit the same directory.                                   |
 | 4:15–5:00 | Tests: happy path, tenant isolation, and one timeout, retry, or failure case.                                |
 | 5:00–6:00 | Deliver the talk (about 45–60 minutes). Then tick boxes and commit. Mark `done` only if "Done when" is true. |
 
@@ -281,7 +281,7 @@ Each slot from Slot 05 onward has this shape. Slots 01–03 keep their original 
 3. **Not now**
 4. **Why this slot is now**
 5. Day 1: topics, scale, scenarios, junior versus senior, the decision we already made, a small build, and the talk split
-6. Day 2: Aqib's files, Arshia's files, deep focus, talk delivery, and "Done when"
+6. Day 2: Aqib's files, Hashir's files, deep focus, talk delivery, and "Done when"
 
 Write in complete sentences. Name the mechanism, say what breaks at the design scale, and say what we will implement. Do not leave the learning as a table of one-word ideas.
 
@@ -758,7 +758,7 @@ Already done: register and login against local Postgres. Do not rebuild it. If y
 
 ##### 7. Talk split
 
-Aqib explains access tokens, refresh rotation, the row lock, reuse detection, and Redis revocation. Arshia explains password hashing, API key hashing, the IDOR test, what must never appear in logs, and which login routes are rate limited. Both people point at the file they mean. The talk is not a history of OAuth.
+Aqib explains access tokens, refresh rotation, the row lock, reuse detection, and Redis revocation. Hashir explains password hashing, API key hashing, the IDOR test, what must never appear in logs, and which login routes are rate limited. Both people point at the file they mean. The talk is not a history of OAuth.
 
 ##### Talk delivery (do this once, even though the slot is `done`)
 
@@ -828,11 +828,11 @@ We use one shared schema, and every tenant-owned repository method takes `Tenant
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0005-tenancy-and-rbac.md` and one SQL spike that creates `workspaces` and `workspace_memberships` with a tenant key. Arshia writes a one-page note that defines Organization versus Workspace in full sentences, and lists the IDOR cases the day-2 tests will cover. Arshia does not edit `packages/auth` on this day.
+Aqib writes `docs/adr/0005-tenancy-and-rbac.md` and one SQL spike that creates `workspaces` and `workspace_memberships` with a tenant key. Hashir writes a one-page note that defines Organization versus Workspace in full sentences, and lists the IDOR cases the day-2 tests will cover. Hashir does not edit `packages/auth` on this day.
 
 #### 7. Talk split
 
-Aqib prepares: shared schema, `TenantContext`, what a repository method signature must look like, and why two replicas cannot keep the tenant in process memory. Arshia prepares: the six roles, what Analyst cannot do, and two IDOR stories (read and role change) in plain words tied to the test names we will add.
+Aqib prepares: shared schema, `TenantContext`, what a repository method signature must look like, and why two replicas cannot keep the tenant in process memory. Hashir prepares: the six roles, what Analyst cannot do, and two IDOR stories (read and role change) in plain words tied to the test names we will add.
 
 #### Day notes
 
@@ -855,7 +855,7 @@ Aqib prepares: shared schema, `TenantContext`, what a repository method signatur
 - [ ] `requirePermission` on every write route.
 - [ ] `TenantContext` in `packages/auth`. Repository methods require it.
 
-#### Arshia (does not edit `services/workspace` or `packages/auth`)
+#### Hashir (does not edit `services/workspace` or `packages/auth`)
 
 - [ ] After Aqib's repository methods exist, add tests that Workspace A cannot read Workspace B, and that Analyst cannot publish.
 - [ ] Add the Organization versus Workspace note under `docs/architecture/` if it is not already there.
@@ -946,11 +946,11 @@ We build an API gateway (BFF style) as the public entry. We rejected direct brow
 
 #### 6. Small day-1 build
 
-Aqib spikes a gateway process that checks a JWT and calls Identity `/v1/me`, and writes `docs/adr/0006-api-gateway.md` with the route map `/v1/auth` and `/v1/workspaces`. Arshia writes the public URL list and three example error bodies (401, 403, 429) in `docs/api/`. Arshia does not edit the gateway process on day 1.
+Aqib spikes a gateway process that checks a JWT and calls Identity `/v1/me`, and writes `docs/adr/0006-api-gateway.md` with the route map `/v1/auth` and `/v1/workspaces`. Hashir writes the public URL list and three example error bodies (401, 403, 429) in `docs/api/`. Hashir does not edit the gateway process on day 1.
 
 #### 7. Talk split
 
-Aqib prepares the middleware order, Redis versus in-memory limits, and what two gateway replicas do to a counter. Arshia prepares the status codes, the `request_id` header, and which paths are public versus internal.
+Aqib prepares the middleware order, Redis versus in-memory limits, and what two gateway replicas do to a counter. Hashir prepares the status codes, the `request_id` header, and which paths are public versus internal.
 
 #### Day notes
 
@@ -973,7 +973,7 @@ Aqib prepares the middleware order, Redis versus in-memory limits, and what two 
 - [ ] Redis rate limits.
 - [ ] 429, 401, and 403 use the shared error envelope.
 
-#### Arshia (owns `docs/api/` and gateway tests that do not change gateway routing code while Aqib is in that file)
+#### Hashir (owns `docs/api/` and gateway tests that do not change gateway routing code while Aqib is in that file)
 
 - [ ] Tests: missing token, bad token, rate limit, and `request_id` returned. Add them after the routes exist, in a test file Aqib is not editing.
 - [ ] Start the OpenAPI file in `docs/api/` for the routes that exist today.
@@ -1055,11 +1055,11 @@ The agent is a relational record. JSON is only for open model parameters. We kee
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0007-agent-aggregate.md` and the agent table spike with the unique name and version column. Arshia lists fields that exist now versus fields that wait (knowledge ids, tools) in `docs/architecture/agent-fields.md`. Arshia does not edit the migration.
+Aqib writes `docs/adr/0007-agent-aggregate.md` and the agent table spike with the unique name and version column. Hashir lists fields that exist now versus fields that wait (knowledge ids, tools) in `docs/architecture/agent-fields.md`. Hashir does not edit the migration.
 
 #### 7. Talk split
 
-Aqib prepares optimistic concurrency and the unique constraint under two writers. Arshia prepares which fields are columns, which are JSON, and which fields are intentionally absent until later slots.
+Aqib prepares optimistic concurrency and the unique constraint under two writers. Hashir prepares which fields are columns, which are JSON, and which fields are intentionally absent until later slots.
 
 #### Day notes
 
@@ -1081,7 +1081,7 @@ Aqib prepares optimistic concurrency and the unique constraint under two writers
 - [ ] Unique name per workspace.
 - [ ] Optimistic concurrency on update.
 
-#### Arshia (owns tests and examples, not the service source while Aqib is editing it)
+#### Hashir (owns tests and examples, not the service source while Aqib is editing it)
 
 - [ ] Tests: duplicate name, stale version, and cross-workspace read.
 - [ ] One HTTP example of create and update with `If-Match` or the version field the API actually uses.
@@ -1163,11 +1163,11 @@ We use immutable `agent_versions` plus a production pointer. Publish copies the 
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0008-agent-versioning.md` and draws the state machine in that ADR. Arshia writes the publish, rollback, list, and diff request examples in `docs/api/` without implementing them.
+Aqib writes `docs/adr/0008-agent-versioning.md` and draws the state machine in that ADR. Hashir writes the publish, rollback, list, and diff request examples in `docs/api/` without implementing them.
 
 #### 7. Talk split
 
-Aqib prepares the transaction, the pointer, and read-your-writes. Arshia prepares the state machine and what rollback does to the next turn versus the current turn.
+Aqib prepares the transaction, the pointer, and read-your-writes. Hashir prepares the state machine and what rollback does to the next turn versus the current turn.
 
 #### Day notes
 
@@ -1189,7 +1189,7 @@ Aqib prepares the transaction, the pointer, and read-your-writes. Arshia prepare
 - [ ] Reject a stale `base_version`.
 - [ ] Make version rows immutable in the application, and add a test that update-in-place fails.
 
-#### Arshia (owns tests that Aqib is not editing)
+#### Hashir (owns tests that Aqib is not editing)
 
 - [ ] Tests for illegal state jumps and for rollback returning the previous snapshot.
 - [ ] Keep the API examples matched to the real routes.
@@ -1273,11 +1273,11 @@ Conversation history lives in our Conversation Service on Postgres. We do not us
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0009-conversations.md` and the two-table spike (`conversations`, `messages`) with a unique `(conversation_id, seq)`. Arshia writes the reconnect story: client stores `conversation_id` and last `seq`. Arshia does not edit the migration.
+Aqib writes `docs/adr/0009-conversations.md` and the two-table spike (`conversations`, `messages`) with a unique `(conversation_id, seq)`. Hashir writes the reconnect story: client stores `conversation_id` and last `seq`. Hashir does not edit the migration.
 
 #### 7. Talk split
 
-Aqib prepares the transaction, the sequence, and idempotency. Arshia prepares why Redis is not the log, and how a reconnect avoids a new conversation.
+Aqib prepares the transaction, the sequence, and idempotency. Hashir prepares why Redis is not the log, and how a reconnect avoids a new conversation.
 
 #### Day notes
 
@@ -1299,7 +1299,7 @@ Aqib prepares the transaction, the sequence, and idempotency. Arshia prepares wh
 - [ ] Idempotency key on send.
 - [ ] Tenant filter on every read and write.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Tests: retry does not double-insert, cross-tenant read fails, and `seq` is gap-free for a single conversation under a sequential test.
 - [ ] Document the cursor fields the widget will need later. Do not build the widget.
@@ -1383,11 +1383,11 @@ We build our Model Gateway. We may use a vendor SDK inside it. We do not call pr
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0010-model-gateway.md`, names the two providers, and spikes one non-streaming completion with a timeout. Arshia writes the mapped error table (timeout, rate limit, provider 5xx) in `docs/api/`. Arshia does not put keys in the doc.
+Aqib writes `docs/adr/0010-model-gateway.md`, names the two providers, and spikes one non-streaming completion with a timeout. Hashir writes the mapped error table (timeout, rate limit, provider 5xx) in `docs/api/`. Hashir does not put keys in the doc.
 
 #### 7. Talk split
 
-Aqib prepares timeout, retry, fallback, and the circuit breaker. Arshia prepares the usage fields we must keep, and which errors the client is allowed to see.
+Aqib prepares timeout, retry, fallback, and the circuit breaker. Hashir prepares the usage fields we must keep, and which errors the client is allowed to see.
 
 #### Day notes
 
@@ -1410,7 +1410,7 @@ Aqib prepares timeout, retry, fallback, and the circuit breaker. Arshia prepares
 - [ ] Map vendor errors to our envelope.
 - [ ] Emit a usage record (callback or log event) with token counts. No invoice.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Tests with a fake provider: timeout, 429, and fallback used only when no token has been emitted.
 - [ ] Assert the provider key is not in the log line.
@@ -1500,11 +1500,11 @@ We build our Agent Runtime service as a pipeline of stages. We stream tokens and
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0011-agent-runtime.md`, draws the loop with the three empty ports, and spikes a stream from the model gateway to a local client. Arshia writes the cancel and concurrency notes: what the client sees, and what Redis key we will use. Arshia does not edit the runtime service.
+Aqib writes `docs/adr/0011-agent-runtime.md`, draws the loop with the three empty ports, and spikes a stream from the model gateway to a local client. Hashir writes the cancel and concurrency notes: what the client sees, and what Redis key we will use. Hashir does not edit the runtime service.
 
 #### 7. Talk split
 
-Aqib prepares the pipeline, cancel, and why the version is loaded once per turn. Arshia prepares concurrency limits, what two replicas do, and what "empty ports" means for later slots.
+Aqib prepares the pipeline, cancel, and why the version is loaded once per turn. Hashir prepares concurrency limits, what two replicas do, and what "empty ports" means for later slots.
 
 #### Day notes
 
@@ -1527,7 +1527,7 @@ Aqib prepares the pipeline, cancel, and why the version is loaded once per turn.
 - [ ] Cancel on client disconnect.
 - [ ] Redis concurrency limit per tenant.
 
-#### Arshia (owns tests with a fake model gateway)
+#### Hashir (owns tests with a fake model gateway)
 
 - [ ] Test: timeout does not append a successful assistant message.
 - [ ] Test: a second tenant can run when the first tenant is at the cap.
@@ -1611,11 +1611,11 @@ Knowledge Service uses SQS, a DLQ, and source status. Chunks are structure-aware
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0012-knowledge-ingestion.md` and a worker spike that consumes one queue message and writes a status row. Arshia writes the status state machine and the delete rule in a short note. Arshia does not edit the worker.
+Aqib writes `docs/adr/0012-knowledge-ingestion.md` and a worker spike that consumes one queue message and writes a status row. Hashir writes the status state machine and the delete rule in a short note. Hashir does not edit the worker.
 
 #### 7. Talk split
 
-Aqib prepares the queue, the DLQ, and idempotent reprocessing. Arshia prepares tenant metadata on a chunk and what delete must remove.
+Aqib prepares the queue, the DLQ, and idempotent reprocessing. Hashir prepares tenant metadata on a chunk and what delete must remove.
 
 #### Day notes
 
@@ -1637,7 +1637,7 @@ Aqib prepares the queue, the DLQ, and idempotent reprocessing. Arshia prepares t
 - [ ] Status and bounded retries. Failed jobs land in a DLQ path we can inspect.
 - [ ] Delete source deletes chunks in OpenSearch.
 
-#### Arshia (owns tests and a fixture file)
+#### Hashir (owns tests and a fixture file)
 
 - [ ] Test: a failed embed does not mark the source ready.
 - [ ] Test: processing the same source version twice does not duplicate chunk ids.
@@ -1718,11 +1718,11 @@ Retrieval is hybrid, then rerank, then citations, inside the same runtime loop. 
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0013-retrieval.md` and a query spike that returns chunks for one tenant only. Arshia writes two example questions: one that should cite a fixture, and one that must return no chunks for the other tenant. Arshia does not edit the runtime loop on day 1.
+Aqib writes `docs/adr/0013-retrieval.md` and a query spike that returns chunks for one tenant only. Hashir writes two example questions: one that should cite a fixture, and one that must return no chunks for the other tenant. Hashir does not edit the runtime loop on day 1.
 
 #### 7. Talk split
 
-Aqib prepares the query filter, the timeout, and where the stage sits in the loop. Arshia prepares citations: what is stored, and what the model is not allowed to invent.
+Aqib prepares the query filter, the timeout, and where the stage sits in the loop. Hashir prepares citations: what is stored, and what the model is not allowed to invent.
 
 #### Day notes
 
@@ -1744,7 +1744,7 @@ Aqib prepares the query filter, the timeout, and where the stage sits in the loo
 - [ ] Tenant filter in the query.
 - [ ] Timeout path that does not attach fake citations.
 
-#### Arshia (owns tests and fixtures)
+#### Hashir (owns tests and fixtures)
 
 - [ ] Test: tenant B's fixture is invisible to tenant A.
 - [ ] Test: timeout or empty index produces no citations.
@@ -1827,11 +1827,11 @@ Long-term memory is its own record type with TTL, a small retrieve, and a forget
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0014-memory.md` and the memory table spike. Arshia writes three examples: a fact that is memory, a fact that is knowledge, and a fact that is only in the transcript. Arshia does not edit the runtime.
+Aqib writes `docs/adr/0014-memory.md` and the memory table spike. Hashir writes three examples: a fact that is memory, a fact that is knowledge, and a fact that is only in the transcript. Hashir does not edit the runtime.
 
 #### 7. Talk split
 
-Aqib prepares the read path and the forget delete. Arshia prepares the three-store split with one example each.
+Aqib prepares the read path and the forget delete. Hashir prepares the three-store split with one example each.
 
 #### Day notes
 
@@ -1853,7 +1853,7 @@ Aqib prepares the read path and the forget delete. Arshia prepares the three-sto
 - [ ] Fill `MemoryStore` in the runtime so the prompt includes only the retrieved records.
 - [ ] Index or query scoped by tenant and subject.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: forget removes the fact from the next load.
 - [ ] Test: workspace B cannot read workspace A's memory row.
@@ -1938,11 +1938,11 @@ We build a Tool and Integration Service. The runtime runs only allow-listed tool
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0015-tools.md` and one internal tool (for example echo or read a fixture) behind the port, with a timeout. Arshia writes the permission examples (`read_customer` allowed, `issue_large_refund` denied) as test cases, not as runtime code.
+Aqib writes `docs/adr/0015-tools.md` and one internal tool (for example echo or read a fixture) behind the port, with a timeout. Hashir writes the permission examples (`read_customer` allowed, `issue_large_refund` denied) as test cases, not as runtime code.
 
 #### 7. Talk split
 
-Aqib prepares the allow-list, the timeout, and idempotent versus unsafe retry. Arshia prepares MCP-as-transport and the permission examples.
+Aqib prepares the allow-list, the timeout, and idempotent versus unsafe retry. Hashir prepares MCP-as-transport and the permission examples.
 
 #### Day notes
 
@@ -1964,7 +1964,7 @@ Aqib prepares the allow-list, the timeout, and idempotent versus unsafe retry. A
 - [ ] Runtime executes only allow-listed tools and appends the tool result into the loop.
 - [ ] One HTTP tool and one internal tool.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: unknown tool does not call the network.
 - [ ] Test: denied permission does not call the network.
@@ -2053,11 +2053,11 @@ We use a secrets interface with a local encrypted store now and AWS Secrets Mana
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0016-secrets.md` and a spike that encrypts and decrypts with a local master key. Arshia writes the mask examples: create response versus list response. Arshia does not handle the key material.
+Aqib writes `docs/adr/0016-secrets.md` and a spike that encrypts and decrypts with a local master key. Hashir writes the mask examples: create response versus list response. Hashir does not handle the key material.
 
 #### 7. Talk split
 
-Aqib prepares envelope encryption and rotation. Arshia prepares show-once, masking, and the log redaction test.
+Aqib prepares envelope encryption and rotation. Hashir prepares show-once, masking, and the log redaction test.
 
 #### Day notes
 
@@ -2079,7 +2079,7 @@ Aqib prepares envelope encryption and rotation. Arshia prepares show-once, maski
 - [ ] Encrypt at rest. Store rotation metadata.
 - [ ] Wire tool secret ids to resolve through this service. Do not log the resolved value.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: list does not contain the raw secret.
 - [ ] Test: another tenant cannot resolve the id.
@@ -2162,11 +2162,11 @@ We build a widget package plus a publishable key, an origin allow-list, and a st
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0017-widget.md` and a gateway route that accepts a publishable key and checks a hard-coded origin. Arshia scaffolds the widget package UI shell (connect button, message list) against a mocked stream. Arshia does not edit gateway auth code.
+Aqib writes `docs/adr/0017-widget.md` and a gateway route that accepts a publishable key and checks a hard-coded origin. Hashir scaffolds the widget package UI shell (connect button, message list) against a mocked stream. Hashir does not edit gateway auth code.
 
 #### 7. Talk split
 
-Aqib prepares the publishable key, the origin check, and why SSE is proxied. Arshia prepares reconnect and what the browser is allowed to store.
+Aqib prepares the publishable key, the origin check, and why SSE is proxied. Hashir prepares reconnect and what the browser is allowed to store.
 
 #### Day notes
 
@@ -2187,7 +2187,7 @@ Aqib prepares the publishable key, the origin check, and why SSE is proxied. Ars
 - [ ] Public send and stream routes behind the publishable key and origin allow-list.
 - [ ] Map the key to a workspace. Do not accept a workspace id from the browser as authority.
 
-#### Arshia (owns the widget package)
+#### Hashir (owns the widget package)
 
 - [ ] Render history, streaming tokens, typing, and tool-call events.
 - [ ] Reconnect with `conversation_id` and last `seq`.
@@ -2270,11 +2270,11 @@ The human is a participant on the same conversation. State becomes `waiting_huma
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0018-inbox-handoff.md` and the state values in the ADR. Arshia writes the operator stories (escalate, claim, reply, return) as a checklist. Arshia does not edit conversation tables on day 1.
+Aqib writes `docs/adr/0018-inbox-handoff.md` and the state values in the ADR. Hashir writes the operator stories (escalate, claim, reply, return) as a checklist. Hashir does not edit conversation tables on day 1.
 
 #### 7. Talk split
 
-Aqib prepares the lock and the runtime pause. Arshia prepares the operator stories and why a second transcript is rejected.
+Aqib prepares the lock and the runtime pause. Hashir prepares the operator stories and why a second transcript is rejected.
 
 #### Day notes
 
@@ -2296,7 +2296,7 @@ Aqib prepares the lock and the runtime pause. Arshia prepares the operator stori
 - [ ] Optimistic lock so two claims cannot both succeed.
 - [ ] Runtime checks state and does not call the model while waiting for a human.
 
-#### Arshia (owns tests and a minimal inbox page if the API is stable)
+#### Hashir (owns tests and a minimal inbox page if the API is stable)
 
 - [ ] Test: second claim conflicts.
 - [ ] Test: cross-workspace queue is empty of the other tenant.
@@ -2380,11 +2380,11 @@ Kafka carries business events. SQS still carries jobs. We use a transactional ou
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0019-events.md` and an outbox table spike in one service (agent or conversation). Arshia writes the event catalog with required fields (`event_id`, `tenant_id`, `type`, `occurred_at`) in `docs/events/`. Arshia does not edit the outbox publisher.
+Aqib writes `docs/adr/0019-events.md` and an outbox table spike in one service (agent or conversation). Hashir writes the event catalog with required fields (`event_id`, `tenant_id`, `type`, `occurred_at`) in `docs/events/`. Hashir does not edit the outbox publisher.
 
 #### 7. Talk split
 
-Aqib prepares the outbox transaction and crash window. Arshia prepares idempotency, lag, and the dead-letter path.
+Aqib prepares the outbox transaction and crash window. Hashir prepares idempotency, lag, and the dead-letter path.
 
 #### Day notes
 
@@ -2406,7 +2406,7 @@ Aqib prepares the outbox transaction and crash window. Arshia prepares idempoten
 - [ ] Emit the catalog events from the owning services he is already allowed to touch. If a service is large, start with `message.created` and `agent.escalated`.
 - [ ] Dead-letter path after bounded consumer retries.
 
-#### Arshia (owns one sample consumer and its tests)
+#### Hashir (owns one sample consumer and its tests)
 
 - [ ] A consumer group that records event ids it has handled.
 - [ ] Test: delivering the same event twice does not duplicate the side effect.
@@ -2489,11 +2489,11 @@ We build our Workflow Service for this program: Kafka trigger, JSON condition, S
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0020-workflows.md` and the run-state table. Arshia writes the one workflow in words: trigger, condition, action, and what "twice" must not do. Arshia does not edit the worker.
+Aqib writes `docs/adr/0020-workflows.md` and the run-state table. Hashir writes the one workflow in words: trigger, condition, action, and what "twice" must not do. Hashir does not edit the worker.
 
 #### 7. Talk split
 
-Aqib prepares step state and the queue retry. Arshia prepares the idempotency story and why Temporal can wait.
+Aqib prepares step state and the queue retry. Hashir prepares the idempotency story and why Temporal can wait.
 
 #### Day notes
 
@@ -2515,7 +2515,7 @@ Aqib prepares step state and the queue retry. Arshia prepares the idempotency st
 - [ ] Persist run and step state.
 - [ ] Idempotency key on the step. Timeout and bounded retries.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: two deliveries of the same event produce one notification.
 - [ ] Test: a failed action ends in the failed state after retries.
@@ -2602,11 +2602,11 @@ We build a Voice Service plus a vendor for telephony and speech, and we call the
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0021-voice-path.md` with the provider choice and the state list, and spikes one state transition stored outside process memory. Arshia draws the hop list (phone, vendor, voice service, runtime, TTS) in one diagram note. Arshia does not edit the voice service.
+Aqib writes `docs/adr/0021-voice-path.md` with the provider choice and the state list, and spikes one state transition stored outside process memory. Hashir draws the hop list (phone, vendor, voice service, runtime, TTS) in one diagram note. Hashir does not edit the voice service.
 
 #### 7. Talk split
 
-Aqib prepares the state machine and why two pods cannot keep calls in memory. Arshia prepares the hop list and why the transcript uses the conversation service.
+Aqib prepares the state machine and why two pods cannot keep calls in memory. Hashir prepares the hop list and why the transcript uses the conversation service.
 
 #### Day notes
 
@@ -2629,7 +2629,7 @@ Aqib prepares the state machine and why two pods cannot keep calls in memory. Ar
 - [ ] Send the caller utterance to the runtime and play TTS from the reply.
 - [ ] Store active-call state in Redis, not only in the process.
 
-#### Arshia (owns a scripted test or a documented manual script)
+#### Hashir (owns a scripted test or a documented manual script)
 
 - [ ] A test double for STT and TTS so CI does not need a phone.
 - [ ] Assert the conversation channel and the workspace id.
@@ -2712,11 +2712,11 @@ On voice activity we stop TTS, cancel the in-flight model call if needed, and st
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0022-voice-reliability.md` and the failure matrix for the seven cases. Arshia lists the latency metrics (STT, runtime, TTS, time-to-first-audio) in the ADR or a short metrics note. Arshia does not edit the media code on day 1.
+Aqib writes `docs/adr/0022-voice-reliability.md` and the failure matrix for the seven cases. Hashir lists the latency metrics (STT, runtime, TTS, time-to-first-audio) in the ADR or a short metrics note. Hashir does not edit the media code on day 1.
 
 #### 7. Talk split
 
-Aqib prepares barge-in and cancel. Arshia prepares the failure matrix for STT, silence, and the semaphore TTL.
+Aqib prepares barge-in and cancel. Hashir prepares the failure matrix for STT, silence, and the semaphore TTL.
 
 #### Day notes
 
@@ -2739,7 +2739,7 @@ Aqib prepares barge-in and cancel. Arshia prepares the failure matrix for STT, s
 - [ ] Redis concurrency semaphore with a TTL.
 - [ ] Transfer and silence timeout.
 
-#### Arshia (owns failure tests with fakes)
+#### Hashir (owns failure tests with fakes)
 
 - [ ] Test: end-on-error releases the semaphore.
 - [ ] Test: barge-in does not leave two TTS streams running in the fake.
@@ -2823,11 +2823,11 @@ We build a Campaign Service. Audience rows, a scheduler, SQS work, Redis concurr
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0023-campaigns.md` and the audience-row states. Arshia writes one example schedule (timezone, pace, retry, opt-out) as a fixture JSON. Arshia does not edit the worker.
+Aqib writes `docs/adr/0023-campaigns.md` and the audience-row states. Hashir writes one example schedule (timezone, pace, retry, opt-out) as a fixture JSON. Hashir does not edit the worker.
 
 #### 7. Talk split
 
-Aqib prepares the dial key and the crash window. Arshia prepares opt-out-at-dial-time and why counters may lag.
+Aqib prepares the dial key and the crash window. Hashir prepares opt-out-at-dial-time and why counters may lag.
 
 #### Day notes
 
@@ -2849,7 +2849,7 @@ Aqib prepares the dial key and the crash window. Arshia prepares opt-out-at-dial
 - [ ] Worker dials through the voice service with an idempotency key.
 - [ ] Opt-out checked in the worker immediately before dial.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: redelivered work does not dial twice.
 - [ ] Test: an opted-out row is skipped.
@@ -2931,11 +2931,11 @@ We build a Lead Service. We do not store leads only as conversation metadata.
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0024-leads.md` and the lead table spike. Arshia writes the flow in `docs/architecture/lead-flow.md` (source, event, score, enroll, CRM tool) without implementing the CRM.
+Aqib writes `docs/adr/0024-leads.md` and the lead table spike. Hashir writes the flow in `docs/architecture/lead-flow.md` (source, event, score, enroll, CRM tool) without implementing the CRM.
 
 #### 7. Talk split
 
-Aqib prepares idempotent create and the enroll call. Arshia prepares why the conversation is only a link.
+Aqib prepares idempotent create and the enroll call. Hashir prepares why the conversation is only a link.
 
 #### Day notes
 
@@ -2957,7 +2957,7 @@ Aqib prepares idempotent create and the enroll call. Arshia prepares why the con
 - [ ] Emit `lead.created` through the outbox.
 - [ ] Enroll action that calls the campaign service.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: duplicate source id does not create two leads.
 - [ ] Test: cross-tenant read fails.
@@ -3040,11 +3040,11 @@ We use a golden dataset, deterministic checks, an optional LLM judge, and latenc
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0025-evaluation.md` and the case and run tables. Arshia writes five golden cases in a fixture file (input and expected tool or expected phrase). Arshia does not edit the runner.
+Aqib writes `docs/adr/0025-evaluation.md` and the case and run tables. Hashir writes five golden cases in a fixture file (input and expected tool or expected phrase). Hashir does not edit the runner.
 
 #### 7. Talk split
 
-Aqib prepares the job, the attempt key, and the concurrency cap. Arshia prepares what a case contains and why a judge is optional.
+Aqib prepares the job, the attempt key, and the concurrency cap. Hashir prepares what a case contains and why a judge is optional.
 
 #### Day notes
 
@@ -3066,7 +3066,7 @@ Aqib prepares the job, the attempt key, and the concurrency cap. Arshia prepares
 - [ ] Worker executes cases through the runtime with a concurrency cap.
 - [ ] Compare two versions.
 
-#### Arshia (owns the fixture cases and tests)
+#### Hashir (owns the fixture cases and tests)
 
 - [ ] Load the five cases.
 - [ ] Test: a redelivered case does not call the runtime twice.
@@ -3155,11 +3155,11 @@ We own the usage ledger and the billing view. Stripe or a stub collects later. L
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0026-usage-billing.md` and maps each existing emitter to a meter. Arshia writes one example invoice line (tokens, voice minutes) from a fixture ledger row. Arshia does not edit the ledger transaction.
+Aqib writes `docs/adr/0026-usage-billing.md` and maps each existing emitter to a meter. Hashir writes one example invoice line (tokens, voice minutes) from a fixture ledger row. Hashir does not edit the ledger transaction.
 
 #### 7. Talk split
 
-Aqib prepares the unique event id and the Redis rebuild or fail-closed rule. Arshia prepares why the chart may lag while the quota must not.
+Aqib prepares the unique event id and the Redis rebuild or fail-closed rule. Hashir prepares why the chart may lag while the quota must not.
 
 #### Day notes
 
@@ -3181,7 +3181,7 @@ Aqib prepares the unique event id and the Redis rebuild or fail-closed rule. Ars
 - [ ] Plan, quota, and a Redis counter.
 - [ ] Invoice model. Collection may be a stub.
 
-#### Arshia (owns tests)
+#### Hashir (owns tests)
 
 - [ ] Test: duplicate event id does not double the total.
 - [ ] Test: another tenant cannot read the invoice.
@@ -3264,11 +3264,11 @@ An Audit Service consumes audit events. We do not treat logs as the audit system
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0027-audit-and-security.md` and the audit event fields. Arshia writes the threat list (IDOR, prompt leak, secret leak, cross-tenant search) with the file or test that covers each, or "gap" if none exists. Arshia does not edit signing code on day 1.
+Aqib writes `docs/adr/0027-audit-and-security.md` and the audit event fields. Hashir writes the threat list (IDOR, prompt leak, secret leak, cross-tenant search) with the file or test that covers each, or "gap" if none exists. Hashir does not edit signing code on day 1.
 
 #### 7. Talk split
 
-Aqib prepares the audit record and internal HMAC. Arshia prepares the threat list and what remains unfixed.
+Aqib prepares the audit record and internal HMAC. Hashir prepares the threat list and what remains unfixed.
 
 #### Day notes
 
@@ -3290,7 +3290,7 @@ Aqib prepares the audit record and internal HMAC. Arshia prepares the threat lis
 - [ ] Query by tenant and time.
 - [ ] HMAC or internal JWT on at least the audit ingest and one other internal route.
 
-#### Arshia (owns the threat checklist and tests)
+#### Hashir (owns the threat checklist and tests)
 
 - [ ] Test: duplicate event does not duplicate the row.
 - [ ] Test: metadata redaction on a fixture that includes a secret-looking field.
@@ -3373,11 +3373,11 @@ We alert on golden signals plus the AI, voice, and business metrics we listed, w
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0028-observability-alerts.md` and drafts numeric thresholds for error rate, p99, database connections, queue depth, Kafka lag, Redis memory, pod restarts, LLM failure, and voice latency. Arshia writes the runbook titles those alerts will link to (one sentence each). Arshia does not edit alert rules on day 1.
+Aqib writes `docs/adr/0028-observability-alerts.md` and drafts numeric thresholds for error rate, p99, database connections, queue depth, Kafka lag, Redis memory, pod restarts, LLM failure, and voice latency. Hashir writes the runbook titles those alerts will link to (one sentence each). Hashir does not edit alert rules on day 1.
 
 #### 7. Talk split
 
-Aqib prepares cardinality and the Redis-memory alert. Arshia prepares dedupe of notifications and which signals are not worth a page.
+Aqib prepares cardinality and the Redis-memory alert. Hashir prepares dedupe of notifications and which signals are not worth a page.
 
 #### Day notes
 
@@ -3399,7 +3399,7 @@ Aqib prepares cardinality and the Redis-memory alert. Arshia prepares dedupe of 
 - [ ] Add alert rules for the thresholds in the ADR.
 - [ ] Keep label cardinality low.
 
-#### Arshia (owns `services/notification` and the runbook stubs)
+#### Hashir (owns `services/notification` and the runbook stubs)
 
 - [ ] A consumer that sends a stub email or webhook and dedupes by alert id.
 - [ ] Runbook stubs under `docs/runbooks/` for the alerts Aqib defined.
@@ -3483,11 +3483,11 @@ We use Terraform, EKS, a container registry, and managed data services mapped fr
 
 #### 6. Small day-1 build
 
-Aqib writes `docs/adr/0029-aws-eks.md` and a Terraform skeleton that does not need a live apply if credentials are absent (plan-only is acceptable). Arshia writes the pipeline stages as a checklist in `docs/runbooks/deploy.md`. Arshia does not edit Terraform on day 1.
+Aqib writes `docs/adr/0029-aws-eks.md` and a Terraform skeleton that does not need a live apply if credentials are absent (plan-only is acceptable). Hashir writes the pipeline stages as a checklist in `docs/runbooks/deploy.md`. Hashir does not edit Terraform on day 1.
 
 #### 7. Talk split
 
-Aqib prepares readiness, migrations, and rollback. Arshia prepares what two replicas break, using rate limit and sessions as examples.
+Aqib prepares readiness, migrations, and rollback. Hashir prepares what two replicas break, using rate limit and sessions as examples.
 
 #### Day notes
 
@@ -3509,7 +3509,7 @@ Aqib prepares readiness, migrations, and rollback. Arshia prepares what two repl
 - [ ] A deployment manifest with readiness and liveness.
 - [ ] Notes for rolling and blue/green, and the rollback command.
 
-#### Arshia (owns CI config and the deploy runbook)
+#### Hashir (owns CI config and the deploy runbook)
 
 - [ ] Pipeline file: lint, unit, image build. Integration and deploy stages can be skipped when credentials are absent, but the file shows the stages.
 - [ ] `docs/runbooks/deploy.md` includes rollback.
@@ -3593,11 +3593,11 @@ Load tests are scripted. Failure tests break one dependency at a time. Disaster 
 
 #### 6. Small day-1 build
 
-Aqib writes the load and failure plan in `docs/architecture/proof-plan.md` (which dependency, which assertion). Arshia lists the SDK methods and one example call sequence in `sdk/typescript/README.md` without finishing the client. Arshia does not edit the load harness on day 1.
+Aqib writes the load and failure plan in `docs/architecture/proof-plan.md` (which dependency, which assertion). Hashir lists the SDK methods and one example call sequence in `sdk/typescript/README.md` without finishing the client. Hashir does not edit the load harness on day 1.
 
 #### 7. Talk split
 
-Aqib prepares the bottleneck and the Redis or Postgres failure. Arshia prepares RTO, RPO, and what the SDK must not hide (errors, `request_id`).
+Aqib prepares the bottleneck and the Redis or Postgres failure. Hashir prepares RTO, RPO, and what the SDK must not hide (errors, `request_id`).
 
 #### Day notes
 
@@ -3627,7 +3627,7 @@ Do this order.
 - [ ] Failure tests for cache, LLM, queue worker, and duplicate event.
 - [ ] RTO and RPO in `docs/architecture/disaster-recovery.md`.
 
-#### Arshia (owns runbooks and `sdk/typescript`)
+#### Hashir (owns runbooks and `sdk/typescript`)
 
 - [ ] Runbooks: database failure, Redis outage, Kafka lag, queue backlog, LLM outage, voice provider outage, deploy rollback, high CPU, high p99.
 - [ ] TypeScript SDK and a local example. Python only if the TypeScript SDK and the runbooks are done.
@@ -3746,7 +3746,7 @@ Copy one block per calendar day. Newest at the bottom.
 ```text
 ## YYYY-MM-DD — Day N (learn+spike | build+talk) — Slot NN
 Hours worked:
-Person: Aqib | Arshia
+Person: Aqib | Hashir
 Status: done | slipped | blocked
 Shipped:
 Did not ship:
