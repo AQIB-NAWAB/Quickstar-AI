@@ -28,4 +28,4 @@ curl http://127.0.0.1:3000/healthz
 
 ## Platform libraries
 
-Uses `@quickstart/errors`, `logging`, `tracing`, `auth`, and `utilities`. Start the local OTel collector (`make up`) to export traces when running this service.
+Uses `@quickstart/http-server` (Express routing + platform middleware), `@quickstart/errors`, `logging`, `tracing`, `auth`, and `utilities`. See [HTTP layers](../../docs/architecture/http-layers.md). Start the local OTel collector (`make up`) to export traces when running this service.

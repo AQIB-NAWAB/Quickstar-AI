@@ -26,6 +26,8 @@ docs/         Product spec, roadmap, ADRs, runbooks
 
 **Slot 03:** shared platform libraries (`@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`) wired into `services/_template`.
 
+**Slot 04:** `services/identity-service` — register/login/refresh, organizations, org API keys. Run **`make identity-migrate`** before starting the service. See [ADR 0004](docs/adr/0004-identity.md), [database migrations](docs/architecture/database-migrations.md), and [services/identity-service/README.md](services/identity-service/README.md).
+
 ## Prerequisites
 
 - Node.js **22+**
@@ -47,9 +49,18 @@ pnpm check
 ```bash
 make up
 make smoke
+make playground   # Postgres/Valkey/OpenSearch + template HTTP demos + traces
 ```
 
 Connection defaults are in [`.env.example`](.env.example).
+
+**Try the template yourself** (with data plane + service running):
+
+```bash
+curl http://127.0.0.1:3000/healthz
+curl http://127.0.0.1:3000/demo/error
+curl http://127.0.0.1:3000/demo/outbound
+```
 
 ## Commit messages
 

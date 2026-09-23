@@ -6,3 +6,10 @@ export {
   type AuthContext,
   type AuthContextPayload,
 } from "./context.js";
+export {
+  bearerTokenFromHeader,
+  signAccessToken,
+  verifyAccessToken,
+  type AccessTokenClaims,
+  type AccessTokenVerifyResult,
+} from "./access-token.js";
