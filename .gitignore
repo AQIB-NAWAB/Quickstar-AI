@@ -20,6 +20,8 @@ pnpm-debug.log*
 # Agent memory bank
 memory-bank/
 
-# Temporary learning file
+# Temporary learning files
 temp_understand.md
+index.html
+
 
