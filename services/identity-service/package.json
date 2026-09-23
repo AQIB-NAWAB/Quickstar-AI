@@ -13,15 +13,17 @@
     "migrate": "node dist/migrate.js"
   },
   "dependencies": {
-    "@quickstart/http-server": "workspace:*",
     "@quickstart/auth": "workspace:*",
     "@quickstart/contracts": "workspace:*",
     "@quickstart/errors": "workspace:*",
+    "@quickstart/http-server": "workspace:*",
     "@quickstart/logging": "workspace:*",
     "@quickstart/tracing": "workspace:*",
     "@quickstart/utilities": "workspace:*",
     "pg": "^8.16.3",
-    "redis": "^4.7.1"
+    "redis": "^4.7.1",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^1.1.1"
   },
   "devDependencies": {
     "@types/pg": "^8.15.5"

@@ -1,27 +1,30 @@
+import "reflect-metadata";
 import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
-import { Pool } from "pg";
+import type { DataSource } from "typeorm";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadServiceConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./controllers/router.js";
-import { createPostgresRepository } from "./repository/postgres.js";
+import { createIdentityDataSource } from "./repository/typeorm/data-source.js";
+import { createTypeOrmIdentityStore } from "./repository/typeorm/identity-typeorm-store.js";
 import { createIdentityServices } from "./services/index.js";
 import { createRedisSessionRevocation } from "./utils/session-revocation.js";
 
 export async function startIdentityServer(): Promise<{
   server: Server;
   shutdown: () => Promise<void>;
-  pool: Pool;
+  dataSource: DataSource;
 }> {
   const config = loadServiceConfig();
   const logger = createLogger({ service: SERVICE_NAME });
 
   await initTracing({ serviceName: SERVICE_NAME });
 
-  const pool = new Pool({ connectionString: config.databaseUrl });
-  const repository = createPostgresRepository(pool);
+  const dataSource = createIdentityDataSource(config.databaseUrl);
+  await dataSource.initialize();
+  const repository = createTypeOrmIdentityStore(dataSource);
 
   const redisClient = createRedisClient(config.redisUrl);
   try {
@@ -38,7 +41,7 @@ export async function startIdentityServer(): Promise<{
   const services = createIdentityServices({ repository, sessions, config });
   const readinessProbes = [
     async () => {
-      await pool.query("SELECT 1");
+      await dataSource.query("SELECT 1");
     },
     async () => {
       await redisClient.ping();
@@ -69,14 +72,16 @@ export async function startIdentityServer(): Promise<{
     if (redisClient.isOpen) {
       await redisClient.quit();
     }
-    await pool.end();
+    if (dataSource.isInitialized) {
+      await dataSource.destroy();
+    }
     await shutdownTracing();
   };
 
   process.once("SIGINT", () => void shutdown().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void shutdown().finally(() => process.exit(0)));
 
-  return { server, shutdown, pool };
+  return { server, shutdown, dataSource };
 }
 
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);

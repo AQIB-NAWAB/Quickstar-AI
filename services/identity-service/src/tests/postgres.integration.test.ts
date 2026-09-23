@@ -1,8 +1,9 @@
+import "reflect-metadata";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Pool } from "pg";
 import { createAuthService } from "../services/auth.service.js";
-import { createPostgresRepository } from "../repository/postgres.js";
+import { createIdentityDataSource } from "../repository/typeorm/data-source.js";
+import { createTypeOrmIdentityStore } from "../repository/typeorm/identity-typeorm-store.js";
 import { createNoopSessionRevocation } from "../utils/session-revocation.js";
 import { testServiceConfig } from "../helpers/test-app.js";
 
@@ -14,8 +15,9 @@ test("postgres register round-trip", { skip: !runIntegration }, async () => {
     throw new Error("DATABASE_URL required for integration test");
   }
 
-  const pool = new Pool({ connectionString: databaseUrl });
-  const repository = createPostgresRepository(pool);
+  const dataSource = createIdentityDataSource(databaseUrl);
+  await dataSource.initialize();
+  const repository = createTypeOrmIdentityStore(dataSource);
   const config = testServiceConfig();
   const auth = createAuthService({
     repository,
@@ -34,5 +36,5 @@ test("postgres register round-trip", { skip: !runIntegration }, async () => {
   const me = await auth.validateAccessToken(reg.tokens.access_token);
   assert.equal(me.userId, reg.user_id);
 
-  await pool.end();
+  await dataSource.destroy();
 });

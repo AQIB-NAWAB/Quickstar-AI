@@ -27,7 +27,8 @@ src/
 
   repository/           # Database access — see repository/README.md
     types.ts
-    postgres.ts
+    entities/
+    typeorm/
     memory.ts
     migrate.ts
 
