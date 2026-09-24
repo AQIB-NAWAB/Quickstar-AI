@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import test from "node:test";
 import { createLogger } from "@quickstart/logging";
-import { createHttpServer } from "../controllers/router.js";
+import { createHttpServer } from "../http/create-server.js";
 import { createTestIdentityServices } from "../helpers/test-app.js";
 
 async function withServer(run: (port: number) => Promise<void>): Promise<void> {
