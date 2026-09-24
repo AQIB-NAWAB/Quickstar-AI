@@ -19,6 +19,9 @@ Gateway limits are **coarse and global**: “this client may only N requests/min
 
 Each service uses **`@quickstart/http-server`** (Express) with:
 
+- **`createPlatformApp`** — platform middleware only; mounts a pre-built `apiRouter`.
+- **`createApiRouter` + route modules** — each module (`health.routes.ts`, `auth.routes.ts`, tenant-scoped routes, …) returns a router; the service composes them under `src/http/routes/`.
+
 1. Request ID
 2. Tracing + structured logs
 3. **Request timeout** — stop hung handlers from tying up workers

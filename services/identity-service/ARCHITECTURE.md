@@ -11,8 +11,12 @@ src/
 
   config/environment.ts
 
+  http/
+    create-server.ts    # Platform app + rate limits; composes route modules
+    context.ts          # Shared deps for route modules
+    routes/             # One file per surface (health, auth, orgs, …)
+
   controllers/          # HTTP handlers (parse body, call service)
-    router.ts
     auth.controller.ts
     users.controller.ts
     organizations.controller.ts

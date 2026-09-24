@@ -9,8 +9,8 @@ import { tracingMiddleware } from "./middleware/tracing.js";
 
 export type PlatformHttpOptions = {
   logger: Logger;
-  /** Mount service routes on this router (paths are relative, e.g. `/healthz`). */
-  registerRoutes: (router: Router) => void;
+  /** Service API router (compose with {@link createApiRouter} in the service). */
+  apiRouter: Router;
   requestTimeoutMs?: number;
   jsonBodyLimit?: string;
   /** Per-service IP limit (still useful when gateway is not in path). */
@@ -41,9 +41,7 @@ export function createPlatformApp(options: PlatformHttpOptions): Application {
     app.use(createRateLimitMiddleware(options.globalRateLimit));
   }
 
-  const router = express.Router();
-  options.registerRoutes(router);
-  app.use(router);
+  app.use(options.apiRouter);
 
   app.use(notFoundMiddleware());
   app.use(platformErrorMiddleware(options.logger));

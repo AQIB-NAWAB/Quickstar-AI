@@ -6,7 +6,7 @@ import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadServiceConfig } from "./config/environment.js";
-import { createHttpServer, SERVICE_NAME } from "./controllers/router.js";
+import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 import { createWorkspaceDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmWorkspaceStore } from "./repository/typeorm/workspace-typeorm-store.js";
 import { createWorkspaceServices } from "./services/index.js";
