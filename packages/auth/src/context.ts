@@ -5,6 +5,16 @@ export type AuthContext = {
   requestId: string;
 };
 
+/**
+ * Mandatory operational tenant context for workspace-scoped services and repositories.
+ * All data queries must carry a tenant context to prevent IDOR vulnerabilities.
+ */
+export type TenantContext = {
+  readonly workspaceId: string;
+  readonly actorId: string;
+};
+
+
 /** Set by API gateway in production; stub for local/dev services. */
 export const AUTH_CONTEXT_HEADER = "x-quickstart-auth-context";
 

@@ -5,6 +5,7 @@ export {
   serializeAuthContext,
   type AuthContext,
   type AuthContextPayload,
+  type TenantContext,
 } from "./context.js";
 export {
   bearerTokenFromHeader,

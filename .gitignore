@@ -16,3 +16,12 @@ coverage/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Agent memory bank
+memory-bank/
+
+# Temporary learning files
+temp_understand.md
+index.html
+
+
