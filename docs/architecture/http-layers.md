@@ -1,6 +1,6 @@
 # HTTP middleware: gateway vs service
 
-QuickStart exposes a **public gateway** (Slot 06) and **internal HTTP services** (identity, workspace, …). Both can run middleware; they solve different problems.
+QuickStart exposes a **public gateway** (`services/gateway-service`, Slot 06) and **internal HTTP services** (identity, workspace, …). Both can run middleware; they solve different problems. See [ADR 0006](../adr/0006-api-gateway.md).
 
 ## Gateway (Slot 06 — public edge)
 

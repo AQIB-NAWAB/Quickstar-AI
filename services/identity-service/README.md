@@ -10,7 +10,7 @@ Schema is **not** applied on server startup. Run migrations first (see [database
 
 ```bash
 make up   # Postgres + Valkey (both required)
-export DATABASE_URL=postgresql://quickstart:quickstart@localhost:5432/quickstart
+export DATABASE_URL=postgresql://quickstart:quickstart@localhost:5433/quickstart
 export REDIS_URL=redis://localhost:6379
 make identity-migrate
 

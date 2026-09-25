@@ -1,0 +1,60 @@
+openapi: 3.0.3
+info:
+  title: QuickStart public API (gateway)
+  version: 0.1.0
+  description: |
+    External surface exposed by the API gateway (Slot 06).
+    Internal identity/workspace ports are not part of this contract.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local gateway
+paths:
+  /healthz:
+    get:
+      summary: Gateway liveness
+      responses:
+        "200":
+          description: OK
+  /v1/register:
+    post:
+      summary: Register user and organization
+      tags: [Auth]
+  /v1/login:
+    post:
+      summary: Login
+      tags: [Auth]
+  /v1/me:
+    get:
+      summary: Current user
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+  /v1/orgs/{orgId}/workspaces:
+    post:
+      summary: Create workspace
+      tags: [Workspaces]
+      security:
+        - bearerAuth: []
+    get:
+      summary: List workspaces in org
+      tags: [Workspaces]
+      security:
+        - bearerAuth: []
+  /v1/workspaces/{workspaceId}/invites:
+    post:
+      summary: Create workspace invite
+      tags: [Members]
+      security:
+        - bearerAuth: []
+  /v1/workspaces/{workspaceId}/members/{userId}:
+    patch:
+      summary: Update member role
+      tags: [Members]
+      security:
+        - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
