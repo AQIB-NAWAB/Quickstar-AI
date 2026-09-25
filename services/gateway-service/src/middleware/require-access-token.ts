@@ -5,6 +5,7 @@ import { requestIdFromResponse, type RequestHandler } from "@quickstart/http-ser
 export type VerifiedAccessToken = AccessTokenVerifyResult;
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Locals {
       accessToken?: VerifiedAccessToken;

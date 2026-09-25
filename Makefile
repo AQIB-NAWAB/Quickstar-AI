@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -22,6 +22,10 @@ workspace-migrate:
 agent-migrate:
 	pnpm --filter @quickstart/service-agent build
 	pnpm --filter @quickstart/service-agent migrate
+
+conversation-migrate:
+	pnpm --filter @quickstart/service-conversation build
+	pnpm --filter @quickstart/service-conversation migrate
 
 data-plane-up:
 	$(COMPOSE) up -d --wait

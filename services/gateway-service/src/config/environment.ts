@@ -3,6 +3,7 @@ export type GatewayConfig = {
   identityUrl: string;
   workspaceUrl: string;
   agentUrl: string;
+  conversationUrl: string;
   jwtAccessSecret: string;
   redisUrl: string;
   httpRequestTimeoutMs: number;
@@ -21,6 +22,7 @@ export function loadGatewayConfig(): GatewayConfig {
     identityUrl: (process.env.IDENTITY_URL ?? "http://127.0.0.1:3001").replace(/\/$/, ""),
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
     agentUrl: (process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
+    conversationUrl: (process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     jwtAccessSecret,
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
