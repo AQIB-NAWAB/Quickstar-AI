@@ -5,3 +5,12 @@ export type HealthResponse = {
   status: "ok";
   service: string;
 };
+
+export {
+  WORKSPACE_ROLES,
+  WORKSPACE_PERMISSIONS,
+  permissionsForRole,
+  roleHasPermission,
+  type WorkspacePermission,
+  type WorkspaceRole,
+} from "./workspace-permissions.js";
