@@ -1,6 +1,6 @@
 # HTTP middleware: gateway vs service
 
-QuickStart exposes a **public gateway** (Slot 06) and **internal HTTP services** (identity, workspace, …). Both can run middleware; they solve different problems.
+QuickStart exposes a **public gateway** (`services/gateway-service`, Slot 06) and **internal HTTP services** (identity, workspace, …). Both can run middleware; they solve different problems. See [ADR 0006](../adr/0006-api-gateway.md).
 
 ## Gateway (Slot 06 — public edge)
 
@@ -18,6 +18,9 @@ Gateway limits are **coarse and global**: “this client may only N requests/min
 ## Service (identity-service, template, …)
 
 Each service uses **`@quickstart/http-server`** (Express) with:
+
+- **`createPlatformApp`** — platform middleware only; mounts a pre-built `apiRouter`.
+- **`createApiRouter` + route modules** — each module (`health.routes.ts`, `auth.routes.ts`, tenant-scoped routes, …) returns a router; the service composes them under `src/http/routes/`.
 
 1. Request ID
 2. Tracing + structured logs

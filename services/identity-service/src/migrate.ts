@@ -7,7 +7,7 @@ import { runMigrations } from "./repository/migrate.js";
 
 async function main(): Promise<void> {
   const databaseUrl =
-    process.env.DATABASE_URL ?? "postgresql://quickstart:quickstart@127.0.0.1:5432/quickstart";
+    process.env.DATABASE_URL ?? "postgresql://quickstart:quickstart@127.0.0.1:5433/quickstart";
 
   const pool = new Pool({ connectionString: databaseUrl });
   try {

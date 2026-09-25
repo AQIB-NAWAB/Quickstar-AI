@@ -18,7 +18,7 @@ Requires **Docker Compose v2** (`docker compose`). Smoke test for SQS requires t
 
 | Service             | Container name   | Host port (default)                      | Env var(s)                    |
 | ------------------- | ---------------- | ---------------------------------------- | ----------------------------- |
-| PostgreSQL          | `postgres`       | 5432                                     | `DATABASE_URL`                |
+| PostgreSQL          | `postgres`       | 5433 (host; container still 5432)        | `DATABASE_URL`                |
 | Valkey              | `valkey`         | 6379                                     | `REDIS_URL`                   |
 | Kafka (KRaft)       | `kafka`          | 9092                                     | `KAFKA_BROKERS`               |
 | OpenSearch          | `opensearch`     | 9200                                     | `OPENSEARCH_URL`              |
@@ -26,6 +26,19 @@ Requires **Docker Compose v2** (`docker compose`). Smoke test for SQS requires t
 | ElasticMQ (SQS API) | `elasticmq`      | 9324 (API), 9325 (UI)                    | `SQS_ENDPOINT`, `AWS_REGION`  |
 
 Override ports in `.env` (see `.env.example`) if you have conflicts.
+
+## Troubleshooting `make up`
+
+**`otel-collector` or `elasticmq` unhealthy (fixed in compose):** Older healthchecks used `curl` inside images that do not ship it. Pull latest `docker-compose.yml` and recreate: `docker compose up -d --wait`.
+
+**`Bind for 0.0.0.0:5432 failed`:** Another Postgres is already on 5432 (often another Docker project). Either stop that container, or in `.env`:
+
+```bash
+POSTGRES_PORT=5433
+DATABASE_URL=postgresql://quickstart:quickstart@localhost:5433/quickstart
+```
+
+Then `make up` again. Identity and workspace use `DATABASE_URL` from your shell when you migrate and run services.
 
 ## Volumes
 

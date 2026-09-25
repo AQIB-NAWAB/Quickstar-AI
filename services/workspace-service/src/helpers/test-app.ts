@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import { signAccessToken } from "@quickstart/auth";
 import { createLogger } from "@quickstart/logging";
 import type { ServiceConfig } from "../config/environment.js";
-import { createHttpServer, type WorkspaceServices } from "../controllers/router.js";
+import { createHttpServer, type WorkspaceServices } from "../http/create-server.js";
 import { MemoryWorkspaceStore } from "../repository/memory.js";
 import { createWorkspaceServices } from "../services/index.js";
 

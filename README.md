@@ -28,6 +28,10 @@ docs/         Product spec, roadmap, ADRs, runbooks
 
 **Slot 04:** `services/identity-service` — register/login/refresh, organizations, org API keys. Run **`make identity-migrate`** before starting the service. See [ADR 0004](docs/adr/0004-identity.md), [database migrations](docs/architecture/database-migrations.md), and [services/identity-service/README.md](services/identity-service/README.md).
 
+**Slot 05–06:** `services/workspace-service` (tenancy, RBAC) and `services/gateway-service` (public API proxy). See [ADR 0005](docs/adr/0005-tenancy-and-rbac.md), [ADR 0006](docs/adr/0006-api-gateway.md), [docs/api](docs/api/README.md), and [gateway testing](services/gateway-service/TESTING.md).
+
+**Slot 07:** `services/agent-service` — workspace-scoped agent configuration (CRUD, optimistic concurrency). Run **`make agent-migrate`**. See [ADR 0007](docs/adr/0007-agent-aggregate.md) and [services/agent-service/README.md](services/agent-service/README.md).
+
 ## Prerequisites
 
 - Node.js **22+**

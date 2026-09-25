@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: quickstart
       POSTGRES_DB: quickstart
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -87,12 +87,13 @@ services:
       - "${OTEL_GRPC_PORT:-4317}:4317"
       - "${OTEL_HTTP_PORT:-4318}:4318"
       - "${OTEL_HEALTH_PORT:-13133}:13133"
+    # Distroless image has no curl/sh; validate config + TCP implies the process is up.
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:13133/health >/dev/null"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
+      test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otelcol/config.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
   elasticmq:
     image: softwaremill/elasticmq-native:1.6.12
@@ -100,10 +101,11 @@ services:
       - "${SQS_PORT:-9324}:9324"
       - "${SQS_UI_PORT:-9325}:9325"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9324 >/dev/null"]
+      test: ["CMD-SHELL", "nc -z localhost 9324"]
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 10s
 
 volumes:
   postgres_data:

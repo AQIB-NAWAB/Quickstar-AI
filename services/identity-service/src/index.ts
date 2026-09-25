@@ -6,7 +6,7 @@ import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadServiceConfig } from "./config/environment.js";
-import { createHttpServer, SERVICE_NAME } from "./controllers/router.js";
+import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 import { createIdentityDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmIdentityStore } from "./repository/typeorm/identity-typeorm-store.js";
 import { createIdentityServices } from "./services/index.js";
