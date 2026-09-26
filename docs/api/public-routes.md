@@ -34,5 +34,10 @@ All paths below are on the **gateway** base URL (local: `http://127.0.0.1:3000`)
 | PATCH | `/v1/workspaces/{workspaceId}/agents/{agentId}` | Bearer | Agent |
 | DELETE | `/v1/workspaces/{workspaceId}/agents/{agentId}` | Bearer | Agent |
 | POST | `/v1/workspaces/{workspaceId}/agents/{agentId}/publish` | Bearer | Workspace (RBAC stub) |
+| POST | `/v1/workspaces/{workspaceId}/conversations` | Bearer | Conversation |
+| GET | `/v1/workspaces/{workspaceId}/conversations` | Bearer | Conversation |
+| GET | `/v1/workspaces/{workspaceId}/conversations/{conversationId}` | Bearer | Conversation |
+| POST | `/v1/workspaces/{workspaceId}/conversations/{conversationId}/messages` | Bearer | Conversation |
+| GET | `/v1/workspaces/{workspaceId}/conversations/{conversationId}/messages` | Bearer | Conversation |
 
-**Internal-only (dev):** `http://127.0.0.1:3001` (identity), `http://127.0.0.1:3002` (workspace), `http://127.0.0.1:3003` (agent). Do not document these as the public API.
+**Internal-only (dev):** `http://127.0.0.1:3001` (identity), `http://127.0.0.1:3002` (workspace), `http://127.0.0.1:3003` (agent), `http://127.0.0.1:3004` (conversation). Do not document these as the public API.
