@@ -9,7 +9,6 @@ import { SERVICE_NAME } from "../controllers/health.controller.js";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import { createWorkspacesController } from "../controllers/workspaces.controller.js";
 import { createMembersController } from "../controllers/members.controller.js";
-import { createAgentsStubController } from "../controllers/agents-stub.controller.js";
 import type { WorkspaceHttpContext } from "./context.js";
 import { createWorkspaceApiRouter } from "./routes/index.js";
 
@@ -44,7 +43,6 @@ export function createHttpServer(options: CreateWorkspaceHttpServerOptions): App
     authorization: services.authorization,
     workspacesCtrl: createWorkspacesController(services.workspaces),
     membersCtrl: createMembersController(services.members),
-    agentsStubCtrl: createAgentsStubController(),
   };
 
   const apiRouter = createWorkspaceApiRouter(httpContext);

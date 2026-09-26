@@ -39,5 +39,40 @@ export const createAgentsRoutes: RouteModule<AgentHttpContext> = (ctx) => {
     asyncHandler(agentsCtrl.deleteAgent),
   );
 
+  router.post(
+    "/v1/workspaces/:workspaceId/agents/:agentId/publish",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_PUBLISH),
+    asyncHandler(agentsCtrl.publishAgent),
+  );
+
+  router.post(
+    "/v1/workspaces/:workspaceId/agents/:agentId/rollback",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_PUBLISH),
+    asyncHandler(agentsCtrl.rollbackAgent),
+  );
+
+  router.get(
+    "/v1/workspaces/:workspaceId/agents/:agentId/versions",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_READ),
+    asyncHandler(agentsCtrl.listVersions),
+  );
+
+  router.get(
+    "/v1/workspaces/:workspaceId/agents/:agentId/versions/:leftId/diff/:rightId",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_READ),
+    asyncHandler(agentsCtrl.diffVersions),
+  );
+
+  router.get(
+    "/v1/workspaces/:workspaceId/agents/:agentId/versions/:versionId",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_READ),
+    asyncHandler(agentsCtrl.getVersion),
+  );
+
   return router;
 };

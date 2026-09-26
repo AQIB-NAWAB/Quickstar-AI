@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { TenantContext } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { Agent } from "../domain/types.js";
+import type { Agent, AgentVersion } from "../domain/types.js";
+import { snapshotFromAgent } from "../domain/types.js";
+import { diffSnapshots } from "../utils/version-diff.js";
 import type { AgentStore, CreateAgentInput, UpdateAgentInput } from "./types.js";
 
 const defaultChannels = { chat: true, voice: false };
 
 export class MemoryAgentStore implements AgentStore {
   private agents = new Map<string, Agent>();
+  private versions = new Map<string, AgentVersion>();
 
   async createAgent(tenant: TenantContext, input: CreateAgentInput): Promise<Agent> {
     const name = input.name.trim();
@@ -30,6 +33,7 @@ export class MemoryAgentStore implements AgentStore {
       modelSettings: input.modelSettings ?? {},
       channels: input.channels ?? defaultChannels,
       version: 1,
+      productionVersionId: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -97,6 +101,98 @@ export class MemoryAgentStore implements AgentStore {
       return false;
     }
     this.agents.delete(agentId);
+    for (const [id, version] of this.versions) {
+      if (version.agentId === agentId) {
+        this.versions.delete(id);
+      }
+    }
     return true;
+  }
+
+  async publish(tenant: TenantContext, agentId: string, baseVersion: number) {
+    const agent = this.agents.get(agentId);
+    if (!agent || agent.workspaceId !== tenant.workspaceId) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent not found",
+      });
+    }
+    if (agent.version !== baseVersion) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Agent was modified by another request; reload and retry",
+      });
+    }
+
+    const releaseNumber =
+      [...this.versions.values()].filter((v) => v.agentId === agentId).length + 1;
+    const version: AgentVersion = {
+      id: randomUUID(),
+      workspaceId: tenant.workspaceId,
+      agentId,
+      releaseNumber,
+      snapshot: snapshotFromAgent(agent),
+      createdBy: tenant.actorId,
+      createdAt: new Date(),
+    };
+    this.versions.set(version.id, version);
+    agent.productionVersionId = version.id;
+    agent.updatedAt = new Date();
+
+    return { version, agent: { ...agent } };
+  }
+
+  async rollback(tenant: TenantContext, agentId: string, versionId: string) {
+    const agent = this.agents.get(agentId);
+    if (!agent || agent.workspaceId !== tenant.workspaceId) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent not found",
+      });
+    }
+    const version = this.versions.get(versionId);
+    if (!version || version.agentId !== agentId || version.workspaceId !== tenant.workspaceId) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent version not found",
+      });
+    }
+    agent.productionVersionId = versionId;
+    agent.updatedAt = new Date();
+    return { version, agent: { ...agent } };
+  }
+
+  async listVersions(tenant: TenantContext, agentId: string, limit = 50) {
+    const agent = this.agents.get(agentId);
+    if (!agent || agent.workspaceId !== tenant.workspaceId) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent not found",
+      });
+    }
+    return [...this.versions.values()]
+      .filter((v) => v.agentId === agentId && v.workspaceId === tenant.workspaceId)
+      .sort((a, b) => b.releaseNumber - a.releaseNumber)
+      .slice(0, limit);
+  }
+
+  async getVersion(tenant: TenantContext, agentId: string, versionId: string) {
+    const version = this.versions.get(versionId);
+    if (!version || version.agentId !== agentId || version.workspaceId !== tenant.workspaceId) {
+      return null;
+    }
+    return version;
+  }
+
+  async diffVersions(tenant: TenantContext, agentId: string, leftId: string, rightId: string) {
+    const left = await this.getVersion(tenant, agentId, leftId);
+    const right = await this.getVersion(tenant, agentId, rightId);
+    if (!left || !right) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent version not found",
+      });
+    }
+    return diffSnapshots(leftId, rightId, left.snapshot, right.snapshot);
   }
 }

@@ -105,7 +105,7 @@ Say these out loud. They are not bugs we forgot. They are the next designs.
 
 - The gateway checks that the token is valid. It does **not** check that this user is a member of the workspace id in the URL. Membership is checked in the service that owns the data.
 - Agent permission checks call workspace over HTTP on every request. At 1,000 requests per second that lookup becomes the slow part. A short Redis cache of membership is a later improvement. The source of truth stays Postgres.
-- Agent rows are drafts. There is no frozen published copy yet. A chat runtime must not read this row as "what production is serving."
+- Agent drafts and immutable published versions exist (Feature 08). Runtime (Feature 12) must read the production pointer, not the draft row.
 - Two gateway copies are safe for rate limits only because the counter is in Redis. Any new limit that uses a `Map` inside Node will be wrong as soon as the second copy starts.
 - Publish is still a stub on the workspace service. It checks the permission and does not create a version.
 
@@ -142,9 +142,9 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** Agent versions, and Conversation service (pick one each)
+- **Current focus:** Model gateway (10) and knowledge ingest (11), or platform labs
 - **Next production deep topic:** Database transactions and lost updates
-- **Finished features:** 7 (foundation through agent drafts)
+- **Finished features:** 9 (foundation through conversation service and agent versions)
 - **Board status:** workspace, gateway, and agent drafts are done in code even if an older note said otherwise
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
@@ -156,7 +156,7 @@ Update these lines every day.
 | 05 | Workspace and roles | — | — | done |
 | 06 | API gateway | — | — | done |
 | 07 | Agent drafts | workspace, gateway | — | done |
-| 08 | Agent versions and publish | agent drafts | 09 | not_started |
+| 08 | Agent versions and publish | agent drafts | 09 | done |
 | 09 | Conversation service | gateway, workspace | 08 | done |
 | 10 | Model gateway | — | 11 | not_started |
 | 11 | Knowledge ingest | workspace, OpenSearch | 10 | not_started |
@@ -822,7 +822,7 @@ What we learned that still applies:
 
 ## 10. Feature 08 — Agent versions and publish
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** agent drafts  
 **Can run beside:** Feature 09  
 **Deep topic (day 2):** transactions and lost updates  
@@ -890,12 +890,12 @@ Write notes for headings 1–10 in section 7, using this feature. Draw the trans
 
 **Track A (this feature, end to end)**
 
-- [ ] Migration for versions and the pointer
-- [ ] Publish, rollback, list, diff
-- [ ] Reject stale `base_version` with 409
-- [ ] Test: two publishes, one conflict; cross-workspace version id returns 404
-- [ ] Gateway routes and a short curl example
-- [ ] ADR `docs/adr/0008-agent-versioning.md` with the failure lines above
+- [x] Migration for versions and the pointer
+- [x] Publish, rollback, list, diff
+- [x] Reject stale `base_version` with 409
+- [x] Test: two publishes, one conflict; cross-workspace version id returns 404
+- [x] Gateway routes and a short curl example
+- [x] ADR `docs/adr/0009-agent-versioning.md` with the failure lines above
 
 **Track B** is feature 09. Do not split this feature into "one person writes SQL, the other only writes docs."
 

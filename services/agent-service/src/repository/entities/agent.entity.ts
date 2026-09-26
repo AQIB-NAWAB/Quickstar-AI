@@ -29,6 +29,9 @@ export class AgentEntity {
   @Column({ type: "int", default: 1 })
   version!: number;
 
+  @Column({ name: "production_version_id", type: "uuid", nullable: true })
+  productionVersionId!: string | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 

@@ -3,7 +3,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 
-const MIGRATION_VERSION = "001_agent_schema";
+const MIGRATIONS: { version: string; file: string }[] = [
+  { version: "001_agent_schema", file: "001_agent_schema.sql" },
+  { version: "002_agent_versions", file: "002_agent_versions.sql" },
+];
+
+function resolveMigrationSql(file: string): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidate1 = join(here, "../../migrations", file);
+  const candidate2 = join(here, "../migrations", file);
+  const sqlPath = existsSync(candidate1) ? candidate1 : candidate2;
+  return readFileSync(sqlPath, "utf8");
+}
 
 export async function runAgentMigrations(pool: Pool): Promise<void> {
   await pool.query(`
@@ -13,30 +24,27 @@ export async function runAgentMigrations(pool: Pool): Promise<void> {
     )
   `);
 
-  const { rows } = await pool.query<{ version: string }>(
-    `SELECT version FROM schema_migrations WHERE version = $1`,
-    [MIGRATION_VERSION],
-  );
-  if (rows.length > 0) {
-    return;
-  }
+  for (const migration of MIGRATIONS) {
+    const { rows } = await pool.query<{ version: string }>(
+      `SELECT version FROM schema_migrations WHERE version = $1`,
+      [migration.version],
+    );
+    if (rows.length > 0) {
+      continue;
+    }
 
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidate1 = join(here, "../../migrations/001_agent_schema.sql");
-  const candidate2 = join(here, "../migrations/001_agent_schema.sql");
-  const sqlPath = existsSync(candidate1) ? candidate1 : candidate2;
-  const sql = readFileSync(sqlPath, "utf8");
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(sql);
-    await client.query(`INSERT INTO schema_migrations (version) VALUES ($1)`, [MIGRATION_VERSION]);
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
+    const sql = resolveMigrationSql(migration.file);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(sql);
+      await client.query(`INSERT INTO schema_migrations (version) VALUES ($1)`, [migration.version]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

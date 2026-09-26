@@ -33,7 +33,11 @@ All paths below are on the **gateway** base URL (local: `http://127.0.0.1:3000`)
 | GET | `/v1/workspaces/{workspaceId}/agents/{agentId}` | Bearer | Agent |
 | PATCH | `/v1/workspaces/{workspaceId}/agents/{agentId}` | Bearer | Agent |
 | DELETE | `/v1/workspaces/{workspaceId}/agents/{agentId}` | Bearer | Agent |
-| POST | `/v1/workspaces/{workspaceId}/agents/{agentId}/publish` | Bearer | Workspace (RBAC stub) |
+| POST | `/v1/workspaces/{workspaceId}/agents/{agentId}/publish` | Bearer | Agent |
+| POST | `/v1/workspaces/{workspaceId}/agents/{agentId}/rollback` | Bearer | Agent |
+| GET | `/v1/workspaces/{workspaceId}/agents/{agentId}/versions` | Bearer | Agent |
+| GET | `/v1/workspaces/{workspaceId}/agents/{agentId}/versions/{versionId}` | Bearer | Agent |
+| GET | `/v1/workspaces/{workspaceId}/agents/{agentId}/versions/{leftId}/diff/{rightId}` | Bearer | Agent |
 | POST | `/v1/workspaces/{workspaceId}/conversations` | Bearer | Conversation |
 | GET | `/v1/workspaces/{workspaceId}/conversations` | Bearer | Conversation |
 | GET | `/v1/workspaces/{workspaceId}/conversations/{conversationId}` | Bearer | Conversation |
