@@ -46,7 +46,7 @@ Workspaces need a first-class **Agent** object before versions, runtime, and cha
 | Duplicate name | **409** `CONFLICT` |
 | Agent in another workspace | **404** `NOT_FOUND` |
 
-## Still unsafe at 1,000 RPS
+## Still unsafe at 10,000 RPS sustained
 
 - Per-request workspace HTTP for role resolution (no Redis membership cache).
 - Draft row is mutable; production must not read it after Slot 08 without the published pointer.

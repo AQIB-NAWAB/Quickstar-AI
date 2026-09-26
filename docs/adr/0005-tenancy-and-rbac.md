@@ -65,7 +65,7 @@ Six standard roles are supported:
 - All future services (`services/agent`, `services/conversation`, `services/runtime`) will inherit the `TenantContext` pattern.
 - Every write operation on member roles records audit fields (`role_updated_by`, `role_updated_at`).
 - Automated test suites must include negative IDOR tests verifying that Workspace A cannot read or modify Workspace B entities under any parameter tampering.
-- Permission lookups are performed against PostgreSQL and may be cached in Valkey/Redis with short TTLs for high-throughput paths (1,000+ RPS).
+- Permission lookups are performed against PostgreSQL and may be cached in Valkey/Redis with short TTLs for high-throughput paths (10,000 RPS sustained, 20,000 peak).
 
 ## Alternatives Rejected
 

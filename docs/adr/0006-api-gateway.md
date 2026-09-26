@@ -8,7 +8,7 @@
 
 Identity (`:3001`) and workspace (`:3002`) services run as separate HTTP processes. Browsers and external SDKs must not call each service directly: CORS, auth, and tenant handling would multiply and leak. Slot 05 established workspace RBAC and `TenantContext`; the gateway is the **public door** that validates access tokens and forwards traffic.
 
-Design targets (`project_details.md` §5): **1,000+ RPS sustained**, **5,000+ burst** hit the edge first. The gateway must stay **stateless**; rate-limit counters live in **Redis/Valkey**, not process memory.
+Design targets (`project_details.md` §5): **10,000 RPS sustained**, **20,000 RPS peak** hit the edge first. Voice adds **5,000 concurrent inbound calls** and **5,000 concurrent outbound calls** (`project_details.md` §7). The gateway must stay **stateless**; rate-limit counters live in **Redis/Valkey**, not process memory.
 
 ## Decision
 
