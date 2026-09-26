@@ -14,3 +14,18 @@ export {
   type WorkspacePermission,
   type WorkspaceRole,
 } from "./workspace-permissions.js";
+
+export type {
+  ChatMessage,
+  ChatMessageRole,
+  CompletionRequestBody,
+  CompletionResponseBody,
+  DecideRequestBody,
+  DecideResponseBody,
+  JevQuestion,
+  JevQuestionType,
+  ModelCredentialSource,
+  ModelReference,
+  ModelRoutingMode,
+  TokenUsage,
+} from "./model-gateway.js";
