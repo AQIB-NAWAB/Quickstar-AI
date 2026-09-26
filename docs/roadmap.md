@@ -157,7 +157,7 @@ Update these lines every day.
 | 06 | API gateway | — | — | done |
 | 07 | Agent drafts | workspace, gateway | — | done |
 | 08 | Agent versions and publish | agent drafts | 09 | not_started |
-| 09 | Conversation service | gateway, workspace | 08 | not_started |
+| 09 | Conversation service | gateway, workspace | 08 | done |
 | 10 | Model gateway | — | 11 | not_started |
 | 11 | Knowledge ingest | workspace, OpenSearch | 10 | not_started |
 | 12 | Agent runtime | 08, 09, 10 | — | not_started |
@@ -911,7 +911,7 @@ The runtime does not read the pointer yet. A conversation already in flight may 
 
 ## 11. Feature 09 — Conversation service
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** gateway and workspace (agent id may be empty until versions exist)  
 **Can run beside:** Feature 08  
 **Deep topic (day 2):** idempotency  
@@ -980,11 +980,11 @@ Section 7 headings, plus one example of a retry that must not double-insert.
 
 **Track A (this feature, end to end)**
 
-- [ ] New service, migration, `make conversation-migrate`
-- [ ] Create conversation, append, list by seq
-- [ ] Idempotency test and cross-workspace test
-- [ ] Gateway proxy file and README smoke steps
-- [ ] ADR for the failure policy
+- [x] New service, migration, `make conversation-migrate`
+- [x] Create conversation, append, list by seq
+- [x] Idempotency test and cross-workspace test
+- [x] Gateway proxy file and README smoke steps
+- [x] ADR for the failure policy
 
 ### Done when
 

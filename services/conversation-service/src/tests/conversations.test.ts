@@ -76,6 +76,7 @@ test("append messages with sequential numbering and retrieve message history", a
       body: JSON.stringify({
         text: "Hello world",
         sender_type: "user",
+        idempotency_key: "conv-test-msg-1",
       }),
     });
     assert.equal(msg1Res.status, 201);
@@ -99,6 +100,7 @@ test("append messages with sequential numbering and retrieve message history", a
       body: JSON.stringify({
         text: "Second message",
         sender_type: "user",
+        idempotency_key: "conv-test-msg-2",
       }),
     });
     assert.equal(msg2Res.status, 201);

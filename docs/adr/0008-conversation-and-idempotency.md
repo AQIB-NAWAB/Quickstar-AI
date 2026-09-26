@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-25
-- **Slot:** 07 — Conversation service
+- **Feature:** 09 — Conversation service
 
 ## Context
 

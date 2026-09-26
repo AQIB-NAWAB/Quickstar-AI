@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Conversation, Message } from "../domain/types.js";
 import type { AppendMessageResult, ConversationStore } from "../repository/types.js";
@@ -44,7 +43,13 @@ export class ConversationsService {
       });
     }
 
-    const idempotencyKey = input.idempotencyKey?.trim() || randomUUID();
+    const idempotencyKey = input.idempotencyKey?.trim();
+    if (!idempotencyKey) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "idempotency_key is required",
+      });
+    }
 
     return this.store.appendMessage({
       workspaceId: input.workspaceId,

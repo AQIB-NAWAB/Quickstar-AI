@@ -1,5 +1,5 @@
 -- 001_conversation_schema.sql
--- Slot 08: Conversation and messaging service with sequential ordering and idempotency
+-- Feature 09: Conversation and messaging service with sequential ordering and idempotency
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 

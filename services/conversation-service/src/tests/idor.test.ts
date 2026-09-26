@@ -30,7 +30,7 @@ test("strict workspace tenant isolation prevents IDOR access across workspaces",
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ text: "Secret in WS A" }),
+      body: JSON.stringify({ text: "Secret in WS A", idempotency_key: "idor-ws-a-1" }),
     });
 
     // 2. Try to GET the conversation using Workspace B's path -> MUST fail with 404
@@ -51,7 +51,7 @@ test("strict workspace tenant isolation prevents IDOR access across workspaces",
           authorization: `Bearer ${token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ text: "Attack attempt" }),
+        body: JSON.stringify({ text: "Attack attempt", idempotency_key: "idor-attack-1" }),
       },
     );
     assert.equal(idorPost.status, 404);

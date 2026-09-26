@@ -10,7 +10,21 @@ import type {
   ListMessagesInput,
 } from "../types.js";
 import { ConversationEntity, MessageEntity } from "../entities/index.js";
+import {
+  isUniqueViolation,
+  mapConversationDatastoreError,
+} from "../../utils/database-error.js";
 import { toConversation, toMessage } from "./mappers.js";
+
+function deduplicatedMessage(existing: MessageEntity, workspaceId: string): AppendMessageResult {
+  if (existing.workspaceId !== workspaceId) {
+    throw new AppError({
+      code: ErrorCode.NOT_FOUND,
+      message: "Conversation not found",
+    });
+  }
+  return { message: toMessage(existing), deduplicated: true };
+}
 
 export function createTypeOrmConversationStore(dataSource: DataSource): ConversationStore {
   return {
@@ -45,62 +59,67 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
     },
 
     async appendMessage(input: AppendMessageInput): Promise<AppendMessageResult> {
-      return await dataSource.transaction(async (manager) => {
-        // 1. Idempotency Check: if this idempotency key was already processed, return existing message
-        const existing = await manager.findOne(MessageEntity, {
-          where: { conversationId: input.conversationId, idempotencyKey: input.idempotencyKey },
-        });
-        if (existing) {
-          if (existing.workspaceId !== input.workspaceId) {
+      try {
+        return await dataSource.transaction(async (manager) => {
+          const existing = await manager.findOne(MessageEntity, {
+            where: { conversationId: input.conversationId, idempotencyKey: input.idempotencyKey },
+          });
+          if (existing) {
+            return deduplicatedMessage(existing, input.workspaceId);
+          }
+
+          const rawResult = await manager.query(
+            `UPDATE conversations
+             SET last_seq = last_seq + 1, updated_at = NOW()
+             WHERE id = $1 AND workspace_id = $2
+             RETURNING last_seq`,
+            [input.conversationId, input.workspaceId],
+          );
+
+          const rows = Array.isArray(rawResult) && Array.isArray(rawResult[0])
+            ? rawResult[0]
+            : Array.isArray(rawResult)
+              ? rawResult
+              : [];
+
+          if (rows.length === 0 || rows[0]?.last_seq === undefined) {
             throw new AppError({
               code: ErrorCode.NOT_FOUND,
               message: "Conversation not found",
             });
           }
-          return { message: toMessage(existing), deduplicated: true };
-        }
 
-        // 2. Atomically increment sequence counter in Postgres for this conversation
-        const rawResult = await manager.query(
-          `UPDATE conversations
-           SET last_seq = last_seq + 1, updated_at = NOW()
-           WHERE id = $1 AND workspace_id = $2
-           RETURNING last_seq`,
-          [input.conversationId, input.workspaceId],
-        );
-
-        const rows = Array.isArray(rawResult) && Array.isArray(rawResult[0])
-          ? rawResult[0]
-          : Array.isArray(rawResult)
-            ? rawResult
-            : [];
-
-        if (rows.length === 0 || rows[0]?.last_seq === undefined) {
-          throw new AppError({
-            code: ErrorCode.NOT_FOUND,
-            message: "Conversation not found",
+          const newSeq = Number(rows[0].last_seq);
+          const now = new Date();
+          const msgEntity = manager.create(MessageEntity, {
+            id: randomUUID(),
+            workspaceId: input.workspaceId,
+            conversationId: input.conversationId,
+            seq: newSeq,
+            senderType: input.senderType,
+            senderId: input.senderId,
+            text: input.text,
+            idempotencyKey: input.idempotencyKey,
+            createdAt: now,
           });
-        }
 
-        const newSeq = Number(rows[0].last_seq);
-
-        // 3. Insert the message with the allocated sequence number
-        const now = new Date();
-        const msgEntity = manager.create(MessageEntity, {
-          id: randomUUID(),
-          workspaceId: input.workspaceId,
-          conversationId: input.conversationId,
-          seq: newSeq,
-          senderType: input.senderType,
-          senderId: input.senderId,
-          text: input.text,
-          idempotencyKey: input.idempotencyKey,
-          createdAt: now,
+          await manager.save(msgEntity);
+          return { message: toMessage(msgEntity), deduplicated: false };
         });
-
-        await manager.save(msgEntity);
-        return { message: toMessage(msgEntity), deduplicated: false };
-      });
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          const existing = await dataSource.manager.findOne(MessageEntity, {
+            where: {
+              conversationId: input.conversationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          });
+          if (existing) {
+            return deduplicatedMessage(existing, input.workspaceId);
+          }
+        }
+        throw mapConversationDatastoreError(error);
+      }
     },
 
     async listMessages(input: ListMessagesInput): Promise<Message[]> {
