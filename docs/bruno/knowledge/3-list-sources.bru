@@ -1,0 +1,19 @@
+meta {
+  name: List Knowledge Sources
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/workspaces/{{workspaceId}}/knowledge/sources?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwt}}
+}
+
+params:query {
+  limit: 20
+}

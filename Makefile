@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate knowledge-smoke data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -6,6 +6,10 @@ up: data-plane-up
 down: data-plane-down
 logs: data-plane-logs
 smoke: data-plane-smoke
+
+knowledge-smoke:
+	@chmod +x scripts/smoke-knowledge-data-plane.sh
+	@./scripts/smoke-knowledge-data-plane.sh
 
 playground:
 	@chmod +x scripts/local-playground.sh
