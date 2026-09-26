@@ -1,5 +1,4 @@
 import type { RequestHandler } from "@quickstart/http-server";
-import type { createAgentsStubController } from "../controllers/agents-stub.controller.js";
 import type { createMembersController } from "../controllers/members.controller.js";
 import type { createWorkspacesController } from "../controllers/workspaces.controller.js";
 import type { AuthorizationService } from "../services/authorization.service.js";
@@ -13,5 +12,4 @@ export type WorkspaceHttpContext = {
   authorization: AuthorizationService;
   workspacesCtrl: ReturnType<typeof createWorkspacesController>;
   membersCtrl: ReturnType<typeof createMembersController>;
-  agentsStubCtrl: ReturnType<typeof createAgentsStubController>;
 };

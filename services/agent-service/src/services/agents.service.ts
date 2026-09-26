@@ -1,6 +1,6 @@
 import type { TenantContext } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { Agent } from "../domain/types.js";
+import type { Agent, AgentVersion, AgentVersionDiff, PublishResult } from "../domain/types.js";
 import type { AgentStore, CreateAgentInput, UpdateAgentInput } from "../repository/types.js";
 
 export class AgentsService {
@@ -49,5 +49,57 @@ export class AgentsService {
         message: "Agent not found",
       });
     }
+  }
+
+  async publish(tenant: TenantContext, agentId: string, baseVersion: number): Promise<PublishResult> {
+    if (!Number.isInteger(baseVersion)) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "base_version is required and must be an integer",
+      });
+    }
+    return this.store.publish(tenant, agentId, baseVersion);
+  }
+
+  async rollback(
+    tenant: TenantContext,
+    agentId: string,
+    versionId: string,
+  ): Promise<PublishResult> {
+    if (!versionId?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "version_id is required",
+      });
+    }
+    return this.store.rollback(tenant, agentId, versionId.trim());
+  }
+
+  async listVersions(
+    tenant: TenantContext,
+    agentId: string,
+    limit?: number,
+  ): Promise<AgentVersion[]> {
+    return this.store.listVersions(tenant, agentId, limit);
+  }
+
+  async getVersion(tenant: TenantContext, agentId: string, versionId: string): Promise<AgentVersion> {
+    const version = await this.store.getVersion(tenant, agentId, versionId);
+    if (!version) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent version not found",
+      });
+    }
+    return version;
+  }
+
+  async diffVersions(
+    tenant: TenantContext,
+    agentId: string,
+    leftId: string,
+    rightId: string,
+  ): Promise<AgentVersionDiff> {
+    return this.store.diffVersions(tenant, agentId, leftId, rightId);
   }
 }

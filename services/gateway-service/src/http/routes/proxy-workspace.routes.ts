@@ -36,7 +36,5 @@ export const createWorkspaceProxyRoutes: RouteModule<GatewayHttpContext> = (ctx)
   router.post("/v1/workspaces/:workspaceId/invites", ...chain);
   router.delete("/v1/workspaces/:workspaceId/invites/:inviteId", ...chain);
 
-  router.post("/v1/workspaces/:workspaceId/agents/:agentId/publish", ...chain);
-
   return router;
 };

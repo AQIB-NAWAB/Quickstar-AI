@@ -26,5 +26,14 @@ export const createAgentProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => 
   router.patch("/v1/workspaces/:workspaceId/agents/:agentId", ...chain);
   router.delete("/v1/workspaces/:workspaceId/agents/:agentId", ...chain);
 
+  router.post("/v1/workspaces/:workspaceId/agents/:agentId/publish", ...chain);
+  router.post("/v1/workspaces/:workspaceId/agents/:agentId/rollback", ...chain);
+  router.get("/v1/workspaces/:workspaceId/agents/:agentId/versions", ...chain);
+  router.get(
+    "/v1/workspaces/:workspaceId/agents/:agentId/versions/:leftId/diff/:rightId",
+    ...chain,
+  );
+  router.get("/v1/workspaces/:workspaceId/agents/:agentId/versions/:versionId", ...chain);
+
   return router;
 };

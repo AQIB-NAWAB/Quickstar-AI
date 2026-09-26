@@ -30,12 +30,12 @@ Workspaces need a first-class **Agent** object before versions, runtime, and cha
 ### Gateway
 
 - Public CRUD routes proxy to **agent-service** (`AGENT_URL`).
-- `POST .../agents/{agentId}/publish` remains on **workspace** until Slot 08 (RBAC stub today).
+- `POST .../agents/{agentId}/publish` is implemented on **agent-service** (Feature 08, ADR 0009).
 
 ### Out of scope (Slot 07)
 
-- Immutable `agent_versions` and production pointer (Slot 08).
-- Runtime reading agent config (Slot 11).
+- Immutable `agent_versions` and production pointer → Feature 08 (ADR 0009).
+- Runtime reading production pointer → Feature 12.
 
 ## Failure policy
 

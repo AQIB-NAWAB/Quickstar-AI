@@ -1,5 +1,10 @@
 import type { TenantContext } from "@quickstart/auth";
-import type { Agent, AgentChannels } from "../domain/types.js";
+import type {
+  Agent,
+  AgentVersion,
+  AgentVersionDiff,
+  PublishResult,
+} from "../domain/types.js";
 
 export type CreateAgentInput = {
   name: string;
@@ -7,7 +12,7 @@ export type CreateAgentInput = {
   instructions?: string;
   environment?: string;
   modelSettings?: Record<string, unknown>;
-  channels?: AgentChannels;
+  channels?: Agent["channels"];
 };
 
 export type UpdateAgentInput = {
@@ -16,7 +21,7 @@ export type UpdateAgentInput = {
   instructions?: string;
   environment?: string;
   modelSettings?: Record<string, unknown>;
-  channels?: AgentChannels;
+  channels?: Agent["channels"];
   expectedVersion: number;
 };
 
@@ -26,4 +31,14 @@ export interface AgentStore {
   getAgent(tenant: TenantContext, agentId: string): Promise<Agent | null>;
   updateAgent(tenant: TenantContext, agentId: string, input: UpdateAgentInput): Promise<Agent>;
   deleteAgent(tenant: TenantContext, agentId: string): Promise<boolean>;
+  publish(tenant: TenantContext, agentId: string, baseVersion: number): Promise<PublishResult>;
+  rollback(tenant: TenantContext, agentId: string, versionId: string): Promise<PublishResult>;
+  listVersions(tenant: TenantContext, agentId: string, limit?: number): Promise<AgentVersion[]>;
+  getVersion(tenant: TenantContext, agentId: string, versionId: string): Promise<AgentVersion | null>;
+  diffVersions(
+    tenant: TenantContext,
+    agentId: string,
+    leftId: string,
+    rightId: string,
+  ): Promise<AgentVersionDiff>;
 }
