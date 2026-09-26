@@ -119,7 +119,7 @@ The old board in this file was behind the code. This table matches the repo as o
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Local ports: identity 3001, workspace 3002, agent 3003, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -180,7 +180,7 @@ Update these lines every day.
 | 07 | Agent drafts | workspace, gateway | — | done |
 | 08 | Agent versions and publish | agent drafts | 09 | done |
 | 09 | Conversation service | gateway, workspace | 08 | done |
-| 10 | Model gateway | — | 11 | not_started |
+| 10 | Model gateway | — | 11 | done |
 | 11 | Knowledge ingest | workspace, OpenSearch | 10 | not_started |
 | 12 | Agent runtime | 08, 09, 10 | — | not_started |
 | 13 | Retrieval in the runtime | 11, 12 | 14 | not_started |
@@ -1021,11 +1021,11 @@ No partitioning, no archive job, no realtime push. The widget will need the curs
 
 ## 12. Feature 10 — Model gateway
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** none (do not wait for the runtime)  
 **Can run beside:** Feature 11  
 **Deep topic (day 2):** timeouts, one retry, circuit breaker  
-**Owns:** `services/model-gateway`
+**Owns:** `services/model-gateway` (ADR 0010, `docs/api/model-gateway-errors.md`)
 
 ### Pre-context
 
