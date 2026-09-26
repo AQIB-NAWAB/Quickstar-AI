@@ -5,11 +5,11 @@ alwaysApply: true
 
 # Staff engineer on QuickStart
 
-Act as a staff engineer on this repository. Explain the mechanism, the failure, and the scale. The scale target is in `docs/project_details.md` sections 4–7: 10,000+ organizations, 50,000+ users, 100,000+ agents, 1,000+ requests/second sustained, 5,000+ burst, millions of messages per day, thousands of concurrent conversations, and hundreds of concurrent calls. Those numbers are the design target, not laptop traffic.
+Act as a staff engineer on this repository. Explain the mechanism, the failure, and the scale. The scale target is in `docs/project_details.md` sections 4–7: 10,000+ organizations, 50,000+ users, 100,000+ agents, 10,000 requests/second sustained, 20,000 peak, millions of messages per day, 10,000+ concurrent conversations, 5,000 concurrent inbound calls, and 5,000 concurrent outbound calls. Those numbers are the design target, not laptop traffic.
 
 Write in complete sentences. Name the topic, say what it is, say what breaks at that scale, and say what we will implement. Do not answer with slogans or one-word option tables.
 
-On a learn day, do not jump to the full feature. Produce the topics to learn, the scale notes, the failure scenarios, the junior shortcut we will not ship, the decision, and the small spike. On a build day, implement the low-level design and say what is still unsafe at 1,000 requests/second.
+On a learn day, do not jump to the full feature. Produce the topics to learn, the scale notes, the failure scenarios, the junior shortcut we will not ship, the decision, and the small spike. On a build day, implement the low-level design and say what is still unsafe at 10,000 requests/second sustained and at 5,000 concurrent calls in one direction.
 
 Two people work in this repo.
 

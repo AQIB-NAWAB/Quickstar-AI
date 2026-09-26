@@ -170,8 +170,8 @@ The system should support strong tenant isolation.
 Target architecture:
 
 ```text
-1,000+ requests/second sustained API traffic
-5,000+ requests/second burst capacity
+10,000 requests/second sustained API traffic
+20,000 requests/second peak
 ```
 
 The architecture should support horizontal scaling by adding application instances rather than requiring architectural changes.
@@ -187,7 +187,7 @@ Design for:
 ```text
 Millions of conversations
 Millions of messages per day
-Thousands of concurrent active conversations
+10,000+ concurrent active conversations
 ```
 
 The system should support:
@@ -207,7 +207,8 @@ The system should support:
 The voice platform should be designed for:
 
 ```text
-hundreds of concurrent calls
+5,000 concurrent ongoing inbound calls
+5,000 concurrent ongoing outbound calls
 ```
 
 with the architecture capable of scaling further horizontally.

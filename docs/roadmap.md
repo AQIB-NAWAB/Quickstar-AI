@@ -11,11 +11,33 @@ Update this file at the end of every work day. Change the status, tick the boxes
 Design scale (use these numbers when you ask "will this break?"):
 
 - 10,000+ organizations, 50,000+ users, 100,000+ agents
-- 1,000+ API requests per second sustained, 5,000+ burst
-- Millions of messages per day, thousands of concurrent chats
-- Hundreds of concurrent voice calls
+- 10,000 API requests per second sustained, 20,000 peak
+- Millions of messages per day, 10,000+ concurrent chats
+- 5,000 concurrent ongoing inbound voice calls and 5,000 concurrent ongoing outbound voice calls
 
 These numbers are the design target. They are not the traffic on a laptop. A design that only works on one process for one user is not done.
+
+These are three different budgets. Do not mix them.
+
+| Budget | What it is | What it is not |
+| --- | --- | --- |
+| 10,000 HTTP requests per second sustained, 20,000 peak | Short requests through the gateway: JWT, proxy, Redis rate limit, cheap reads | Not 10,000 model calls per second |
+| 10,000+ concurrent chats | Open conversations that read and append in Postgres | Not 10,000 long-held gateway sockets unless the widget is streaming |
+| 5,000 inbound voice calls and 5,000 outbound voice calls at the same time | Up to 10,000 long-lived audio sockets on the **voice** process | Not HTTP on the API gateway. Media and call drain do not sit on port 3000 |
+
+Rules that stay true at this target:
+
+1. One shared Postgres schema with `workspace_id` on every tenant row. Ten thousand databases would fail on connections and migrations first.
+2. The HTTP gateway stays a thin door. It does not check membership on every hop by calling workspace, it does not call a model, and it does not hold audio.
+3. Billing is never on the request or call path. Model tokens and call minutes become usage facts, then a consumer writes the ledger (Feature 26).
+4. We do not add a service whose only job is "scale." Cache, pooler, and a separate voice process are the improvements. The feature list stays the same.
+
+What must exist before we treat the target as honest:
+
+- A short Redis cache of workspace membership. Postgres stays the source of truth. Per-request HTTP to workspace at 10,000 requests per second is the bottleneck we already have.
+- A written Postgres connection budget, then a pooler (PgBouncer or the Aurora/RDS proxy) before the production load test if replica math exceeds `max_connections`.
+- Voice as its own process, with a longer drain than HTTP, and a Redis cap of 5,000 inbound and 5,000 outbound.
+- A global and per-workspace cap on outbound model calls so one tenant cannot fill every vendor connection while calls are up.
 
 ---
 
@@ -104,10 +126,10 @@ Local ports: identity 3001, workspace 3002, agent 3003, gateway 3000. Postgres o
 Say these out loud. They are not bugs we forgot. They are the next designs.
 
 - The gateway checks that the token is valid. It does **not** check that this user is a member of the workspace id in the URL. Membership is checked in the service that owns the data.
-- Agent permission checks call workspace over HTTP on every request. At 1,000 requests per second that lookup becomes the slow part. A short Redis cache of membership is a later improvement. The source of truth stays Postgres.
+- Agent and conversation permission checks call workspace over HTTP on every request. At 10,000 requests per second that hop is the bottleneck. A short Redis cache of membership is **required before we treat the gateway as ready for this scale**. Postgres stays the source of truth. A cache miss or Redis down falls back to workspace HTTP or fails closed on the write path — pick one in the ADR and test it.
 - Agent drafts and immutable published versions exist (Feature 08). Runtime (Feature 12) must read the production pointer, not the draft row.
 - Two gateway copies are safe for rate limits only because the counter is in Redis. Any new limit that uses a `Map` inside Node will be wrong as soon as the second copy starts.
-- Publish is still a stub on the workspace service. It checks the permission and does not create a version.
+- Voice sockets must not share the HTTP gateway process. 5,000 inbound plus 5,000 outbound is a connection and memory problem on the voice edge, not more `proxy-*.routes.ts` files.
 
 ---
 
@@ -201,7 +223,7 @@ Before you write feature code, write short notes under these headings. Same head
 3. **Why now.** Which later feature becomes a rewrite if we skip this.
 4. **Junior shortcut.** Describe the simple version. Then name the production incident it causes (wrong tenant, double write, hang, stale prompt, split brain).
 5. **Production shape.** Where the data lives (Postgres, Redis, OpenSearch, object storage). What is in memory. What happens with two copies of the process.
-6. **Breaks at scale.** One concrete failure at 1,000 requests per second or at 100,000 agents or at millions of messages.
+6. **Breaks at scale.** One concrete failure at 10,000 requests per second sustained, 20,000 peak, 5,000 concurrent inbound calls, 5,000 concurrent outbound calls, 100,000 agents, or millions of messages.
 7. **Choice.** One option we take. Two options we reject, each with the cost.
 8. **Cloud later.** What becomes a managed service (RDS, ElastiCache, MSK, S3) and what must already be true in code (health checks, no disk state, stateless process).
 9. **Low-level design.** Tables, indexes, API paths, status codes, and "if this dependency fails, we return this."
@@ -225,7 +247,7 @@ These topics repeat across the product. Each feature below names the one you stu
 | Queues and backpressure | Kafka for events many consumers read. A job queue for work that must retry. Do not do heavy work inside the HTTP request. | Ingest, workflows, campaigns |
 | Tenant leaks | A missing `workspace_id` in one query returns another customer's row. | Every new table |
 | Streaming and proxies | A long connection dies at a load balancer if you do not send heartbeats. You cannot blindly retry after the user already saw tokens. | Runtime, widget, voice |
-| Observability | Logs, metrics, and traces share one `request_id`. You cannot fix a 1,000 rps system from one laptop log. | Every service, then a dedicated alerts feature |
+| Observability | Logs, metrics, and traces share one `request_id`. You cannot fix a 10,000 rps system from one laptop log. | Every service, then a dedicated alerts feature |
 | Secrets and rotation | A key in a log line or in git is public. Rotation must not take the platform down. | Model keys, tool credentials |
 | Read-your-writes | After publish succeeds, the next read must see the new pointer. A lagging copy must not answer that read. | Versions, inbox assignment |
 | Failure domains | One bad tenant or one bad vendor must not take every worker. | Runtime limits, voice, cloud |
@@ -466,7 +488,7 @@ A process can be "running" and still be unable to talk to Postgres. Kubernetes d
 
 #### What breaks at scale
 
-During a deploy at 1,000 requests per second, a few seconds of "pod is in the endpoints but already closing" becomes a visible error spike. preStop plus readiness is how you cut that spike.
+During a deploy at 10,000 requests per second sustained, a few seconds of "pod is in the endpoints but already closing" becomes a visible error spike. preStop plus readiness is how you cut that spike.
 
 A migration lock from six pods starting at once can stall writes for the whole product. One Job avoids that.
 
@@ -566,7 +588,7 @@ Opening a TCP connection to Postgres is slow, so the process keeps a pool (for e
 
 **The math.** 2 gateway pods do not need Postgres. Identity, workspace, agent, runtime, and a migrate job do. Suppose 6 services × 2 replicas × 20 connections = 240 connections. A small managed Postgres might allow 100. The 101st connection waits or fails. The app looks "slow" and the database is only full of idle connections.
 
-**PgBouncer** (or the RDS proxy equivalent) sits between the app and Postgres and multiplexes many app connections onto fewer database connections. You add it when the math says so, not on day one by habit. Know the formula before you add another moving part.
+**PgBouncer** (or the RDS / Aurora proxy equivalent) sits between the app and Postgres and multiplexes many app connections onto fewer database connections. Write the formula in this lab. At 10,000 requests per second we will run more than two copies of several services. A pooler is **required before the production load test** if `services × replicas × pool_size` is near `max_connections`. Do not wait for the first outage. The pooler does not fix a missing `workspace_id` or a transaction that waits on a model call.
 
 **Statement timeout.** A query without a timeout can hold a connection for minutes. Set a server or session timeout so a forgotten `SELECT` cannot pin a worker. Long migrations use a different role or a higher timeout. Do not use the request pool for a 20-minute index build.
 
@@ -590,9 +612,9 @@ Horizontal scale of the app **increases** database connections. Vertical scale o
 
 #### Choice
 
-We take an explicit pool size in config, a short ADR with the formula, and `statement_timeout` for the app role.
+We take an explicit pool size in config, a short ADR with the formula, `statement_timeout` for the app role, and a pooler before the production load test when the formula says we are near the cap.
 
-We do not take PgBouncer until the formula shows we need it.
+We do not take a second Postgres cluster per service as the first fix. We do not raise every pool to 100.
 
 #### Cloud later
 
@@ -600,8 +622,9 @@ RDS and Aurora have `max_connections` tied to instance size. A bigger instance i
 
 #### Build
 
-- [ ] `docs/architecture/postgres-connections.md` with the formula using our real services
+- [ ] `docs/architecture/postgres-connections.md` with the formula using our real services, including identity, workspace, agent, conversation, runtime, and a migrate job
 - [ ] Pool max set from env in one service as the pattern (identity or workspace), default small for local
+- [ ] Decision line: when the formula exceeds Aurora `max_connections`, add PgBouncer or the managed proxy before Feature 30 load
 - [ ] Note in the agent publish design: no network call inside the DB transaction
 
 #### Done when
@@ -707,7 +730,7 @@ CI is not a place to store production secrets. The JWT secret for tests is a fix
 
 #### What breaks at scale
 
-This lab does not break at 1,000 rps. It breaks when two people ship and nobody knows which image is in the cluster. The sha tag is the fix.
+This lab does not fail because of request rate. It breaks when two people ship and nobody knows which image is in the cluster. The sha tag is the fix.
 
 #### Choice
 
@@ -1026,11 +1049,11 @@ Each call has a timeout. We retry **once**, and only when no token was sent to t
 
 Keys live in the environment for now. They must not appear in logs.
 
-Concurrency limits per workspace belong in the runtime, but this service must accept a caller-supplied limit signal later. This feature records usage. It does not send invoices.
+This service records usage. It does not send invoices. It enforces a **global outbound cap** (config number) so 20,000 peak HTTP requests cannot open 20,000 vendor connections. Per-workspace caps live in the runtime and share Redis so two runtime copies agree. When the cap is full, return a typed error or queue. Do not retry until the vendor recovers.
 
 ### What breaks at scale
 
-1,000 API requests per second is not 1,000 model calls per second. Model calls are slow and billed. A retry storm at 5,000 burst multiplies the bill. One workspace must not be able to occupy every outbound connection. Put a cap in the design even if the first cap is a simple config number.
+10,000 API requests per second sustained (20,000 peak) is not 10,000 model calls per second. Model calls are slow and billed. A retry storm at peak multiplies the bill. One workspace must not be able to occupy every outbound connection. Put a cap in the design even if the first cap is a simple config number. Voice adds a second budget: 5,000 concurrent inbound calls and 5,000 concurrent outbound calls, each holding a long connection.
 
 ### Choice
 
@@ -1050,7 +1073,8 @@ The service stays stateless. Keys move to a secret store (feature 16, then the c
 
 - `POST /internal/complete` and `POST /internal/stream` (gateway may keep these off the public internet until the runtime is the only caller)
 - Map timeout, vendor 429, and vendor 5xx to our error envelope with `request_id`
-- Emit a usage record: provider, model, input tokens, output tokens, latency, workspace_id. A log event is enough. No invoice math.
+- Emit a usage record: provider, model, input tokens, output tokens, latency, workspace_id. A log event is enough. No invoice math. Do not write a billing row on this request.
+- Global outbound connection / in-flight cap. Reject or queue when full.
 - Test with a fake vendor: timeout, 429 once, fallback when the first call fails before tokens, no second full answer after tokens started
 - If the vendor hangs, the caller sees timeout. The process stays up.
 
@@ -1068,7 +1092,7 @@ A caller can complete and stream against the fake provider. A hung provider retu
 
 ### Still unsafe
 
-No per-tenant budget enforcement yet. No real invoice. Streaming to a browser is the widget's job later. This service only speaks to the runtime and to tests.
+No money ledger yet (Feature 26). No hard spend budget per tenant. Streaming to a browser is the widget's job later. This service only speaks to the runtime and to tests. The global cap in this feature is a connection cap, not a dollar cap.
 
 ---
 
@@ -1173,7 +1197,7 @@ The junior shortcut reads the draft row, calls the vendor SDK, and writes the re
 
 At the start of the turn, read the production version id and keep it on the message row (`agent_version_id`). The turn finishes on that snapshot even if someone publishes again. Model calls go through the model gateway. The assistant message uses an idempotency key.
 
-The process is stateless. Two runtimes can handle different conversations. A limit per workspace caps how many model calls that workspace can run at once so one tenant cannot fill every worker.
+The process is stateless. Two runtimes can handle different conversations. A limit per workspace caps how many model calls that workspace can run at once so one tenant cannot fill every worker. That cap lives in Redis, not in process memory, because two runtime copies must share it. Membership for the turn path uses the same short Redis cache as other services; do not add a fourth HTTP hop to workspace on every token.
 
 ### What breaks at scale
 
@@ -1191,7 +1215,7 @@ Cost: more network hops. Each hop needs a timeout.
 
 ### Cloud later
 
-Scale the runtime horizontally. The cap per workspace must live in Redis or the database, not in one process. Health checks must fail when the model gateway is unreachable if we want the load balancer to stop sending traffic. Decide that in the ADR and test it.
+Scale the runtime horizontally. The cap per workspace must live in Redis, not in one process. Health checks must fail when the model gateway is unreachable if we want the load balancer to stop sending traffic. Decide that in the ADR and test it. Runtime is HTTP and streams. It is not the 5,000 + 5,000 voice sockets.
 
 ### Low-level design
 
@@ -1732,11 +1756,13 @@ The junior shortcut builds a separate "voice brain" with its own prompt store. P
 
 ### Production shape
 
-The voice edge handles audio and turns it into a turn request to the same runtime. The runtime still uses the production pointer and the conversation table. Timeouts are shorter than chat because a human is waiting on the phone. If the model misses the deadline, the caller hears a typed fallback phrase, and the conversation row records the failure.
+The voice edge is **its own process**. It handles audio and turns it into a turn request to the same runtime. The HTTP gateway on port 3000 never holds the media socket. The runtime still uses the production pointer and the conversation table. Timeouts are shorter than chat because a human is waiting on the phone. If the model misses the deadline, the caller hears a typed fallback phrase, and the conversation row records the failure.
+
+Call state that must survive a restart (call id, conversation id, direction, workspace cap) lives in Postgres or Redis with a TTL. The socket may die on deploy. Recordings go to object storage, not the local disk. Drain time for a voice pod is longer than HTTP (`terminationGracePeriodSeconds` measured in minutes if calls last that long), or new calls stop first and existing calls finish.
 
 ### What breaks at scale
 
-Hundreds of concurrent calls means hundreds of realtime sockets. The voice edge scales horizontally only if call state that must survive a restart is in Postgres or Redis with a TTL, not only in the process. In-memory call state is lost on deploy. Say which state is allowed to die (the socket) and which is not (the conversation).
+5,000 concurrent inbound calls and 5,000 concurrent outbound calls means 10,000 realtime sockets when both sides are full. The voice edge scales horizontally only if call state that must survive a restart is in Postgres or Redis with a TTL, not only in the process. In-memory call state is lost on deploy. Say which state is allowed to die (the socket) and which is not (the conversation).
 
 ### Choice
 
@@ -1752,9 +1778,10 @@ This service needs stable outbound media and health checks. The cluster comes in
 
 ### Low-level design
 
-- `calls`: id, workspace_id, conversation_id, state
+- `calls`: id, workspace_id, conversation_id, direction (inbound or outbound), state
 - A test double for audio that sends one utterance and expects one runtime turn
 - No second copy of agent fields
+- No audio bytes through `services/gateway-service`
 
 ### Done when
 
@@ -1794,7 +1821,7 @@ Every call has a deadline. Workers are released in `finally`. Reconnect uses the
 
 ### What breaks at scale
 
-The failure is leaked concurrency, not a wrong SQL row. At hundreds of calls, a leak of one worker per call takes the pool down in minutes.
+The failure is leaked concurrency, not a wrong SQL row. At 5,000 inbound and 5,000 outbound, a leak of one worker per call takes the pool down in minutes. The Redis cap is two numbers: inbound and outbound. A workspace that is at its own cap must not consume the global 5,000.
 
 ### Choice
 
@@ -2010,7 +2037,7 @@ No human labeling UI. No automatic publish block.
 
 ### Pre-context
 
-The model gateway can emit a usage record. We do not turn that into a ledger.
+The model gateway can emit a usage record. Voice will emit call minutes the same way. We do not turn that into a ledger on the request or on the live call.
 
 ### What this is
 
@@ -2030,7 +2057,7 @@ Append-only usage rows in Postgres. Unique idempotency key. The price is copied 
 
 ### What breaks at scale
 
-Writing a row per token chunk will melt the database. Write one row per model call, not per token. The volume is "model calls," which is lower than "HTTP requests." Still index `(workspace_id, created_at)`.
+Writing a row per token chunk, or a balance update on every voice second, will melt the primary at 5,000 concurrent calls. Write one ledger row per model call and one row per finished call interval (or per call), not per token and not per audio packet. The volume is "model calls and call intervals," which is lower than "HTTP requests." Still index `(workspace_id, created_at)`. The consumer is idempotent. The HTTP handler and the voice worker only emit the fact.
 
 ### Choice
 
@@ -2050,6 +2077,7 @@ The ledger stays on the primary. A warehouse can copy it later. The product must
 - Consumer of the usage event is idempotent
 - Test: duplicate event, one row
 - Test: cross-workspace sum does not include the other tenant
+- Test: a completed call does not write the ledger inside the voice request path (event or outbox only)
 - No card charging in this feature
 
 ### Done when
@@ -2137,7 +2165,7 @@ A small set of metrics and one dashboard description: request rate, error rate, 
 
 ### Why now
 
-At 1,000 requests per second you cannot SSH and read a log file. The signals have to exist before the cloud move, or we will deploy blind.
+At 10,000 requests per second sustained you cannot SSH and read a log file. The signals have to exist before the cloud move, or we will deploy blind.
 
 ### Junior shortcut
 
@@ -2272,7 +2300,7 @@ The junior shortcut runs one `curl` on a laptop and calls it load. Or they load-
 
 ### Production shape
 
-Load hits the gateway. The report records achieved rate, error rate, and latency. It does not need to hit 1,000 requests per second on the laptop. It needs to show the shape: two gateway copies share the Redis limit, a killed upstream returns 503 or 504 with `request_id`, and the process does not need a manual restart to accept traffic again after the dependency returns.
+Load hits the gateway. The report records achieved rate, error rate, and latency. It does not need to hit 10,000 requests per second on the laptop. It needs to show the shape: two gateway copies share the Redis limit, a killed upstream returns 503 or 504 with `request_id`, and the process does not need a manual restart to accept traffic again after the dependency returns. The production target remains 10,000 sustained, 20,000 peak, and 5,000 concurrent calls in each direction.
 
 Recovery: Postgres backups exist in the staging design. The note says RPO and RTO in plain language (how much data we can lose, how long we take to restore). If we have not built backups, the status is "not done," not "we will do it later" hidden inside a green board.
 
