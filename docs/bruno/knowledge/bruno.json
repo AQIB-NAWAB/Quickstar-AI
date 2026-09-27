@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Knowledge Ingest API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

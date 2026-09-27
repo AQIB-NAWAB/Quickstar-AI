@@ -1,0 +1,15 @@
+meta {
+  name: Get Knowledge Source Status
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/workspaces/{{workspaceId}}/knowledge/sources/{{sourceId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwt}}
+}
