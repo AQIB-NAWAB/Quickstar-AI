@@ -136,3 +136,30 @@ test("rate limit returns 429 RATE_LIMITED with request_id", async () => {
     { httpRateLimitMax: 3, httpRateLimitWindowMs: 60_000 },
   );
 });
+
+test("POST /v1/workspaces/:id/conversations/:id/turns proxies to runtime", async () => {
+  await withGateway(
+    async (port, config) => {
+      const token = await signAccessToken(
+        { sub: "user-1", org_id: "org-1", sid: "session-1" },
+        { secret: config.jwtAccessSecret, ttlSeconds: 900 },
+      );
+      const res = await fetch(
+        `http://127.0.0.1:${port}/v1/workspaces/00000000-0000-4000-8000-000000000001/conversations/00000000-0000-4000-8000-000000000002/turns`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ message: "Hello" }),
+        },
+      );
+      assert.equal(res.status, 503);
+      const body = (await res.json()) as { error: { code: string; request_id: string } };
+      assert.equal(body.error.code, "UPSTREAM_UNAVAILABLE");
+    },
+    { runtimeUrl: "http://127.0.0.1:9" },
+  );
+});
+
