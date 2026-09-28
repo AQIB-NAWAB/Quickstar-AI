@@ -1,8 +1,9 @@
 import { asyncHandler, createServiceRouter, type RouteModule } from "@quickstart/http-server";
+import { createProtectedWorkspaceProxyChain } from "../../lib/protected-workspace-proxy.js";
 import { proxyToUpstream } from "../../lib/proxy.js";
 import type { GatewayHttpContext } from "../context.js";
 
-function protectedWorkspace(ctx: GatewayHttpContext) {
+function protectedOrgWorkspace(ctx: GatewayHttpContext) {
   const { requireAccessToken, config } = ctx;
   return [
     requireAccessToken,
@@ -18,23 +19,24 @@ function protectedWorkspace(ctx: GatewayHttpContext) {
 
 export const createWorkspaceProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => {
   const router = createServiceRouter();
-  const chain = protectedWorkspace(ctx);
+  const orgChain = protectedOrgWorkspace(ctx);
+  const memberChain = createProtectedWorkspaceProxyChain(ctx, ctx.config.workspaceUrl);
 
-  router.post("/v1/orgs/:orgId/workspaces", ...chain);
-  router.get("/v1/orgs/:orgId/workspaces", ...chain);
+  router.post("/v1/orgs/:orgId/workspaces", ...orgChain);
+  router.get("/v1/orgs/:orgId/workspaces", ...orgChain);
 
-  router.get("/v1/workspaces/:workspaceId", ...chain);
-  router.patch("/v1/workspaces/:workspaceId", ...chain);
-  router.delete("/v1/workspaces/:workspaceId", ...chain);
+  router.get("/v1/workspaces/:workspaceId", ...memberChain);
+  router.patch("/v1/workspaces/:workspaceId", ...memberChain);
+  router.delete("/v1/workspaces/:workspaceId", ...memberChain);
 
-  router.get("/v1/workspaces/:workspaceId/members", ...chain);
-  router.get("/v1/workspaces/:workspaceId/members/:userId", ...chain);
-  router.patch("/v1/workspaces/:workspaceId/members/:userId", ...chain);
-  router.delete("/v1/workspaces/:workspaceId/members/:userId", ...chain);
+  router.get("/v1/workspaces/:workspaceId/members", ...memberChain);
+  router.get("/v1/workspaces/:workspaceId/members/:userId", ...memberChain);
+  router.patch("/v1/workspaces/:workspaceId/members/:userId", ...memberChain);
+  router.delete("/v1/workspaces/:workspaceId/members/:userId", ...memberChain);
 
-  router.get("/v1/workspaces/:workspaceId/invites", ...chain);
-  router.post("/v1/workspaces/:workspaceId/invites", ...chain);
-  router.delete("/v1/workspaces/:workspaceId/invites/:inviteId", ...chain);
+  router.get("/v1/workspaces/:workspaceId/invites", ...memberChain);
+  router.post("/v1/workspaces/:workspaceId/invites", ...memberChain);
+  router.delete("/v1/workspaces/:workspaceId/invites/:inviteId", ...memberChain);
 
   return router;
 };

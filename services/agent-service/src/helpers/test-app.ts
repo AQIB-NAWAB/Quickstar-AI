@@ -18,6 +18,8 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     httpRequestTimeoutMs: 5_000,
     httpRateLimitWindowMs: 60_000,
     httpRateLimitMax: 10_000,
+    membershipCacheTtlSec: 60,
+    membershipCacheNegativeTtlSec: 30,
     ...overrides,
   };
 }

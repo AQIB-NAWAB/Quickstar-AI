@@ -10,7 +10,14 @@ import { createLogger } from "@quickstart/logging";
 import { createRedisClient } from "@quickstart/utilities";
 import type { GatewayConfig } from "../config/environment.js";
 import { loadGatewayConfig } from "../config/environment.js";
+import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import { createGatewayServer } from "../http/create-server.js";
+
+const testWorkspaceAccess: WorkspaceAccessClient = {
+  async resolveRole() {
+    return "admin";
+  },
+};
 
 async function withGateway(
   run: (port: number, config: GatewayConfig) => Promise<void>,
@@ -28,7 +35,7 @@ async function withGateway(
     throw error;
   }
   const logger = createLogger({ service: "service-gateway-test" });
-  const app = createGatewayServer({ logger, config, redis });
+  const app = createGatewayServer({ logger, config, redis, workspaceAccess: testWorkspaceAccess });
   const server = await new Promise<Server>((resolve) => {
     const httpServer = app.listen(0, () => resolve(httpServer));
   });

@@ -2,6 +2,10 @@ import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
+import {
+  createCachedWorkspaceAccessClient,
+  createHttpWorkspaceAccessClient,
+} from "@quickstart/workspace-access";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadGatewayConfig } from "./config/environment.js";
 import { createGatewayServer, SERVICE_NAME } from "./http/create-server.js";
@@ -26,7 +30,15 @@ export async function startGatewayServer(): Promise<{
   }
   logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
-  const app = createGatewayServer({ logger, config, redis });
+  const workspaceAccess = createCachedWorkspaceAccessClient({
+    redis,
+    inner: createHttpWorkspaceAccessClient(config.workspaceUrl, config.httpRequestTimeoutMs),
+    ttlSec: config.membershipCacheTtlSec,
+    negativeTtlSec: config.membershipCacheNegativeTtlSec,
+    onCacheDegraded: (detail) => logger.warn("membership.cache_degraded", { detail }),
+  });
+
+  const app = createGatewayServer({ logger, config, redis, workspaceAccess });
 
   const server: Server = await new Promise((resolve) => {
     const httpServer = app.listen(config.port, "0.0.0.0", () => resolve(httpServer));

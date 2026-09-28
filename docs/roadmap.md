@@ -128,11 +128,14 @@ The old board in this file was behind the code. This table matches the repo as o
 | Conversations (09) | Done | `services/conversation-service` | Threads, ordered messages, idempotent append |
 | Model gateway (10) | Done | `services/model-gateway` | Internal complete/stream; vendor adapters behind one API |
 | Web fetch (10B) | Done | `services/web-fetch-service` | Internal scrape, crawl jobs, search; direct HTTP + Olostep providers |
+| Membership cache (09B) | Done | `packages/workspace-access` | Redis-backed role resolution; workspace invalidates on member change |
+| Knowledge ingest (11) | Done | `services/knowledge-service` | Text sources → SQS worker → OpenSearch chunks |
 | Agent runtime — chat turns (12) | Done | `services/runtime-service` | Turn via gateway: published version → model gateway → messages |
+| Retrieval in runtime (13) | Done | runtime + knowledge internal API | RAG when workspace has ready sources; chunk ids on assistant metadata |
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -233,10 +236,10 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** **09B** membership cache → **11** knowledge ingest → **13** retrieval (embed + search)
+- **Current focus:** **14** memory (optional) or **15** tools; voice remains **§5C**
 - **Next production deep topic:** fail-closed vs workspace fallback when Redis is empty (09B day 2); tenant leaks in search when starting 11
 - **Product priority:** Multi-tenant chat + knowledge at scale; voice design target unchanged, scheduled in **§5C** after knowledge path unless reprioritized
-- **Finished features:** through **12** (chat turns); voice (**21+**) and streaming/runtime caps still open
+- **Finished features:** through **13** (09B, 11, 12 chat, retrieval); voice (**21+**) and streaming still open
 - **Board status:** synced to repo 2026-09-28; update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
@@ -250,12 +253,12 @@ Update these lines every day.
 | 07 | Agent drafts | workspace, gateway | — | done |
 | 08 | Agent versions and publish | agent drafts | 09 | done |
 | 09 | Conversation service | gateway, workspace | 08 | done |
-| 09B | Membership cache | workspace | 11 | not_started |
+| 09B | Membership cache | workspace | 11 | done |
 | 10 | Model gateway | — | 10B, 11 | done |
 | 10B | Web fetch service | workspace | 11 | done |
-| 11 | Knowledge ingest | 10B, workspace, OpenSearch | 09B, 10B | not_started |
+| 11 | Knowledge ingest | 10B, workspace, OpenSearch | 14 | done |
 | 12 | Agent runtime (chat turns) | 08, 09, 10 | 11, 13 | done |
-| 13 | Retrieval in the runtime | 11, 12 | 14 | not_started |
+| 13 | Retrieval in the runtime | 11, 12 | 14 | done |
 | 14 | Memory | 09, 12 | 13 | not_started |
 | 15 | Tools and MCP | 12 | 16 | not_started |
 | 16 | Secrets | — | 15 | not_started |
@@ -1100,7 +1103,7 @@ No partitioning, no archive job, no realtime push. The widget will need the curs
 
 ## 11A. Feature 09B — Membership cache
 
-**Status:** `not_started`  
+**Status:** `done` (2026-09-28)  
 **Needs:** workspace  
 **Placement in product path:** §5B — first item on the current focus path (before ingest and retrieval)  
 **Can run beside:** Feature 11 (different packages day: land contracts + one service consumer first)  
@@ -1310,7 +1313,7 @@ No dollar invoicing (Feature 26). No customer-visible “web credits” UI. No b
 
 ## 14. Feature 11 — Knowledge ingest
 
-**Status:** `not_started`  
+**Status:** `done` (2026-09-28)  
 **Needs:** Feature 10B, workspace, OpenSearch from `make up`  
 **Placement in product path:** §5B — after **09B**, before **13** (retrieval)  
 **Can run beside:** Feature 09B (different service directories; do not edit `packages/*` the same day as 09B)  
@@ -1465,7 +1468,7 @@ No streaming turn path yet. No per-workspace model concurrency cap in Redis. **V
 
 ## 16. Feature 13 — Retrieval in the runtime
 
-**Status:** `not_started`  
+**Status:** `done` (2026-09-28)  
 **Needs:** 11 and 12  
 **Placement in product path:** §5B — after **11** ingest (embed + index); extends Feature **12** runtime loop  
 **Can run beside:** Feature 14 if the files do not overlap. If both change the runtime loop, only one person edits the runtime that day. The other can build the retrieval query API in the knowledge service.  
@@ -2667,3 +2670,6 @@ We will not have a year of on-call practice. We will have a system another engin
 | 2026-09-28 | 10B | `web-fetch-service` :3007, ADR 0011, contracts, tests | No ledger consumer; artifacts in Postgres only |
 | 2026-09-28 | 12 | `runtime-service` :3006, gateway proxy, chat turns + tests | No stream; no voice-turn contract; no Redis membership on path |
 | 2026-09-28 | roadmap | §5A–5C order; knowledge-first focus; board statuses | Voice in §5C; 09B → 11 → 13 is current focus |
+| 2026-09-28 | 09B | `@quickstart/workspace-access`, ADR 0012, agent/conversation cache | Gateway still does not check URL membership |
+| 2026-09-28 | 11 | `knowledge-service` :3009, SQS worker, OpenSearch, gateway proxy, ADR 0013 | Text sources only; no URL ingest via 10B yet |
+| 2026-09-28 | 13 | Runtime `KnowledgeClient`, internal retrieve, message metadata | Match search v1; no reranker |

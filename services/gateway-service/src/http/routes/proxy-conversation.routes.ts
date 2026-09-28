@@ -1,24 +1,10 @@
-import { asyncHandler, createServiceRouter, type RouteModule } from "@quickstart/http-server";
-import { proxyToUpstream } from "../../lib/proxy.js";
+import { createServiceRouter, type RouteModule } from "@quickstart/http-server";
+import { createProtectedWorkspaceProxyChain } from "../../lib/protected-workspace-proxy.js";
 import type { GatewayHttpContext } from "../context.js";
-
-function protectedConversation(ctx: GatewayHttpContext) {
-  const { requireAccessToken, config } = ctx;
-  return [
-    requireAccessToken,
-    asyncHandler(async (req, res) => {
-      await proxyToUpstream(req, res, config.conversationUrl, {
-        timeoutMs: config.httpRequestTimeoutMs,
-        access: res.locals.accessToken,
-        rawBearer: res.locals.rawBearerToken,
-      });
-    }),
-  ];
-}
 
 export const createConversationProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => {
   const router = createServiceRouter();
-  const chain = protectedConversation(ctx);
+  const chain = createProtectedWorkspaceProxyChain(ctx, ctx.config.conversationUrl);
 
   router.post("/v1/workspaces/:workspaceId/conversations", ...chain);
   router.get("/v1/workspaces/:workspaceId/conversations", ...chain);

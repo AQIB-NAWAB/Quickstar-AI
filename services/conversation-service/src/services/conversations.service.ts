@@ -34,6 +34,7 @@ export class ConversationsService {
     senderId?: string;
     text?: string;
     idempotencyKey?: string;
+    metadata?: Record<string, unknown> | null;
   }): Promise<AppendMessageResult> {
     const text = input.text?.trim();
     if (!text) {
@@ -58,6 +59,7 @@ export class ConversationsService {
       senderId: input.senderId ?? "anonymous",
       text,
       idempotencyKey,
+      metadata: input.metadata ?? null,
     });
   }
 

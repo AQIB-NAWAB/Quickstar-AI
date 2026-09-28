@@ -11,6 +11,9 @@ import type {
   MessageInfo,
 } from "../clients/conversation.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
+import type { WorkspaceRole } from "@quickstart/contracts";
+import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
+import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import { createHttpServer } from "../http/create-server.js";
 import { TurnsService } from "../services/turns.service.js";
 
@@ -139,6 +142,27 @@ export class MockConversationClient implements Partial<ConversationClient> {
   }
 }
 
+export class MockWorkspaceAccess implements WorkspaceAccessClient {
+  public role: WorkspaceRole = "admin";
+
+  async resolveRole(): Promise<WorkspaceRole> {
+    return this.role;
+  }
+}
+
+export class MockKnowledgeClient implements Partial<KnowledgeClient> {
+  public readyCountValue = 0;
+  public chunks: Array<{ chunk_id: string; source_id: string; text: string; score: number }> = [];
+
+  async readyCount(): Promise<number> {
+    return this.readyCountValue;
+  }
+
+  async retrieve(): Promise<Array<{ chunk_id: string; source_id: string; text: string; score: number }>> {
+    return this.chunks;
+  }
+}
+
 export class MockModelGatewayClient implements Partial<ModelGatewayClient> {
   public callCount = 0;
   public cannedResponse = "Hello! I am your agent.";
@@ -162,23 +186,29 @@ export async function withRuntimeServer(
     agentClient: MockAgentClient;
     convClient: MockConversationClient;
     modelClient: MockModelGatewayClient;
+    knowledgeClient: MockKnowledgeClient;
+    workspaceAccess: MockWorkspaceAccess;
     createToken: (userId?: string, orgId?: string) => Promise<string>;
   }) => Promise<void>,
 ): Promise<void> {
   const agentClient = new MockAgentClient();
   const convClient = new MockConversationClient();
   const modelClient = new MockModelGatewayClient();
+  const knowledgeClient = new MockKnowledgeClient();
+  const workspaceAccess = new MockWorkspaceAccess();
 
   const turnsService = new TurnsService(
     agentClient as unknown as AgentClient,
     convClient as unknown as ConversationClient,
     modelClient as unknown as ModelGatewayClient,
+    knowledgeClient as unknown as KnowledgeClient,
   );
 
   const logger = createLogger({ service: "service-runtime-test" });
   const app = createHttpServer({
     logger,
     turnsService,
+    workspaceAccess,
     jwtSecret: TEST_JWT_SECRET,
   });
 
@@ -195,6 +225,8 @@ export async function withRuntimeServer(
       agentClient,
       convClient,
       modelClient,
+      knowledgeClient,
+      workspaceAccess,
       createToken: (userId, orgId) => createTestToken(userId, orgId),
     });
   } finally {

@@ -30,6 +30,8 @@ export type {
   TokenUsage,
 } from "./model-gateway.js";
 
+export type { MembershipSnapshot } from "./membership.js";
+
 export type {
   AcquisitionAction,
   AcquisitionJobStatus,

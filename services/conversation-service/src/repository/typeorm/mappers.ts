@@ -22,6 +22,7 @@ export function toMessage(entity: MessageEntity): Message {
     senderId: entity.senderId,
     text: entity.text,
     idempotencyKey: entity.idempotencyKey,
+    metadata: entity.metadata ?? null,
     createdAt: entity.createdAt,
   };
 }

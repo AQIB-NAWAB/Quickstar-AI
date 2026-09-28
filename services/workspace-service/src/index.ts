@@ -36,7 +36,7 @@ export async function startWorkspaceServer(): Promise<{
   }
   logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
-  const services = createWorkspaceServices(store);
+  const services = createWorkspaceServices(store, redisClient);
   const readinessProbes = [
     async () => {
       await dataSource.query("SELECT 1");

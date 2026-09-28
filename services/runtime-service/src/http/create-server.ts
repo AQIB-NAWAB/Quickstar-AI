@@ -4,6 +4,7 @@ import { SERVICE_NAME, type ReadinessProbe } from "../controllers/health.control
 import { createTurnsController } from "../controllers/turns.controller.js";
 import { createAuthMiddleware } from "../middleware/auth.middleware.js";
 import { requireTenantContext } from "../middleware/tenant.middleware.js";
+import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { TurnsService } from "../services/turns.service.js";
 import type { RuntimeHttpContext } from "./context.js";
 import { createRuntimeApiRouter } from "./routes/index.js";
@@ -13,6 +14,7 @@ export { SERVICE_NAME };
 export type CreateRuntimeHttpServerOptions = {
   logger: Logger;
   turnsService: TurnsService;
+  workspaceAccess: WorkspaceAccessClient;
   jwtSecret?: string;
   readinessProbes?: ReadinessProbe[];
   requestTimeoutMs?: number;
@@ -21,7 +23,7 @@ export type CreateRuntimeHttpServerOptions = {
 };
 
 export function createHttpServer(options: CreateRuntimeHttpServerOptions): Application {
-  const { logger, turnsService, jwtSecret } = options;
+  const { logger, turnsService, jwtSecret, workspaceAccess } = options;
 
   const authGuard = createAuthMiddleware(jwtSecret);
   const tenantGuard = requireTenantContext();
@@ -31,6 +33,7 @@ export function createHttpServer(options: CreateRuntimeHttpServerOptions): Appli
     authGuard,
     tenantMiddleware: [authGuard, tenantGuard],
     turnsCtrl: createTurnsController(turnsService),
+    workspaceAccess,
   };
 
   const apiRouter = createRuntimeApiRouter(httpContext);

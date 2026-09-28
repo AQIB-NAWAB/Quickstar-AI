@@ -1,4 +1,5 @@
 import type { RequestHandler } from "@quickstart/http-server";
+import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import type { createTurnsController } from "../controllers/turns.controller.js";
 
@@ -7,4 +8,5 @@ export type RuntimeHttpContext = {
   authGuard: RequestHandler;
   tenantMiddleware: RequestHandler[];
   turnsCtrl: ReturnType<typeof createTurnsController>;
+  workspaceAccess: WorkspaceAccessClient;
 };

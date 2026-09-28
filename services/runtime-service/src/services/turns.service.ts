@@ -2,6 +2,7 @@ import type { ChatMessage, TokenUsage } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { AgentClient } from "../clients/agent.client.js";
 import type { ConversationClient, MessageInfo } from "../clients/conversation.client.js";
+import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 
 export type ExecuteTurnInput = {
@@ -24,11 +25,14 @@ export type TurnResult = {
   usage?: TokenUsage;
 };
 
+const MAX_RETRIEVAL_CHARS = 4000;
+
 export class TurnsService {
   constructor(
     private readonly agentClient: AgentClient,
     private readonly conversationClient: ConversationClient,
     private readonly modelGatewayClient: ModelGatewayClient,
+    private readonly knowledgeClient?: KnowledgeClient,
   ) {}
 
   async executeTurn(input: ExecuteTurnInput): Promise<TurnResult> {
@@ -121,11 +125,33 @@ export class TurnsService {
 
     const chatMessages: ChatMessage[] = [];
 
-    // System prompt from version snapshot
+    let retrievedChunkIds: string[] = [];
+    let knowledgeContext = "";
+    if (this.knowledgeClient && text) {
+      const readyCount = await this.knowledgeClient.readyCount(workspaceId, requestId);
+      if (readyCount > 0) {
+        const chunks = await this.knowledgeClient.retrieve(workspaceId, text, requestId, 5);
+        retrievedChunkIds = chunks.map((c) => c.chunk_id);
+        knowledgeContext = chunks
+          .map((c) => c.text)
+          .join("\n\n")
+          .slice(0, MAX_RETRIEVAL_CHARS);
+      }
+    }
+
+    const systemParts: string[] = [];
     if (version.snapshot.instructions) {
+      systemParts.push(version.snapshot.instructions);
+    }
+    if (knowledgeContext) {
+      systemParts.push(
+        `Use the following knowledge snippets when answering:\n\n${knowledgeContext}`,
+      );
+    }
+    if (systemParts.length > 0) {
       chatMessages.push({
         role: "system",
-        content: version.snapshot.instructions,
+        content: systemParts.join("\n\n"),
       });
     }
 
@@ -173,6 +199,10 @@ export class TurnsService {
         idempotency_key: asstIdempotencyKey,
         sender_type: "assistant",
         sender_id: version.id,
+        metadata:
+          retrievedChunkIds.length > 0
+            ? { retrieved_chunk_ids: retrievedChunkIds }
+            : undefined,
       },
       authHeaders,
     );

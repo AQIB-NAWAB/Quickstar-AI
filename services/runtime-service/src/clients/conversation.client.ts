@@ -76,6 +76,7 @@ export class ConversationClient {
       idempotency_key?: string;
       sender_type?: string;
       sender_id?: string;
+      metadata?: Record<string, unknown> | null;
     },
     headers: Record<string, string>,
   ): Promise<AppendMessageResult> {

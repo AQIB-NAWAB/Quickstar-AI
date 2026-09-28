@@ -85,6 +85,7 @@ export class MemoryConversationStore implements ConversationStore {
       senderId: input.senderId,
       text: input.text,
       idempotencyKey: input.idempotencyKey,
+      metadata: input.metadata ?? null,
       createdAt: new Date(),
     };
 
