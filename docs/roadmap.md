@@ -114,7 +114,7 @@ We do not write owner names on tasks. Either person can take either track. The s
 
 ## 4. What is already built
 
-The old board in this file was behind the code. This table matches the repo as of the agent-service work.
+The old board in this file was behind the code. This table matches the repo as of the runtime-service work.
 
 | Feature | Status | Where it lives | What a caller can do |
 | --- | --- | --- | --- |
@@ -124,7 +124,11 @@ The old board in this file was behind the code. This table matches the repo as o
 | Workspace and roles | Done | `services/workspace-service` | Workspaces, members, invites, permission checks |
 | API gateway | Done | `services/gateway-service` | Public door on port 3000, JWT, Redis rate limit, proxy |
 | Agent configuration | Done | `services/agent-service` | Create, list, get, update, delete agents in a workspace |
+| Agent versions and publish (08) | Done | `services/agent-service` | Publish immutable versions, production pointer, rollback |
+| Conversations (09) | Done | `services/conversation-service` | Threads, ordered messages, idempotent append |
+| Model gateway (10) | Done | `services/model-gateway` | Internal complete/stream; vendor adapters behind one API |
 | Web fetch (10B) | Done | `services/web-fetch-service` | Internal scrape, crawl jobs, search; direct HTTP + Olostep providers |
+| Agent runtime — chat turns (12) | Done | `services/runtime-service` | Turn via gateway: published version → model gateway → messages |
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
@@ -144,30 +148,65 @@ Say these out loud. They are not bugs we forgot. They are the next designs.
 
 ## 5. Product path
 
-Read this once. Later features assume it.
+Read this once. Later features assume it. **Section 5A** is dependency order. **Section 5B** is what we build next. **Section 5C** is the voice stack when we schedule telephony.
+
+### 5A. Dependency order (where each feature belongs)
 
 ```text
-Done:     identity → workspace → gateway → agent draft
-Next:     published versions  +  stored conversations     (these two can run together)
-Then:     model gateway
-Then:     web acquisition (10B) +  knowledge ingest (11)   (10B before URL/crawl sources in 11)
-Then:     runtime (needs versions + conversations + model gateway)
-Then:     retrieval and memory (retrieval needs knowledge + runtime) — optional before first phone call if agents are script-only
-Then:     tools and secrets
-Then:     website widget OR voice track (widget is not required for voice)
-Then:     events and workflows (call events can ship a thin slice with voice)
-Then:     campaigns and leads (outbound needs telephony)
-Then:     eval, usage, audit
-Then:     alerts, cloud deploy, load and recovery
+Foundation (done):
+  01–07  monorepo, data plane, shared libs, identity, workspace, gateway, agent drafts
+
+Agents and chat core (done):
+  08  versions & publish          ‖  09  conversations
+  10  model gateway
+  10B web fetch
+  12  agent runtime (chat turns)
+
+Scale + knowledge (next — see 5B):
+  09B membership cache (Redis; all hot paths, not voice-only)
+  11  knowledge ingest (sources → chunks → index)
+  13  retrieval in runtime (embed + query; needs 11 + 12)
+  14  memory (needs 09 + 12)
+
+More agent surface:
+  15  tools & MCP  ‖  16  secrets
+  17  website widget  ‖  18  inbox / human handoff
+
+Events and growth:
+  19  event platform  →  20  workflows
+  24  leads
+
+Voice edge (later — see 5C; uses same runtime as chat):
+  21  voice path  →  21B  speech (STT/TTS)  →  22  reliability  →  21C  telephony
+  23  campaigns (needs 21C + 22; 18 before heavy outbound)
+  V1  voice load & drain proof  ‖  P3  graceful drain on voice pods
+
+Billing, security, ops (late):
+  25  evaluation  ‖  26  usage & billing  →  27  audit  →  28  observability & alerts
+  29  cloud deploy  →  30  load, failure, recovery, SDKs
+  P1–P8  platform labs (parallel with product when files do not overlap)
 ```
 
-### 5B. Voice-first critical path (product priority)
+### 5B. Current focus path (knowledge-first)
 
-Inbound and outbound voice are the primary product. This path can run **in parallel** with knowledge (11) and the website widget (17). Do not block voice on the widget.
+Ship in this order unless we explicitly reprioritize voice:
 
 ```text
-09B membership cache (Redis; required before scale)
-  → 12 agent runtime (voice-turn contract + deadlines)
+09B membership cache
+  → 11 knowledge ingest
+  → 13 retrieval in the runtime (embedding + search on each turn)
+  → 14 memory (when widget or inbox needs it)
+```
+
+Feature **10B** is already done; ingest (11) should call web-fetch for URL/crawl sources. Feature **12** chat turns are done; retrieval (13) extends the same runtime loop.
+
+### 5C. Voice track (when we start telephony)
+
+Inbound and outbound voice remain a **design target** (5,000 + 5,000 concurrent calls). They are **not** the current build order. Start this track only after **09B** and when we choose to prioritize phone over more knowledge work.
+
+```text
+09B membership cache (required before voice or runtime at scale)
+  → 12 addendum: voice-turn contract in `packages/contracts` (can ship with Feature 21)
   → 21 voice path (voice-service :3008, fake media, calls table)
   → 21B speech providers (STT/TTS adapters inside voice-service)
   → 22 voice reliability (caps, barge-in, reconnect, fail-closed)
@@ -175,8 +214,7 @@ Inbound and outbound voice are the primary product. This path can run **in paral
   → 18 inbox / handoff (runtime skips model when state=human) — before heavy outbound
   → 23 campaigns (queued dial; needs 21C + 22)
   → 26 usage slice (voice minutes + STT/TTS units) — do not wait for full billing UI
-Parallel: P3 drain for voice pods, V1 voice load proof (see board), 28 metrics per call stage
-Defer without blocking first real call: 17 widget, 20 workflows, full 19 event bus
+Parallel when voice is active: P3 drain, V1 load proof, per-call stage metrics (Feature 28)
 ```
 
 Default audio path: **cascade** (STT → runtime → TTS). Optional **realtime speech** profile on the agent version only when tools/retrieval are off; document in ADR for voice (Feature 21).
@@ -195,11 +233,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** Agent runtime (12) and voice track prep (09B, 21); knowledge ingest (11) in parallel if needed for receptionist KB
-- **Next production deep topic:** Voice turn deadlines, Redis call caps, and graceful drain (P3 + Feature 22)
-- **Product priority:** Best scalable inbound + outbound voice (5,000 + 5,000 concurrent calls design target)
-- **Finished features:** through 10B (web fetch); runtime (12) and voice (21+) done only when each feature **Done when** passes
-- **Board status:** workspace, gateway, and agent drafts are done in code even if an older note said otherwise
+- **Current focus:** **09B** membership cache → **11** knowledge ingest → **13** retrieval (embed + search)
+- **Next production deep topic:** fail-closed vs workspace fallback when Redis is empty (09B day 2); tenant leaks in search when starting 11
+- **Product priority:** Multi-tenant chat + knowledge at scale; voice design target unchanged, scheduled in **§5C** after knowledge path unless reprioritized
+- **Finished features:** through **12** (chat turns); voice (**21+**) and streaming/runtime caps still open
+- **Board status:** synced to repo 2026-09-28; update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -212,11 +250,11 @@ Update these lines every day.
 | 07 | Agent drafts | workspace, gateway | — | done |
 | 08 | Agent versions and publish | agent drafts | 09 | done |
 | 09 | Conversation service | gateway, workspace | 08 | done |
-| 09B | Membership cache | workspace | 12, 21 | not_started |
+| 09B | Membership cache | workspace | 11 | not_started |
 | 10 | Model gateway | — | 10B, 11 | done |
 | 10B | Web fetch service | workspace | 11 | done |
-| 11 | Knowledge ingest | 10B, workspace, OpenSearch | 10B | not_started |
-| 12 | Agent runtime | 08, 09, 10 | 09B, 21 | not_started |
+| 11 | Knowledge ingest | 10B, workspace, OpenSearch | 09B, 10B | not_started |
+| 12 | Agent runtime (chat turns) | 08, 09, 10 | 11, 13 | done |
 | 13 | Retrieval in the runtime | 11, 12 | 14 | not_started |
 | 14 | Memory | 09, 12 | 13 | not_started |
 | 15 | Tools and MCP | 12 | 16 | not_started |
@@ -969,7 +1007,7 @@ A caller can publish, see a frozen version, edit the draft without changing that
 
 ### Still unsafe
 
-The runtime does not read the pointer yet. A conversation already in flight may finish on the old version. We document that. We do not kill a model call inside this feature.
+Runtime (Feature 12) reads the production pointer per turn. A conversation already in flight may still finish on the version id bound at turn start. We do not kill a model call mid-flight inside this feature.
 
 ---
 
@@ -1064,7 +1102,8 @@ No partitioning, no archive job, no realtime push. The widget will need the curs
 
 **Status:** `not_started`  
 **Needs:** workspace  
-**Can run beside:** Feature 12 or 11 (different packages day: land contracts + one service consumer first)  
+**Placement in product path:** §5B — first item on the current focus path (before ingest and retrieval)  
+**Can run beside:** Feature 11 (different packages day: land contracts + one service consumer first)  
 **Deep topic (day 2):** fail-closed vs fallback when Redis is empty  
 **Owns:** shared helper in `packages/*` (or gateway + services adopt), ADR for cache policy
 
@@ -1273,7 +1312,8 @@ No dollar invoicing (Feature 26). No customer-visible “web credits” UI. No b
 
 **Status:** `not_started`  
 **Needs:** Feature 10B, workspace, OpenSearch from `make up`  
-**Can run beside:** Feature 10B  
+**Placement in product path:** §5B — after **09B**, before **13** (retrieval)  
+**Can run beside:** Feature 09B (different service directories; do not edit `packages/*` the same day as 09B)  
 **Deep topic (day 2):** queues and backpressure  
 **Owns:** `services/knowledge-service` (or equivalent) plus ingest worker. Do not put parsing, embedding, or **web fetch** inside the gateway request.
 
@@ -1346,10 +1386,12 @@ No PDF parser required for the first slice if plain text works end to end. No re
 
 ## 15. Feature 12 — Agent runtime
 
-**Status:** `not_started`  
-**Needs:** 08, 09, and 10; **09B** before production scale  
-**Deep topic (day 2):** streaming and "do not retry after tokens"  
+**Status:** `done` (2026-09-28 — chat turn path)  
+**Needs:** 08, 09, and 10 (met); **09B** before production scale on the turn path  
+**Deep topic (day 2):** streaming and "do not retry after tokens" (still open)  
 **Owns:** `services/runtime-service`. It calls model gateway and conversation. It does not own their tables.
+
+**Shipped (2026-09-28):** `services/runtime-service` :3006, gateway `proxy-runtime`, non-streaming `POST .../turns`, production pointer, `agent_version_id` on assistant messages, idempotency, 409 unpublished, 404 cross-workspace; tests in `turns.test.ts`.
 
 ### Pre-context
 
@@ -1417,7 +1459,7 @@ A published agent can answer once, the message history shows the reply, and the 
 
 ### Still unsafe
 
-No tools, no retrieval, no memory, no widget. Concurrency limits may be a simple first cap. Say what the cap is. Retrieval on voice calls needs a strict budget (Feature 13 addendum).
+No streaming turn path yet. No per-workspace model concurrency cap in Redis. **Voice-turn** contract (`channel: voice`, `deadline_ms`) deferred to Feature **21** prep (see §5C). No tools, no retrieval (Feature 13), no memory, no widget. Human handoff (`state=human`, Feature 18) not wired. Membership still HTTP to workspace on downstream services until **09B**. Retrieval on voice calls needs a strict budget (Feature 13 addendum).
 
 ---
 
@@ -1425,6 +1467,7 @@ No tools, no retrieval, no memory, no widget. Concurrency limits may be a simple
 
 **Status:** `not_started`  
 **Needs:** 11 and 12  
+**Placement in product path:** §5B — after **11** ingest (embed + index); extends Feature **12** runtime loop  
 **Can run beside:** Feature 14 if the files do not overlap. If both change the runtime loop, only one person edits the runtime that day. The other can build the retrieval query API in the knowledge service.  
 **Deep topic:** tenant leaks in search
 
@@ -2622,4 +2665,5 @@ We will not have a year of on-call practice. We will have a system another engin
 | Date | Feature | Shipped | Still unsafe |
 | --- | --- | --- | --- |
 | 2026-09-28 | 10B | `web-fetch-service` :3007, ADR 0011, contracts, tests | No ledger consumer; artifacts in Postgres only |
-| 2026-09-28 | roadmap | Voice-first §5B; 09B, 21B, 21C, V1; telephony ADR; runtime voice-turn | ADRs 0012/0013 not written yet; voice-service not scaffolded |
+| 2026-09-28 | 12 | `runtime-service` :3006, gateway proxy, chat turns + tests | No stream; no voice-turn contract; no Redis membership on path |
+| 2026-09-28 | roadmap | §5A–5C order; knowledge-first focus; board statuses | Voice in §5C; 09B → 11 → 13 is current focus |
