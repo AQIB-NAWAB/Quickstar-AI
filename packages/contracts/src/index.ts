@@ -29,3 +29,20 @@ export type {
   ModelRoutingMode,
   TokenUsage,
 } from "./model-gateway.js";
+
+export type {
+  AcquisitionAction,
+  AcquisitionJobStatus,
+  AcquisitionUsage,
+  CrawlRequestBody,
+  CrawlResponseBody,
+  FetchAction,
+  FetchJobStatus,
+  FetchUsage,
+  JobGetResponseBody,
+  ScrapeRequestBody,
+  ScrapeResponseBody,
+  SearchRequestBody,
+  SearchResponseBody,
+  SearchResultItem,
+} from "./web-fetch.js";
