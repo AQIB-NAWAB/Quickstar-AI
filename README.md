@@ -6,6 +6,7 @@ Production-scale, multi-tenant AI agent platform — rebuilt incrementally on th
 
 - **What we are building:** [docs/project_details.md](docs/project_details.md)
 - **Execution plan:** [docs/roadmap.md](docs/roadmap.md)
+- **Learn-day depth (Deep learning, database, APIs, identity):** [docs/ai-roadmap.md](docs/ai-roadmap.md)
 - **Architecture decisions:** [docs/adr/](docs/adr/)
 
 ## Repository layout
