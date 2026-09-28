@@ -19,6 +19,7 @@
     "@quickstart/logging": "workspace:*",
     "@quickstart/tracing": "workspace:*",
     "@quickstart/utilities": "workspace:*",
+    "@quickstart/workspace-access": "workspace:*",
     "redis": "^4.7.1"
   }
 }

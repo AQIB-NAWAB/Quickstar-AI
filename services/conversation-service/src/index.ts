@@ -7,7 +7,10 @@ import { initTracing, shutdownTracing } from "@quickstart/tracing";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadServiceConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
-import { createWorkspaceAccessClient } from "./lib/workspace-access-client.js";
+import {
+  createCachedWorkspaceAccessClient,
+  createHttpWorkspaceAccessClient,
+} from "@quickstart/workspace-access";
 import { createConversationDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmConversationStore } from "./repository/typeorm/conversation-typeorm-store.js";
 import { ConversationsService } from "./services/conversations.service.js";
@@ -38,10 +41,13 @@ export async function startConversationServer(): Promise<{
   }
   logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
-  const workspaceAccess = createWorkspaceAccessClient(
-    config.workspaceUrl,
-    config.httpRequestTimeoutMs,
-  );
+  const workspaceAccess = createCachedWorkspaceAccessClient({
+    redis: redisClient,
+    inner: createHttpWorkspaceAccessClient(config.workspaceUrl, config.httpRequestTimeoutMs),
+    ttlSec: config.membershipCacheTtlSec,
+    negativeTtlSec: config.membershipCacheNegativeTtlSec,
+    onCacheDegraded: (detail) => logger.warn("membership.cache_degraded", { detail }),
+  });
 
   const readinessProbes = [
     async () => {

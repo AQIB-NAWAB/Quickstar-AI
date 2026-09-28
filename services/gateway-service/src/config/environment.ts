@@ -5,11 +5,14 @@ export type GatewayConfig = {
   agentUrl: string;
   conversationUrl: string;
   runtimeUrl: string;
+  knowledgeUrl: string;
   jwtAccessSecret: string;
   redisUrl: string;
   httpRequestTimeoutMs: number;
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
+  membershipCacheTtlSec: number;
+  membershipCacheNegativeTtlSec: number;
 };
 
 export function loadGatewayConfig(): GatewayConfig {
@@ -25,10 +28,13 @@ export function loadGatewayConfig(): GatewayConfig {
     agentUrl: (process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
     conversationUrl: (process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     runtimeUrl: (process.env.RUNTIME_URL ?? "http://127.0.0.1:3006").replace(/\/$/, ""),
+    knowledgeUrl: (process.env.KNOWLEDGE_URL ?? process.env.KNOWLEDGE_SERVICE_URL ?? "http://127.0.0.1:3009").replace(/\/$/, ""),
     jwtAccessSecret,
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 300),
+    membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
+    membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),
   };
 }

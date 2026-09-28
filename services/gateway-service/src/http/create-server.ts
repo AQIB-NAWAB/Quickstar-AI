@@ -4,6 +4,8 @@ import type { RedisClientType } from "redis";
 import type { GatewayConfig } from "../config/environment.js";
 import { createRedisRateLimitMiddleware } from "../middleware/redis-rate-limit.js";
 import { createRequireAccessTokenMiddleware } from "../middleware/require-access-token.js";
+import { createRequireWorkspaceMembershipMiddleware } from "../middleware/require-workspace-membership.js";
+import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { GatewayHttpContext } from "./context.js";
 import { createGatewayApiRouter } from "./routes/index.js";
 import { SERVICE_NAME } from "./routes/health.routes.js";
@@ -14,10 +16,11 @@ export type CreateGatewayServerOptions = {
   logger: Logger;
   config: GatewayConfig;
   redis: RedisClientType;
+  workspaceAccess: WorkspaceAccessClient;
 };
 
 export function createGatewayServer(options: CreateGatewayServerOptions): Application {
-  const { logger, config, redis } = options;
+  const { logger, config, redis, workspaceAccess } = options;
 
   const httpContext: GatewayHttpContext = {
     config,
@@ -27,6 +30,7 @@ export function createGatewayServer(options: CreateGatewayServerOptions): Applic
       skipPaths: ["/healthz", "/health"],
     }),
     requireAccessToken: createRequireAccessTokenMiddleware(config.jwtAccessSecret),
+    requireWorkspaceMembership: createRequireWorkspaceMembershipMiddleware(workspaceAccess),
   };
 
   const apiRouter = createGatewayApiRouter(httpContext);

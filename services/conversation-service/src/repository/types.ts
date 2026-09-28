@@ -12,6 +12,7 @@ export type AppendMessageInput = {
   senderId: string;
   text: string;
   idempotencyKey: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type ListMessagesInput = {

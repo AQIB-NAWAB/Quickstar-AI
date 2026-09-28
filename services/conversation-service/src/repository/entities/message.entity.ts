@@ -26,6 +26,9 @@ export class MessageEntity {
   @Column({ name: "idempotency_key", type: "varchar", length: 255 })
   idempotencyKey!: string;
 
+  @Column({ type: "jsonb", nullable: true })
+  metadata!: Record<string, unknown> | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 }

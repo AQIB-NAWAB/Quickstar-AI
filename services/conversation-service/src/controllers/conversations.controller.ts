@@ -59,6 +59,7 @@ export function createConversationsController(conversations: ConversationsServic
         idempotency_key?: string;
         sender_type?: string;
         sender_id?: string;
+        metadata?: Record<string, unknown> | null;
       };
 
       const result = await conversations.appendMessage({
@@ -68,6 +69,7 @@ export function createConversationsController(conversations: ConversationsServic
         idempotencyKey: body?.idempotency_key,
         senderType: body?.sender_type ?? "user",
         senderId: body?.sender_id ?? tenant.actorId,
+        metadata: body?.metadata ?? null,
       });
 
       // 200 OK for deduplicated replay, 201 Created for new message

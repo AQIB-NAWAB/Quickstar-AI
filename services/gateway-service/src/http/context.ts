@@ -5,4 +5,5 @@ export type GatewayHttpContext = {
   config: GatewayConfig;
   redisRateLimit: RequestHandler;
   requireAccessToken: RequestHandler;
+  requireWorkspaceMembership: RequestHandler;
 };

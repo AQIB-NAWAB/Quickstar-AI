@@ -5,8 +5,15 @@ import { WORKSPACE_ROLES, type WorkspaceRole } from "../domain/permissions.js";
 import type { WorkspaceMembership, WorkspaceInvite } from "../domain/types.js";
 import type { WorkspaceStore } from "../repository/types.js";
 
+export type MembershipCacheHooks = {
+  onMembershipChanged(workspaceId: string, userId: string): Promise<void>;
+};
+
 export class MembersService {
-  constructor(private readonly store: WorkspaceStore) {}
+  constructor(
+    private readonly store: WorkspaceStore,
+    private readonly cacheHooks?: MembershipCacheHooks,
+  ) {}
 
   async listMembers(tenant: TenantContext): Promise<WorkspaceMembership[]> {
     return this.store.listMembers(tenant);
@@ -35,7 +42,9 @@ export class MembersService {
       });
     }
 
-    return this.store.updateMemberRole(tenant, targetUserId, newRole, tenant.actorId);
+    const updated = await this.store.updateMemberRole(tenant, targetUserId, newRole, tenant.actorId);
+    await this.cacheHooks?.onMembershipChanged(tenant.workspaceId, targetUserId);
+    return updated;
   }
 
   async removeMember(tenant: TenantContext, targetUserId: string): Promise<void> {
@@ -59,6 +68,7 @@ export class MembersService {
     }
 
     await this.store.removeMember(tenant, targetUserId);
+    await this.cacheHooks?.onMembershipChanged(tenant.workspaceId, targetUserId);
   }
 
   async createInvite(

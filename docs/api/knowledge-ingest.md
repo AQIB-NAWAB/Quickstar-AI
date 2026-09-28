@@ -81,7 +81,33 @@ Submits a new knowledge source for asynchronous processing.
 
 ---
 
-### 2. Get Knowledge Source Status
+### 2. Update Knowledge Source (Re-ingest)
+
+Updates source metadata or document body. Each content change bumps `version`, sets status to `queued`, stores bytes in S3 when configured (`KNOWLEDGE_S3_BUCKET`), and enqueues a new ingest job.
+
+- **Method:** `PATCH`
+- **Path:** `/v1/workspaces/:workspaceId/knowledge/sources/:sourceId`
+- **Headers:**
+  - `Authorization: Bearer <jwt_access_token>`
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "name": "Refund Policy 2027",
+  "content": "Customers can request a full refund within 45 days.",
+  "content_type": "text/plain"
+}
+```
+
+At least one of `name` or `content` is required. `content_type` defaults to the existing value or `text/plain`.
+
+#### Response (`200 OK`)
+Same shape as create: `{ request_id, source }` with `status: "queued"`.
+
+---
+
+### 3. Get Knowledge Source Status
 
 Polls the ingestion status and chunk metrics of a source.
 
@@ -118,7 +144,7 @@ Polls the ingestion status and chunk metrics of a source.
 
 ---
 
-### 3. List Knowledge Sources
+### 4. List Knowledge Sources
 
 Lists all knowledge sources belonging to the specified workspace.
 
@@ -210,3 +236,22 @@ Chunks are indexed in OpenSearch with `workspace_id`. Every search query **must*
 }
 ```
 *A search omitting `workspace_id` is an IDOR violation and must never be permitted in application code.*
+
+---
+
+## Internal retrieval (Feature 13)
+
+Used by **runtime-service** only. Requires `Authorization: Bearer <KNOWLEDGE_INTERNAL_TOKEN>`.
+
+### Ready source count
+
+- `GET /internal/workspaces/:workspaceId/knowledge/ready-count`
+- Response: `{ "ready_count": 2 }`
+
+### Retrieve chunks
+
+- `POST /internal/retrieve`
+- Body: `{ "workspace_id": "<uuid>", "query": "user question text", "limit": 5 }`
+- Response: `{ "chunks": [{ "chunk_id", "source_id", "text", "score" }] }`
+
+Runtime fails the turn with `UPSTREAM_UNAVAILABLE` when `ready_count > 0` and retrieval fails.

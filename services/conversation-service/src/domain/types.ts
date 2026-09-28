@@ -16,6 +16,7 @@ export type Message = {
   senderId: string;
   text: string;
   idempotencyKey: string;
+  metadata: Record<string, unknown> | null;
   createdAt: Date;
 };
 
@@ -37,6 +38,7 @@ export type MessageJson = {
   sender_id: string;
   text: string;
   idempotency_key: string;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -61,6 +63,7 @@ export function toMessageJson(m: Message): MessageJson {
     sender_id: m.senderId,
     text: m.text,
     idempotency_key: m.idempotencyKey,
+    metadata: m.metadata,
     created_at: m.createdAt.toISOString(),
   };
 }

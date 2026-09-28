@@ -1,8 +1,14 @@
 import { fileURLToPath } from "node:url";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
+import {
+  createCachedWorkspaceAccessClient,
+  createHttpWorkspaceAccessClient,
+} from "@quickstart/workspace-access";
+import { createRedisClient } from "@quickstart/utilities";
 import { AgentClient } from "./clients/agent.client.js";
 import { ConversationClient } from "./clients/conversation.client.js";
+import { KnowledgeClient } from "./clients/knowledge.client.js";
 import { ModelGatewayClient } from "./clients/model-gateway.client.js";
 import { loadRuntimeConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
@@ -23,15 +29,43 @@ export async function main(): Promise<void> {
     config.httpRequestTimeoutMs,
   );
 
-  const turnsService = new TurnsService(agentClient, conversationClient, modelGatewayClient);
+  const knowledgeClient = new KnowledgeClient(
+    config.knowledgeServiceUrl,
+    config.knowledgeInternalToken,
+    config.httpRequestTimeoutMs,
+  );
+  const turnsService = new TurnsService(
+    agentClient,
+    conversationClient,
+    modelGatewayClient,
+    knowledgeClient,
+  );
+
+  const redisClient = createRedisClient(config.redisUrl);
+  await redisClient.connect();
+  logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
+
+  const workspaceAccess = createCachedWorkspaceAccessClient({
+    redis: redisClient,
+    inner: createHttpWorkspaceAccessClient(config.workspaceUrl, config.httpRequestTimeoutMs),
+    ttlSec: config.membershipCacheTtlSec,
+    negativeTtlSec: config.membershipCacheNegativeTtlSec,
+    onCacheDegraded: (detail) => logger.warn("membership.cache_degraded", { detail }),
+  });
 
   const app = createHttpServer({
     logger,
     turnsService,
-    jwtSecret: process.env.JWT_ACCESS_SECRET,
+    workspaceAccess,
+    jwtSecret: config.jwtAccessSecret,
     requestTimeoutMs: config.httpRequestTimeoutMs,
     rateLimitWindowMs: config.httpRateLimitWindowMs,
     rateLimitMax: config.httpRateLimitMax,
+    readinessProbes: [
+      async () => {
+        await redisClient.ping();
+      },
+    ],
   });
 
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
@@ -45,6 +79,9 @@ export async function main(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       server.close((err?: Error) => (err ? reject(err) : resolve()));
     });
+    if (redisClient.isOpen) {
+      await redisClient.quit();
+    }
     await shutdownTracing();
   };
 

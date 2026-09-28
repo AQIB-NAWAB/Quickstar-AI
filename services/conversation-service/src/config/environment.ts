@@ -7,6 +7,8 @@ export type ServiceConfig = {
   httpRequestTimeoutMs: number;
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
+  membershipCacheTtlSec: number;
+  membershipCacheNegativeTtlSec: number;
 };
 
 export function loadServiceConfig(): ServiceConfig {
@@ -25,5 +27,7 @@ export function loadServiceConfig(): ServiceConfig {
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
+    membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
+    membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),
   };
 }
