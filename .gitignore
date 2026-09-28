@@ -26,6 +26,7 @@ temp_learn.md
 index.html
 
 # Local agent customizations and architecture diagrams
+.archify/
 .agents/
 *.architecture.html
 *.workflow.html

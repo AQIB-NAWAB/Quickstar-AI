@@ -4,6 +4,7 @@ This file is the plan and the progress board.
 
 - What the product is: [docs/project_details.md](./project_details.md)
 - When and how we build it: this file
+- **Learn-day depth (database, APIs, identity, cross-feature map):** [docs/ai-roadmap.md](./ai-roadmap.md) — use with each feature’s **Learn today** block; not a second progress board
 - Why we chose a design: [docs/adr/](./adr/)
 
 Update this file at the end of every work day. Change the status, tick the boxes, and write what shipped.
@@ -57,14 +58,20 @@ Each feature has the same shape. Read it in this order.
 7. **Choice.** The option we take, the options we reject, and the cost of the option we take.
 8. **Cloud later.** What stays the same when we move from Docker Compose to a cloud cluster. Kubernetes and cloud accounts are built near the end. Earlier features must already be safe with two copies of the process.
 9. **Low-level design.** Tables, APIs, files, and the failure policy ("if X fails, we do Y").
-10. **Learn today.** The study block. Do this before code.
-11. **Build today.** Two tracks. Each track is a full feature, not a helper task.
-12. **Done when.** The checks that must be true.
-13. **Still unsafe.** What we knowingly leave for a later feature.
+10. **Learn today.** The study block. What to read, what to trace in code, and what to write on paper **before** code. Checklist only; not the full failure analysis.
+11. **Deep learning.** The feature’s **production deep topic**: mechanism step-by-step, failure modes at our scale (10k req/s, concurrent chats, tenant isolation), threat or misuse cases, decision trees, classification exercises, and **which tests prove** you understood. This is mandatory on learn days—not a side lecture. Full narrative, tables, and exercises live under **Deep learning** in [docs/ai-roadmap.md](./ai-roadmap.md) for that feature.
+12. **Build today.** Two tracks. Each track is a full feature, not a helper task.
+13. **Done when.** The checks that must be true.
+14. **Still unsafe.** What we knowingly leave for a later feature.
+15. **Database design.** Tables, columns, indexes, migrations, tenant column on every row, caps, and delete/retention paths. Say which database (usually Postgres) and what must never live only in process memory.
+16. **Identity and trust boundaries.** Who is the tenant (`workspace_id`), who is the staff actor (`actorId`), who is the end-user subject (widget visitor, voice caller, API customer). What crosses the public gateway vs internal-only hops.
+17. **Related features.** How this feature connects to what is already shipped and what must not be duplicated (for example memory vs knowledge RAG vs conversation history vs secrets).
+18. **API, gateway, and permissions.** Public routes on `:3000`, service port, internal routes and tokens, new `packages/contracts` permissions, and membership cache (09B) on the hot path.
+19. **Extended detail.** Extra examples, DDL sketches, and copy-paste API tables in [docs/ai-roadmap.md](./ai-roadmap.md). Roadmap keeps decisions and status; ai-roadmap keeps the long-form lesson.
 
-Every work day has two parts: **learn, then ship**. The learning block uses the headings above. The build block must leave running code or a finished doc/test/script that another person can run.
+Every work day has two parts: **learn, then ship**. On learn days, walk headings **1–11** (through **Deep learning**) before **Build today**. The build block must leave running code or a finished doc/test/script that another person can run.
 
-Every second work day also has a **production deep topic**. That topic is not a side lecture. It is the failure mode of the feature you are shipping that day (locks, scaling, timeouts, traces, and so on).
+On **every** learn day, complete **Deep learning** (heading 11) for the feature you are about to build—not only on “second days.” The feature’s **Deep topic** line in the feature header names the focus; the **Deep learning** section proves you can explain the failure, not just the happy path.
 
 ---
 
@@ -1530,59 +1537,223 @@ No rerank model required in the first slice. No citation UI. Say so.
 ## 17. Feature 14 — Memory
 
 **Status:** `not_started`  
-**Needs:** conversations and runtime  
-**Deep topic:** what is allowed in memory vs what is a secret
+**Needs:** conversations (09) and runtime (12) — both done  
+**Placement in product path:** §5B — after **13** retrieval; parallel option on the board is **15** tools (different directories if runtime is not shared the same day)  
+**Can run beside:** Feature 15 if only one person edits `runtime-service` per day; the other owns memory CRUD service or docs  
+**Deep topic:** what is allowed in memory vs what is a secret  
+**Owns:** new `memory-service` (or conversation-adjacent module — pick one service directory on day 1 and document in ADR); runtime read path in `services/runtime-service`  
+**Extended learn-day narrative:** [docs/ai-roadmap.md § Feature 14 — Memory](./ai-roadmap.md#feature-14--memory)
 
 ### Pre-context
 
-Each turn sees the recent messages we send. There is no durable "this user prefers mornings" store.
+Each turn already loads: published agent version (08), conversation messages (09), model gateway (10), optional **knowledge retrieval** (11 + 13) when `ready_count > 0`, with membership cache (09B) and gateway membership on workspace routes.
+
+There is still no durable store for **per end-user** preferences and facts ("prefers email", "timezone", "language") that should survive across conversations without sending the full message history every time.
+
+Staff **workspace members** have roles in workspace-service. That is not memory. **Knowledge chunks** in OpenSearch are company documents, not per-chatter facts.
 
 ### What this is
 
-Memory is a small set of facts tied to a workspace and a subject (the end user of the chat, not our staff user). The runtime may read those facts into the prompt and write new facts after a turn.
+**Memory** is a **small, capped set of text facts** in **Postgres**, keyed by **`workspace_id`** and **`subject_key`**.
+
+- **`subject_key`** identifies the **end user of the chat** (widget visitor, API customer's user), not the logged-in dashboard `actorId`.
+- The **runtime** **reads** facts into the prompt before the model call (separate section from RAG chunks).
+- **Writes** go through an explicit HTTP API with validation in v1 — not "the model remembered it" as automatic persistence.
+
+The **conversation** table remains the complete ordered history. Memory is a **bounded summary layer**.
 
 ### Why now
 
-If we stuff all history into every prompt forever, cost and latency grow without a bound. Memory is the bounded summary. Raw history stays in the conversation table.
+Unbounded prompt history makes **token cost** and **latency** grow without limit. At millions of messages per day and 10,000+ concurrent chats, we need a deliberate cap.
+
+RAG (13) answers from **indexed documents**. Memory answers **about this person** in a few lines. Building tools (15) before memory is allowed on the board, but memory is the smaller, knowledge-adjacent step for "smarter chat" without side effects.
 
 ### Junior shortcut
 
-The junior shortcut writes memory as one JSON blob with no workspace id, or asks the model to remember secrets (API keys, card numbers). The next tenant, or the next log line, sees them.
+One JSON blob per workspace with no `workspace_id` on every query; using **staff user id** as `subject_key`; letting the model store API keys and card numbers; auto-saving every assistant reply as a fact; loading **all facts in the workspace** on every turn.
+
+**Failure:** cross-tenant leak, secrets in logs, or prompts that still exceed context because caps were missing.
 
 ### Production shape
 
-Postgres rows: workspace_id, subject_key, fact, updated_at. A cap on fact count and fact size. The model is not the source of truth. We store what our code accepts after a size check. We do not store raw secrets. Define a denylist in the ADR (passwords, card numbers, access tokens).
+- **Postgres** is source of truth for facts (not OpenSearch, not Redis).
+- **Caps:** max facts per `(workspace_id, subject_key)`, max bytes per fact — reject at API.
+- **Denylist** in ADR: passwords, payment card numbers, raw bearer tokens, API keys (use **Feature 16** secrets by reference later).
+- **Stateless runtime replicas:** read memory via HTTP or shared client; no in-process fact cache as source of truth (optional Redis cache is a later optimization).
+- **Two replicas safe:** writes use clear upsert or version rule; reads are indexed lookups.
 
 ### What breaks at scale
 
-Loading every fact for a workspace on every turn is a sequential scan at 10,000 organizations. Index `(workspace_id, subject_key)`. The hot path is one subject, not the whole company.
+| Failure | At 10,000+ orgs / 10k req/s sustained |
+| --- | --- |
+| Query all facts for `workspace_id` only | Sequential scan as end-users grow; p99 on turn path explodes |
+| No index on `(workspace_id, subject_key)` | Same |
+| Inject unbounded facts into prompt | Model context and bill blow up even if DB is fast |
+| Confuse memory with RAG | Double context, wrong delete story, audit confusion |
+| Store secrets in memory rows | Compliance and breach; logs and support exports expose them |
+
+Hot path: **one subject** per turn, indexed lookup, capped rows, capped inject characters (mirror RAG char cap pattern in runtime).
 
 ### Choice
 
-We take explicit rows and a cap.
+**We take:** explicit Postgres rows, caps, denylist, CRUD API, runtime read on turn, simple write API.
 
-We reject an unbounded vector memory as the first design. It is harder to delete and harder to explain.
+**We reject:** unbounded vector memory as v1; model-as-database; secrets in memory.
 
-Cost: the memory will be incomplete. That is acceptable. The conversation log is complete.
+**Cost:** memory will be **incomplete** and sometimes wrong until product adds better write UX. The **conversation log stays complete**.
+
+**Fail policy (write in ADR):** if memory read fails, choose **fail turn** vs **continue without memory** — default recommendation: **continue without memory** (memory optional), unlike RAG when KB exists and retrieve fails (fail closed per 13).
 
 ### Cloud later
 
-Same Postgres. Deletion must remove the rows when a customer asks. Write the delete path now, even if the UI comes later.
+Same Postgres (RDS/Aurora later). **Delete path** by `subject_key` and by fact id for GDPR-style requests — implement API now, UI later.
+
+Render: no local disk for facts; bind service to `0.0.0.0:$PORT`; migrations as job or startup policy per existing service pattern.
 
 ### Low-level design
 
-- CRUD for facts, tenant scoped
-- Runtime reads facts for the subject on the turn
-- Test: workspace B cannot read workspace A's facts
-- Test: an oversized fact is rejected
+- Service port TBD (e.g. **3010**); gateway `proxy-memory.routes.ts`; env `MEMORY_URL`.
+- Public (via gateway): CRUD under `/v1/workspaces/:workspaceId/memory/...` with JWT + 09B + permissions.
+- Internal (optional v1): `GET /internal/workspaces/:id/memory/facts?subject_key=` for runtime with internal token (same pattern as knowledge `ready-count` / retrieve).
+- Runtime: resolve `subject_key` from conversation/widget contract; inject `User facts:` block with char cap; optional metadata on assistant message later (`memory_fact_ids` — not required v1).
+- Permissions in `packages/contracts`: e.g. `MEMORY_READ`, `MEMORY_WRITE` (exact strings in one Aqib-owned contracts PR).
+- **Failure policy:** document in ADR; test memory service down behavior on runtime.
+
+### Database design
+
+- **Table `memory_facts`** (name may change in ADR; shape is fixed intent):
+  - `id` UUID PK
+  - `workspace_id` UUID NOT NULL — tenant on every row
+  - `subject_key` VARCHAR NOT NULL — opaque stable id for end user (see identity section)
+  - `fact_key` VARCHAR optional — short label for upsert ("timezone", "channel")
+  - `fact_text` TEXT NOT NULL — capped length at app layer (e.g. 2–4 KB max per fact)
+  - `created_at`, `updated_at` TIMESTAMPTZ
+  - Optional `created_by_actor_id` UUID — staff who wrote fact via API, if applicable
+- **Indexes:** `(workspace_id, subject_key)`, unique optional on `(workspace_id, subject_key, fact_key)` if upsert-by-key is supported.
+- **Migrations:** `make memory-migrate` or service-local migrate script; never rely on CREATE TABLE at HTTP startup in production.
+- **Delete:** `DELETE FROM memory_facts WHERE workspace_id = ? AND subject_key = ?` for subject erasure; single-row delete by id with tenant guard.
+- **No** full fact bodies in info logs.
+
+### Identity and trust boundaries
+
+| Actor | Id | Uses memory how |
+| --- | --- | --- |
+| Staff user | JWT `sub` → `actorId` | Calls memory CRUD API with workspace permission |
+| End user (chatter) | `subject_key` | Facts attach here; never use staff `actorId` as subject |
+| Gateway | Public | JWT + membership only; does not store facts |
+| Runtime | Internal token | Reads facts for turn; does not bypass tenant filter |
+
+**Define in ADR before build:** widget anonymous id vs logged-in customer id; how `subject_key` is passed on `POST .../turns` or stored on `conversations` row.
+
+Trust line: memory service must **never** return rows where `workspace_id` ≠ route tenant.
+
+### Related features
+
+| Feature | Relationship to 14 |
+| --- | --- |
+| **09 Conversation** | Full message history; memory does not replace messages |
+| **11 + 13 Knowledge / RAG** | Company docs in OpenSearch; memory is Postgres per subject — different store, different prompt section |
+| **09B Membership** | Same cached client on memory routes and runtime permission checks |
+| **15 Tools** | Side effects; memory has no external HTTP in v1 — do not merge tool loop into memory service |
+| **16 Secrets** | Credentials by name; never store values in `fact_text` |
+| **17 Widget** | Will supply stable `subject_key` for anonymous visitors |
+| **27 Audit** | Later: log who wrote/deleted facts |
+
+### API, gateway, and permissions
+
+- **Gateway:** `router.all("/v1/workspaces/:workspaceId/memory/*", ...)` with `createProtectedWorkspaceProxyChain` (membership + JWT).
+- **Service:** `requireWorkspacePermission(MEMORY_READ | MEMORY_WRITE)` on mutating vs read routes.
+- **Runtime turn:** existing `CONVERSATION_PARTICIPATE`; memory read does not widen who can chat — only enriches prompt.
+- **Contracts:** add permissions in `packages/contracts` once; services import from `@quickstart/contracts`.
+- **Errors:** typed `VALIDATION_FAILED` for oversize; `NOT_FOUND` for wrong tenant; no fact body in error messages.
+
+### Learn today
+
+1. Read this feature block end-to-end (all headings **1–19**), then [docs/ai-roadmap.md § Feature 14](./ai-roadmap.md#feature-14--memory) in the same order.
+2. Read [docs/project_details.md](./project_details.md) scale sections (orgs, messages/day, concurrent chats).
+3. Trace `services/runtime-service/src/services/turns.service.ts` — where RAG injects; mark memory injection point **after** retrieval, **before** model gateway.
+4. Read conversation domain types — how senders are identified; draft `subject_key` rules.
+5. Compare to knowledge internal client pattern (`knowledge.client.ts`) for a thin `memory.client.ts`.
+6. Write ADR draft: caps, denylist, `subject_key`, fail-open vs fail-closed on read failure.
+7. Draw one sequence: turn with RAG + memory + model; label HTTP status for each failure hop.
+8. Complete **Deep learning** below (or the full **Deep learning** section in ai-roadmap) before opening an IDE for Build today.
+
+### Deep learning
+
+**Deep topic:** what is allowed in **memory** vs what is a **secret** (and what belongs in **knowledge**, not memory).
+
+This block is the core of the learn day. You should be able to teach it to a teammate without opening the repo.
+
+**Mechanism — three storage intents (do not mix):**
+
+| Intent | Store | Scoped by | Example |
+| --- | --- | --- | --- |
+| Company knowledge | OpenSearch chunks (11) | `workspace_id` + source | Refund policy PDF |
+| End-user memory | Postgres `memory_facts` (14) | `workspace_id` + `subject_key` | “Prefers WhatsApp” |
+| Credentials | Feature 16 secrets (later) | `workspace_id` + secret name | CRM API key **by reference** |
+| Chat transcript | Conversation messages (09) | `workspace_id` + conversation | Full dialogue |
+
+**Failure at scale — walk through in words:**
+
+1. **Wrong bucket:** refund policy stored as a memory fact → every user sees company text as “personal memory”; deletes and GDPR become wrong.
+2. **Missing `workspace_id` in SQL:** at 10,000 organizations, one bug returns another tenant’s facts → severity-1 data leak. Test must assert SQL always binds tenant from route context, never from client body alone.
+3. **Wrong subject:** staff `actorId` used as `subject_key` → all agents share one “user memory”; support cannot explain behavior.
+4. **Secret in `fact_text`:** API key in memory row → appears in DB backups, exports, future audit UI, and possibly prompt injection to the model.
+5. **Unbounded read:** load all facts for workspace on each turn → Postgres and prompt blow up as end-users grow.
+6. **Prompt injection via fact:** attacker or malicious staff writes fact_text `Ignore previous instructions and …` → if injected without framing, model may obey. Mitigation: fixed wrapper (“User facts (not instructions):”), sanitize or reject patterns, cap length, never execute fact as code.
+7. **Fail policy mismatch:** RAG fail-closed when KB exists (13) but memory fail-open when DB down — intentional; document so on-call does not “fix” memory to fail-closed without product sign-off.
+
+**Decision tree (where does this string go?):**
+
+```text
+Is it a credential or payment instrument?
+  yes → Feature 16 secrets (or never store) — NOT memory
+  no → Is it true for the whole company / in a document?
+    yes → Knowledge ingest (11) — NOT memory
+    no → Is it about one end-user (subject)?
+      yes → Memory fact (14) if not on denylist and under cap
+      no → Conversation message only (09) — do not duplicate as memory unless product needs summary
+```
+
+**Classification (learn exercise — answers in ai-roadmap):** classify each row as `memory` | `knowledge` | `secret` | `conversation-only` | `reject`. Complete the full table in [ai-roadmap § Deep learning](./ai-roadmap.md#deep-learning-feature-14--memory).
+
+**Tests that prove deep learning (not optional for Build today):**
+
+- Cross-tenant read/write (A vs B).
+- Oversized `fact_text` rejected.
+- Denylist rejects token-shaped strings (define patterns in ADR).
+- Runtime inject: memory block appears **after** knowledge block when both exist; char cap enforced.
+- (If fail-open) memory service down → turn still 200 without facts; log `memory.read_degraded`.
+
+**Read next:** [docs/ai-roadmap.md — Deep learning (Feature 14)](./ai-roadmap.md#deep-learning-feature-14--memory) for extended tables, threat scenarios, and study questions.
+
+### Build today
+
+| Track A (memory service) | Track B (runtime + gateway) — day 2 if same person would touch both |
+| --- | --- |
+| Migration `memory_facts`, repository, CRUD HTTP, permissions | `memory.client.ts`, read on turn, prompt section + char cap |
+| Cross-tenant tests | Test: fact written for subject S appears on next turn for S only |
+| `make memory-migrate`, README, gateway proxy | Gateway proxy route + env `MEMORY_URL` |
+
+Minimum slice: one fact via API → next turn includes it → workspace B cannot read A.
 
 ### Done when
 
-A fact saved for a subject shows up on the next turn for that subject only.
+- Fact saved for `subject_key` in workspace W appears on the **next turn** for that subject only.
+- Workspace B cannot read or mutate workspace A's facts.
+- Oversized fact rejected at API.
+- ADR + ai-roadmap section updated with chosen `subject_key` rule and fail policy.
+- Gateway and service enforce membership + `MEMORY_*` permissions.
 
 ### Still unsafe
 
-No fancy extraction model required. A simple write API plus a read in the prompt is enough. Document that extraction quality is not the goal of this slice.
+- No ML **extraction** from chat into facts in v1.
+- No vector / semantic memory search.
+- No citation UI for which facts were used (optional metadata later).
+- No Redis cache for memory reads.
+- No integration with **16 Secrets** or **17 Widget** until those features land — document assumed `subject_key` contract for widget anyway.
+- At 10k req/s, one indexed read per turn is acceptable; **admin "list all facts in workspace"** must be paginated and not on turn hot path.
+- Streaming turns (runtime day 2) may need a follow-up so memory read stays correct on stream path.
 
 ---
 
