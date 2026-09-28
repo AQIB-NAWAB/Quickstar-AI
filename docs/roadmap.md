@@ -29,7 +29,7 @@ Rules that stay true at this target:
 
 1. One shared Postgres schema with `workspace_id` on every tenant row. Ten thousand databases would fail on connections and migrations first.
 2. The HTTP gateway stays a thin door. It does not check membership on every hop by calling workspace, it does not call a model, and it does not hold audio.
-3. Billing is never on the request or call path. Model tokens and call minutes become usage facts, then a consumer writes the ledger (Feature 26).
+3. Billing is never on the request or call path. Model tokens, web acquisition units, and call minutes become usage facts, then a consumer writes the ledger (Feature 26).
 4. We do not add a service whose only job is "scale." Cache, pooler, and a separate voice process are the improvements. The feature list stays the same.
 
 What must exist before we treat the target as honest:
@@ -38,6 +38,9 @@ What must exist before we treat the target as honest:
 - A written Postgres connection budget, then a pooler (PgBouncer or the Aurora/RDS proxy) before the production load test if replica math exceeds `max_connections`.
 - Voice as its own process, with a longer drain than HTTP, and a Redis cap of 5,000 inbound and 5,000 outbound.
 - A global and per-workspace cap on outbound model calls so one tenant cannot fill every vendor connection while calls are up.
+- Web fetch (Feature 10B) with provider adapters, per-workspace acquisition unit budgets, and usage facts for crawl/scrape/search — not vendor SDKs scattered in ingest or tools.
+- **Membership cache (Feature 09B)** before voice or runtime at scale. Voice and runtime must not HTTP to workspace on every turn or utterance.
+- **Voice service** as its own process (port **3008**), Redis caps **5,000 inbound + 5,000 outbound**, and **P3-style graceful drain** before production telephony traffic.
 
 ---
 
@@ -77,7 +80,12 @@ Every second work day also has a **production deep topic**. That topic is not a 
 | Version | A frozen copy of an agent at publish time. We do not edit that copy. |
 | Conversation | A stored chat: ordered messages in Postgres. |
 | Model gateway | Our service that calls an LLM vendor. The rest of the system does not call the vendor SDK directly. |
+| Web fetch | `services/web-fetch-service` — scrape, crawl, and search. Vendors such as Olostep are **providers** behind it, not the service name. |
+| Acquisition action | One billable unit of work: e.g. one scrape, one crawl page, one search query. Recorded for cost policy and Feature 26. |
 | Runtime | The loop that reads a published agent, reads the chat, calls the model gateway, and writes the reply. |
+| Voice service | Realtime edge on port 3008: session orchestration, STT/TTS, telephony adapter. It does **not** run the agent loop; it calls the runtime for turns. |
+| Telephony provider | CPaaS that terminates PSTN/SIP (Twilio or Telnyx first) and streams media to the voice service. Not the HTTP API gateway. |
+| Voice turn | One user utterance through STT → runtime → TTS (cascade default). Shorter deadline than chat; spoken fallback on timeout. |
 | Idempotency key | A client-supplied id so a retry does not insert the same message twice. |
 | Optimistic concurrency | Update only if `version` still matches what the client last read. If not, return 409. |
 | Horizontal scale | Add more copies of the same service. |
@@ -116,10 +124,11 @@ The old board in this file was behind the code. This table matches the repo as o
 | Workspace and roles | Done | `services/workspace-service` | Workspaces, members, invites, permission checks |
 | API gateway | Done | `services/gateway-service` | Public door on port 3000, JWT, Redis rate limit, proxy |
 | Agent configuration | Done | `services/agent-service` | Create, list, get, update, delete agents in a workspace |
+| Web fetch (10B) | Done | `services/web-fetch-service` | Internal scrape, crawl jobs, search; direct HTTP + Olostep providers |
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -140,16 +149,37 @@ Read this once. Later features assume it.
 ```text
 Done:     identity → workspace → gateway → agent draft
 Next:     published versions  +  stored conversations     (these two can run together)
-Then:     model gateway       +  knowledge ingest         (these two can run together)
+Then:     model gateway
+Then:     web acquisition (10B) +  knowledge ingest (11)   (10B before URL/crawl sources in 11)
 Then:     runtime (needs versions + conversations + model gateway)
-Then:     retrieval and memory (retrieval needs knowledge + runtime)
+Then:     retrieval and memory (retrieval needs knowledge + runtime) — optional before first phone call if agents are script-only
 Then:     tools and secrets
-Then:     website widget and inbox
-Then:     events and workflows
-Then:     voice, campaigns, leads
+Then:     website widget OR voice track (widget is not required for voice)
+Then:     events and workflows (call events can ship a thin slice with voice)
+Then:     campaigns and leads (outbound needs telephony)
 Then:     eval, usage, audit
 Then:     alerts, cloud deploy, load and recovery
 ```
+
+### 5B. Voice-first critical path (product priority)
+
+Inbound and outbound voice are the primary product. This path can run **in parallel** with knowledge (11) and the website widget (17). Do not block voice on the widget.
+
+```text
+09B membership cache (Redis; required before scale)
+  → 12 agent runtime (voice-turn contract + deadlines)
+  → 21 voice path (voice-service :3008, fake media, calls table)
+  → 21B speech providers (STT/TTS adapters inside voice-service)
+  → 22 voice reliability (caps, barge-in, reconnect, fail-closed)
+  → 21C telephony (CPaaS: Twilio or Telnyx; ADR picks primary)
+  → 18 inbox / handoff (runtime skips model when state=human) — before heavy outbound
+  → 23 campaigns (queued dial; needs 21C + 22)
+  → 26 usage slice (voice minutes + STT/TTS units) — do not wait for full billing UI
+Parallel: P3 drain for voice pods, V1 voice load proof (see board), 28 metrics per call stage
+Defer without blocking first real call: 17 widget, 20 workflows, full 19 event bus
+```
+
+Default audio path: **cascade** (STT → runtime → TTS). Optional **realtime speech** profile on the agent version only when tools/retrieval are off; document in ADR for voice (Feature 21).
 
 Rules that do not change:
 
@@ -157,6 +187,7 @@ Rules that do not change:
 2. Voice is another channel into the same runtime.
 3. We write Kafka events only after the object exists in Postgres.
 4. Daily product work uses Docker Compose. A second track (section 8A) builds Docker images, a local Kubernetes slice, probes, and deploy habits **while** product features continue. Full cloud accounts stay late. The habits must exist before that day.
+5. Telephony vendor SDKs and STT/TTS vendor SDKs stay inside **voice-service** (or a speech submodule), not in gateway or runtime.
 
 ---
 
@@ -164,9 +195,10 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** Model gateway (10) and knowledge ingest (11), or platform labs
-- **Next production deep topic:** Database transactions and lost updates
-- **Finished features:** 9 (foundation through conversation service and agent versions)
+- **Current focus:** Agent runtime (12) and voice track prep (09B, 21); knowledge ingest (11) in parallel if needed for receptionist KB
+- **Next production deep topic:** Voice turn deadlines, Redis call caps, and graceful drain (P3 + Feature 22)
+- **Product priority:** Best scalable inbound + outbound voice (5,000 + 5,000 concurrent calls design target)
+- **Finished features:** through 10B (web fetch); runtime (12) and voice (21+) done only when each feature **Done when** passes
 - **Board status:** workspace, gateway, and agent drafts are done in code even if an older note said otherwise
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
@@ -180,23 +212,28 @@ Update these lines every day.
 | 07 | Agent drafts | workspace, gateway | — | done |
 | 08 | Agent versions and publish | agent drafts | 09 | done |
 | 09 | Conversation service | gateway, workspace | 08 | done |
-| 10 | Model gateway | — | 11 | done |
-| 11 | Knowledge ingest | workspace, OpenSearch | 10 | not_started |
-| 12 | Agent runtime | 08, 09, 10 | — | not_started |
+| 09B | Membership cache | workspace | 12, 21 | not_started |
+| 10 | Model gateway | — | 10B, 11 | done |
+| 10B | Web fetch service | workspace | 11 | done |
+| 11 | Knowledge ingest | 10B, workspace, OpenSearch | 10B | not_started |
+| 12 | Agent runtime | 08, 09, 10 | 09B, 21 | not_started |
 | 13 | Retrieval in the runtime | 11, 12 | 14 | not_started |
 | 14 | Memory | 09, 12 | 13 | not_started |
 | 15 | Tools and MCP | 12 | 16 | not_started |
 | 16 | Secrets | — | 15 | not_started |
 | 17 | Website chat widget | 12 | 18 | not_started |
-| 18 | Inbox and human handoff | 09 | 17 | not_started |
+| 18 | Inbox and human handoff | 09 | 17, 21C | not_started |
 | 19 | Event platform | objects exist | 20 | not_started |
 | 20 | Workflow automation | 19 | 19 | not_started |
-| 21 | Voice path | 12 | 22 | not_started |
-| 22 | Voice reliability | 21 | 21 | not_started |
-| 23 | Campaigns | 21, 09 | 24 | not_started |
+| 21 | Voice path | 12, 09B | 21B | not_started |
+| 21B | Speech providers (STT/TTS) | 21 | 21C | not_started |
+| 22 | Voice reliability | 21 | 21C | not_started |
+| 21C | Telephony (CPaaS) | 21, 21B, 22 | 23 | not_started |
+| 23 | Campaigns | 21C, 22, 09 | 24 | not_started |
+| V1 | Voice load and drain proof | 22, P3 | P3 | not_started |
 | 24 | Leads | 19 | 23 | not_started |
 | 25 | Evaluation | 12 | 26 | not_started |
-| 26 | Usage and billing | 10, 12 | 25 | not_started |
+| 26 | Usage and billing | 10, 12, 21B, 21C | 25 | not_started |
 | 27 | Audit and security | all writes | 28 | not_started |
 | 28 | Observability and alerts | traces exist | 27 | not_started |
 | 29 | Cloud deploy (AWS, Kubernetes, CI) | features above | 30 | not_started |
@@ -241,12 +278,14 @@ These topics repeat across the product. Each feature below names the one you stu
 | --- | --- | --- |
 | Transactions and lost updates | Two writers. One commit must not erase the other. | Agent versions, role changes |
 | Idempotency | A retry is normal. A second row is a bug. | Messages, billing, tool calls |
-| Timeouts, one retry, circuit breaker | A dead vendor must not hold a worker forever. A retry storm multiplies cost. | Model gateway, any HTTP call |
+| Timeouts, one retry, circuit breaker | A dead vendor must not hold a worker forever. A retry storm multiplies cost. | Model gateway, web acquisition, any HTTP call |
+| Cost policy and unit budgets | Paid actions need allow/deny before the vendor call, not after the bill arrives. | Web acquisition, model gateway caps, Feature 26 |
 | Horizontal vs vertical scale | More copies vs a bigger machine. Memory state breaks the first option. | Gateway, runtime, widget connections |
 | Distributed lock vs database constraint | A lock in Redis expires. A unique key in Postgres does not forget. | Refresh tokens, unique agent names, publish pointer |
 | Queues and backpressure | Kafka for events many consumers read. A job queue for work that must retry. Do not do heavy work inside the HTTP request. | Ingest, workflows, campaigns |
 | Tenant leaks | A missing `workspace_id` in one query returns another customer's row. | Every new table |
 | Streaming and proxies | A long connection dies at a load balancer if you do not send heartbeats. You cannot blindly retry after the user already saw tokens. | Runtime, widget, voice |
+| Voice stage latency | STT, LLM, TTS, and time-to-first-audio must be traced per `call_id`. You cannot tune 5,000 calls from one log line. | Voice service, model gateway, Feature V1 |
 | Observability | Logs, metrics, and traces share one `request_id`. You cannot fix a 10,000 rps system from one laptop log. | Every service, then a dedicated alerts feature |
 | Secrets and rotation | A key in a log line or in git is public. Rotation must not take the platform down. | Model keys, tool credentials |
 | Read-your-writes | After publish succeeds, the next read must see the new pointer. A lagging copy must not answer that read. | Versions, inbox assignment |
@@ -470,6 +509,8 @@ A process can be "running" and still be unable to talk to Postgres. Kubernetes d
 
 **Graceful shutdown.** On SIGTERM, stop accepting new connections, finish the ones you have, close the database pool, exit. Kubernetes waits `terminationGracePeriodSeconds` (often 30s) then sends SIGKILL. If you ignore SIGTERM, in-flight publishes die mid-way. Our services already close the HTTP server on SIGTERM. This lab checks that the container actually receives the signal. A shell as PID 1 sometimes swallows it. Prefer `exec` form in Docker (`CMD ["node", "dist/index.js"]`) so Node is PID 1.
 
+**Voice pods.** HTTP `terminationGracePeriodSeconds: 30` is not enough when calls last minutes. For `voice-service`, document **stop accepting new calls on SIGTERM**, drain existing media streams, then exit — often **120s+** grace or a preStop hook that fails readiness first. Feature **V1** proves drain with simulated long calls.
+
 **preStop.** A short sleep or a "fail readiness first" hook gives the load balancer time to stop sending traffic before the process exits. Without it, a few requests hit a pod that is already dying.
 
 **Rolling update.** `maxUnavailable: 0` and `maxSurge: 1` means "start a new pod, wait until it is ready, then stop an old one." The service never goes to zero copies. A bad image that fails readiness stops the rollout. That is what you want. A junior sets `maxUnavailable: 100%` and takes an outage on every deploy.
@@ -586,7 +627,7 @@ Each Node process opens a pool of Postgres connections. That is invisible on a l
 
 Opening a TCP connection to Postgres is slow, so the process keeps a pool (for example 10 connections) and reuses them. TypeORM and `pg` both have pools. If you do not set a max, the default can be high.
 
-**The math.** 2 gateway pods do not need Postgres. Identity, workspace, agent, runtime, and a migrate job do. Suppose 6 services × 2 replicas × 20 connections = 240 connections. A small managed Postgres might allow 100. The 101st connection waits or fails. The app looks "slow" and the database is only full of idle connections.
+**The math.** 2 gateway pods do not need Postgres. Identity, workspace, agent, conversation, runtime, web-fetch, knowledge, voice, and a migrate job do. Suppose 9 services × 2 replicas × 20 connections = 360 connections. A small managed Postgres might allow 100. The 101st connection waits or fails. The app looks "slow" and the database is only full of idle connections.
 
 **PgBouncer** (or the RDS / Aurora proxy equivalent) sits between the app and Postgres and multiplexes many app connections onto fewer database connections. Write the formula in this lab. At 10,000 requests per second we will run more than two copies of several services. A pooler is **required before the production load test** if `services × replicas × pool_size` is near `max_connections`. Do not wait for the first outage. The pooler does not fix a missing `workspace_id` or a transaction that waits on a model call.
 
@@ -622,7 +663,7 @@ RDS and Aurora have `max_connections` tied to instance size. A bigger instance i
 
 #### Build
 
-- [ ] `docs/architecture/postgres-connections.md` with the formula using our real services, including identity, workspace, agent, conversation, runtime, and a migrate job
+- [ ] `docs/architecture/postgres-connections.md` with the formula using our real services, including identity, workspace, agent, conversation, runtime, web-fetch, knowledge, voice, and a migrate job
 - [ ] Pool max set from env in one service as the pattern (identity or workspace), default small for local
 - [ ] Decision line: when the formula exceeds Aurora `max_connections`, add PgBouncer or the managed proxy before Feature 30 load
 - [ ] Note in the agent publish design: no network call inside the DB transaction
@@ -1019,11 +1060,56 @@ No partitioning, no archive job, no realtime push. The widget will need the curs
 
 ---
 
+## 11A. Feature 09B — Membership cache
+
+**Status:** `not_started`  
+**Needs:** workspace  
+**Can run beside:** Feature 12 or 11 (different packages day: land contracts + one service consumer first)  
+**Deep topic (day 2):** fail-closed vs fallback when Redis is empty  
+**Owns:** shared helper in `packages/*` (or gateway + services adopt), ADR for cache policy
+
+### Pre-context
+
+Agent, conversation, runtime, and voice edge check workspace membership. Today that is often an HTTP call to workspace-service per request. At 10,000 HTTP rps and at thousands of voice turns per minute, that hop becomes the bottleneck.
+
+### What this is
+
+A short TTL cache in Redis: `(user_id, workspace_id) → { roles, ok }`. Postgres and workspace-service stay the source of truth. On cache miss, call workspace once and set the key. On revoke or role change, invalidate or wait for TTL (pick one in the ADR and test it).
+
+### Why now
+
+Feature 12 and Feature 21 both need membership on every turn. Voice cannot add a fourth HTTP hop per utterance.
+
+### Junior shortcut
+
+Cache forever with no invalidation. A removed member keeps access until restart. Or cache in a `Map` per process so two gateway copies disagree.
+
+### Production shape
+
+Shared Redis key prefix. TTL in the 30–120 second range unless the ADR says otherwise. **Write path** (role change, remove member): invalidate or fail closed. **Redis down:** document fail-closed on voice new calls and runtime turns, or fallback to workspace HTTP with a strict timeout — pick one.
+
+### Low-level design
+
+- Contract type `MembershipSnapshot` in `packages/contracts`
+- Test: two processes share the same cached allow
+- Test: after simulated revoke, access denied within the policy window
+- No membership check removed from services; only the hot path is cached
+
+### Done when
+
+Runtime (or gateway proxy) can serve repeated reads without workspace HTTP on every call, and tests prove cross-process consistency.
+
+### Still unsafe
+
+No global session store for end users of the widget. This cache is staff/API membership only.
+
+---
+
 ## 12. Feature 10 — Model gateway
 
 **Status:** `done`  
 **Needs:** none (do not wait for the runtime)  
-**Can run beside:** Feature 11  
+**Can run beside:** Feature 10B or 11  
 **Deep topic (day 2):** timeouts, one retry, circuit breaker  
 **Owns:** `services/model-gateway` (ADR 0010, `docs/api/model-gateway-errors.md`)
 
@@ -1053,7 +1139,7 @@ This service records usage. It does not send invoices. It enforces a **global ou
 
 ### What breaks at scale
 
-10,000 API requests per second sustained (20,000 peak) is not 10,000 model calls per second. Model calls are slow and billed. A retry storm at peak multiplies the bill. One workspace must not be able to occupy every outbound connection. Put a cap in the design even if the first cap is a simple config number. Voice adds a second budget: 5,000 concurrent inbound calls and 5,000 concurrent outbound calls, each holding a long connection.
+10,000 API requests per second sustained (20,000 peak) is not 10,000 model calls per second. Model calls are slow and billed. A retry storm at peak multiplies the bill. One workspace must not be able to occupy every outbound connection. Put a cap in the design even if the first cap is a simple config number. Voice adds a second budget: 5,000 concurrent inbound calls and 5,000 concurrent outbound calls, each holding a long connection. Consider a separate **in-flight cap** or pool for voice-originated model calls so chat and phone do not share one undifferentiated limit at peak.
 
 ### Choice
 
@@ -1096,21 +1182,108 @@ No money ledger yet (Feature 26). No hard spend budget per tenant. Streaming to 
 
 ---
 
-## 13. Feature 11 — Knowledge ingest
+## 13. Feature 10B — Web fetch service
 
-**Status:** `not_started`  
-**Needs:** workspace, OpenSearch from `make up`  
-**Can run beside:** Feature 10  
-**Deep topic (day 2):** queues and backpressure  
-**Owns:** a knowledge service or a clearly bounded ingest worker. Do not put parsing inside the gateway request.
+**Status:** `done`  
+**Needs:** workspace (membership checks on every call)  
+**Can run beside:** Feature 11 (different directories: `services/web-fetch-service` vs knowledge ingest)  
+**Deep topic (day 2):** cost policy, provider failover, and queues  
+**Owns:** `services/web-fetch-service` (local port **3007**), ADR **0011**, `packages/contracts` web-fetch types, `docs/api/web-fetch-errors.md`
 
 ### Pre-context
 
-OpenSearch is running and empty of product data. Agents have no documents.
+Knowledge ingest, tools, leads, and campaigns all need **public web content** (one URL, many pages, or search results). Olostep is one vendor. If we embed Olostep inside the knowledge worker, the runtime, and the lead worker, we will ship four different timeout, retry, and billing behaviors. One bad crawl in the gateway HTTP request will hold a worker and bypass tenant caps.
 
 ### What this is
 
-A business uploads a source (text first; PDF can follow the same pipeline). We store the source, split it into chunks, embed the chunks, and index them with `workspace_id`. Ingest status is visible: queued, running, ready, failed.
+A dedicated internal service — **web acquisition** — that performs **acquisition actions** for a workspace: **scrape** (one URL), **crawl** (many pages under a seed), **map** (discover URLs), and **search** (web search). Callers (knowledge ingest, runtime tool stage, lead/campaign workers) call **our** API. Vendor HTTP stays inside **provider adapters**. Olostep is the first adapter; **direct HTTP fetch** (cheap, no JS) is the second so we can route simple pages without paid credits. More vendors (Firecrawl, Jina, Browserless, and so on) plug in without renaming the service.
+
+### Why now
+
+Feature 11 will add URL and site sources. Feature 15 will add live `fetch_url` / `search_web` tools. Feature 23–24 will scrape prospect sites. If each feature imports a vendor SDK, cost and failure policy diverge and we cannot enforce a workspace budget at 10,000 organizations.
+
+### Junior shortcut
+
+The junior shortcut calls Olostep from the knowledge worker with no timeout, retries every 5xx forever, and logs the API key. Crawls run inside `POST /knowledge/sources` so one 500-page site blocks the gateway. There is no record of credits spent, so Finance cannot reconcile Feature 26. When Olostep is down, ingest silently fails with a generic 500 and no fallback provider.
+
+### Production shape
+
+**HTTP ingress is thin.** `POST /internal/acquire` (or action-specific routes) validates `workspace_id`, runs **policy**, then either executes synchronously for a single scrape with a short deadline or **enqueues** a long crawl/search job and returns `job_id` + status. Workers call providers with per-action timeouts, **one safe retry** only when no partial billable output was committed, and a **circuit breaker per provider profile**.
+
+**Policy engine (required in v1, not “later”):** Before any paid action, evaluate:
+
+- Global in-flight cap (Redis, same pattern as model-gateway).
+- Per-workspace **daily acquisition unit budget** (config + Redis counter; Postgres is the audit trail via usage facts).
+- **Provider selection:** e.g. `direct_http` for allow-listed hosts and `text/html` only; Olostep when JS rendering or anti-bot is needed; deny if budget exhausted → typed `ACQUISITION_BUDGET_EXCEEDED`, not a hang.
+- **Maintenance switches:** disable a provider profile via env/config without redeploying callers; open circuit → try next profile in the ordered list once, then fail typed.
+
+**Cost accounting:** Every completed action emits a **usage fact**: `workspace_id`, `action`, `provider`, `units` (pages, queries, or scrape count), `estimated_cost_micros` (from a static price table in config until Feature 26), `request_id`, idempotency key. No invoice math on the hot path. Knowledge ingest stores normalized **markdown/text** in object storage (or a blob table locally); it does not store vendor raw JSON as the source of truth.
+
+**Secrets:** Provider API keys live in this service’s environment (later Feature 16 / secret manager). Keys never appear in logs or in caller responses.
+
+### What breaks at scale
+
+Crawl and search are **slow and billed per page or query**. Ten workspaces starting full-site crawls at once must **queue**, not open ten thousand outbound connections from one Node process. One workspace must not exhaust the global provider rate limit for everyone. A missing `workspace_id` on a stored artifact is a **data leak**, not a performance issue. At 10,000 HTTP rps on the gateway, **zero** of those requests should be long-running crawls; crawls are jobs on this service’s worker pool.
+
+### Choice
+
+We take a **dedicated web-fetch-service**, provider adapter interface, policy + usage facts in v1, queue for crawl/search, Olostep + direct HTTP as first two providers.
+
+We reject naming the service after Olostep or putting vendor SDKs in knowledge ingest, runtime, or gateway.
+
+We reject synchronous full-site crawl on any public API route.
+
+Cost: we maintain adapters and a price table. That cost is smaller than reconciling four divergent integrations after launch.
+
+### Cloud later
+
+Workers scale horizontally. Redis caps and budgets are shared across replicas. Provider keys move to the managed secret store. The queue becomes SQS (local ElasticMQ already exists). Egress from this service is expected; firewall allow-lists are a platform concern (lab P8), product allow-lists stay in policy for customer URLs.
+
+### Low-level design
+
+- Internal auth: same internal token pattern as model-gateway (`Authorization: Bearer` shared secret); not exposed on gateway :3000 until a product route needs it (tools may call via runtime → internal only).
+- `POST /internal/scrape` — sync, strict timeout (e.g. 30s), returns normalized text + metadata.
+- `POST /internal/crawl` — async job, returns `job_id`; worker pages with max depth/pages from request caps.
+- `POST /internal/search` — async or sync with low `max_results` cap.
+- `GET /internal/jobs/:jobId` — status, error code, artifact location pointer (not full body in list APIs).
+- Provider interface: `scrape`, `crawlPage`, `search`, health probe; each profile has `name`, `enabled`, `priority`, `unit_cost_micros`.
+- Policy module: `decide(context) → { allow, provider_profile, reason }` — unit-test without network.
+- Postgres (optional v1): `acquisition_jobs` for job status; artifacts in object storage path `workspace_id/job_id/...`.
+- Tests: fake provider; budget deny; circuit opens → fallback profile; idempotent job create; no API key in logs.
+
+### Learn today
+
+Section 7 headings, plus a table of **who calls web acquisition** (knowledge 11, tools 15, leads 24, campaigns 23) and which actions are sync vs queued.
+
+### Build today
+
+End-to-end service on port 3007, fake provider in tests, Olostep adapter behind env flag, ADR 0011, contracts types, error doc, README smoke with `WEB_ACQUISITION_INTERNAL_TOKEN`.
+
+### Done when
+
+A caller can scrape via fake provider with usage fields present. A crawl job returns before all pages finish and completes in the worker. Budget policy returns a typed error without calling the vendor. Two service replicas share the Redis in-flight cap. No vendor key in logs.
+
+### Still unsafe
+
+No dollar invoicing (Feature 26). No customer-visible “web credits” UI. No browser automation farm of our own. Legal/compliance for crawling customer sites is workspace responsibility; we log `workspace_id` and seed URL for audit (Feature 27).
+
+---
+
+## 14. Feature 11 — Knowledge ingest
+
+**Status:** `not_started`  
+**Needs:** Feature 10B, workspace, OpenSearch from `make up`  
+**Can run beside:** Feature 10B  
+**Deep topic (day 2):** queues and backpressure  
+**Owns:** `services/knowledge-service` (or equivalent) plus ingest worker. Do not put parsing, embedding, or **web fetch** inside the gateway request.
+
+### Pre-context
+
+OpenSearch is running and empty of product data. Agents have no documents. Web acquisition (10B) is the only place that calls scrape/crawl/search vendors.
+
+### What this is
+
+A business adds a **source**: pasted text, uploaded file, **single URL**, or **site crawl** (seed URL + limits). We store source metadata, split content into chunks, embed, and index with `workspace_id`. Ingest status is visible: queued, running, ready, failed. For URL and site sources, the ingest worker **requests normalized text from web acquisition (10B)** and then runs the same chunk → embed → index pipeline as file/text sources.
 
 ### Why now
 
@@ -1146,8 +1319,9 @@ S3 for files, a managed queue, managed OpenSearch. The worker is a separate proc
 
 ### Low-level design
 
-- `sources`: id, workspace_id, name, status, error, created_at
+- `sources`: id, workspace_id, name, `kind` (`text` | `file` | `url` | `site`), status, error, `acquisition_job_id` when kind is `url` or `site`, created_at
 - `chunks` metadata in Postgres optional; search docs in OpenSearch with `workspace_id`, `source_id`, text, vector
+- URL/site: enqueue ingest only after 10B returns text or crawl job completes; respect 10B budget errors and surface them on the source row
 - Delete source: mark deleted, enqueue delete, remove search docs. A failed delete stays visible.
 - Re-index creates a new source version. Old chunks for that version are removed when the new version is ready, or we search by active version. Pick one and test it.
 - Do not log full document bodies at info level.
@@ -1166,16 +1340,16 @@ One document becomes searchable chunks for one workspace only. A second workspac
 
 ### Still unsafe
 
-No PDF parser required for the first slice if plain text works end to end. No reranker yet. No crawl of the public web.
+No PDF parser required for the first slice if plain text works end to end. No reranker yet. Site-wide crawl depth and page caps are enforced in **10B**, not reimplemented here.
 
 ---
 
-## 14. Feature 12 — Agent runtime
+## 15. Feature 12 — Agent runtime
 
 **Status:** `not_started`  
-**Needs:** 08, 09, and 10  
+**Needs:** 08, 09, and 10; **09B** before production scale  
 **Deep topic (day 2):** streaming and "do not retry after tokens"  
-**Owns:** `services/runtime` (or the name we choose in the ADR). It calls model gateway and conversation. It does not own their tables.
+**Owns:** `services/runtime-service`. It calls model gateway and conversation. It does not own their tables.
 
 ### Pre-context
 
@@ -1226,26 +1400,28 @@ Scale the runtime horizontally. The cap per workspace must live in Redis, not in
 - Append assistant message with the version id
 - Stream path: proxy tokens; on failure before tokens, return the typed error; after tokens, mark the turn failed in storage and do not start a second full answer on the same stream
 - Cross-workspace conversation id returns 404
+- **Voice contract (required for Feature 21):** internal or public turn with `channel: voice`, stricter `deadline_ms`, optional shorter history window; same idempotency and `agent_version_id` rules as chat. Runtime does not hold audio sockets.
+- Before model call: if conversation `state` is `human` (Feature 18), return typed error and do not call model gateway
 
 ### Learn today
 
-Section 7. Write the turn as a sequence of calls and the status code for each failure.
+Section 7. Write the turn as a sequence of calls and the status code for each failure. Add the voice-turn sequence with a 8–12s deadline example.
 
 ### Build today
 
-One non-streaming turn against the fake model gateway, plus one test that an unpublished agent cannot run, plus one test that workspace B cannot run workspace A's conversation.
+One non-streaming turn against the fake model gateway, plus one test that an unpublished agent cannot run, plus one test that workspace B cannot run workspace A's conversation. Document the voice-turn request shape in `packages/contracts` even if voice-service ships later.
 
 ### Done when
 
-A published agent can answer once, the message history shows the reply, and the stored row records which version ran.
+A published agent can answer once, the message history shows the reply, and the stored row records which version ran. Voice-service can call the documented voice-turn API in tests (fake audio not required in runtime repo).
 
 ### Still unsafe
 
-No tools, no retrieval, no memory, no widget. Concurrency limits may be a simple first cap. Say what the cap is.
+No tools, no retrieval, no memory, no widget. Concurrency limits may be a simple first cap. Say what the cap is. Retrieval on voice calls needs a strict budget (Feature 13 addendum).
 
 ---
 
-## 15. Feature 13 — Retrieval in the runtime
+## 16. Feature 13 — Retrieval in the runtime
 
 **Status:** `not_started`  
 **Needs:** 11 and 12  
@@ -1305,7 +1481,7 @@ No rerank model required in the first slice. No citation UI. Say so.
 
 ---
 
-## 16. Feature 14 — Memory
+## 17. Feature 14 — Memory
 
 **Status:** `not_started`  
 **Needs:** conversations and runtime  
@@ -1364,7 +1540,7 @@ No fancy extraction model required. A simple write API plus a read in the prompt
 
 ---
 
-## 17. Feature 15 — Tools and MCP
+## 18. Feature 15 — Tools and MCP
 
 **Status:** `not_started`  
 **Needs:** runtime  
@@ -1412,9 +1588,10 @@ Egress from the cluster should be restricted. The allow-list in the app is the p
 ### Low-level design
 
 - Tables: tool definitions on the agent version snapshot, `tool_calls` with workspace_id, status, idempotency key
-- One built-in HTTP tool is enough for the first slice
+- One built-in HTTP tool is enough for the first slice; **`fetch_url` / `search_web` call web acquisition (10B)**, not a vendor SDK from the runtime
 - Test: second attempt with the same key does not double-call the fake server
 - Test: host not on the allow-list is rejected before any socket
+- Test: when 10B returns `ACQUISITION_BUDGET_EXCEEDED`, the tool step fails typed without retrying the vendor
 
 ### Done when
 
@@ -1426,7 +1603,7 @@ No full MCP catalog required on day one. One MCP or one HTTP tool that proves th
 
 ---
 
-## 18. Feature 16 — Secrets
+## 19. Feature 16 — Secrets
 
 **Status:** `not_started`  
 **Needs:** none, but tools should read secrets from here once both exist  
@@ -1489,7 +1666,7 @@ No full KMS integration until the cloud feature. Document the local master key a
 
 ---
 
-## 19. Feature 17 — Website chat widget
+## 20. Feature 17 — Website chat widget
 
 **Status:** `not_started`  
 **Needs:** runtime streaming  
@@ -1552,16 +1729,16 @@ No inbox UI here. No voice. Polish is not the goal. The failure cases are.
 
 ---
 
-## 20. Feature 18 — Inbox and human handoff
+## 21. Feature 18 — Inbox and human handoff
 
 **Status:** `not_started`  
 **Needs:** conversations  
-**Can run beside:** Feature 17 if the widget and the inbox do not edit the same service. Inbox can be an API on the conversation service plus a small staff page.  
+**Can run beside:** Feature 17 if the widget and the inbox do not edit the same service. Inbox can be an API on the conversation service plus a small staff page. **Voice track:** ship minimal handoff before heavy outbound (Feature 23); callers must be able to escalate to a human.  
 **Deep topic:** read-your-writes and two people taking the same chat
 
 ### Pre-context
 
-Messages exist. Nobody can assign a chat to a human, and the model does not stop when a human joins.
+Messages exist. Nobody can assign a chat to a human, and the model does not stop when a human joins. Voice calls use the same conversation row; without handoff, the bot talks over a human on the phone.
 
 ### What this is
 
@@ -1613,7 +1790,7 @@ No email notifications. No mobile app. A simple API plus one page is enough if t
 
 ---
 
-## 21. Feature 19 — Event platform
+## 22. Feature 19 — Event platform
 
 **Status:** `not_started`  
 **Needs:** the objects that emit events (agent, conversation, handoff). Do not invent events for objects that do not exist.  
@@ -1673,7 +1850,7 @@ Not every table emits events on day one. List the events you actually ship.
 
 ---
 
-## 22. Feature 20 — Workflow automation
+## 23. Feature 20 — Workflow automation
 
 **Status:** `not_started`  
 **Needs:** events  
@@ -1732,19 +1909,21 @@ No visual builder. No canvas UI. JSON definition is enough.
 
 ---
 
-## 23. Feature 21 — Voice path
+## 24. Feature 21 — Voice path
 
 **Status:** `not_started`  
-**Needs:** runtime  
-**Deep topic:** streaming, heartbeats, and a second channel that must not fork the agent engine
+**Needs:** 12 (runtime), 09B (membership cache at scale)  
+**Can run beside:** 11 if directories differ  
+**Deep topic:** streaming, heartbeats, and a second channel that must not fork the agent engine  
+**Owns:** `services/voice-service` (local port **3008**), ADR **0012-voice-platform** (draft), `packages/contracts` voice/call types
 
 ### Pre-context
 
-Chat can run a turn. Voice does not exist.
+Chat can run a turn. Voice does not exist. Runtime exposes a **voice-turn** contract (Feature 12).
 
 ### What this is
 
-A voice call is a channel. Audio in, text to the runtime, audio out. The agent, the version, and the conversation are the same objects as chat. The call has its own session row because audio is realtime.
+A voice call is a channel. **Cascade default:** audio in → STT → runtime (text turn) → TTS → audio out. The agent, the **published version**, and the conversation are the same objects as chat. The call has its own session row because audio is realtime. Published agent versions may include **voice settings** (language, TTS voice id, max response length, `voice_mode: cascade | realtime` when ADR allows realtime without tools/RAG).
 
 ### Why now
 
@@ -1778,22 +1957,24 @@ This service needs stable outbound media and health checks. The cluster comes in
 
 ### Low-level design
 
-- `calls`: id, workspace_id, conversation_id, direction (inbound or outbound), state
-- A test double for audio that sends one utterance and expects one runtime turn
+- `calls`: id, workspace_id, conversation_id, direction (inbound or outbound), state, `agent_version_id` snapshot
+- `services/voice-service`: health, internal auth, session orchestration; **fake media** test double sends one utterance → one runtime voice-turn → one TTS chunk out
+- Emit **usage/trace stubs**: `call_id`, stage timings (STT, runtime, TTS) to logs or OTel — shapes used later by Feature 26
 - No second copy of agent fields
 - No audio bytes through `services/gateway-service`
+- Telephony PSTN and vendor STT/TTS keys are **Feature 21B / 21C**, not required for Feature 21 Done when
 
 ### Done when
 
-One simulated call creates a conversation turn through the existing runtime and records the call row.
+One simulated call creates a conversation turn through the existing runtime and records the call row. Traces or structured logs include `call_id` and stage latency fields.
 
 ### Still unsafe
 
-No carrier-grade telephony. No production phone numbers. The path and the data model are the goal.
+No PSTN (21C). No production phone numbers. Recording/transcript storage optional stub only. Legal/compliance for call recording documented as deferred.
 
 ---
 
-## 24. Feature 22 — Voice reliability
+## 25. Feature 22 — Voice reliability
 
 **Status:** `not_started`  
 **Needs:** 21  
@@ -1805,7 +1986,7 @@ A simulated call can complete. Real calls drop, arrive twice, and overrun deadli
 
 ### What this is
 
-Retries, barge-in policy, dead-call cleanup, and a limit on concurrent calls per workspace. A call that exceeds its budget ends with a clear state on the call row.
+Retries policy (no infinite model retry on phone), **barge-in** (stop TTS, accept new utterance), dead-call cleanup, and limits on concurrent calls. **Global Redis caps:** 5,000 inbound and 5,000 outbound platform-wide. **Per-workspace** inbound/outbound caps so one tenant cannot consume the global 5,000. A call that exceeds its deadline ends with a clear state on the call row and a spoken fallback if audio was already open.
 
 ### Why now
 
@@ -1837,13 +2018,15 @@ The cap remains in Redis (managed cache). More voice pods do not multiply the al
 
 ### Low-level design
 
-- Test: cap reached returns a typed error
-- Test: simulated hang releases the worker
-- Test: reconnect reuses the conversation
+- Test: global or workspace cap reached returns a typed error before opening media
+- Test: simulated hang releases the worker in `finally`
+- Test: reconnect reuses the same `call_id` and conversation
+- Test: barge-in cancels in-flight TTS without starting a duplicate assistant message
+- ADR: Redis down → refuse **new** calls (fail closed)
 
 ### Done when
 
-Those three tests pass and the ADR says what happens when Redis is down.
+Those tests pass and the ADR says what happens when Redis is down.
 
 ### Still unsafe
 
@@ -1851,10 +2034,97 @@ No global anycast network. No legal call-recording program. Write the recording 
 
 ---
 
-## 25. Feature 23 — Campaigns
+## 25A. Feature 21B — Speech providers (STT/TTS)
 
 **Status:** `not_started`  
-**Needs:** voice path and conversations  
+**Needs:** 21  
+**Can run beside:** 22 if files do not overlap in `voice-service`  
+**Deep topic:** timeouts, one retry, circuit breaker (same as model gateway)  
+**Owns:** STT/TTS **provider adapters** inside `services/voice-service` (not in runtime)
+
+### Pre-context
+
+Feature 21 proves the loop with a fake media path. Real calls need STT and TTS vendors with keys, timeouts, and usage units.
+
+### What this is
+
+Provider interface: `transcribe(audio_chunk)`, `synthesize(text)` (and streaming variants). Vendors (Deepgram, Cartesia, ElevenLabs, OpenAI speech, etc.) plug in behind env profiles. **One retry** only when no billable output was committed. Circuit breaker per profile. Usage fact per STT/TTS unit for Feature 26.
+
+### Why now
+
+If STT/TTS SDKs land in runtime or gateway, voice scale and billing diverge from model-gateway rules.
+
+### Done when
+
+Fake STT/TTS in tests; one real provider behind env flag optional; no API keys in logs; voice turn works end-to-end in simulation with real adapter code paths.
+
+### Still unsafe
+
+No separate `speech-gateway` service unless traffic proves we need it. Start inside voice-service.
+
+---
+
+## 25B. Feature 21C — Telephony (CPaaS)
+
+**Status:** `not_started`  
+**Needs:** 21, 21B, 22  
+**Deep topic:** webhook idempotency and media stream security  
+**Owns:** telephony adapter in `services/voice-service`, ADR **0013-telephony** (primary: **Twilio** or **Telnyx** — pick one, second as fallback profile)
+
+### Pre-context
+
+Simulated calls work. Customers need inbound DIDs and outbound dial.
+
+### What this is
+
+**TelephonyProvider** interface: buy/link number (staging), inbound webhook → open media stream, outbound `dial`, status callbacks, hangup, **transfer** (later slice). CPaaS streams audio (often μ-law 8 kHz) to a **WebSocket** on voice-service. Sign and verify webhooks. Idempotent handling of duplicate status events.
+
+### Why now
+
+Feature 23 campaigns and real outbound product need PSTN. Feature 21 intentionally defers carrier integration.
+
+### Junior shortcut
+
+Hard-code Twilio in the gateway. Webhooks without signature check. Outbound dial in the HTTP request handler.
+
+### Production shape
+
+All telephony HTTP routes on voice-service (or a dedicated telephony port on the same process), not on gateway :3000. Recordings point to object storage URLs when enabled. Emit telephony usage facts (call minute, direction) async.
+
+### Done when
+
+One inbound and one outbound call through staging CPaaS complete one runtime turn each; caps from Feature 22 enforced; ADR names primary and fallback provider.
+
+### Still unsafe
+
+No AMD/voicemail/opt-out (campaign compliance) — document under Feature 23. No international regulatory bundle.
+
+---
+
+## 25C. Feature V1 — Voice load and drain proof
+
+**Status:** `not_started`  
+**Needs:** 22, lab P3 habits  
+**Deep topic:** failure domains at long-lived connections
+
+### What this is
+
+A repeatable script: **two** voice-service replicas (or processes), shared Redis caps, **N** simulated long calls (config, e.g. 200–500 locally), assert caps reject excess, kill one process during drain and verify calls end or reconnect per ADR. Not 5,000 on a laptop — prove **shape**: shared Redis, no in-memory-only call state, drain stops new calls.
+
+### Done when
+
+Script passes in CI or `make voice-load-smoke`; README documents how to run it.
+
+### Still unsafe
+
+Not a substitute for Feature 30 full platform load test.
+
+---
+
+## 26. Feature 23 — Campaigns
+
+**Status:** `not_started`  
+**Needs:** 21C (telephony), 22 (caps), 09 (conversations)  
 **Can run beside:** Feature 24  
 **Deep topic:** backpressure (do not dial every lead in one request)
 
@@ -1864,7 +2134,7 @@ We can place a single simulated call. We cannot place a controlled batch.
 
 ### What this is
 
-A campaign is a workspace-scoped list of targets and a schedule. A worker pulls a small batch, starts calls through the voice path, and records outcomes on the campaign rows.
+A campaign is a workspace-scoped list of targets and a schedule. A worker pulls a small batch, may **enrich targets via web acquisition (10B)** (scrape one page per lead under budget), starts calls through the voice path, and records outcomes on the campaign rows.
 
 ### Why now
 
@@ -1906,11 +2176,11 @@ A campaign of a few fake targets runs through the voice test double once each.
 
 ### Still unsafe
 
-No real phone network. No compliance copy. Document that.
+No production carrier beyond staging CPaaS. **AMD, voicemail, opt-out, and compliance copy** are not done — document before production outbound at scale.
 
 ---
 
-## 26. Feature 24 — Leads
+## 27. Feature 24 — Leads
 
 **Status:** `not_started`  
 **Needs:** events (a lead can also be created by API if events are late; do not block the table on a perfect bus)  
@@ -1923,7 +2193,7 @@ Chats and calls do not create a sales lead object.
 
 ### What this is
 
-A lead is a workspace-scoped record: source, contact fields, status, link to a conversation if we have one. Creating the same lead twice (same idempotency key or same external id) returns the first row.
+A lead is a workspace-scoped record: source, contact fields, status, link to a conversation if we have one. **Discovery and enrichment** (web search, scrape company URL) go through web acquisition (10B), not ad hoc HTTP from the lead worker. Creating the same lead twice (same idempotency key or same external id) returns the first row.
 
 ### Why now
 
@@ -1969,7 +2239,7 @@ No CRM sync. No scoring model.
 
 ---
 
-## 27. Feature 25 — Evaluation
+## 28. Feature 25 — Evaluation
 
 **Status:** `not_started`  
 **Needs:** runtime  
@@ -2029,19 +2299,19 @@ No human labeling UI. No automatic publish block.
 
 ---
 
-## 28. Feature 26 — Usage and billing
+## 29. Feature 26 — Usage and billing
 
 **Status:** `not_started`  
-**Needs:** model usage events from the model gateway and runtime  
+**Needs:** model usage events from the model gateway and runtime; acquisition usage facts from web acquisition (10B); **voice** usage facts from voice-service (21B STT/TTS units, 21C telephony minutes) — **voice slice should land when 21C ships**, not only at end of roadmap  
 **Deep topic:** idempotency and money
 
 ### Pre-context
 
-The model gateway can emit a usage record. Voice will emit call minutes the same way. We do not turn that into a ledger on the request or on the live call.
+The model gateway can emit a usage record. Web acquisition (10B) emits units per scrape/crawl page/search query. Voice-service emits call/STT/TTS/telephony units the same way. We do not turn that into a ledger on the request or on the live call.
 
 ### What this is
 
-A ledger row per model call (and later per voice minute): workspace_id, units, idempotency key, price snapshot. Invoices are a later rollup. This feature stores the facts that an invoice would need.
+A ledger row per model call, per acquisition action, and (later) per voice minute: workspace_id, units, `kind` (`model` | `acquisition` | `voice`), idempotency key, price snapshot. Invoices are a later rollup. This feature stores the facts that an invoice would need.
 
 ### Why now
 
@@ -2090,7 +2360,7 @@ No payment provider. No tax. No PDF invoice. Say so in the ADR.
 
 ---
 
-## 29. Feature 27 — Audit and security
+## 30. Feature 27 — Audit and security
 
 **Status:** `not_started`  
 **Needs:** the write paths we care about (auth, role change, publish, secret delete)  
@@ -2149,7 +2419,7 @@ No SIEM export. No immutable WORM storage. The rows are append-only in applicati
 
 ---
 
-## 30. Feature 28 — Observability and alerts
+## 31. Feature 28 — Observability and alerts
 
 **Status:** `not_started`  
 **Needs:** services already emit logs and traces through the shared libraries  
@@ -2210,7 +2480,7 @@ No on-call rotation. No paging vendor. The rule file is the product of this feat
 
 ---
 
-## 31. Feature 29 — Cloud deploy
+## 32. Feature 29 — Cloud deploy
 
 **Status:** `not_started`  
 **Needs:** health checks and stateless services. Do not start this by rewriting features.  
@@ -2276,7 +2546,7 @@ No production customer traffic required. No multi-region. Secrets in the cloud s
 
 ---
 
-## 32. Feature 30 — Load, failure, recovery, SDKs
+## 33. Feature 30 — Load, failure, recovery, SDKs
 
 **Status:** `not_started`  
 **Needs:** 29 for the environment you load-test. You can still write the test plan before the cluster exists.  
@@ -2337,7 +2607,7 @@ We will not have a year of on-call practice. We will have a system another engin
 
 ---
 
-## 33. How to update this file each day
+## 34. How to update this file each day
 
 1. Set **Current focus** in section 6.
 2. Set the feature status to `in_progress`.
@@ -2351,4 +2621,5 @@ We will not have a year of on-call practice. We will have a system another engin
 
 | Date | Feature | Shipped | Still unsafe |
 | --- | --- | --- | --- |
-|  |  |  |  |
+| 2026-09-28 | 10B | `web-fetch-service` :3007, ADR 0011, contracts, tests | No ledger consumer; artifacts in Postgres only |
+| 2026-09-28 | roadmap | Voice-first §5B; 09B, 21B, 21C, V1; telephony ADR; runtime voice-turn | ADRs 0012/0013 not written yet; voice-service not scaffolded |

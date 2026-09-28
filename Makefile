@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate knowledge-smoke data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate web-fetch-migrate knowledge-smoke data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -30,6 +30,12 @@ agent-migrate:
 conversation-migrate:
 	pnpm --filter @quickstart/service-conversation build
 	pnpm --filter @quickstart/service-conversation migrate
+
+web-fetch-migrate:
+	pnpm --filter @quickstart/service-web-fetch build
+	pnpm --filter @quickstart/service-web-fetch migrate
+
+web-acquisition-migrate: web-fetch-migrate
 
 data-plane-up:
 	$(COMPOSE) up -d --wait
