@@ -142,7 +142,7 @@ The old board in this file was behind the code. This table matches the repo as o
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -243,7 +243,7 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** **14** memory (optional) or **15** tools; voice remains **§5C**
+- **Current focus:** **15** tools; voice remains **§5C**
 - **Next production deep topic:** fail-closed vs workspace fallback when Redis is empty (09B day 2); tenant leaks in search when starting 11
 - **Product priority:** Multi-tenant chat + knowledge at scale; voice design target unchanged, scheduled in **§5C** after knowledge path unless reprioritized
 - **Finished features:** through **13** (09B, 11, 12 chat, retrieval); voice (**21+**) and streaming still open
@@ -1536,7 +1536,7 @@ No rerank model required in the first slice. No citation UI. Say so.
 
 ## 17. Feature 14 — Memory
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** conversations (09) and runtime (12) — both done  
 **Placement in product path:** §5B — after **13** retrieval; parallel option on the board is **15** tools (different directories if runtime is not shared the same day)  
 **Can run beside:** Feature 15 if only one person edits `runtime-service` per day; the other owns memory CRUD service or docs  
@@ -2844,3 +2844,4 @@ We will not have a year of on-call practice. We will have a system another engin
 | 2026-09-28 | 09B | `@quickstart/workspace-access`, ADR 0012, agent/conversation cache | Gateway still does not check URL membership |
 | 2026-09-28 | 11 | `knowledge-service` :3009, SQS worker, OpenSearch, gateway proxy, ADR 0013 | Text sources only; no URL ingest via 10B yet |
 | 2026-09-28 | 13 | Runtime `KnowledgeClient`, internal retrieve, message metadata | Match search v1; no reranker |
+| 2026-09-28 | 14 | `memory-service` :3010, `conversations.subject_key`, runtime inject, ADR 0014 | No auto-extract; no vector memory; widget 17 not wired |

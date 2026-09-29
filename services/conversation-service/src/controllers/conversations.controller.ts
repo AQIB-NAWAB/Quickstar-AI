@@ -8,11 +8,12 @@ export function createConversationsController(conversations: ConversationsServic
     createConversation: (async (req, res) => {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;
-      const body = req.body as { agent_id?: string };
+      const body = req.body as { agent_id?: string; subject_key?: string | null };
 
       const conversation = await conversations.createConversation(
         tenant.workspaceId,
         body?.agent_id,
+        body?.subject_key,
       );
 
       sendPlatformJson(res, 201, {

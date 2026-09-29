@@ -43,5 +43,11 @@ All paths below are on the **gateway** base URL (local: `http://127.0.0.1:3000`)
 | GET | `/v1/workspaces/{workspaceId}/conversations/{conversationId}` | Bearer | Conversation |
 | POST | `/v1/workspaces/{workspaceId}/conversations/{conversationId}/messages` | Bearer | Conversation |
 | GET | `/v1/workspaces/{workspaceId}/conversations/{conversationId}/messages` | Bearer | Conversation |
+| POST | `/v1/workspaces/{workspaceId}/conversations/{conversationId}/turns` | Bearer | Runtime |
+| GET | `/v1/workspaces/{workspaceId}/memory/facts` | Bearer | Memory |
+| POST | `/v1/workspaces/{workspaceId}/memory/facts` | Bearer | Memory |
+| PATCH | `/v1/workspaces/{workspaceId}/memory/facts/{factId}` | Bearer | Memory |
+| DELETE | `/v1/workspaces/{workspaceId}/memory/facts/{factId}` | Bearer | Memory |
+| DELETE | `/v1/workspaces/{workspaceId}/memory/facts` | Bearer | Memory |
 
 **Internal-only (dev):** `http://127.0.0.1:3001` (identity), `http://127.0.0.1:3002` (workspace), `http://127.0.0.1:3003` (agent), `http://127.0.0.1:3004` (conversation). Do not document these as the public API.

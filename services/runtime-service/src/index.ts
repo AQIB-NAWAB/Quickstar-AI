@@ -9,6 +9,7 @@ import { createRedisClient } from "@quickstart/utilities";
 import { AgentClient } from "./clients/agent.client.js";
 import { ConversationClient } from "./clients/conversation.client.js";
 import { KnowledgeClient } from "./clients/knowledge.client.js";
+import { MemoryClient } from "./clients/memory.client.js";
 import { ModelGatewayClient } from "./clients/model-gateway.client.js";
 import { loadRuntimeConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
@@ -34,11 +35,18 @@ export async function main(): Promise<void> {
     config.knowledgeInternalToken,
     config.httpRequestTimeoutMs,
   );
+  const memoryClient = new MemoryClient({
+    baseUrl: config.memoryServiceUrl,
+    internalToken: config.memoryInternalToken,
+    timeoutMs: config.httpRequestTimeoutMs,
+    logger,
+  });
   const turnsService = new TurnsService(
     agentClient,
     conversationClient,
     modelGatewayClient,
     knowledgeClient,
+    memoryClient,
   );
 
   const redisClient = createRedisClient(config.redisUrl);

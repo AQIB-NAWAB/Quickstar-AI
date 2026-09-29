@@ -340,12 +340,12 @@ Explain: **three buckets**, **subject_key vs actorId**, **RAG vs memory fail pol
 
 ### Build today (extended checklist)
 
-- [ ] ADR: memory vs secrets vs RAG; subject_key; fail policy; caps
-- [ ] Migration + service scaffold + healthz
-- [ ] CRUD tests with two workspaces
-- [ ] Gateway proxy + env example in README
-- [ ] Runtime read + one integration-style test with mock memory client
-- [ ] Update roadmap §17 status when done
+- [x] ADR: memory vs secrets vs RAG; subject_key; fail policy; caps
+- [x] Migration + service scaffold + healthz
+- [x] CRUD tests with two workspaces
+- [x] Gateway proxy + env example in README
+- [x] Runtime read + one integration-style test with mock memory client
+- [x] Update roadmap §17 status when done
 
 ### Done when (extended)
 

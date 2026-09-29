@@ -6,6 +6,7 @@ import { createConversationProxyRoutes } from "./proxy-conversation.routes.js";
 import { createIdentityProxyRoutes } from "./proxy-identity.routes.js";
 import { createRuntimeProxyRoutes } from "./proxy-runtime.routes.js";
 import { createKnowledgeProxyRoutes } from "./proxy-knowledge.routes.js";
+import { createMemoryProxyRoutes } from "./proxy-memory.routes.js";
 import { createWorkspaceProxyRoutes } from "./proxy-workspace.routes.js";
 
 const gatewayRouteModules = [
@@ -16,6 +17,7 @@ const gatewayRouteModules = [
   createConversationProxyRoutes,
   createRuntimeProxyRoutes,
   createKnowledgeProxyRoutes,
+  createMemoryProxyRoutes,
 ] as const;
 
 export function createGatewayApiRouter(context: GatewayHttpContext): Router {

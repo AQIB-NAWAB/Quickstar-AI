@@ -1,0 +1,6 @@
+export const MAX_FACTS_PER_SUBJECT = 50;
+export const MAX_FACT_TEXT_LENGTH = 2048;
+export const MAX_FACT_KEY_LENGTH = 128;
+export const MAX_SUBJECT_KEY_LENGTH = 255;
+export const DEFAULT_FACTS_READ_LIMIT = 20;
+export const MAX_FACTS_READ_LIMIT = 20;

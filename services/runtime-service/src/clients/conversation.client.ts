@@ -5,6 +5,7 @@ export type ConversationInfo = {
   id: string;
   workspace_id: string;
   agent_id: string | null;
+  subject_key?: string | null;
   last_seq: number;
 };
 

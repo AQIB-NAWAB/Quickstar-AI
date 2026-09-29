@@ -14,6 +14,7 @@ import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { WorkspaceRole } from "@quickstart/contracts";
 import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
+import type { MemoryClient, MemoryFact } from "../clients/memory.client.js";
 import { createHttpServer } from "../http/create-server.js";
 import { TurnsService } from "../services/turns.service.js";
 
@@ -150,6 +151,18 @@ export class MockWorkspaceAccess implements WorkspaceAccessClient {
   }
 }
 
+export class MockMemoryClient implements Partial<MemoryClient> {
+  public facts: MemoryFact[] = [];
+  public shouldFail = false;
+
+  async listFacts(): Promise<MemoryFact[]> {
+    if (this.shouldFail) {
+      return [];
+    }
+    return this.facts;
+  }
+}
+
 export class MockKnowledgeClient implements Partial<KnowledgeClient> {
   public readyCountValue = 0;
   public chunks: Array<{ chunk_id: string; source_id: string; text: string; score: number }> = [];
@@ -166,9 +179,11 @@ export class MockKnowledgeClient implements Partial<KnowledgeClient> {
 export class MockModelGatewayClient implements Partial<ModelGatewayClient> {
   public callCount = 0;
   public cannedResponse = "Hello! I am your agent.";
+  public lastMessages: CompletionRequestBody["messages"] = [];
 
   async complete(body: CompletionRequestBody): Promise<CompletionResponseBody> {
     this.callCount += 1;
+    this.lastMessages = body.messages;
     return {
       content: this.cannedResponse,
       finish_reason: "stop",
@@ -187,6 +202,7 @@ export async function withRuntimeServer(
     convClient: MockConversationClient;
     modelClient: MockModelGatewayClient;
     knowledgeClient: MockKnowledgeClient;
+    memoryClient: MockMemoryClient;
     workspaceAccess: MockWorkspaceAccess;
     createToken: (userId?: string, orgId?: string) => Promise<string>;
   }) => Promise<void>,
@@ -195,6 +211,7 @@ export async function withRuntimeServer(
   const convClient = new MockConversationClient();
   const modelClient = new MockModelGatewayClient();
   const knowledgeClient = new MockKnowledgeClient();
+  const memoryClient = new MockMemoryClient();
   const workspaceAccess = new MockWorkspaceAccess();
 
   const turnsService = new TurnsService(
@@ -202,6 +219,7 @@ export async function withRuntimeServer(
     convClient as unknown as ConversationClient,
     modelClient as unknown as ModelGatewayClient,
     knowledgeClient as unknown as KnowledgeClient,
+    memoryClient as unknown as MemoryClient,
   );
 
   const logger = createLogger({ service: "service-runtime-test" });
@@ -226,6 +244,7 @@ export async function withRuntimeServer(
       convClient,
       modelClient,
       knowledgeClient,
+      memoryClient,
       workspaceAccess,
       createToken: (userId, orgId) => createTestToken(userId, orgId),
     });

@@ -6,6 +6,7 @@ export function toConversation(entity: ConversationEntity): Conversation {
     id: entity.id,
     workspaceId: entity.workspaceId,
     agentId: entity.agentId,
+    subjectKey: entity.subjectKey ?? null,
     lastSeq: entity.lastSeq,
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,

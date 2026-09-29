@@ -6,6 +6,8 @@ export type RuntimeConfig = {
   modelGatewayInternalToken: string;
   knowledgeServiceUrl: string;
   knowledgeInternalToken: string;
+  memoryServiceUrl: string;
+  memoryInternalToken: string;
   redisUrl: string;
   jwtAccessSecret: string;
   workspaceUrl: string;
@@ -31,6 +33,11 @@ export function loadRuntimeConfig(): RuntimeConfig {
     knowledgeServiceUrl: (process.env.KNOWLEDGE_SERVICE_URL ?? process.env.KNOWLEDGE_URL ?? "http://127.0.0.1:3009").replace(/\/$/, ""),
     knowledgeInternalToken:
       process.env.KNOWLEDGE_INTERNAL_TOKEN ??
+      process.env.INTERNAL_TOKEN ??
+      "local-dev-token-at-least-32-characters-long",
+    memoryServiceUrl: (process.env.MEMORY_SERVICE_URL ?? process.env.MEMORY_URL ?? "http://127.0.0.1:3010").replace(/\/$/, ""),
+    memoryInternalToken:
+      process.env.MEMORY_INTERNAL_TOKEN ??
       process.env.INTERNAL_TOKEN ??
       "local-dev-token-at-least-32-characters-long",
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",

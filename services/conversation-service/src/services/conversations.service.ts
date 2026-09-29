@@ -5,10 +5,22 @@ import type { AppendMessageResult, ConversationStore } from "../repository/types
 export class ConversationsService {
   constructor(private readonly store: ConversationStore) {}
 
-  async createConversation(workspaceId: string, agentId?: string | null): Promise<Conversation> {
+  async createConversation(
+    workspaceId: string,
+    agentId?: string | null,
+    subjectKey?: string | null,
+  ): Promise<Conversation> {
+    const trimmedSubject = subjectKey?.trim();
+    if (trimmedSubject && trimmedSubject.length > 255) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "subject_key must be at most 255 characters",
+      });
+    }
     return this.store.createConversation({
       workspaceId,
       agentId,
+      subjectKey: trimmedSubject ? trimmedSubject : null,
     });
   }
 
