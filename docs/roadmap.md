@@ -294,15 +294,23 @@ Update these lines every day.
 | P6 | Metrics that survive two copies | gateway | P5 | not_started |
 | P7 | CI: test, image build, no manual laptop-only steps | P1 | P8 | not_started |
 | P8 | Network picture: public gateway, private services | P2 | P7 | not_started |
-| F1 | Frontend foundation (Next.js app, auth, layout) | 04, 05, 06 | F2 | not_started |
-| F2 | Agent management UI | F1, 07, 08 | F3 | not_started |
-| F3 | Conversation inbox and chat UI | F1, 09, 18 | F2 | not_started |
-| F4 | Knowledge and memory UI | F1, 11, 14 | F3 | not_started |
-| F5 | Analytics and usage UI | F1, 26 | F4 | not_started |
+| F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | not_started |
+| F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | not_started |
+| F3 | Knowledge and memory UI | F1, 11, 14 | F2 | not_started |
+| F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | not_started |
+| F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
+| F6 | Outbound voice and campaign management UI | F1, 21C, 23 | F5 | not_started |
+| F7 | Leads management UI | F1, 24 | F6 | not_started |
+| F8 | Workflow and event builder UI | F1, 19, 20 | F7 | not_started |
+| F9 | Analytics and usage UI | F1, 26 | F8 | not_started |
+| F10 | Workspace settings — members, roles, API keys, billing, secrets | F1, 04, 05, 16 | F9 | not_started |
+| F11 | Agent evaluation UI | F1, 25 | F9 | not_started |
+| F12 | Audit log and notification center | F1, 27 | F11 | not_started |
+| F13 | Developer portal — API reference, SDK docs, webhooks | F1, public API | F12 | not_started |
 
 Platform labs **P1–P8** are real features. Either person can take one lab while the other takes a product feature (08, 09, …), as long as you do not edit the same files. Labs are how we learn Docker, Kubernetes, and cloud **by shipping**.
 
-Frontend features **F1–F5** are the staff-facing web application. They sit beside product features and do not edit service directories. Each F-slot must ship a working page with tests. No frontend slot is done unless it works against the local gateway on port 3000 with a real API call.
+Frontend features **F1–F13** are the complete staff web application and public surfaces. They live in `apps/web/` (Next.js). No F-slot touches any service directory. Each slot must ship working pages that call the gateway on port 3000.
 
 ---
 
@@ -2852,13 +2860,17 @@ We will not have a year of on-call practice. We will have a system another engin
 | 2026-09-28 | 11 | `knowledge-service` :3009, SQS worker, OpenSearch, gateway proxy, ADR 0013 | Text sources only; no URL ingest via 10B yet |
 | 2026-09-28 | 13 | Runtime `KnowledgeClient`, internal retrieve, message metadata | Match search v1; no reranker |
 | 2026-09-28 | 14 | `memory-service` :3010, `conversations.subject_key`, runtime inject, ADR 0014 | No auto-extract; no vector memory; widget 17 not wired |
-| 2026-09-29 | roadmap | Added frontend slots F1–F5 to board and Section 35 | No frontend code yet; F1 is the gating slot |
+| 2026-09-29 | roadmap | Replaced frontend slots F1–F5 with complete F1–F13 roadmap | All 13 frontend slots documented with full detail; Section 35 fully rewritten |
 
 ---
 
-## 35. Frontend features (F1–F5) — Staff web application
+## 35. Frontend Features (F1–F13) — Staff Web Application
 
-The API surface is complete enough to build a staff console. These five slots cover the full admin web application in dependency order. Each slot lives in `apps/web/` (Next.js). It does not touch any service directory. Both people can work in parallel — one on an F-slot, one on a product or platform feature — as long as they do not edit the same page files.
+The API surface is complete enough to begin building the staff console and public surfaces.
+These thirteen slots cover the complete frontend application in dependency order.
+All slots live in `apps/web/` (Next.js App Router).
+No slot touches any service directory.
+Both people can work in parallel — one on an F-slot, one on a product or platform feature — as long as they do not edit the same page files.
 
 Words for this section:
 
@@ -2866,57 +2878,65 @@ Words for this section:
 | --- | --- |
 | Staff user | An organization member logged into the dashboard (not the end-user of the widget). |
 | Publishable key | A workspace-scoped key safe to embed in a browser. Issued by Feature 17. |
-| Admin console | The Next.js web app. It calls the public gateway on port 3000 only. |
-| Route group | A Next.js App Router layout boundary. Use `(auth)` and `(app)` groups. |
+| Admin console | The Next.js web app at `apps/web/`. It calls the public gateway on port 3000 only. |
+| Route group | A Next.js App Router layout boundary. Use `(public)`, `(auth)`, and `(app)` groups. |
 | Server component | A Next.js component that runs on the server. It can read cookies and call the gateway. |
-| Client component | A `"use client"` component. It runs in the browser. Keep secret-adjacent work out of client components. |
+| Client component | A `"use client"` component that runs in the browser. Keep secret-adjacent work out of client components. |
 
 Rules that do not change:
 
 1. The admin console calls only `http://localhost:3000` (gateway). It never calls a service port directly.
-2. Every page that shows workspace data must send the JWT. A missing or expired token redirects to login.
-3. No workspace data can appear on a page before the membership check passes. A missing `workspace_id` guard on the API is already a bug in the service. The UI must not paper over it.
-4. Forms that write data use server actions or POST to the gateway. They never call service ports from the browser.
-5. Error states are pages, not console logs. A failed API call must show a typed message the user can act on.
+2. JWT lives in an HTTP-only, `SameSite=Lax`, `Secure` cookie. Never `localStorage`.
+3. Every authenticated page sends the JWT. A missing or expired token redirects to login.
+4. No workspace data can appear on a page before the membership check passes.
+5. Forms that write data use server actions or `POST` to the gateway. They never call service ports from the browser.
+6. Error states are pages, not console logs. A failed API call shows a typed message the user can act on.
+7. Every page is responsive — 375px, 768px, 1280px, and 2560px+.
 
 ---
 
-### Feature F1 — Frontend foundation (Next.js app, auth, layout, shared design system)
+### Feature F1 — Frontend Foundation (Landing Page, Auth, Layout, Design System)
 
 **Status:** `not_started`
 **Needs:** identity (04), workspace (05), gateway (06)
 **Can run beside:** any product feature that does not edit `apps/web/`
-**Deep topic:** cookie-based JWT refresh in a server-rendered app
+**Deep topic:** cookie-based JWT refresh in a server-rendered app; public vs authenticated routing
 
 #### Pre-context
 
-All backend APIs exist on the gateway at port 3000. There is no staff-facing web application in this repo. Every feature from 04 onward has been built and tested with `curl` or Postman only. This slot creates the foundation every later F-slot builds on.
+No frontend exists. All backend APIs are tested with curl only. This slot is the gate for all other F-slots. It also includes the public-facing landing/marketing page — the first thing anyone sees when they visit the product URL.
 
 #### What this is
 
-A Next.js 14+ App Router project at `apps/web/`. It handles login, JWT storage in an HTTP-only cookie, token refresh, a shared layout with sidebar navigation, and a design system (Tailwind or CSS modules — pick one and write the reason in the ADR). It does not yet display any agent or conversation data.
+A Next.js 14+ App Router project at `apps/web/` with:
+- A public-facing **landing page** at `/` — hero, feature highlights, how-it-works, pricing section, "Get started" CTA
+- **Auth pages** — login, register, forgot password, reset password
+- **HTTP-only cookie** JWT with server-side silent refresh in Next.js middleware
+- **Shared app layout** — sidebar, top bar, workspace switcher, user menu
+- **Design system** — color tokens, typography, spacing, button, input, card, badge, modal, toast, table, empty state, loading skeleton, error state
+- **Route groups** — `(public)` for landing, `(auth)` for login/register, `(app)` for authenticated pages
 
 #### Why now
 
-Every F2–F5 depends on auth, layout, and shared components. If we build F2 first, we repeat the cookie and layout work five times. The foundation is the gate.
+Every other F-slot depends on auth, layout, and shared components. The landing page is the public face of the product. Without F1, nothing else can start.
 
 #### Junior shortcut
 
-The junior stores the JWT in `localStorage`. Any script on the page can read it. An XSS on one page leaks the token for the whole session. Refresh is a manual action, so the user is logged out after 15 minutes. The URL contains the workspace id as a query parameter, so the browser history reveals which tenant the user belongs to.
+JWT stored in `localStorage`. XSS on any page leaks the token. Refresh is manual, so the user is logged out after 15 minutes. The landing page is a plain HTML file outside the app with inconsistent styles and a "Get started" link that goes nowhere.
 
 #### Production shape
 
-JWT lives in an HTTP-only, `SameSite=Lax`, `Secure` cookie. The Next.js middleware reads the cookie on every request and silently refreshes it if it is within 60 seconds of expiry. The refresh call is to the identity service through the gateway, not a direct call to identity. The workspace id is in the URL path segment (`/workspaces/[workspaceId]/...`). The sidebar shows only workspaces the logged-in user is a member of.
+JWT in HTTP-only cookie. Middleware reads the cookie on every request, silently refreshes if within 60 seconds of expiry, redirects unauthenticated requests to `/login`. A 401 on the refresh call clears the cookie and redirects to login — no infinite retry loop. Workspace id is in the URL path segment, not a query parameter.
 
 #### What breaks at scale
 
-If the refresh token is also in a cookie, two browser tabs doing a refresh at the same time can race. The identity service already handles this with `rotating_refresh_token` (only the latest refresh token is valid). The frontend must handle a 401 on the refresh call and redirect to login instead of retrying forever.
+Two browser tabs refreshing simultaneously race on the refresh token. The identity service already handles this with rotating refresh tokens. The frontend must treat a 401 on the refresh call as a hard logout, not a retry signal.
 
 #### Choice
 
-We take Next.js 14 App Router, HTTP-only cookie, server-side token refresh in middleware, and a single shared layout in `apps/web/src/app/(app)/layout.tsx`.
+Next.js 14 App Router, HTTP-only cookie, server-side middleware refresh, route groups for layout separation, single shared design system.
 
-We reject localStorage. We reject client-side-only rendering for auth-gated pages. We reject per-page token checks (middleware is the single gate).
+Rejected: `localStorage`, client-only rendering for protected pages, per-page auth checks.
 
 Cost: middleware adds a small latency on every request. We accept this because a missing check is a data leak.
 
@@ -2926,296 +2946,697 @@ The Next.js app deploys as a container (same Dockerfile pattern as services). Th
 
 #### Low-level design
 
-- `apps/web/` — new Next.js project, added to pnpm workspace
-- `apps/web/src/app/(auth)/login/page.tsx` — login form, POST to `POST /auth/login` via gateway
-- `apps/web/src/app/(auth)/register/page.tsx` — registration form
-- `apps/web/src/middleware.ts` — check cookie, refresh if near expiry, redirect to `/login` on 401
-- `apps/web/src/app/(app)/layout.tsx` — sidebar, workspace switcher, user menu
-- `apps/web/src/app/(app)/workspaces/[workspaceId]/page.tsx` — workspace home (stub, no data yet)
-- `apps/web/src/lib/api.ts` — typed fetch wrapper that reads the cookie and sends `Authorization: Bearer` to the gateway
-- Design system: color tokens, typography, button, input, card — in `apps/web/src/components/ui/`
-- `apps/web/.env.local.example` with `NEXT_PUBLIC_GATEWAY_URL=http://localhost:3000`
+Pages:
+- `/` — Landing: hero, 3-column feature highlights, how-it-works flow, pricing cards, "Get started" CTA
+- `/login` — Email + password, link to register, forgot password link
+- `/register` — Name, org name, email, password; creates org + user + workspace
+- `/forgot-password` — Email form, triggers reset email via gateway
+- `/reset-password?token=` — New password form
+- `/workspaces/[workspaceId]` — Workspace home (redirects to agents list)
+- `apps/web/src/middleware.ts` — cookie check, silent refresh, redirect to `/login` on 401
+- `apps/web/src/app/(app)/layout.tsx` — sidebar, top bar, workspace switcher, user menu
+- `apps/web/src/components/ui/` — button, input, card, badge, modal, toast, table, skeleton, empty-state, error-state
+- `apps/web/src/lib/api.ts` — typed fetch wrapper, reads cookie, sends `Authorization: Bearer` to gateway
+- `apps/web/.env.local.example` — `NEXT_PUBLIC_GATEWAY_URL=http://localhost:3000`
 
 #### Build checklist
 
 - [ ] `apps/web/` bootstrapped and added to `pnpm-workspace.yaml`
-- [ ] Login and register pages talk to gateway, JWT stored in HTTP-only cookie
-- [ ] Middleware redirects unauthenticated requests to `/login`
-- [ ] Middleware silently refreshes a near-expiry token
-- [ ] Sidebar lists workspaces from `GET /workspaces` (gateway)
-- [ ] Workspace switcher updates the URL without a full reload
-- [ ] Design system: button, input, card, sidebar, top bar
+- [ ] Landing page with hero, features, how-it-works, pricing, CTA
+- [ ] Login page — gateway call, JWT stored in HTTP-only cookie on success
+- [ ] Register page — creates org + user, redirects to workspace
+- [ ] Forgot/reset password end-to-end
+- [ ] Middleware: redirect unauthenticated to `/login`, silent refresh, hard logout on refresh 401
+- [ ] Sidebar lists user's workspaces from `GET /workspaces`
+- [ ] Workspace switcher updates URL without full reload
+- [ ] Full design system (button, input, card, badge, modal, toast, table, skeleton, empty-state, error-state)
+- [ ] Light and dark mode
+- [ ] Fully responsive (375px to 2560px+)
 - [ ] `apps/web/README.md` with `pnpm dev` and gateway URL setup
 
 #### Done when
 
-A staff user can register, log in, see their workspaces in the sidebar, switch workspace, refresh the page and remain logged in, and be redirected to login after an expired token.
+A visitor can see the landing page, click "Get started", register, log in, see workspaces in the sidebar, switch workspace, refresh and remain logged in, and be redirected to login after an expired token.
 
 #### Still unsafe
 
-No agent pages, no conversation pages, no knowledge pages. No mobile-responsive polish. No E2E test suite (Playwright setup deferred to a later slot or P7).
+No OAuth/SSO. No email verification flow. No mobile nav drawer (deferred to responsive polish pass).
 
 ---
 
-### Feature F2 — Agent management UI
+### Feature F2 — Agent Builder and Agent Settings UI
 
 **Status:** `not_started`
-**Needs:** F1, agent drafts (07), agent versions (08)
-**Can run beside:** F3 if the two pages do not share a component file being edited at the same time
-**Deep topic:** optimistic UI updates and 409 conflict handling
+**Needs:** F1, agent drafts (07), agent versions (08), tools (15), secrets (16)
+**Can run beside:** F3
+**Deep topic:** optimistic concurrency (version field), 409 conflict handling, multi-tab editing
 
 #### Pre-context
 
-Agents can be created, updated, published, and rolled back via the gateway API. There is no UI for any of this. Staff configure agents by calling `curl` or Postman.
+Agents can be created, configured, and published via the gateway API. There is no UI. Staff configure agents by curling the API. The agent object has many sub-sections: identity, instructions, model, tools, knowledge, memory, guardrails, channels.
 
 #### What this is
 
-A set of pages under `apps/web/src/app/(app)/workspaces/[workspaceId]/agents/` that let staff create and edit agent drafts, publish versions, view the version history, and roll back to a previous version.
+The full agent builder with a tabbed settings page, publish flow, version history, rollback, and an in-page test chat panel.
 
 #### Why now
 
-The widget (Feature 17) needs a published agent to answer. Without a UI to publish, every demo requires a terminal command. Customers cannot self-serve.
+The widget and voice platform both need a published agent. Without a UI to configure and publish, every demo is a curl command. Customers cannot self-serve.
 
 #### Junior shortcut
 
-The junior edits the draft and calls `PUT /agents/:id` on every keystroke. Two browser tabs editing the same agent race and one silently loses changes. Publishing is a button that calls publish even when the draft has unsaved edits — the published version is the last save, not the current form state.
+Single long form, saves on every keystroke. Two tabs editing the same agent race and one silently overwrites the other. Publish fires even when there are unsaved form changes. No confirmation before publishing to production.
 
 #### Production shape
 
-Form state is local. Save is an explicit action. The save call sends the current `version` field for optimistic concurrency. A 409 means another actor saved first: show a diff and let the user choose which wins. Publish is a separate button, disabled until the draft is saved. The version list shows who published each version and when.
+Form state is local. Save is explicit and sends the current `version` field (optimistic concurrency). A 409 means another actor saved first — show a diff and let the user choose. Publish is a separate button, disabled until the draft is saved. Publish shows a confirmation modal. After publish, the version history updates immediately.
 
 #### What breaks at scale
 
-With 100,000 agents, the agents list must be paginated with a cursor. A `SELECT *` returning all agents for a workspace will not load. The API already supports cursor pagination; the UI must use it.
+With 100,000 agents, the list must paginate with a cursor. A `SELECT *` returning all agents for a workspace will not load.
 
 #### Choice
 
-We take explicit save, optimistic concurrency (version field), and a read-only version history list.
+Explicit save, optimistic concurrency (version field), read-only version history list.
 
-We reject auto-save on keystroke (too many requests, race conditions). We reject overwriting on conflict (silent data loss).
+Rejected: auto-save on keystroke (too many requests, race conditions), overwriting on conflict (silent data loss).
 
 #### Low-level design
 
-- `agents/page.tsx` — paginated list, create button
-- `agents/new/page.tsx` — create form
-- `agents/[agentId]/page.tsx` — edit draft, save, publish
-- `agents/[agentId]/versions/page.tsx` — version history, rollback button
-- `apps/web/src/lib/agents.ts` — typed API calls: list, get, create, update, publish, rollback
-- Error state: 409 on save shows a conflict banner, not a silent overwrite
-- Test: publish button is disabled when the form has unsaved changes
+Pages:
+- `agents/page.tsx` — paginated agent list, search by name, create button, archive filter
+- `agents/new/page.tsx` — create agent (name, description, channel selection)
+- `agents/[agentId]/page.tsx` — agent detail shell with 8 tabs:
+  - **Identity** — name, description, avatar, agent purpose
+  - **Instructions** — system prompt editor with character count and live token estimate
+  - **Model** — model selector (list from model gateway), temperature, max tokens, streaming toggle, fallback model
+  - **Tools** — attached tools list, add/remove, per-tool permission (allowed/denied)
+  - **Knowledge** — attached knowledge sources, add/remove
+  - **Memory** — memory on/off toggle, subject_key source config
+  - **Guardrails** — topic blocklist, max response length, content policy flags
+  - **Channels** — chat/voice/API toggles, publishable key for widget, voice profile settings
+- `agents/[agentId]/versions/page.tsx` — version history: version number, author, timestamp, status (production/archived); rollback button + confirmation
+- `agents/[agentId]/test/page.tsx` — test chat side panel against the draft (calls runtime with test flag; tool calls shown inline)
+- `apps/web/src/lib/agents.ts` — typed API: list, get, create, update, publish, rollback, delete
 
 #### Build checklist
 
-- [ ] List agents with cursor pagination
-- [ ] Create agent form (name, instructions, model settings)
-- [ ] Edit draft with explicit save and optimistic concurrency
-- [ ] Publish current draft to a new version
-- [ ] View version history with author and timestamp
-- [ ] Rollback to a previous version with a confirmation modal
-- [ ] 409 conflict state handled with a visible message
+- [ ] Agent list with cursor pagination, search, archive filter
+- [ ] Create agent form (name, description, channel selection)
+- [ ] All 8 setting tabs built and connected to gateway API
+- [ ] System prompt editor with live token count estimate
+- [ ] Model selector populated from model gateway API
+- [ ] Tool attach/detach with per-tool permission toggle
+- [ ] Knowledge source attach/detach
+- [ ] Explicit save with optimistic concurrency (version field)
+- [ ] 409 conflict shown as visible banner with diff — not silent overwrite
+- [ ] Publish button disabled when unsaved changes exist
+- [ ] Publish confirmation modal
+- [ ] Version history table with rollback + confirmation
+- [ ] Test chat side panel (tool calls inline in thread)
+- [ ] Archive/delete agent with confirmation
 
 #### Done when
 
-A staff user can create an agent, edit its instructions, save, publish, and see the new version appear in the history list. Rollback restores the previous version and the draft reflects it.
+Staff can create an agent, configure all 8 tabs, save, publish, see the version in history, rollback, and test the draft in the side panel.
 
 #### Still unsafe
 
-No tool configuration UI (Feature 15). No secrets UI (Feature 16). No preview-chat inside the dashboard.
+No agent clone/duplicate. No A/B version comparison UI. No drag-and-drop tool reordering.
 
 ---
 
-### Feature F3 — Conversation inbox and chat UI
+### Feature F3 — Knowledge and Memory UI
+
+**Status:** `not_started`
+**Needs:** F1, knowledge ingest (11), memory (14)
+**Can run beside:** F2
+**Deep topic:** async ingest status polling with terminal stop condition; cross-system delete (UI must not orchestrate multi-system cleanup itself)
+
+#### Pre-context
+
+Staff can upload knowledge sources and read memory facts via the gateway API. There is no UI. The SQS ingest worker runs in the background and staff have no visibility into ingest status.
+
+#### What this is
+
+Pages for managing workspace knowledge sources and customer memory facts.
+
+#### Why now
+
+Retrieval (Feature 13) works but knowledge sources are invisible to non-technical users. Memory facts cannot be reviewed or removed without curl.
+
+#### Junior shortcut
+
+The junior adds a source and shows a spinner with no timeout. If the SQS worker fails silently, the spinner spins forever. The delete action removes only the Postgres row, leaving OpenSearch chunks and S3 objects orphaned.
+
+#### Production shape
+
+Source status polled with a 5-second interval that stops after `status === 'ready'` or `status === 'failed'`. Failed sources show the error reason. Delete calls a single API endpoint that removes the Postgres row, OpenSearch chunks, and S3 object — the service owns cross-system cleanup, not the UI.
+
+#### Low-level design
+
+Pages:
+- `knowledge/page.tsx` — paginated source list: status badges (pending, processing, ready, failed), source type, name, chunk count, created at; filter by status; search by name
+- `knowledge/new/page.tsx` — add source: type selector (URL, file upload, plain text), name, description
+- `knowledge/[sourceId]/page.tsx` — source detail: status, error reason if failed, chunk count, re-ingest button, delete button
+- `knowledge/[sourceId]/chunks/page.tsx` — paginated chunk list (for retrieval debugging): chunk text preview, embedding status
+- `memory/page.tsx` — paginated fact list, filter by subject_key, search by fact text
+- `memory/[factId]/page.tsx` — fact detail, edit fact text, delete with confirmation (GDPR)
+- `memory/subject/[subjectKey]/page.tsx` — all facts for one subject_key; bulk erase all (GDPR)
+- `useSourceStatus(sourceId)` hook — polls every 5 seconds, stops on terminal state, shows error reason on failed
+
+#### Build checklist
+
+- [ ] Knowledge source list with status badges, filter, search
+- [ ] Add source form (URL, file upload, plain text)
+- [ ] Status polling hook — terminal stop, error reason on failed
+- [ ] Delete source — single API call (service owns cross-system cleanup), optimistic removal
+- [ ] Re-ingest button
+- [ ] Chunk viewer (paginated)
+- [ ] Memory fact list with subject_key filter and cursor pagination
+- [ ] Edit fact inline
+- [ ] Delete fact with confirmation (GDPR)
+- [ ] All facts by subject_key with bulk GDPR erase
+
+#### Done when
+
+Staff can add a source, watch it go from processing to ready, view chunks, delete a source, and list/edit/delete memory facts including bulk GDPR erase.
+
+#### Still unsafe
+
+No file upload progress bar. No citation link from inbox back to source chunk. No bulk delete of sources.
+
+---
+
+### Feature F4 — Conversation Inbox and Live Chat UI
 
 **Status:** `not_started`
 **Needs:** F1, conversations (09), inbox and human handoff (18)
 **Can run beside:** F2
-**Deep topic:** cursor-based pagination and real-time message streaming in SSE
+**Deep topic:** cursor pagination, after_seq message append, SSE streaming, 409 race condition on take
 
 #### Pre-context
 
-Conversations and messages exist in Postgres. Feature 18 adds assignee and state columns. There is no UI to see the conversation list, read messages, or take a conversation as a human agent.
+Conversations and messages exist in Postgres. Feature 18 adds state and assignee. There is no UI to read conversations or take over as a human agent.
 
 #### What this is
 
-An inbox view under `apps/web/src/app/(app)/workspaces/[workspaceId]/inbox/` that lists conversations with state and assignee, lets a staff user open a thread, read the full message history, take ownership, send human messages, and release back to the bot.
-
-#### Why now
-
-Feature 18 (inbox and human handoff) ships an API. Without a UI, the feature is unused in practice. Staff must use `curl` to take a chat. That is not a shipped product.
+A full conversation inbox where staff can see all workspace conversations, open a thread, read history, take over from the AI, send human messages, and release back to the bot.
 
 #### Junior shortcut
 
-The junior polls `GET /conversations` every second to check for new messages. At 10,000 concurrent chats, 10,000 browser tabs each polling every second is 10,000 requests per second on the gateway — the full sustained target for the entire platform, used by the inbox alone. The message list fetches all messages on every render instead of using the cursor.
+Polls `GET /conversations` every second for new messages. At 10,000 concurrent chats, 10,000 browser tabs each polling every second is the full sustained gateway target used by the inbox alone. The message list fetches all messages on every render instead of using the cursor.
 
 #### Production shape
 
-The inbox list uses cursor pagination. The message thread uses SSE (`GET /conversations/:id/stream` if streaming is implemented, or long-polling with `after_seq` on a reasonable interval). New messages append at the bottom without a full list refresh. Take and release are single-button actions that hit the API and update local state optimistically, then reconcile on the server response.
-
-#### What breaks at scale
-
-Pagination is required on both the inbox list and the message thread. A thread with 50,000 messages must load the last 50, not all 50,000. The API already returns `seq` on every message; the UI must use `after_seq` for append-only fetches.
-
-#### Choice
-
-We take cursor pagination for the list, `after_seq` for message append, and SSE if the runtime streaming endpoint exists, otherwise a 3-second poll with `after_seq`.
-
-We reject full-page refresh on new messages. We reject loading all messages at once.
+Inbox list uses cursor pagination. Message thread uses SSE when available, or after_seq polling at a 3-second interval. New messages append at the bottom without a full list refresh. Take and release are single-button actions with optimistic local state update and server reconciliation.
 
 #### Low-level design
 
-- `inbox/page.tsx` — paginated conversation list, filter by state (bot, waiting, human)
-- `inbox/[conversationId]/page.tsx` — message thread, take, release, send human message
-- `apps/web/src/lib/conversations.ts` — typed API calls: list, get, messages, take, release, send
-- SSE or poll hook: `useMessages(conversationId, afterSeq)` — appends without replacement
-- Take button: calls `POST .../take`, disables if state is not `waiting`, shows 409 if another agent took it first
+Pages:
+- `inbox/page.tsx` — conversation list: filter tabs (All, Bot, Waiting, Human, Resolved), search by subject_key or content, cursor pagination, unread count badge on sidebar nav
+- `inbox/[conversationId]/page.tsx` — message thread:
+  - Last 50 messages on open, scroll up to load earlier via cursor
+  - Message bubbles: role (ai, human, system), timestamp, tool call events shown inline
+  - New messages appended via after_seq poll or SSE
+  - Right panel: channel, subject_key, assignee, state, started at, tags
+  - Take button (disabled unless state is `waiting`; 409 toast if race lost)
+  - Release button (returns to AI)
+  - Resolve button
+  - Human message input + send
+- `inbox/[conversationId]/transcript/page.tsx` — full printable transcript
+- `useMessages(conversationId, afterSeq)` hook — appends without replacement
 
 #### Build checklist
 
-- [ ] Inbox list with cursor pagination and state filter tabs (all, waiting, human)
-- [ ] Message thread with cursor-loaded history (last 50 messages on load)
-- [ ] Append new messages with `after_seq` fetch or SSE
-- [ ] Take button: disables when state is not `waiting`, handles 409
-- [ ] Release button: returns conversation to bot
-- [ ] Send human message input (role `human`)
-- [ ] Unread count badge on inbox nav item
+- [ ] Inbox list with filter tabs (All, Bot, Waiting, Human, Resolved)
+- [ ] Search by subject_key and message content
+- [ ] Unread count badge on sidebar nav item
+- [ ] Message thread with last-50 load, scroll-up to load earlier
+- [ ] New message append via after_seq poll (SSE when streaming ships)
+- [ ] Tool call events shown inline in thread
+- [ ] Take button — disabled when not `waiting`, 409 toast on race
+- [ ] Release button
+- [ ] Resolve button
+- [ ] Human message input and send
+- [ ] Right panel conversation metadata
+- [ ] Printable transcript view
 
 #### Done when
 
-A staff user can open the inbox, see conversations by state, open a thread, read all messages, take the conversation, send a human reply, and confirm the bot does not reply while state is `human`.
+Staff can open a conversation, read history, take it from the AI, send a human reply, confirm the bot is silent while state is `human`, and release back to the AI.
 
 #### Still unsafe
 
-No push notification for new conversations. No mobile layout. Real-time via SSE requires streaming support from the runtime (Feature 17 prerequisite); fall back to 3-second poll if streaming is not yet shipped.
+No push notifications for new conversations. No audio playback for voice transcripts from this view (covered in F5).
 
 ---
 
-### Feature F4 — Knowledge and memory UI
+### Feature F5 — Inbound Voice UI (Call Logs, Live Calls, Transcripts)
 
 **Status:** `not_started`
-**Needs:** F1, knowledge ingest (11), memory (14)
-**Can run beside:** F3
-**Deep topic:** async job status polling and progressive disclosure of ingest pipeline state
+**Needs:** F1, voice path (21), speech providers (21B)
+**Can run beside:** F6
+**Deep topic:** realtime call state polling; STT/LLM/TTS latency stage breakdown per turn; live transcript streaming
 
 #### Pre-context
 
-Staff can upload knowledge sources and read memory facts via the gateway API. There is no UI. Ingest is a background SQS job. The staff member has no visibility into whether their source is ready, processing, or failed.
+The voice service handles inbound calls. There is no UI to see active calls, completed call logs, or transcripts.
 
 #### What this is
 
-Pages under `apps/web/src/app/(app)/workspaces/[workspaceId]/knowledge/` and `.../memory/` that let staff add, view, and delete knowledge sources, see ingest status, manage memory facts, and delete facts for GDPR-style requests.
-
-#### Why now
-
-Retrieval (Feature 13) works but knowledge sources are invisible to non-technical users. A customer cannot add a new document without API access. Memory facts cannot be reviewed or removed without `curl`.
-
-#### Junior shortcut
-
-The junior adds a source, waits for the status to change, and shows a spinner with no timeout. If the SQS worker fails silently, the spinner spins forever and the user has no recourse. The delete action removes only the Postgres row and leaves the OpenSearch chunks and S3 object orphaned (covered by the multi-system data rule in global rules).
-
-#### Production shape
-
-Source status is polled with a 5-second interval that stops after `status === 'ready'` or `status === 'failed'`. Failed sources show the error reason from the `error_message` column. Delete calls a single API endpoint that removes the Postgres row, the OpenSearch chunks, and the S3 object — all in one operation from the knowledge service. The UI does not orchestrate deletions across systems itself.
-
-#### What breaks at scale
-
-A workspace with thousands of sources needs a paginated list. An ingest that fails must show a typed error so the user can fix the source URL or file, not re-upload blindly.
-
-#### Choice
-
-We take 5-second status polling with a stop condition, a typed error state on failure, and a single delete API call (the service owns cross-system cleanup).
-
-We reject infinite spinners. We reject UI-orchestrated multi-step delete.
+Pages for monitoring inbound voice calls — live and historical — with call detail, turn-by-turn transcript, and stage latency breakdown.
 
 #### Low-level design
 
-- `knowledge/page.tsx` — paginated source list with status badges (processing, ready, failed)
-- `knowledge/new/page.tsx` — add source form (URL or file upload)
-- `knowledge/[sourceId]/page.tsx` — source detail, re-ingest, delete
-- `memory/page.tsx` — paginated fact list with subject key filter
-- `memory/[factId]/page.tsx` — fact detail, edit, delete
-- `apps/web/src/lib/knowledge.ts` — typed API calls: list, create, get, delete source
-- `apps/web/src/lib/memory.ts` — typed API calls: list, get, update, delete fact
-- `useSourceStatus(sourceId)` hook — polls every 5s, stops on terminal state
+Pages:
+- `voice/inbound/page.tsx` — call log: status badges (live, completed, failed, transferred), caller ID, duration, agent used, started at; filter by status and date range; cursor pagination
+- `voice/inbound/live/page.tsx` — live call dashboard: all active inbound calls with real-time duration counter, caller ID, agent in use
+- `voice/inbound/[callId]/page.tsx` — call detail:
+  - Metadata: caller, agent, status, duration, disposition
+  - Live status indicator if call is still active
+  - Stage latency per turn: STT latency / LLM latency / TTS latency (from OTel trace data)
+  - Turn-by-turn transcript: speaker labels (AI / Caller), timestamps, tool calls inline
+  - Audio playback if recording exists
+  - Link to corresponding conversation in inbox
+- `useCallStatus(callId)` hook — polls every 3 seconds while call is live, stops on terminal state
 
 #### Build checklist
 
-- [ ] Knowledge source list with status badges
-- [ ] Add source form (URL input and file upload)
-- [ ] Status polling hook — stops on ready or failed, shows error message on failed
-- [ ] Delete source — single API call, optimistic removal from list
-- [ ] Memory fact list with subject key filter and cursor pagination
-- [ ] Delete fact with confirmation modal
-- [ ] Edit fact inline or on detail page
+- [ ] Inbound call log with status filter and date range
+- [ ] Cursor pagination on call log
+- [ ] Live call dashboard with real-time duration counters
+- [ ] Call detail: metadata, live status indicator
+- [ ] Stage latency breakdown per turn (STT / LLM / TTS)
+- [ ] Turn-by-turn transcript with speaker labels and inline tool events
+- [ ] Audio playback from recording URL
+- [ ] Link to conversation inbox thread
 
 #### Done when
 
-A staff user can add a knowledge source, watch it transition from processing to ready without refreshing the page, delete a source and confirm it disappears from the list, and list, edit, and delete memory facts by subject key.
+Staff can see all live inbound calls, open a call, read the turn-by-turn transcript, see the latency per stage, and play back the recording.
 
 #### Still unsafe
 
-No file upload progress bar (chunked upload deferred). No bulk delete. No preview of which chunks a source produced. Citation links from the chat UI are deferred to F3 polish.
+No live listen-in audio stream. No call transfer trigger from the UI. No voicemail playback.
 
 ---
 
-### Feature F5 — Analytics and usage UI
+### Feature F6 — Outbound Voice and Campaign Management UI
+
+**Status:** `not_started`
+**Needs:** F1, telephony (21C), campaigns (23)
+**Can run beside:** F5
+**Deep topic:** campaign state machine (draft→scheduled→running→paused→completed); concurrency cap configuration; retry policy builder
+
+#### Pre-context
+
+The campaign service handles outbound calling campaigns. There is no UI to create, manage, or monitor campaigns, and no outbound call log UI.
+
+#### What this is
+
+Full campaign management and outbound call log pages.
+
+#### Why now
+
+Feature 23 (campaigns) ships an API. Without a UI, staff cannot create or monitor outbound campaigns without writing API calls by hand. Customers cannot run campaigns at all.
+
+#### Junior shortcut
+
+Clicking "launch" fires the campaign without an audience, schedule, or retry policy. There is no per-contact status. The concurrency cap is not configurable, so one campaign can saturate all voice slots.
+
+#### Production shape
+
+Campaign creation is a 5-step wizard with per-step validation. The campaign detail page polls live metrics. Pause, Resume, and Stop are explicit actions with confirmation modals. Per-contact status is paginated with a cursor.
+
+#### Low-level design
+
+Pages:
+- `campaigns/page.tsx` — campaign list: status badges (draft, scheduled, running, paused, completed, failed), audience size, calls made/total progress bar, success rate; filter by status; cursor pagination
+- `campaigns/new/page.tsx` — campaign creation wizard (5 steps):
+  - Step 1: Name, description, which agent to use
+  - Step 2: Audience — upload CSV (column mapping: phone, name, custom fields) or select saved lead list
+  - Step 3: Schedule — start datetime, timezone, daily call window (from/to hours), max concurrent calls cap
+  - Step 4: Retry policy — max retries per contact, retry interval, no-answer handling, voicemail handling
+  - Step 5: Review summary, launch or save as draft
+- `campaigns/[campaignId]/page.tsx` — campaign detail: status cards (total contacts, calls made, answered, success rate, avg duration), live metrics (active now, queued, failed, retrying), progress bar, calls-per-hour timeline chart, Pause/Resume/Stop with confirmation
+- `campaigns/[campaignId]/contacts/page.tsx` — per-contact status: name, phone, status (pending/called/answered/no-answer/voicemail/opted-out/failed), attempt count, last attempt; filter by status; cursor pagination
+- `campaigns/[campaignId]/contacts/[contactId]/page.tsx` — contact attempt history within this campaign
+- `voice/outbound/page.tsx` — outbound call log across all campaigns
+- `voice/outbound/[callId]/page.tsx` — outbound call detail (transcript, latency breakdown, audio playback)
+
+#### Build checklist
+
+- [ ] Campaign list with status filters and cursor pagination
+- [ ] Create campaign wizard (5 steps with per-step validation)
+- [ ] CSV audience upload with column mapping preview
+- [ ] Lead list selector as audience source
+- [ ] Campaign detail with live metrics cards and progress bar
+- [ ] Calls-per-hour timeline chart
+- [ ] Pause, Resume, Stop with confirmation modals
+- [ ] Per-contact status table with filter and cursor pagination
+- [ ] Contact attempt history with links to call detail
+- [ ] Outbound call log list
+- [ ] Outbound call detail (transcript, latency, audio)
+- [ ] Opt-out status visible on contact row
+
+#### Done when
+
+Staff can create a campaign, upload an audience CSV, schedule it, launch it, watch per-contact progress in real time, pause it, and see outbound call transcripts.
+
+#### Still unsafe
+
+No A/B campaign testing. No SMS/email fallback channel. No drag-and-drop audience builder.
+
+---
+
+### Feature F7 — Leads Management UI
+
+**Status:** `not_started`
+**Needs:** F1, leads (24)
+**Can run beside:** F6
+**Deep topic:** lead lifecycle (new→qualified→contacted→converted/lost); source attribution
+
+#### Pre-context
+
+Leads are created from conversations, campaigns, and the API. There is no UI to view, score, or manage them.
+
+#### Low-level design
+
+Pages:
+- `leads/page.tsx` — lead list: name, phone, email, source (chat/voice/campaign/API/manual), score, status (new, qualified, contacted, converted, lost), created at; filter by status and score range; search by name/email/phone; cursor pagination
+- `leads/new/page.tsx` — manually create a lead (name, phone, email, custom fields, notes)
+- `leads/[leadId]/page.tsx` — lead detail:
+  - Contact information card
+  - Lead score with scoring breakdown by factor
+  - Status selector dropdown
+  - Notes textarea (saved on blur)
+  - Activity timeline: conversations, voice calls, campaign touches, status changes in chronological order
+  - Assign to campaign button (modal with campaign selector)
+
+#### Build checklist
+
+- [ ] Lead list with status filter, score range filter, search by name/email/phone
+- [ ] Cursor pagination
+- [ ] Manual lead creation
+- [ ] Lead detail with scoring breakdown
+- [ ] Status update inline
+- [ ] Notes field
+- [ ] Activity timeline (conversations, calls, campaign touches, status changes)
+- [ ] Assign to campaign modal
+
+#### Done when
+
+Staff can see all leads, open a lead, read the full activity timeline across conversations and calls, update the status, add a note, and assign the lead to an outbound campaign.
+
+#### Still unsafe
+
+No CRM push from UI without a configured CRM tool. No bulk status update.
+
+---
+
+### Feature F8 — Workflow and Event Builder UI
+
+**Status:** `not_started`
+**Needs:** F1, event platform (19), workflow automation (20)
+**Can run beside:** F7
+**Deep topic:** visual trigger-condition-action builder; workflow execution run trace; idempotency of repeated triggers
+
+#### Pre-context
+
+The event platform publishes events and the workflow service can execute trigger-condition-action sequences. There is no UI to define or monitor workflows.
+
+#### What this is
+
+Pages for creating and monitoring automated workflows, and a workspace event log.
+
+#### Low-level design
+
+Pages:
+- `workflows/page.tsx` — workflow list: name, trigger event, status (active/paused/draft), last triggered at, 7-day success rate
+- `workflows/new/page.tsx` — workflow builder:
+  - Trigger: event type dropdown (full list of all platform event types)
+  - Conditions: condition rows (field / operator / value), AND/OR logic
+  - Actions (ordered list): run agent, start campaign, call webhook (URL + method + body template), wait/delay, update lead status
+  - Save as draft or activate immediately
+- `workflows/[workflowId]/page.tsx` — workflow detail in edit mode, activate/pause toggle, delete
+- `workflows/[workflowId]/runs/page.tsx` — run history: trigger event, status (success/failed/skipped), triggered at, duration; cursor pagination
+- `workflows/[workflowId]/runs/[runId]/page.tsx` — run detail: per-step input, output, and error trace; re-run button (idempotent)
+- `events/page.tsx` — workspace event log: event type, actor, resource, timestamp; filter by event type and date range; cursor pagination
+
+#### Build checklist
+
+- [ ] Workflow list with status badges
+- [ ] Workflow builder: trigger selector, condition rows (AND/OR), action sequence
+- [ ] 5 action types: run agent, start campaign, call webhook, wait/delay, update lead status
+- [ ] Save as draft and activate controls
+- [ ] Edit workflow, activate/pause toggle
+- [ ] Run history with cursor pagination
+- [ ] Run detail with per-step input/output trace
+- [ ] Re-run button on failed runs
+- [ ] Event log with type filter and date range
+
+#### Done when
+
+Staff can create a `lead.created` → condition → start campaign workflow, activate it, and see run history with a per-step trace when it fires.
+
+#### Still unsafe
+
+No drag-and-drop visual canvas. No if/else branching. No loop protection UI.
+
+---
+
+### Feature F9 — Analytics and Usage UI
 
 **Status:** `not_started`
 **Needs:** F1, usage and billing (26)
-**Can run beside:** F4
-**Deep topic:** aggregate queries, daily rollup jobs, and safe read-only displays of billing-sensitive data
+**Can run beside:** F8
+**Deep topic:** pre-aggregated daily rollup (Feature 26 job); no live aggregation from raw usage_events; stored price snapshots for cost estimates
 
 #### Pre-context
 
-Usage rows exist in Postgres after Feature 26 ships (model tokens, web acquisition units, call minutes). There is no UI to see how much a workspace has consumed. A customer cannot see their spend without direct database access.
-
-#### What this is
-
-Pages under `apps/web/src/app/(app)/workspaces/[workspaceId]/usage/` that show token consumption, web acquisition unit consumption, and voice minutes consumed — broken down by day and by agent — with a current-period total and a running cost estimate.
-
-#### Why now
-
-Feature 26 (usage and billing) ships append-only usage rows. Without a read surface, the data sits in Postgres unread. Cost overruns are invisible until an invoice arrives.
+Usage rows exist in Postgres after Feature 26 ships. There is no read surface. Cost overruns are invisible until an invoice arrives.
 
 #### Junior shortcut
 
-The junior runs `SELECT SUM(tokens) FROM usage_events WHERE workspace_id = ?` on every page load without a date filter. A workspace with millions of events makes the database do a full table scan on every dashboard visit. The cost estimate uses a live price from the vendor API on every render, so a vendor API outage takes down the usage page.
+Runs `SELECT SUM(tokens) FROM usage_events WHERE workspace_id = ?` on every page load without a date filter — full table scan on every visit. Cost estimates use live vendor prices, so a vendor API outage takes the usage page down.
 
 #### Production shape
 
-The usage API returns pre-aggregated daily totals (rollup job from Feature 26) for a date range. The UI requests a 30-day window with start and end date. Cost estimates use a stored price snapshot on the usage row (already done in Feature 26 design), not a live vendor call. The page never queries raw `usage_events` directly.
-
-#### What breaks at scale
-
-Raw aggregation of millions of usage events on every request is the failure. The rollup job from Feature 26 must exist before this page is meaningful. This slot is blocked on Feature 26. The UI must not work around a missing rollup by doing the aggregation itself.
-
-#### Choice
-
-We take pre-aggregated daily totals from the Feature 26 rollup, a date range picker for the 30-day window, and stored price snapshots.
-
-We reject live aggregation on every page load. We reject live vendor price lookups.
+UI requests pre-aggregated daily totals from the Feature 26 rollup job for a date range. Cost estimates use stored price snapshots on each usage row, not live vendor calls. No raw aggregation in the frontend.
 
 #### Low-level design
 
-- `usage/page.tsx` — date range picker, total tokens, total acquisition units, total voice minutes, estimated cost
-- `usage/agents/page.tsx` — per-agent breakdown of the same metrics
-- `apps/web/src/lib/usage.ts` — typed API calls: `GET /usage/summary?start&end`, `GET /usage/agents?start&end`
-- Chart: a simple bar chart per day (use a lightweight library such as Recharts; no heavy BI tool)
-- Export: `Download CSV` triggers `GET /usage/export?start&end` which the gateway streams as a file response
+Pages:
+- `analytics/page.tsx` — overview dashboard: total conversations, voice minutes, LLM tokens, estimated cost (current period); conversations per day bar chart; top 5 agents by token usage; top tool calls
+- `analytics/usage/page.tsx` — usage deep dive: date range picker (default 30 days), token by day (bar chart stacked by model), voice minutes by day, acquisition units by day, per-agent breakdown table, per-model breakdown table, CSV export
+- `analytics/conversations/page.tsx` — conversation metrics: resolution rate, human handoff rate, avg duration, by-channel pie chart (chat vs voice), top escalation reasons, conversation volume trend
+- `analytics/voice/page.tsx` — voice metrics: avg call duration, failed call rate, transfer rate, STT/LLM/TTS latency per day (line chart), inbound vs outbound call volume
+- `apps/web/src/lib/usage.ts` — typed API: `GET /usage/summary?start&end`, `GET /usage/agents?start&end`, `GET /usage/export`
 
 #### Build checklist
 
-- [ ] Usage summary page with date range picker (default last 30 days)
-- [ ] Total tokens, acquisition units, voice minutes, and estimated cost cards
-- [ ] Daily bar chart for token consumption
-- [ ] Per-agent breakdown table with cursor pagination
+- [ ] Overview dashboard with summary cards and daily charts
+- [ ] Date range picker (default 30 days)
+- [ ] Token + voice minutes + acquisition units per day charts
+- [ ] Per-agent breakdown with cursor pagination
+- [ ] Per-model breakdown table
 - [ ] CSV export button
-- [ ] Empty state when no usage data exists yet (Feature 26 not shipped)
-- [ ] Error state when the usage API is unavailable (typed message, not a broken chart)
+- [ ] Conversation metrics page (resolution rate, handoff rate, by channel)
+- [ ] Voice metrics page with latency breakdown
+- [ ] Empty state when Feature 26 not yet shipped
+- [ ] Error state when usage API unavailable (typed message, not a broken chart)
 
 #### Done when
 
-A staff user can open the usage page, see totals for the last 30 days broken down by day and by agent, change the date range, and download a CSV of the raw daily data.
+Staff can see totals for the last 30 days, change the date range, drill into per-agent costs, and download a CSV.
 
 #### Still unsafe
 
-No spend cap or alert UI (deferred to Feature 26 or 27 hardening). No organization-level rollup across workspaces. No invoice or payment UI (out of scope for this repo).
+No spend cap or alert UI. No org-level rollup across workspaces. No invoice or payment UI.
+
+---
+
+### Feature F10 — Workspace Settings (Members, Roles, API Keys, Billing, Secrets)
+
+**Status:** `not_started`
+**Needs:** F1, identity (04), workspace (05), secrets (16)
+**Can run beside:** F9
+**Deep topic:** RBAC permission display; API key value shown once then masked forever; secret vault — value never shown after creation
+
+#### Pre-context
+
+Workspace settings — member management, role assignment, API key creation, billing plan, and tool secrets — have no UI. Everything is done via API.
+
+#### Low-level design
+
+Pages:
+- `settings/general/page.tsx` — workspace name, description, timezone, logo upload, slug
+- `settings/members/page.tsx` — member list (name, email, role badge, joined at, remove); pending invites tab (resend/cancel)
+- `settings/members/invite/page.tsx` — invite form: email + role selector with role description tooltips
+- `settings/api-keys/page.tsx` — API key list: name, last 4 chars only (masked), scopes, created at, last used, revoke button; create button
+- `settings/api-keys/new/page.tsx` — create key: name, expiry (optional), scope selector; shows full key once with copy button; "will not be shown again" warning banner
+- `settings/secrets/page.tsx` — secret list (name only, value never shown after creation), created at, last rotated at; add, rotate, delete buttons
+- `settings/secrets/new/page.tsx` — create secret: name, value (masked input)
+- `settings/secrets/[secretId]/rotate/page.tsx` — provide new value; old value replaced
+- `settings/publishable-keys/page.tsx` — publishable key list for website widget: key prefix, name, origin allow-list, created at; create, edit allow-list, revoke
+- `settings/billing/page.tsx` — current plan name, usage vs quota bars (tokens, voice minutes), upgrade/downgrade button → billing portal redirect
+- `settings/danger/page.tsx` — delete workspace: confirm by typing workspace name, permanent delete button
+
+#### Build checklist
+
+- [ ] General settings with logo upload
+- [ ] Member list with roles; pending invites tab
+- [ ] Invite by email with role selector and role description tooltips
+- [ ] Change member role (owner only)
+- [ ] Remove member with confirmation
+- [ ] API key list (masked to last 4 chars) with create and revoke
+- [ ] Create API key — shows full value once with copy button + "not shown again" warning
+- [ ] Secret list (name only, value never shown) with add, rotate, delete
+- [ ] Rotate secret (replaces value, old value gone)
+- [ ] Publishable key list with origin allow-list editor per key
+- [ ] Billing page: plan name + usage vs quota bars
+- [ ] Delete workspace with workspace-name confirmation guard
+
+#### Done when
+
+An owner can invite a member, assign a role, create an API key (sees it once), add a secret (value never shown again), manage publishable keys and their origin allow-lists.
+
+#### Still unsafe
+
+No SSO/SAML configuration. No IP allowlisting. No audit log for secret access from this UI (covered in F12).
+
+---
+
+### Feature F11 — Agent Evaluation UI
+
+**Status:** `not_started`
+**Needs:** F1, evaluation (25)
+**Can run beside:** F9
+**Deep topic:** offline eval run lifecycle (queued→running→scored); regression detection across versions; score comparison chart
+
+#### Pre-context
+
+The evaluation service can run a published agent version against a fixed test dataset and produce quality scores. There is no UI to define datasets, trigger runs, or compare version scores.
+
+#### Low-level design
+
+Pages:
+- `agents/[agentId]/eval/page.tsx` — eval home: dataset list, recent run history, score trend chart (version vs score)
+- `agents/[agentId]/eval/datasets/page.tsx` — dataset list with create, edit, delete
+- `agents/[agentId]/eval/datasets/new/page.tsx` — create dataset: name, description; add test cases one by one
+- `agents/[agentId]/eval/datasets/[datasetId]/page.tsx` — test case table: input, expected output, expected tools; edit inline; CSV import button
+- `agents/[agentId]/eval/runs/page.tsx` — run history: version number, dataset name, overall score, pass count / total, status, created at; cursor pagination
+- `agents/[agentId]/eval/runs/new/page.tsx` — trigger new eval run: select version + dataset, confirm
+- `agents/[agentId]/eval/runs/[runId]/page.tsx` — run detail: overall score, per-case results (input, actual output, expected output, pass/fail badge, score per case); failure analysis section
+- Version comparison bar chart: select 2+ versions, see scores side by side
+
+#### Build checklist
+
+- [ ] Dataset list with create/edit/delete
+- [ ] Test case editor (input, expected output, expected tools)
+- [ ] CSV import for test cases
+- [ ] Trigger eval run (select version + dataset)
+- [ ] Run history with scores and cursor pagination
+- [ ] Run detail: overall score, per-case pass/fail table
+- [ ] Version comparison bar chart
+- [ ] Run status polling (queued → running → scored), stops on terminal state
+
+#### Done when
+
+Staff can define a 10-case dataset, run eval against two versions, see which scored higher, and drill into which cases failed.
+
+#### Still unsafe
+
+No automatic eval blocking of deployments. No human labeling UI for open-ended answer cases.
+
+---
+
+### Feature F12 — Audit Log and Notification Center
+
+**Status:** `not_started`
+**Needs:** F1, audit (27)
+**Can run beside:** F11
+**Deep topic:** append-only audit records; notification unread count without a global state store; 30-second poll is enough and does not flood the gateway
+
+#### Pre-context
+
+Every important action is logged in the audit service. Staff have no visibility into what other team members have done. There are no in-app notifications.
+
+#### Low-level design
+
+Pages:
+- `audit/page.tsx` — workspace audit log: actor (name + avatar), action type badge, resource (type + name), timestamp; filter by actor, action type (multiselect), date range; search by resource ID; cursor pagination; CSV export
+- `audit/[entryId]/page.tsx` — audit entry detail: full metadata JSON, request_id, before/after diff if applicable
+- `notifications/page.tsx` — notification center: icon by type, title, description, time ago, read/unread state; filter by type (ingest failure, campaign failed, quota alert, new member, high error rate, agent publish); mark individual as read; mark all as read; cursor pagination
+- Notification bell icon in top bar with unread count badge (number badge, not dot)
+- `useNotificationCount()` hook — polls `GET /notifications/unread-count` every 30 seconds
+
+#### Build checklist
+
+- [ ] Audit log list with actor, action type badge, resource, timestamp
+- [ ] Filter by actor, action type, date range; search by resource ID
+- [ ] Audit entry detail with full metadata and before/after diff
+- [ ] CSV export of audit log
+- [ ] Notification center with type icons and filter
+- [ ] Mark individual and all as read
+- [ ] Notification bell in top bar with unread count badge (number)
+- [ ] Unread count polling hook (30-second interval)
+
+#### Done when
+
+An owner can filter the audit log to agent publish events from the last 7 days, export to CSV, and see a number badge in the top bar when a new alert fires.
+
+#### Still unsafe
+
+No email notification delivery. No webhook-based notification forwarding. No push notifications.
+
+---
+
+### Feature F13 — Developer Portal (API Reference, SDK Docs, Webhooks)
+
+**Status:** `not_started`
+**Needs:** F1, public API finalized
+**Can run beside:** F12
+**Deep topic:** OpenAPI rendering with try-it console; HMAC signature verification documentation; API key scoping display
+
+#### Pre-context
+
+Developers can integrate QuickStart AI via the REST API and the TypeScript SDK in `sdk/`. There is no documentation UI. Webhook configuration has no management interface.
+
+#### What this is
+
+A developer-facing portal where integrators can read API docs, copy SDK examples, register webhooks, and debug webhook delivery failures.
+
+#### Low-level design
+
+Pages:
+- `developer/page.tsx` — portal home: quick start code snippet, links to API reference, SDK docs, webhooks, changelog
+- `developer/api-reference/page.tsx` — interactive API reference rendered from the OpenAPI spec: endpoints grouped by category (agents, conversations, knowledge, memory, runtime, voice); per endpoint: description, request and response schemas, example curl and TypeScript SDK call; try-it console with API key selector and live response
+- `developer/sdks/page.tsx` — TypeScript SDK docs: install (`pnpm add @quickstart/sdk`), quick start example, streaming example, tool calling example, error handling example
+- `developer/webhooks/page.tsx` — webhook list: URL, subscribed event types (badge list), status (active/failing), last delivery timestamp, success rate
+- `developer/webhooks/new/page.tsx` — register webhook: URL input, event type multiselect (all platform event types), auto-generated HMAC secret shown once with copy button, test ping button
+- `developer/webhooks/[webhookId]/page.tsx` — webhook detail: recent deliveries table (event type, status code, latency, delivered at), redeliver button per delivery, disable/enable toggle, delete with confirmation
+- `developer/webhooks/[webhookId]/deliveries/[deliveryId]/page.tsx` — delivery detail: request headers and body, response status, headers, and body; HMAC signature used; redeliver button
+- `developer/changelog/page.tsx` — API version changelog with dates and breaking-change badges
+
+#### Build checklist
+
+- [ ] Developer portal home with quick start snippet
+- [ ] API reference rendered from OpenAPI spec with try-it console
+- [ ] SDK docs with 5 copy-paste examples
+- [ ] Webhook list with status indicators and success rate
+- [ ] Register webhook with event type selector and auto-generated HMAC secret (shown once)
+- [ ] Test ping on new webhook registration
+- [ ] Delivery history table with redeliver button
+- [ ] Delivery detail with full request and response body
+- [ ] API changelog page
+
+#### Done when
+
+A developer can read the API reference, test an endpoint from the portal, register a webhook, trigger a test ping, and debug a failed delivery by reading the request and response bodies.
+
+#### Still unsafe
+
+No auto-generated SDK from the OpenAPI spec. No GraphQL surface. No rate limit visualization per API key.
+
