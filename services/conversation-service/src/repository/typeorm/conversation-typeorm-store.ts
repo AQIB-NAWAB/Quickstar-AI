@@ -8,7 +8,10 @@ import type {
   ConversationStore,
   CreateConversationInput,
   ListMessagesInput,
+  UpsertToolCallInput,
 } from "../types.js";
+import type { ToolCall } from "../../domain/tool-call.js";
+import { mapToolCallRow } from "../tool-call-mapper.js";
 import { ConversationEntity, MessageEntity } from "../entities/index.js";
 import {
   isUniqueViolation,
@@ -154,6 +157,91 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
 
       const entities = await qb.getMany();
       return entities.map(toMessage);
+    },
+
+    async upsertToolCall(input: UpsertToolCallInput): Promise<{ record: ToolCall; created: boolean }> {
+      const conv = await dataSource.manager.findOne(ConversationEntity, {
+        where: { id: input.conversationId, workspaceId: input.workspaceId },
+      });
+      if (!conv) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+        });
+      }
+
+      const existingRows = await dataSource.query(
+        `SELECT * FROM tool_calls WHERE workspace_id = $1 AND tool_call_key = $2`,
+        [input.workspaceId, input.body.tool_call_key],
+      );
+      const existing = existingRows[0] ? mapToolCallRow(existingRows[0]) : null;
+      if (existing) {
+        if (["succeeded", "failed", "unknown"].includes(existing.status)) {
+          return { record: existing, created: false };
+        }
+        const updated = await dataSource.query(
+          `UPDATE tool_calls SET
+            status = $3,
+            request_json = COALESCE($4, request_json),
+            response_json = COALESCE($5, response_json),
+            error_code = COALESCE($6, error_code),
+            updated_at = NOW()
+           WHERE workspace_id = $1 AND tool_call_key = $2
+           RETURNING *`,
+          [
+            input.workspaceId,
+            input.body.tool_call_key,
+            input.body.status,
+            input.body.request_json ?? null,
+            input.body.response_json ?? null,
+            input.body.error_code ?? null,
+          ],
+        );
+        return { record: mapToolCallRow(updated[0]), created: false };
+      }
+
+      const inserted = await dataSource.query(
+        `INSERT INTO tool_calls (
+          workspace_id, conversation_id, turn_idempotency_key, tool_call_key,
+          tool_name, status, request_json, response_json, error_code
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        RETURNING *`,
+        [
+          input.workspaceId,
+          input.conversationId,
+          input.body.turn_idempotency_key,
+          input.body.tool_call_key,
+          input.body.tool_name,
+          input.body.status,
+          input.body.request_json ?? null,
+          input.body.response_json ?? null,
+          input.body.error_code ?? null,
+        ],
+      );
+      return { record: mapToolCallRow(inserted[0]), created: true };
+    },
+
+    async listToolCalls(
+      workspaceId: string,
+      conversationId: string,
+      turnIdempotencyKey: string,
+    ): Promise<ToolCall[]> {
+      const conv = await dataSource.manager.findOne(ConversationEntity, {
+        where: { id: conversationId, workspaceId },
+      });
+      if (!conv) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+        });
+      }
+      const rows = await dataSource.query(
+        `SELECT * FROM tool_calls
+         WHERE workspace_id = $1 AND conversation_id = $2 AND turn_idempotency_key = $3
+         ORDER BY created_at ASC`,
+        [workspaceId, conversationId, turnIdempotencyKey],
+      );
+      return rows.map((row: Record<string, unknown>) => mapToolCallRow(row));
     },
   };
 }

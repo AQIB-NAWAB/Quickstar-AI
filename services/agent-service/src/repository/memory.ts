@@ -32,6 +32,7 @@ export class MemoryAgentStore implements AgentStore {
       environment: input.environment ?? "draft",
       modelSettings: input.modelSettings ?? {},
       channels: input.channels ?? defaultChannels,
+      tools: input.tools ?? [],
       version: 1,
       productionVersionId: null,
       createdAt: now,
@@ -90,6 +91,7 @@ export class MemoryAgentStore implements AgentStore {
     if (input.environment !== undefined) agent.environment = input.environment;
     if (input.modelSettings !== undefined) agent.modelSettings = input.modelSettings;
     if (input.channels !== undefined) agent.channels = input.channels;
+    if (input.tools !== undefined) agent.tools = input.tools;
     agent.version += 1;
     agent.updatedAt = new Date();
     return agent;

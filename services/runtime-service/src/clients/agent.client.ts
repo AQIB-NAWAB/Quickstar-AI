@@ -1,3 +1,4 @@
+import type { AgentToolDefinition } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { fetchWithPolicy } from "@quickstart/utilities";
 
@@ -20,6 +21,7 @@ export type AgentVersionInfo = {
     instructions: string;
     model_settings: Record<string, unknown>;
     channels?: { chat?: boolean; voice?: boolean };
+    tools?: AgentToolDefinition[];
   };
 };
 

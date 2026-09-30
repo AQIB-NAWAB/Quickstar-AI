@@ -357,6 +357,38 @@ Same as roadmap §17, plus: no automatic sync to HubSpot/Salesforce; no memory f
 
 ---
 
+## Feature 15 — Tools and MCP
+
+Roadmap entry: [§18 Feature 15 — Tools and MCP](./roadmap.md#18-feature-15--tools-and-mcp)  
+ADR: [0015-tools](./adr/0015-tools.md)  
+API: [docs/api/tools.md](./api/tools.md)  
+**Status:** `done` (v1 HTTP + builtin_web + minimal MCP HTTP)
+
+### Shipped in v1
+
+- `agents.tools` JSONB + frozen snapshot; validation in agent-service
+- `tool_calls` in conversation-service Postgres; PUT/GET with `workspace.tools.run`
+- Runtime `ToolLoop` + `ToolExecutor` (http, builtin_web, mcp via JSON-RPC HTTP)
+- Model-gateway `tools` / `tool_calls` on complete; `fake:tool_once` for tests
+- Turn idempotency replays terminal tool rows without double execution
+
+### Deep learning (heading 11) — timeouts and idempotency
+
+Study before changing tool code:
+
+1. **Two keys:** turn `Idempotency-Key` vs `tool_call_key` per execution.
+2. **Unknown state:** timeout after customer API may have succeeded — do not retry mutating tools.
+3. **SSRF:** `allowed_hosts` + block private IPs on tool config validation.
+4. **Worker hold:** cap rounds (5) and per-tool `timeout_ms`; tools are not on every request but dominate p99 when enabled.
+
+Proof tests in repo: `services/runtime-service/src/tests/turns.test.ts` (tool loop + dedup), `services/conversation-service/src/tests/tool-calls.test.ts`, `services/model-gateway/src/tests/completion.test.ts`, `services/runtime-service/src/tests/mcp-tool.test.ts`.
+
+### Still unsafe (v1)
+
+Streaming turns with tools; Feature 16 secret refs in HTTP headers; full MCP SDK transport; F2 agent builder UI; per-workspace Redis tool concurrency.
+
+---
+
 ## Future sections
 
-When Feature **15 — Tools** starts, add a full **Feature 15** section here using the same **19-heading** shape, with a dedicated **Deep learning** section (heading 11) for tool timeouts and idempotency. Until then, use roadmap [§18 Feature 15](./roadmap.md#18-feature-15--tools-and-mcp) for the board entry.
+Add Feature **16 — Secrets** section here when that feature starts (mirror Feature 14/15 shape).

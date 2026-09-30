@@ -338,3 +338,129 @@ test("POST /turns continues when memory client fails (fail-open)", async () => {
     assert.equal(modelClient.callCount, 1);
   });
 });
+
+test("POST /turns runs tool loop when snapshot has tools", async () => {
+  await withRuntimeServer(async ({ port, agentClient, convClient, modelClient, toolCallsClient, createToken }) => {
+    const token = await createToken();
+    const httpTool = {
+      id: "00000000-0000-4000-8000-0000000000t1",
+      name: "get_status",
+      type: "http" as const,
+      description: "Get status",
+      method: "GET" as const,
+      base_url: "https://api.example.com/v1",
+      allowed_hosts: ["api.example.com"],
+      idempotent: true,
+    };
+
+    agentClient.agents.set(`${WS_A}:${AGENT_ID}`, {
+      id: AGENT_ID,
+      workspace_id: WS_A,
+      name: "Support Bot",
+      production_version_id: VERSION_ID,
+      instructions: "Instructions",
+    });
+
+    agentClient.versions.set(`${WS_A}:${AGENT_ID}:${VERSION_ID}`, {
+      id: VERSION_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      release_number: 1,
+      snapshot: {
+        name: "Support Bot v1",
+        instructions: "Instructions",
+        model_settings: { profile: "fake", model_id: "fake:tool_once" },
+        tools: [httpTool],
+      },
+    });
+
+    convClient.conversations.set(`${WS_A}:${CONV_ID}`, {
+      id: CONV_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      last_seq: 0,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/v1/workspaces/${WS_A}/conversations/${CONV_ID}/turns`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": "idemp-tool-turn-001",
+      },
+      body: JSON.stringify({ message: "Check status" }),
+    });
+
+    assert.equal(res.status, 201);
+    assert.equal(modelClient.callCount, 2);
+    const body = (await res.json()) as { turn: { assistant_message: { text: string } } };
+    assert.match(body.turn.assistant_message.text, /after-tool:/);
+
+    const records = await toolCallsClient.listByTurn(WS_A, CONV_ID, "idemp-tool-turn-001");
+    assert.equal(records.length, 1);
+    assert.equal(records[0].tool_name, "get_status");
+  });
+});
+
+test("POST /turns tool retry does not duplicate tool_calls row", async () => {
+  await withRuntimeServer(async ({ port, agentClient, convClient, modelClient, toolCallsClient, createToken }) => {
+    const token = await createToken();
+    const convId = "00000000-0000-4000-8000-000000000021";
+    const httpTool = {
+      id: "00000000-0000-4000-8000-0000000000t2",
+      name: "ping_api",
+      type: "http" as const,
+      description: "Ping",
+      method: "GET" as const,
+      base_url: "https://api.example.com/",
+      allowed_hosts: ["api.example.com"],
+      idempotent: true,
+    };
+
+    agentClient.versions.set(`${WS_A}:${AGENT_ID}:${VERSION_ID}`, {
+      id: VERSION_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      release_number: 1,
+      snapshot: {
+        name: "v1",
+        instructions: "x",
+        model_settings: { profile: "fake", model_id: "fake:tool_once" },
+        tools: [httpTool],
+      },
+    });
+    agentClient.agents.set(`${WS_A}:${AGENT_ID}`, {
+      id: AGENT_ID,
+      workspace_id: WS_A,
+      name: "Bot",
+      production_version_id: VERSION_ID,
+      instructions: "x",
+    });
+    convClient.conversations.set(`${WS_A}:${convId}`, {
+      id: convId,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      last_seq: 0,
+    });
+
+    const headers = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "idempotency-key": "idemp-tool-dedup",
+    };
+    const url = `http://127.0.0.1:${port}/v1/workspaces/${WS_A}/conversations/${convId}/turns`;
+
+    const first = await fetch(url, { method: "POST", headers, body: JSON.stringify({ message: "go" }) });
+    assert.ok(first.status === 200 || first.status === 201);
+    const callsAfterFirst = modelClient.callCount;
+
+    const second = await fetch(url, { method: "POST", headers, body: JSON.stringify({ message: "go" }) });
+    assert.equal(second.status, 200);
+    const secondBody = (await second.json()) as { turn: { deduplicated: boolean } };
+    assert.equal(secondBody.turn.deduplicated, true);
+    assert.equal(modelClient.callCount, callsAfterFirst);
+
+    const records = await toolCallsClient.listByTurn(WS_A, convId, "idemp-tool-dedup");
+    assert.equal(records.length, 1);
+  });
+});

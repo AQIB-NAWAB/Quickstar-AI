@@ -1,6 +1,7 @@
 import type { TenantContext } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Agent, AgentVersion, AgentVersionDiff, PublishResult } from "../domain/types.js";
+import { validateAgentTools } from "../lib/validate-tools.js";
 import type { AgentStore, CreateAgentInput, UpdateAgentInput } from "../repository/types.js";
 
 export class AgentsService {
@@ -13,7 +14,8 @@ export class AgentsService {
         message: "Agent name is required",
       });
     }
-    return this.store.createAgent(tenant, input);
+    const tools = input.tools !== undefined ? validateAgentTools(input.tools) : undefined;
+    return this.store.createAgent(tenant, { ...input, tools });
   }
 
   async listAgents(tenant: TenantContext): Promise<Agent[]> {
@@ -38,7 +40,8 @@ export class AgentsService {
         message: "expected_version is required and must be an integer",
       });
     }
-    return this.store.updateAgent(tenant, agentId, input);
+    const tools = input.tools !== undefined ? validateAgentTools(input.tools) : undefined;
+    return this.store.updateAgent(tenant, agentId, { ...input, tools });
   }
 
   async deleteAgent(tenant: TenantContext, agentId: string): Promise<void> {

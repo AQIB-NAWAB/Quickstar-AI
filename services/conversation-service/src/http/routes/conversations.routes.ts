@@ -43,5 +43,19 @@ export const createConversationsRoutes: RouteModule<ConversationHttpContext> = (
     asyncHandler(conversationsCtrl.listMessages),
   );
 
+  router.put(
+    "/v1/workspaces/:workspaceId/conversations/:conversationId/tool-calls",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.TOOLS_RUN),
+    asyncHandler(conversationsCtrl.upsertToolCall),
+  );
+
+  router.get(
+    "/v1/workspaces/:workspaceId/conversations/:conversationId/tool-calls",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.TOOLS_RUN),
+    asyncHandler(conversationsCtrl.listToolCalls),
+  );
+
   return router;
 };

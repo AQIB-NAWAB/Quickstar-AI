@@ -7,6 +7,7 @@ const MIGRATIONS = [
   { version: "001_conversation_schema", file: "001_conversation_schema.sql" },
   { version: "002_message_metadata", file: "002_message_metadata.sql" },
   { version: "003_conversation_subject_key", file: "003_conversation_subject_key.sql" },
+  { version: "004_tool_calls", file: "004_tool_calls.sql" },
 ] as const;
 
 export async function runConversationMigrations(pool: Pool): Promise<void> {

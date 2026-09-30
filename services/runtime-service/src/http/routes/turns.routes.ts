@@ -10,11 +10,16 @@ export const createTurnsRoutes: RouteModule<RuntimeHttpContext> = (ctx) => {
     workspaceAccess,
     WORKSPACE_PERMISSIONS.CONVERSATION_PARTICIPATE,
   );
+  const toolsRun = requireWorkspacePermission(
+    workspaceAccess,
+    WORKSPACE_PERMISSIONS.TOOLS_RUN,
+  );
 
   router.post(
     "/v1/workspaces/:workspaceId/conversations/:conversationId/turns",
     ...tenantMiddleware,
     participate,
+    toolsRun,
     asyncHandler(turnsCtrl.executeTurn),
   );
 

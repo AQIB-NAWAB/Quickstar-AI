@@ -1,4 +1,5 @@
 import { requestIdFromResponse, sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
+import type { AgentToolDefinition } from "@quickstart/contracts";
 import { toAgentJson, toAgentVersionJson } from "../domain/types.js";
 import type { AgentsService } from "../services/agents.service.js";
 import { routeParam } from "../utils/route-param.js";
@@ -15,6 +16,7 @@ export function createAgentsController(agents: AgentsService) {
         environment?: string;
         model_settings?: Record<string, unknown>;
         channels?: { chat?: boolean; voice?: boolean };
+        tools?: AgentToolDefinition[];
       };
 
       const agent = await agents.createAgent(tenant, {
@@ -26,6 +28,7 @@ export function createAgentsController(agents: AgentsService) {
         channels: body?.channels
           ? { chat: body.channels.chat ?? true, voice: body.channels.voice ?? false }
           : undefined,
+        tools: body?.tools,
       });
 
       sendPlatformJson(res, 201, {
@@ -68,6 +71,7 @@ export function createAgentsController(agents: AgentsService) {
         channels?: { chat?: boolean; voice?: boolean };
         expected_version?: number;
         version?: number;
+        tools?: AgentToolDefinition[];
       };
 
       const expectedVersion = body.expected_version ?? body.version;
@@ -80,6 +84,7 @@ export function createAgentsController(agents: AgentsService) {
         channels: body.channels
           ? { chat: body.channels.chat ?? true, voice: body.channels.voice ?? false }
           : undefined,
+        tools: body.tools,
         expectedVersion: expectedVersion as number,
       });
 

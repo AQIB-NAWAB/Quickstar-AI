@@ -11,8 +11,13 @@ import { ConversationClient } from "./clients/conversation.client.js";
 import { KnowledgeClient } from "./clients/knowledge.client.js";
 import { MemoryClient } from "./clients/memory.client.js";
 import { ModelGatewayClient } from "./clients/model-gateway.client.js";
+import { ToolCallsClient } from "./clients/tool-calls.client.js";
+import { WebFetchClient } from "./clients/web-fetch.client.js";
 import { loadRuntimeConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
+import { McpToolRunner } from "./services/mcp-tool-runner.js";
+import { ToolExecutor } from "./services/tool-executor.js";
+import { ToolLoop } from "./services/tool-loop.js";
 import { TurnsService } from "./services/turns.service.js";
 
 export { SERVICE_NAME, createHttpServer } from "./http/create-server.js";
@@ -41,12 +46,21 @@ export async function main(): Promise<void> {
     timeoutMs: config.httpRequestTimeoutMs,
     logger,
   });
+  const toolCallsClient = new ToolCallsClient(config.conversationServiceUrl, config.httpRequestTimeoutMs);
+  const webFetchClient = new WebFetchClient(
+    config.webFetchUrl,
+    config.webFetchInternalToken,
+    config.httpRequestTimeoutMs,
+  );
+  const toolExecutor = new ToolExecutor(webFetchClient, new McpToolRunner(config.httpRequestTimeoutMs));
+  const toolLoop = new ToolLoop(modelGatewayClient, toolCallsClient, toolExecutor);
   const turnsService = new TurnsService(
     agentClient,
     conversationClient,
     modelGatewayClient,
     knowledgeClient,
     memoryClient,
+    toolLoop,
   );
 
   const redisClient = createRedisClient(config.redisUrl);

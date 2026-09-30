@@ -1,4 +1,6 @@
+import type { UpsertToolCallBody } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
+import type { ToolCall } from "../domain/tool-call.js";
 import type { Conversation, Message } from "../domain/types.js";
 import type { AppendMessageResult, ConversationStore } from "../repository/types.js";
 
@@ -87,5 +89,34 @@ export class ConversationsService {
       afterSeq,
       limit,
     });
+  }
+
+  async upsertToolCall(
+    workspaceId: string,
+    conversationId: string,
+    body: UpsertToolCallBody,
+  ): Promise<{ record: ToolCall; created: boolean }> {
+    if (!body.tool_call_key?.trim() || !body.turn_idempotency_key?.trim() || !body.tool_name?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "tool_call_key, turn_idempotency_key, and tool_name are required",
+      });
+    }
+    return this.store.upsertToolCall({ workspaceId, conversationId, body });
+  }
+
+  async listToolCalls(
+    workspaceId: string,
+    conversationId: string,
+    turnIdempotencyKey: string,
+  ): Promise<ToolCall[]> {
+    const key = turnIdempotencyKey?.trim();
+    if (!key) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "turn_idempotency_key is required",
+      });
+    }
+    return this.store.listToolCalls(workspaceId, conversationId, key);
   }
 }
