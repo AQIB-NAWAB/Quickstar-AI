@@ -1,4 +1,6 @@
 import { requestIdFromResponse, sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
+import type { UpsertToolCallBody } from "@quickstart/contracts";
+import { toToolCallJson } from "../domain/tool-call.js";
 import { toConversationJson, toMessageJson } from "../domain/types.js";
 import type { ConversationsService } from "../services/conversations.service.js";
 import { routeParam } from "../utils/route-param.js";
@@ -103,6 +105,39 @@ export function createConversationsController(conversations: ConversationsServic
       sendPlatformJson(res, 200, {
         request_id: requestId,
         messages: messages.map(toMessageJson),
+      });
+    }) as RequestHandler,
+
+    upsertToolCall: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as UpsertToolCallBody;
+
+      const result = await conversations.upsertToolCall(tenant.workspaceId, conversationId, body);
+
+      sendPlatformJson(res, result.created ? 201 : 200, {
+        request_id: requestId,
+        tool_call: toToolCallJson(result.record),
+        created: result.created,
+      });
+    }) as RequestHandler,
+
+    listToolCalls: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const conversationId = routeParam(req.params.conversationId);
+      const turnKey = String(req.query.turn_idempotency_key ?? "");
+
+      const list = await conversations.listToolCalls(
+        tenant.workspaceId,
+        conversationId,
+        turnKey,
+      );
+
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        tool_calls: list.map(toToolCallJson),
       });
     }) as RequestHandler,
   };

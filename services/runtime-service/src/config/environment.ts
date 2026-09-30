@@ -8,6 +8,8 @@ export type RuntimeConfig = {
   knowledgeInternalToken: string;
   memoryServiceUrl: string;
   memoryInternalToken: string;
+  webFetchUrl: string;
+  webFetchInternalToken: string;
   redisUrl: string;
   jwtAccessSecret: string;
   workspaceUrl: string;
@@ -39,6 +41,11 @@ export function loadRuntimeConfig(): RuntimeConfig {
     memoryInternalToken:
       process.env.MEMORY_INTERNAL_TOKEN ??
       process.env.INTERNAL_TOKEN ??
+      "local-dev-token-at-least-32-characters-long",
+    webFetchUrl: (process.env.WEB_FETCH_URL ?? process.env.WEB_FETCH_SERVICE_URL ?? "http://127.0.0.1:3007").replace(/\/$/, ""),
+    webFetchInternalToken:
+      process.env.WEB_FETCH_INTERNAL_TOKEN ??
+      process.env.WEB_ACQUISITION_INTERNAL_TOKEN ??
       "local-dev-token-at-least-32-characters-long",
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     jwtAccessSecret,

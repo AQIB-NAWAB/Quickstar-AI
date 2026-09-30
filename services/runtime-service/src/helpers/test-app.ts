@@ -1,6 +1,11 @@
 import type { Server } from "node:http";
 import { signAccessToken } from "@quickstart/auth";
-import type { CompletionRequestBody, CompletionResponseBody } from "@quickstart/contracts";
+import type {
+  CompletionRequestBody,
+  CompletionResponseBody,
+  ToolCallRecord,
+  UpsertToolCallBody,
+} from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { createLogger } from "@quickstart/logging";
 import type { AgentClient, AgentInfo, AgentVersionInfo } from "../clients/agent.client.js";
@@ -16,6 +21,10 @@ import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient, MemoryFact } from "../clients/memory.client.js";
 import { createHttpServer } from "../http/create-server.js";
+import { ToolCallsClient } from "../clients/tool-calls.client.js";
+import { McpToolRunner } from "../services/mcp-tool-runner.js";
+import { ToolExecutor } from "../services/tool-executor.js";
+import { ToolLoop } from "../services/tool-loop.js";
 import { TurnsService } from "../services/turns.service.js";
 
 export const TEST_JWT_SECRET = "test-secret-at-least-32-characters-long!!";
@@ -176,14 +185,89 @@ export class MockKnowledgeClient implements Partial<KnowledgeClient> {
   }
 }
 
+export class MockToolCallsClient implements Partial<ToolCallsClient> {
+  private records = new Map<string, ToolCallRecord>();
+
+  async upsert(
+    workspaceId: string,
+    conversationId: string,
+    body: UpsertToolCallBody,
+  ): Promise<{ record: ToolCallRecord; created: boolean }> {
+    const key = `${workspaceId}:${body.tool_call_key}`;
+    const existing = this.records.get(key);
+    const now = new Date().toISOString();
+    if (existing && ["succeeded", "failed", "unknown"].includes(existing.status)) {
+      return { record: existing, created: false };
+    }
+    const record: ToolCallRecord = {
+      id: existing?.id ?? `tc-${this.records.size + 1}`,
+      workspace_id: workspaceId,
+      conversation_id: conversationId,
+      turn_idempotency_key: body.turn_idempotency_key,
+      tool_call_key: body.tool_call_key,
+      tool_name: body.tool_name,
+      status: body.status,
+      request_json: body.request_json ?? null,
+      response_json: body.response_json ?? null,
+      error_code: body.error_code ?? null,
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+    };
+    this.records.set(key, record);
+    return { record, created: !existing };
+  }
+
+  async listByTurn(
+    workspaceId: string,
+    conversationId: string,
+    turnIdempotencyKey: string,
+  ): Promise<ToolCallRecord[]> {
+    return [...this.records.values()].filter(
+      (r) =>
+        r.workspace_id === workspaceId &&
+        r.conversation_id === conversationId &&
+        r.turn_idempotency_key === turnIdempotencyKey,
+    );
+  }
+}
+
 export class MockModelGatewayClient implements Partial<ModelGatewayClient> {
   public callCount = 0;
   public cannedResponse = "Hello! I am your agent.";
   public lastMessages: CompletionRequestBody["messages"] = [];
+  private toolRounds = new Map<string, number>();
 
   async complete(body: CompletionRequestBody): Promise<CompletionResponseBody> {
     this.callCount += 1;
     this.lastMessages = body.messages;
+
+    if (body.model.model_id === "fake:tool_once" && body.tools?.length) {
+      const round = (this.toolRounds.get(body.request_id) ?? 0) + 1;
+      this.toolRounds.set(body.request_id, round);
+      if (round === 1) {
+        return {
+          content: "",
+          finish_reason: "tool_calls",
+          tool_calls: [
+            { id: "tc-1", name: body.tools[0].name, arguments: { ping: true } },
+          ],
+          usage: { input_tokens: 10, output_tokens: 8 },
+          provider: "fake",
+          model: body.model.model_id,
+          latency_ms: 15,
+        };
+      }
+      const toolMsg = body.messages.find((m) => m.role === "tool");
+      return {
+        content: `after-tool:${toolMsg?.content ?? ""}`,
+        finish_reason: "stop",
+        usage: { input_tokens: 10, output_tokens: 8 },
+        provider: "fake",
+        model: body.model.model_id,
+        latency_ms: 15,
+      };
+    }
+
     return {
       content: this.cannedResponse,
       finish_reason: "stop",
@@ -203,6 +287,7 @@ export async function withRuntimeServer(
     modelClient: MockModelGatewayClient;
     knowledgeClient: MockKnowledgeClient;
     memoryClient: MockMemoryClient;
+    toolCallsClient: MockToolCallsClient;
     workspaceAccess: MockWorkspaceAccess;
     createToken: (userId?: string, orgId?: string) => Promise<string>;
   }) => Promise<void>,
@@ -212,7 +297,15 @@ export async function withRuntimeServer(
   const modelClient = new MockModelGatewayClient();
   const knowledgeClient = new MockKnowledgeClient();
   const memoryClient = new MockMemoryClient();
+  const toolCallsClient = new MockToolCallsClient();
   const workspaceAccess = new MockWorkspaceAccess();
+
+  const toolExecutor = new ToolExecutor(undefined, new McpToolRunner(5_000));
+  const toolLoop = new ToolLoop(
+    modelClient as unknown as ModelGatewayClient,
+    toolCallsClient as unknown as ToolCallsClient,
+    toolExecutor,
+  );
 
   const turnsService = new TurnsService(
     agentClient as unknown as AgentClient,
@@ -220,6 +313,7 @@ export async function withRuntimeServer(
     modelClient as unknown as ModelGatewayClient,
     knowledgeClient as unknown as KnowledgeClient,
     memoryClient as unknown as MemoryClient,
+    toolLoop,
   );
 
   const logger = createLogger({ service: "service-runtime-test" });
@@ -245,6 +339,7 @@ export async function withRuntimeServer(
       modelClient,
       knowledgeClient,
       memoryClient,
+      toolCallsClient,
       workspaceAccess,
       createToken: (userId, orgId) => createTestToken(userId, orgId),
     });

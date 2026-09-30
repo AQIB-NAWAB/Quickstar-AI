@@ -1,4 +1,5 @@
 import type { TenantContext } from "@quickstart/auth";
+import type { AgentToolDefinition } from "@quickstart/contracts";
 import type {
   Agent,
   AgentVersion,
@@ -13,6 +14,7 @@ export type CreateAgentInput = {
   environment?: string;
   modelSettings?: Record<string, unknown>;
   channels?: Agent["channels"];
+  tools?: AgentToolDefinition[];
 };
 
 export type UpdateAgentInput = {
@@ -22,6 +24,7 @@ export type UpdateAgentInput = {
   environment?: string;
   modelSettings?: Record<string, unknown>;
   channels?: Agent["channels"];
+  tools?: AgentToolDefinition[];
   expectedVersion: number;
 };
 

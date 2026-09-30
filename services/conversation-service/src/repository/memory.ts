@@ -1,18 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Conversation, Message } from "../domain/types.js";
+import type { ToolCall } from "../domain/tool-call.js";
 import type {
   AppendMessageInput,
   AppendMessageResult,
   ConversationStore,
   CreateConversationInput,
   ListMessagesInput,
+  UpsertToolCallInput,
 } from "./types.js";
+
+const TERMINAL_STATUSES = new Set(["succeeded", "failed", "unknown"]);
 
 export class MemoryConversationStore implements ConversationStore {
   private conversations = new Map<string, Conversation>();
   private messages = new Map<string, Message>();
   private idempotency = new Map<string, string>(); // `${conversationId}:${idempotencyKey}` -> messageId
+  private toolCalls = new Map<string, ToolCall>(); // `${workspaceId}:${toolCallKey}`
 
   async createConversation(input: CreateConversationInput): Promise<Conversation> {
     const id = randomUUID();
@@ -123,5 +128,65 @@ export class MemoryConversationStore implements ConversationStore {
       return list.slice(0, input.limit);
     }
     return list;
+  }
+
+  async upsertToolCall(input: UpsertToolCallInput): Promise<{ record: ToolCall; created: boolean }> {
+    const conv = await this.getConversation(input.workspaceId, input.conversationId);
+    if (!conv) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found",
+      });
+    }
+    const mapKey = `${input.workspaceId}:${input.body.tool_call_key}`;
+    const existing = this.toolCalls.get(mapKey);
+    const now = new Date();
+    if (existing) {
+      if (TERMINAL_STATUSES.has(existing.status)) {
+        return { record: existing, created: false };
+      }
+      existing.status = input.body.status;
+      existing.requestJson = input.body.request_json ?? existing.requestJson;
+      existing.responseJson = input.body.response_json ?? existing.responseJson;
+      existing.errorCode = input.body.error_code ?? existing.errorCode;
+      existing.updatedAt = now;
+      return { record: existing, created: false };
+    }
+    const record: ToolCall = {
+      id: randomUUID(),
+      workspaceId: input.workspaceId,
+      conversationId: input.conversationId,
+      turnIdempotencyKey: input.body.turn_idempotency_key,
+      toolCallKey: input.body.tool_call_key,
+      toolName: input.body.tool_name,
+      status: input.body.status,
+      requestJson: input.body.request_json ?? null,
+      responseJson: input.body.response_json ?? null,
+      errorCode: input.body.error_code ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.toolCalls.set(mapKey, record);
+    return { record, created: true };
+  }
+
+  async listToolCalls(
+    workspaceId: string,
+    conversationId: string,
+    turnIdempotencyKey: string,
+  ): Promise<ToolCall[]> {
+    const conv = await this.getConversation(workspaceId, conversationId);
+    if (!conv) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found",
+      });
+    }
+    return [...this.toolCalls.values()].filter(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.conversationId === conversationId &&
+        t.turnIdempotencyKey === turnIdempotencyKey,
+    );
   }
 }

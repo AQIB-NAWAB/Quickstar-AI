@@ -1,0 +1,2 @@
+ALTER TABLE agents
+  ADD COLUMN IF NOT EXISTS tools JSONB NOT NULL DEFAULT '[]'::jsonb;

@@ -34,6 +34,7 @@ function toProviderInput(
   return {
     modelId: model.model_id,
     messages: body.messages,
+    tools: body.tools,
     temperature: body.temperature,
     maxTokens: body.max_tokens,
     context: {
@@ -74,6 +75,7 @@ export class CompletionOrchestrator {
       const response: CompletionResponseBody = {
         content: result.output.content,
         finish_reason: result.output.finishReason,
+        tool_calls: result.output.toolCalls,
         usage: {
           input_tokens: result.output.usage.inputTokens,
           output_tokens: result.output.usage.outputTokens,
@@ -136,6 +138,7 @@ export class CompletionOrchestrator {
       const response: CompletionResponseBody = {
         content: result.output.content,
         finish_reason: result.output.finishReason,
+        tool_calls: result.output.toolCalls,
         usage: {
           input_tokens: result.output.usage.inputTokens,
           output_tokens: result.output.usage.outputTokens,

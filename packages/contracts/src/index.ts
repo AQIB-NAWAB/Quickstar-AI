@@ -16,10 +16,31 @@ export {
 } from "./workspace-permissions.js";
 
 export type {
+  AgentBuiltinWebToolDefinition,
+  AgentHttpToolDefinition,
+  AgentMcpToolDefinition,
+  AgentToolDefinition,
+  ToolParameterSchema,
+} from "./agent-tools.js";
+
+export type { ToolCallRecord, ToolCallStatus, UpsertToolCallBody } from "./tool-calls.js";
+
+export {
+  DEFAULT_TOOL_TIMEOUT_MS,
+  MAX_TOOL_ARGUMENT_BYTES,
+  MAX_TOOL_ROUNDS_PER_TURN,
+  MAX_TOOL_TIMEOUT_MS,
+  MAX_TOOLS_PER_AGENT,
+} from "./agent-tools.js";
+
+export type {
   ChatMessage,
   ChatMessageRole,
+  CompletionFinishReason,
   CompletionRequestBody,
   CompletionResponseBody,
+  ModelToolCall,
+  ModelToolDefinition,
   DecideRequestBody,
   DecideResponseBody,
   JevQuestion,

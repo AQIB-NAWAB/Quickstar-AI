@@ -5,6 +5,7 @@ import type { ConversationClient, MessageInfo } from "../clients/conversation.cl
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
+import type { ToolLoop } from "./tool-loop.js";
 
 export type ExecuteTurnInput = {
   workspaceId: string;
@@ -36,6 +37,7 @@ export class TurnsService {
     private readonly modelGatewayClient: ModelGatewayClient,
     private readonly knowledgeClient?: KnowledgeClient,
     private readonly memoryClient?: MemoryClient,
+    private readonly toolLoop?: ToolLoop,
   ) {}
 
   async executeTurn(input: ExecuteTurnInput): Promise<TurnResult> {
@@ -203,20 +205,41 @@ export class TurnsService {
         ? modelSettings.temperature
         : undefined;
 
-    const completion = await this.modelGatewayClient.complete({
-      workspace_id: workspaceId,
-      request_id: requestId,
-      model: { profile, model_id: modelId },
-      messages: chatMessages,
-      temperature,
-    });
+    const agentTools = version.snapshot.tools ?? [];
+    let assistantText: string;
+    let usage: TokenUsage | undefined;
+
+    if (agentTools.length > 0 && this.toolLoop) {
+      const loopResult = await this.toolLoop.run({
+        workspaceId,
+        conversationId,
+        requestId,
+        turnIdempotencyKey: idempotencyKey,
+        authHeaders,
+        model: { profile, model_id: modelId },
+        temperature,
+        tools: agentTools,
+        chatMessages,
+      });
+      assistantText = loopResult.content;
+    } else {
+      const completion = await this.modelGatewayClient.complete({
+        workspace_id: workspaceId,
+        request_id: requestId,
+        model: { profile, model_id: modelId },
+        messages: chatMessages,
+        temperature,
+      });
+      assistantText = completion.content;
+      usage = completion.usage;
+    }
 
     // 8. Append assistant message with agent_version_id recorded as sender_id
     const asstMsgResult = await this.conversationClient.appendMessage(
       workspaceId,
       conversationId,
       {
-        text: completion.content,
+        text: assistantText,
         idempotency_key: asstIdempotencyKey,
         sender_type: "assistant",
         sender_id: version.id,
@@ -235,7 +258,7 @@ export class TurnsService {
       agent_version_id: version.id,
       user_message: userMsgResult.message,
       assistant_message: asstMsgResult.message,
-      usage: completion.usage,
+      usage,
     };
   }
 }

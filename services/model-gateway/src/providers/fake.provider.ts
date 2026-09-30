@@ -1,8 +1,10 @@
+import type { ModelToolCall } from "@quickstart/contracts";
 import { ProviderError } from "../domain/types.js";
 import type { ProviderCompletionInput, ProviderCompletionOutput } from "../domain/types.js";
 import type { ChatProvider } from "./types.js";
 
 const callCounts = new Map<string, number>();
+const toolRoundCounts = new Map<string, number>();
 
 function scenario(modelId: string): string {
   if (modelId === "fake" || modelId === "default") return "ok";
@@ -18,6 +20,13 @@ function bumpAttempt(requestId: string): number {
 
 export function resetFakeProviderState(): void {
   callCounts.clear();
+  toolRoundCounts.clear();
+}
+
+function bumpToolRound(requestId: string): number {
+  const next = (toolRoundCounts.get(requestId) ?? 0) + 1;
+  toolRoundCounts.set(requestId, next);
+  return next;
 }
 
 export class FakeChatProvider implements ChatProvider {
@@ -41,6 +50,37 @@ export class FakeChatProvider implements ChatProvider {
   ): Promise<ProviderCompletionOutput> {
     const mode = scenario(input.modelId);
     const attempt = bumpAttempt(input.context.requestId);
+
+    if (mode === "tool_once" && input.tools && input.tools.length > 0) {
+      const round = bumpToolRound(input.context.requestId);
+      if (round === 1) {
+        const first = input.tools[0];
+        const toolCalls: ModelToolCall[] = [
+          {
+            id: "fake-tool-call-1",
+            name: first.name,
+            arguments: { ping: true },
+          },
+        ];
+        return {
+          content: "",
+          finishReason: "tool_calls",
+          toolCalls,
+          usage: { inputTokens: 12, outputTokens: 8 },
+        };
+      }
+      const toolResult = input.messages.find((m) => m.role === "tool");
+      const summary = toolResult?.content ?? "no-tool-result";
+      const content = `fake-after-tool:${summary}`;
+      if (onChunk) {
+        onChunk(content);
+      }
+      return {
+        content,
+        finishReason: "stop",
+        usage: { inputTokens: 14, outputTokens: 10 },
+      };
+    }
 
     if (mode === "hang") {
       await new Promise(() => {});

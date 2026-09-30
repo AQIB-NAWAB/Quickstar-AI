@@ -6,6 +6,7 @@ import type { Pool } from "pg";
 const MIGRATIONS: { version: string; file: string }[] = [
   { version: "001_agent_schema", file: "001_agent_schema.sql" },
   { version: "002_agent_versions", file: "002_agent_versions.sql" },
+  { version: "003_agent_tools", file: "003_agent_tools.sql" },
 ];
 
 function resolveMigrationSql(file: string): string {

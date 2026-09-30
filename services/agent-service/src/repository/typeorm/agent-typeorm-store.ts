@@ -32,6 +32,7 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
         environment: input.environment ?? "draft",
         modelSettings: input.modelSettings ?? {},
         channels: input.channels ?? defaultChannels,
+        tools: input.tools ?? [],
         version: 1,
         productionVersionId: null,
         createdAt: now,
@@ -89,6 +90,7 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       if (input.environment !== undefined) entity.environment = input.environment;
       if (input.modelSettings !== undefined) entity.modelSettings = input.modelSettings;
       if (input.channels !== undefined) entity.channels = input.channels;
+      if (input.tools !== undefined) entity.tools = input.tools;
       entity.version = entity.version + 1;
       entity.updatedAt = new Date();
 
