@@ -1,4 +1,4 @@
-import type { ChatMessage, ModelReference } from "@quickstart/contracts";
+import type { ChatMessage, ModelReference, ModelToolDefinition } from "@quickstart/contracts";
 
 export type ProviderCallContext = {
   workspaceId: string;
@@ -9,6 +9,7 @@ export type ProviderCallContext = {
 export type ProviderCompletionInput = {
   modelId: string;
   messages: ChatMessage[];
+  tools?: ModelToolDefinition[];
   temperature?: number;
   maxTokens?: number;
   context: ProviderCallContext;
@@ -17,6 +18,7 @@ export type ProviderCompletionInput = {
 export type ProviderCompletionOutput = {
   content: string;
   finishReason: string;
+  toolCalls?: import("@quickstart/contracts").ModelToolCall[];
   usage: { inputTokens: number; outputTokens: number };
 };
 

@@ -243,11 +243,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** **15** tools; voice remains **§5C**
-- **Next production deep topic:** fail-closed vs workspace fallback when Redis is empty (09B day 2); tenant leaks in search when starting 11
-- **Product priority:** Multi-tenant chat + knowledge at scale; voice design target unchanged, scheduled in **§5C** after knowledge path unless reprioritized
-- **Finished features:** through **13** (09B, 11, 12 chat, retrieval); voice (**21+**) and streaming still open
-- **Board status:** synced to repo 2026-09-28; update this line when code and table disagree
+- **Current focus:** **16** secrets (parallel); voice remains **§5C**
+- **Next production deep topic:** secret rotation and tool credential refs (16)
+- **Product priority:** Multi-tenant chat + knowledge + tools at scale; voice design target unchanged, scheduled in **§5C** unless reprioritized
+- **Finished features:** through **15** (14 memory, 15 tools/MCP v1); voice (**21+**) and streaming still open
+- **Board status:** synced to repo 2026-09-30; update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -266,8 +266,8 @@ Update these lines every day.
 | 11 | Knowledge ingest | 10B, workspace, OpenSearch | 14 | done |
 | 12 | Agent runtime (chat turns) | 08, 09, 10 | 11, 13 | done |
 | 13 | Retrieval in the runtime | 11, 12 | 14 | done |
-| 14 | Memory | 09, 12 | 13 | not_started |
-| 15 | Tools and MCP | 12 | 16 | not_started |
+| 14 | Memory | 09, 12 | 13 | done |
+| 15 | Tools and MCP | 12 | 16 | done |
 | 16 | Secrets | — | 15 | not_started |
 | 17 | Website chat widget | 12 | 18 | not_started |
 | 18 | Inbox and human handoff | 09 | 17, 21C | not_started |
@@ -1774,7 +1774,7 @@ Minimum slice: one fact via API → next turn includes it → workspace B cannot
 
 ## 18. Feature 15 — Tools and MCP
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** runtime  
 **Can run beside:** Feature 16  
 **Deep topic:** timeouts and idempotency on side effects
@@ -2860,6 +2860,7 @@ We will not have a year of on-call practice. We will have a system another engin
 | 2026-09-28 | 11 | `knowledge-service` :3009, SQS worker, OpenSearch, gateway proxy, ADR 0013 | Text sources only; no URL ingest via 10B yet |
 | 2026-09-28 | 13 | Runtime `KnowledgeClient`, internal retrieve, message metadata | Match search v1; no reranker |
 | 2026-09-28 | 14 | `memory-service` :3010, `conversations.subject_key`, runtime inject, ADR 0014 | No auto-extract; no vector memory; widget 17 not wired |
+| 2026-09-30 | 15 | `agents.tools`, `tool_calls`, runtime tool loop, model-gateway tools, ADR 0015 | Streaming tools; F2 UI; full MCP SDK; secrets in headers (16) |
 | 2026-09-29 | roadmap | Replaced frontend slots F1–F5 with complete F1–F13 roadmap | All 13 frontend slots documented with full detail; Section 35 fully rewritten |
 
 ---

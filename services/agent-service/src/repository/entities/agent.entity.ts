@@ -26,6 +26,9 @@ export class AgentEntity {
   @Column({ type: "jsonb", default: { chat: true, voice: false } })
   channels!: { chat: boolean; voice: boolean };
 
+  @Column({ type: "jsonb", default: [] })
+  tools!: import("@quickstart/contracts").AgentToolDefinition[];
+
   @Column({ type: "int", default: 1 })
   version!: number;
 

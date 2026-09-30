@@ -12,6 +12,7 @@ export function toAgent(entity: AgentEntity): Agent {
     environment: entity.environment,
     modelSettings: entity.modelSettings ?? {},
     channels: entity.channels ?? { chat: true, voice: false },
+    tools: entity.tools ?? [],
     version: entity.version,
     productionVersionId: entity.productionVersionId ?? null,
     createdAt: entity.createdAt,

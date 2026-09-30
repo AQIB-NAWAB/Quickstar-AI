@@ -83,6 +83,72 @@ test("stale base_version on publish returns 409", async () => {
   });
 });
 
+test("publish freezes tools on snapshot", async () => {
+  await withAgentServer(async ({ port, createToken }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const token = await createToken(USER);
+    const { agent } = await createAgent(base, token);
+
+    const tool = {
+      id: "00000000-0000-4000-8000-0000000000t1",
+      name: "get_status",
+      type: "http" as const,
+      description: "Fetch order status",
+      method: "GET" as const,
+      base_url: "https://api.example.com/v1/status",
+      allowed_hosts: ["api.example.com"],
+      idempotent: true,
+    };
+
+    const patchRes = await fetch(`${base}/v1/workspaces/${WS_A}/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ expected_version: agent.version, tools: [tool] }),
+    });
+    assert.equal(patchRes.status, 200);
+    const patched = (await patchRes.json()) as { agent: { version: number; tools: unknown[] } };
+    assert.equal(patched.agent.tools.length, 1);
+
+    const publishRes = await fetch(
+      `${base}/v1/workspaces/${WS_A}/agents/${agent.id}/publish`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ base_version: patched.agent.version }),
+      },
+    );
+    assert.equal(publishRes.status, 201);
+    const published = (await publishRes.json()) as {
+      version: { id: string; snapshot: { tools: { name: string }[] } };
+    };
+    assert.equal(published.version.snapshot.tools[0].name, "get_status");
+
+    const patch2 = await fetch(`${base}/v1/workspaces/${WS_A}/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ expected_version: patched.agent.version, tools: [] }),
+    });
+    assert.equal(patch2.status, 200);
+
+    const versionId = published.version.id;
+    const getVer = await fetch(
+      `${base}/v1/workspaces/${WS_A}/agents/${agent.id}/versions/${versionId}`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    const verBody = (await getVer.json()) as { version: { snapshot: { tools: unknown[] } } };
+    assert.equal(verBody.version.snapshot.tools.length, 1);
+  });
+});
+
 test("draft edits do not change published snapshot", async () => {
   await withAgentServer(async ({ port, createToken }) => {
     const base = `http://127.0.0.1:${port}`;

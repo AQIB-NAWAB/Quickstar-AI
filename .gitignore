@@ -4,13 +4,10 @@ coverage/
 .turbo/
 *.tsbuildinfo
 
-.env
-.env.*
 !.env.example
 
 .DS_Store
 .idea/
-.vscode/*
 !.vscode/extensions.json
 
 *.log
@@ -39,3 +36,4 @@ walkthrough_videos/
 
 
 
+config.bat

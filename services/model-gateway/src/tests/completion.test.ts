@@ -62,6 +62,55 @@ describe("model-gateway complete", () => {
     });
   });
 
+  it("returns tool_calls then stop on fake:tool_once", async () => {
+    resetFakeProviderState();
+    await withModelGatewayServer(async ({ baseUrl }) => {
+      const tools = [{ name: "get_status", description: "Get status" }];
+      const first = await fetch(`${baseUrl}/internal/complete`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          workspace_id: "ws-1",
+          request_id: "req-tool-1",
+          model: { profile: "fake", model_id: "fake:tool_once" },
+          messages: [{ role: "user", content: "run tool" }],
+          tools,
+        }),
+      });
+      assert.equal(first.status, 200);
+      const firstJson = (await first.json()) as {
+        finish_reason: string;
+        tool_calls?: { name: string }[];
+      };
+      assert.equal(firstJson.finish_reason, "tool_calls");
+      assert.equal(firstJson.tool_calls?.[0]?.name, "get_status");
+
+      const second = await fetch(`${baseUrl}/internal/complete`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          workspace_id: "ws-1",
+          request_id: "req-tool-1",
+          model: { profile: "fake", model_id: "fake:tool_once" },
+          messages: [
+            { role: "user", content: "run tool" },
+            {
+              role: "assistant",
+              content: "",
+              tool_calls: firstJson.tool_calls,
+            },
+            { role: "tool", tool_call_id: "fake-tool-call-1", content: '{"ok":true}' },
+          ],
+          tools,
+        }),
+      });
+      assert.equal(second.status, 200);
+      const secondJson = (await second.json()) as { content: string; finish_reason: string };
+      assert.equal(secondJson.finish_reason, "stop");
+      assert.match(secondJson.content, /fake-after-tool/);
+    });
+  });
+
   it("retries once on fake 429", async () => {
     resetFakeProviderState();
     await withModelGatewayServer(async ({ baseUrl }) => {

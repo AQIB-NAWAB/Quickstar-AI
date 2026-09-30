@@ -28,6 +28,7 @@ export const WORKSPACE_PERMISSIONS = {
   KNOWLEDGE_WRITE: "workspace.knowledge.write",
   MEMORY_READ: "workspace.memory.read",
   MEMORY_WRITE: "workspace.memory.write",
+  TOOLS_RUN: "workspace.tools.run",
 } as const;
 
 export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[keyof typeof WORKSPACE_PERMISSIONS];
@@ -52,6 +53,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.KNOWLEDGE_WRITE,
     WORKSPACE_PERMISSIONS.MEMORY_READ,
     WORKSPACE_PERMISSIONS.MEMORY_WRITE,
+    WORKSPACE_PERMISSIONS.TOOLS_RUN,
   ],
   developer: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
@@ -74,6 +76,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.CONVERSATION_PARTICIPATE,
     WORKSPACE_PERMISSIONS.KNOWLEDGE_READ,
     WORKSPACE_PERMISSIONS.MEMORY_READ,
+    WORKSPACE_PERMISSIONS.TOOLS_RUN,
   ],
   analyst: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
@@ -85,6 +88,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
   human_agent: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
     WORKSPACE_PERMISSIONS.CONVERSATION_PARTICIPATE,
+    WORKSPACE_PERMISSIONS.TOOLS_RUN,
   ],
 };
 
