@@ -268,7 +268,7 @@ Update these lines every day.
 | 13 | Retrieval in the runtime | 11, 12 | 14 | done |
 | 14 | Memory | 09, 12 | 13 | done |
 | 15 | Tools and MCP | 12 | 16 | done |
-| 16 | Secrets | — | 15 | not_started |
+| 16 | Secrets | — | 15 | done |
 | 17 | Website chat widget | 12 | 18 | not_started |
 | 18 | Inbox and human handoff | 09 | 17, 21C | not_started |
 | 19 | Event platform | objects exist | 20 | not_started |
@@ -1837,7 +1837,7 @@ No full MCP catalog required on day one. One MCP or one HTTP tool that proves th
 
 ## 19. Feature 16 — Secrets
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** none, but tools should read secrets from here once both exist  
 **Can run beside:** Feature 15  
 **Deep topic:** secrets and rotation
