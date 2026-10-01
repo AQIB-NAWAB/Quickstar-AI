@@ -1,0 +1,84 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowRight, Copy, Check } from "lucide-react";
+import { useState } from "react";
+
+export function Hero() {
+  const [copied, setCopied] = useState(false);
+  const installCmd = "npm install @mendable/firecrawl-js";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(installCmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <section className="relative pt-12 pb-8 sm:pt-20 sm:pb-12 text-center overflow-hidden">
+      {/* Background Architectural Grid Lines */}
+      <div className="absolute inset-0 -z-10 pointer-events-none opacity-40 firecrawl-grid [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        {/* Top Pill Badge */}
+        <Link
+          href="#pricing"
+          className="inline-flex items-center gap-2 p-1 pr-3 rounded-full text-xs font-medium text-neutral-600 bg-white border border-border-faint hover:border-neutral-300 transition-all shadow-sm mb-6 group"
+        >
+          <span className="px-2.5 py-0.5 rounded-full bg-heat-12 text-heat-100 font-semibold">
+            Deal
+          </span>
+          <span>2 Months Free - Annually</span>
+          <div className="w-4 h-4 rounded-full bg-accent-black text-white flex items-center justify-center group-hover:bg-heat-100 transition-colors">
+            <ArrowRight className="w-2.5 h-2.5" />
+          </div>
+        </Link>
+
+        {/* Hero Title with exact Firecrawl styling */}
+        <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-accent-black leading-[1.1] mb-6">
+          Give your AI agents <br className="hidden sm:inline" />
+          <span className="text-heat-100">web data and beyond</span>
+        </h1>
+
+        {/* Subtitle */}
+        <p className="max-w-2xl mx-auto text-base sm:text-lg text-neutral-600 leading-relaxed mb-8">
+          The web data API to search and scrape with access to more sources through{" "}
+          <span className="text-accent-black font-medium underline underline-offset-4 decoration-border-muted hover:decoration-heat-100 transition-colors">
+            Alexandria
+          </span>
+          .{" "}
+          <span className="inline-block mt-1 sm:mt-0 font-medium text-neutral-800">
+            It&apos;s also open source.
+          </span>
+        </p>
+
+        {/* Action CTAs */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+          <Link
+            href="/register"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-10 text-sm font-semibold text-white bg-heat-100 hover:bg-[#e04f12] active:scale-[0.98] transition-all shadow-firecrawl-btn"
+          >
+            Start for free
+          </Link>
+
+          <button
+            onClick={handleCopy}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-10 text-sm font-medium text-accent-black bg-white hover:bg-neutral-50 active:scale-[0.98] border border-border-faint hover:border-neutral-300 transition-all shadow-sm group"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span className="text-emerald-700 font-semibold">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-neutral-500 group-hover:text-accent-black transition-colors" />
+                <span>Setup for agents</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
