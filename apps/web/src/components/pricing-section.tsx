@@ -7,11 +7,12 @@ export function PricingSection() {
       name: "Free",
       price: "$0",
       period: "forever",
-      desc: "Perfect for testing, personal projects, and small agent prototypes.",
+      desc: "For testing agent prototypes, local development, and small experiments.",
       features: [
-        "500 free scrape credits",
-        "Scrape, Crawl & Map endpoints",
-        "Standard anti-bot bypass",
+        "1,000 free agent turns / mo",
+        "1 active published agent",
+        "Web chat widget integration",
+        "Up to 10 Knowledge document sources",
         "Community Discord support",
       ],
       cta: "Get started free",
@@ -19,47 +20,49 @@ export function PricingSection() {
     },
     {
       name: "Starter",
-      price: "$16",
+      price: "$49",
       period: "/ month",
-      desc: "For production AI applications needing reliable ongoing web data.",
+      desc: "For businesses deploying production chat and automated voice receptionists.",
       features: [
-        "100,000 scrape credits / mo",
-        "Residential proxy rotation",
-        "5 concurrent requests",
-        "Dynamic JS rendering",
+        "25,000 agent turns / mo",
+        "5 active published agents",
+        "Inbound & outbound voice telephony",
+        "Hybrid OpenSearch RAG (1,000 docs)",
+        "Secrets vault (20 credentials)",
         "Email & Discord support",
       ],
       cta: "Start 14-day trial",
       popular: true,
     },
     {
-      name: "Standard",
-      price: "$83",
+      name: "Scale",
+      price: "$199",
       period: "/ month",
       desc: "High-volume pipelines for scaling autonomous multi-agent workloads.",
       features: [
-        "500,000 scrape credits / mo",
-        "20 concurrent requests",
-        "Dedicated residential IPs",
-        "Priority job queue",
-        "Direct Slack channel",
+        "150,000 agent turns / mo",
+        "Unlimited published agents",
+        "10 concurrent voice telephony lines",
+        "Custom MCP tools & workflows",
+        "Human-in-the-loop operational inbox",
+        "Priority queue & direct Slack",
       ],
-      cta: "Upgrade to Standard",
+      cta: "Upgrade to Scale",
       popular: false,
     },
     {
       name: "Enterprise",
       price: "Custom",
       period: "",
-      desc: "Custom deployment, air-gapped VPCs, and dedicated SLAs.",
+      desc: "Dedicated cloud clusters, custom SLAs, and air-gapped private VPCs.",
       features: [
-        "Custom credit limits",
-        "Unlimited concurrency",
-        "Private Kubernetes deployment",
-        "99.99% uptime SLA",
-        "Dedicated account manager",
+        "Unlimited agent turns & concurrency",
+        "Private Kubernetes / AWS deployment",
+        "99.99% uptime SLA guarantee",
+        "Custom SSO, RBAC roles & audit logs",
+        "Dedicated engineering architect",
       ],
-      cta: "Contact Sales",
+      cta: "Contact Enterprise Sales",
       popular: false,
     },
   ];
@@ -71,10 +74,10 @@ export function PricingSection() {
           Transparent Pricing
         </span>
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-accent-black mb-4">
-          Start for free, scale as your agents grow
+          Simple Per-Turn &amp; Telephony Pricing
         </h2>
         <p className="text-base text-neutral-600">
-          Simple per-scrape pricing. Only pay for successful responses.
+          Scale effortlessly from individual developers to multi-tenant global enterprises.
         </p>
       </div>
 

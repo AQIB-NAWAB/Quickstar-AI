@@ -8,47 +8,47 @@ export function Footer() {
           {/* Brand info */}
           <div className="col-span-2">
             <Link href="/" className="inline-block text-xl font-bold tracking-tight text-accent-black mb-3">
-              firecrawl
+              QuickStart<span className="text-heat-100">AI</span>
             </Link>
             <p className="text-xs text-neutral-500 max-w-sm leading-relaxed mb-4">
-              Turn entire websites into LLM-ready markdown or structured data. Fast, resilient, and open source.
+              Production-grade, multi-tenant AI agent platform. Build and scale autonomous conversational agents across website chat, telephony voice calls, and automated workflows.
             </p>
             {/* Live operational badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>All systems operational</span>
+              <span>Platform Core Online (10k req/s)</span>
             </div>
           </div>
 
-          {/* Column 1: Product */}
+          {/* Column 1: Platform */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-accent-black mb-4">
-              Product
+              Platform
             </h4>
             <ul className="space-y-2 text-xs text-neutral-600">
               <li>
-                <Link href="#features" className="hover:text-accent-black">
-                  Scrape API
+                <Link href="#platform" className="hover:text-accent-black">
+                  Agent Engine
                 </Link>
               </li>
               <li>
-                <Link href="#features" className="hover:text-accent-black">
-                  Crawl API
+                <Link href="#platform" className="hover:text-accent-black">
+                  Omnichannel Chat
                 </Link>
               </li>
               <li>
-                <Link href="#features" className="hover:text-accent-black">
-                  Map API
+                <Link href="#platform" className="hover:text-accent-black">
+                  Voice Telephony
                 </Link>
               </li>
               <li>
-                <Link href="#features" className="hover:text-accent-black">
-                  Extract API
+                <Link href="#platform" className="hover:text-accent-black">
+                  Knowledge RAG
                 </Link>
               </li>
               <li>
-                <Link href="/playground" className="hover:text-accent-black">
-                  Playground
+                <Link href="#platform" className="hover:text-accent-black">
+                  Secrets Vault
                 </Link>
               </li>
               <li>
@@ -59,64 +59,59 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 2: Developers */}
+          {/* Column 2: Engineering & Architecture */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-accent-black mb-4">
-              Developers
+              Architecture
             </h4>
             <ul className="space-y-2 text-xs text-neutral-600">
               <li>
-                <Link href="/docs" className="hover:text-accent-black">
-                  Documentation
+                <Link href="#architecture" className="hover:text-accent-black">
+                  System Architecture
                 </Link>
               </li>
               <li>
-                <Link href="/docs/api" className="hover:text-accent-black">
-                  API Reference
+                <Link href="#architecture" className="hover:text-accent-black">
+                  Multi-Tenancy Guide
+                </Link>
+              </li>
+              <li>
+                <Link href="#architecture" className="hover:text-accent-black">
+                  Immutable Versioning
                 </Link>
               </li>
               <li>
                 <a
-                  href="https://github.com/firecrawl/firecrawl"
+                  href="https://github.com/AQIB-NAWAB/Quickstar-AI"
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-accent-black"
                 >
-                  GitHub
+                  GitHub Repository
                 </a>
-              </li>
-              <li>
-                <a
-                  href="https://discord.gg/firecrawl"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-accent-black"
-                >
-                  Discord Community
-                </a>
-              </li>
-              <li>
-                <Link href="/changelog" className="hover:text-accent-black">
-                  Changelog
-                </Link>
               </li>
             </ul>
           </div>
 
-          {/* Column 3: Legal & Company */}
+          {/* Column 3: Trust & Security */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-accent-black mb-4">
-              Company
+              Security
             </h4>
             <ul className="space-y-2 text-xs text-neutral-600">
               <li>
-                <Link href="/about" className="hover:text-accent-black">
-                  About
+                <Link href="#architecture" className="hover:text-accent-black">
+                  Tenant Isolation
                 </Link>
               </li>
               <li>
-                <Link href="/blog" className="hover:text-accent-black">
-                  Blog
+                <Link href="#architecture" className="hover:text-accent-black">
+                  AES-256-GCM Vault
+                </Link>
+              </li>
+              <li>
+                <Link href="#architecture" className="hover:text-accent-black">
+                  RBAC Specifications
                 </Link>
               </li>
               <li>
@@ -129,18 +124,13 @@ export function Footer() {
                   Terms of Service
                 </Link>
               </li>
-              <li>
-                <Link href="/security" className="hover:text-accent-black">
-                  Security
-                </Link>
-              </li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-border-faint flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-400 gap-4">
-          <p>© 2026 Firecrawl / QuickStart AI. All rights reserved.</p>
-          <p className="font-mono">Clean web data for AI agents &amp; LLMs.</p>
+          <p>© 2026 QuickStart AI. Production-Scale Autonomous AI Agent Platform.</p>
+          <p className="font-mono">Engineered for 10,000 req/sec sustained scale.</p>
         </div>
       </div>
     </footer>

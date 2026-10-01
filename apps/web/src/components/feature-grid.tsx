@@ -1,57 +1,57 @@
-import { FileCode2, Network, MapPin, Sparkles, ArrowRight } from "lucide-react";
+import { MessageSquare, PhoneCall, Database, ShieldCheck, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export function FeatureGrid() {
   const features = [
     {
-      id: "scrape",
-      endpoint: "/v1/scrape",
-      title: "Scrape",
-      subtitle: "Turn any URL into LLM-ready markdown or structured data",
-      desc: "Handles dynamic JavaScript rendering, shadow DOMs, infinite scrolls, and automatically bypasses anti-bot blockades.",
-      icon: FileCode2,
-      badge: "High-Speed",
+      id: "chat",
+      endpoint: "services/conversation-service :3004",
+      title: "Omnichannel Chat & Web Widget",
+      subtitle: "Persistent Threads, Streaming & Seamless Human Handoff",
+      desc: "Embed high-conversion chat widgets on your web apps. Features optimistic UI updates, typing state streaming, automated conversation indexing, and seamless human escalation without losing context.",
+      icon: MessageSquare,
+      badge: "Realtime Chat",
     },
     {
-      id: "crawl",
-      endpoint: "/v1/crawl",
-      title: "Crawl",
-      subtitle: "Recursively crawl entire websites with subpages",
-      desc: "Traverse every accessible route with automatic pagination, sitemap resolution, and configurable depth limits.",
-      icon: Network,
-      badge: "Async Jobs",
+      id: "voice",
+      endpoint: "services/voice-service :3008",
+      title: "Realtime Voice Telephony",
+      subtitle: "Sub-400ms SIP & PSTN Calls via Twilio and Telnyx",
+      desc: "Automate inbound customer receptionists and outbound follow-up campaigns. Built on an event-driven cascade (STT → Agent Runtime → TTS) with active interruption/barge-in handling at 10,000 concurrent calls.",
+      icon: PhoneCall,
+      badge: "Sub-400ms Audio",
     },
     {
-      id: "map",
-      endpoint: "/v1/map",
-      title: "Map",
-      subtitle: "Discover all URLs on a domain in seconds",
-      desc: "Fastest way to get a clean index of any domain without full scraping. Built for high-throughput discovery.",
-      icon: MapPin,
-      badge: "< 500ms",
+      id: "knowledge",
+      endpoint: "services/knowledge-service :3009",
+      title: "Enterprise Knowledge & Hybrid RAG",
+      subtitle: "OpenSearch kNN, Async SQS Workers & Strict Tenancy",
+      desc: "Ingest PDFs, technical documentation, and crawled web pages. Chunks, embeds, and indexes data into OpenSearch with workspace-level fail-closed isolation and citation grounding.",
+      icon: Database,
+      badge: "Vector Retrieval",
     },
     {
-      id: "extract",
-      endpoint: "/v1/extract",
-      title: "Extract",
-      subtitle: "Structured JSON extraction using AI schemas",
-      desc: "Define your Zod or JSON schema and let AI extract typed properties, pricing tables, and product details cleanly.",
-      icon: Sparkles,
-      badge: "AI Powered",
+      id: "secrets",
+      endpoint: "services/secrets-service :3011",
+      title: "Tools, MCP & Encrypted Secrets Vault",
+      subtitle: "AES-256-GCM Envelope Encryption & Zero-Downtime Rotation",
+      desc: "Safely give agents the power to take real actions across external APIs and MCP tools. Sensitive API keys and tokens are encrypted at rest and never leaked in public API responses or logs.",
+      icon: ShieldCheck,
+      badge: "AES-256-GCM Vault",
     },
   ];
 
   return (
-    <section id="features" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="platform" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center max-w-3xl mx-auto mb-16">
         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-heat-12 text-heat-100 border border-heat-24 mb-3">
           Core Capabilities
         </span>
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-accent-black mb-4">
-          Built from the ground up for LLMs and AI Agents
+          The Full-Stack Operating System for Autonomous AI Agents
         </h2>
         <p className="text-base text-neutral-600">
-          Four dedicated endpoints to transform raw, noisy websites into clean, reliable context.
+          Everything your enterprise needs to build, operate, and scale intelligent AI agents across any customer channel.
         </p>
       </div>
 
@@ -85,14 +85,14 @@ export function FeatureGrid() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-border-faint flex items-center justify-between">
-                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   {f.badge}
                 </span>
                 <Link
-                  href="/docs"
+                  href="#architecture"
                   className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 hover:text-heat-100 transition-colors"
                 >
-                  <span>Explore API</span>
+                  <span>Architecture Spec</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -103,3 +103,4 @@ export function FeatureGrid() {
     </section>
   );
 }
+

@@ -13,26 +13,32 @@ export function Navbar() {
         {/* Brand (Typographic only, no logo image per user requirement) */}
         <Link href="/" className="flex items-center gap-2 group">
           <span className="text-xl font-bold tracking-tight text-accent-black group-hover:text-heat-100 transition-colors">
-            firecrawl
+            QuickStart<span className="text-heat-100">AI</span>
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-heat-12 text-heat-100 border border-heat-24">
-            v2.0
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-heat-12 text-heat-100 border border-heat-24">
+            v1.0 Platform
           </span>
         </Link>
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8">
           <Link
-            href="/playground"
+            href="#platform"
             className="text-sm font-medium text-neutral-600 hover:text-accent-black transition-colors"
           >
-            Playground
+            Platform
           </Link>
           <Link
-            href="#features"
+            href="#voice-chat"
             className="text-sm font-medium text-neutral-600 hover:text-accent-black transition-colors"
           >
-            Features
+            Voice &amp; Chat
+          </Link>
+          <Link
+            href="#knowledge"
+            className="text-sm font-medium text-neutral-600 hover:text-accent-black transition-colors"
+          >
+            Knowledge RAG
           </Link>
           <Link
             href="#architecture"
@@ -46,25 +52,19 @@ export function Navbar() {
           >
             Pricing
           </Link>
-          <Link
-            href="/docs"
-            className="text-sm font-medium text-neutral-600 hover:text-accent-black transition-colors"
-          >
-            Docs
-          </Link>
         </nav>
 
         {/* Right side CTAs */}
         <div className="hidden md:flex items-center gap-4">
           {/* GitHub Star Pill */}
           <a
-            href="https://github.com/firecrawl/firecrawl"
+            href="https://github.com/AQIB-NAWAB/Quickstar-AI"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-8 text-xs font-medium text-neutral-700 bg-white border border-border-faint hover:border-border-muted transition-all shadow-sm"
           >
             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-            <span>★ 14.8k</span>
+            <span>GitHub</span>
           </a>
 
           <Link
@@ -104,18 +104,25 @@ export function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-border-faint bg-white px-4 py-4 space-y-3">
           <Link
-            href="/playground"
+            href="#platform"
             className="block text-sm font-medium text-neutral-800 py-1"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Playground
+            Platform
           </Link>
           <Link
-            href="#features"
+            href="#voice-chat"
             className="block text-sm font-medium text-neutral-800 py-1"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Features
+            Voice &amp; Chat
+          </Link>
+          <Link
+            href="#knowledge"
+            className="block text-sm font-medium text-neutral-800 py-1"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Knowledge RAG
           </Link>
           <Link
             href="#architecture"
@@ -130,13 +137,6 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
           >
             Pricing
-          </Link>
-          <Link
-            href="/docs"
-            className="block text-sm font-medium text-neutral-800 py-1"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Docs
           </Link>
           <div className="pt-2 border-t border-border-faint flex items-center justify-between">
             <Link

@@ -1,32 +1,60 @@
 "use client";
 
-import { Globe, ArrowRight, Search, FileCode2, MapPin, Network } from "lucide-react";
+import { Bot, ArrowRight, MessageSquare, PhoneCall, Database, Wrench } from "lucide-react";
 import { useState } from "react";
 
-export type ModeType = "search" | "scrape" | "map" | "crawl";
+export type ModeType = "chat" | "voice" | "knowledge" | "tools";
 
 interface InteractiveUrlBarProps {
-  onRun?: (mode: ModeType, url: string) => void;
+  onRun?: (mode: ModeType, prompt: string) => void;
   isLoading?: boolean;
 }
 
 export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) {
-  const [url, setUrl] = useState("https://mendable.ai");
-  const [activeMode, setActiveMode] = useState<ModeType>("scrape");
+  const [prompt, setPrompt] = useState("Resolve customer refund requests and update Stripe CRM");
+  const [activeMode, setActiveMode] = useState<ModeType>("chat");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onRun) {
-      onRun(activeMode, url);
+      onRun(activeMode, prompt);
     }
   };
 
-  const modes: { id: ModeType; label: string; icon: any }[] = [
-    { id: "search", label: "Search", icon: Search },
-    { id: "scrape", label: "Scrape", icon: FileCode2 },
-    { id: "map", label: "Map", icon: MapPin },
-    { id: "crawl", label: "Crawl", icon: Network },
+  const modes: { id: ModeType; label: string; icon: any; defaultPrompt: string }[] = [
+    {
+      id: "chat",
+      label: "Omnichannel Chat",
+      icon: MessageSquare,
+      defaultPrompt: "Resolve customer refund requests and update Stripe CRM",
+    },
+    {
+      id: "voice",
+      label: "AI Voice Agent",
+      icon: PhoneCall,
+      defaultPrompt: "Handle incoming customer calls with <400ms audio latency",
+    },
+    {
+      id: "knowledge",
+      label: "Knowledge RAG",
+      icon: Database,
+      defaultPrompt: "Index internal refund-policy.pdf into OpenSearch vector index",
+    },
+    {
+      id: "tools",
+      label: "Tools & MCP",
+      icon: Wrench,
+      defaultPrompt: "Execute stripe_refunds(charge_id) with encrypted secrets vault",
+    },
   ];
+
+  const handleModeChange = (modeId: ModeType) => {
+    setActiveMode(modeId);
+    const modeConfig = modes.find((m) => m.id === modeId);
+    const newPrompt = modeConfig ? modeConfig.defaultPrompt : prompt;
+    setPrompt(newPrompt);
+    if (onRun) onRun(modeId, newPrompt);
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 sm:px-0">
@@ -36,18 +64,18 @@ export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) 
       >
         {/* Top Input Row */}
         <div className="p-4 sm:p-5 flex items-center gap-3 border-b border-border-faint">
-          <Globe className="w-5 h-5 text-neutral-400 shrink-0" />
+          <Bot className="w-5 h-5 text-heat-100 shrink-0" />
           <input
             type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Instruct your agent (e.g. Schedule appointments, query database, answer inquiries)..."
             className="w-full bg-transparent text-sm sm:text-base font-normal text-accent-black placeholder:text-neutral-400 focus:outline-none"
           />
-          {url && (
+          {prompt && (
             <button
               type="button"
-              onClick={() => setUrl("")}
+              onClick={() => setPrompt("")}
               className="text-xs text-neutral-400 hover:text-neutral-600 px-2 py-1 rounded"
             >
               Clear
@@ -56,9 +84,9 @@ export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) 
         </div>
 
         {/* Bottom Control Bar */}
-        <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
+        <div className="p-2 sm:p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Segmented Mode Selector */}
-          <div className="flex items-center bg-neutral-100/80 p-1 rounded-12 gap-1 border border-border-faint">
+          <div className="flex flex-wrap items-center bg-neutral-100/80 p-1 rounded-12 gap-1 border border-border-faint w-full sm:w-auto">
             {modes.map((mode) => {
               const Icon = mode.icon;
               const isActive = activeMode === mode.id;
@@ -66,10 +94,7 @@ export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) 
                 <button
                   key={mode.id}
                   type="button"
-                  onClick={() => {
-                    setActiveMode(mode.id);
-                    if (onRun) onRun(mode.id, url);
-                  }}
+                  onClick={() => handleModeChange(mode.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-8 text-xs sm:text-sm font-medium transition-all ${
                     isActive
                       ? "bg-white text-accent-black shadow-sm font-semibold"
@@ -86,10 +111,10 @@ export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) 
           {/* Run Action Button */}
           <button
             type="submit"
-            disabled={isLoading || !url}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-10 text-xs sm:text-sm font-semibold text-white bg-heat-100 hover:bg-[#e04f12] active:scale-[0.98] transition-all disabled:opacity-50 shadow-firecrawl-btn"
+            disabled={isLoading || !prompt}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-10 text-xs sm:text-sm font-semibold text-white bg-heat-100 hover:bg-[#e04f12] active:scale-[0.98] transition-all disabled:opacity-50 shadow-firecrawl-btn"
           >
-            <span>{isLoading ? "Running..." : "Run"}</span>
+            <span>{isLoading ? "Running..." : "Test Agent"}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -97,3 +122,4 @@ export function InteractiveUrlBar({ onRun, isLoading }: InteractiveUrlBarProps) 
     </div>
   );
 }
+

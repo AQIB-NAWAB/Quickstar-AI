@@ -13,17 +13,19 @@ import { CtaBanner } from "@/components/cta-banner";
 import { Footer } from "@/components/footer";
 
 export default function HomePage() {
-  const [activeMode, setActiveMode] = useState<ModeType>("scrape");
-  const [targetUrl, setTargetUrl] = useState("https://mendable.ai");
+  const [activeMode, setActiveMode] = useState<ModeType>("chat");
+  const [targetPrompt, setTargetPrompt] = useState(
+    "Resolve customer refund requests and update Stripe CRM"
+  );
   const [loading, setLoading] = useState(false);
 
-  const handleRun = (mode: ModeType, url: string) => {
+  const handleRun = (mode: ModeType, prompt: string) => {
     setActiveMode(mode);
-    setTargetUrl(url);
+    setTargetPrompt(prompt);
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -34,11 +36,11 @@ export default function HomePage() {
         {/* Hero Section */}
         <Hero />
 
-        {/* Central Signature Interactive URL Bar */}
+        {/* Central Signature Interactive Agent Bar */}
         <div className="relative -mt-2 z-10">
           <InteractiveUrlBar onRun={handleRun} isLoading={loading} />
-          {/* Split Code & Clean Markdown Preview */}
-          <CodePlayground currentMode={activeMode} currentUrl={targetUrl} />
+          {/* Split Code & Live Reasoning Trace Preview */}
+          <CodePlayground currentMode={activeMode} currentPrompt={targetPrompt} />
         </div>
 
         {/* Social Proof */}

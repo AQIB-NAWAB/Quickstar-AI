@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Firecrawl | Web Data API for AI Agents",
+  title: "QuickStart AI — Production-Scale Multi-Tenant AI Agent Platform",
   description:
-    "Give your AI agents web data and beyond. Search and scrape the web into clean LLM-ready markdown with sub-second execution.",
+    "Build, deploy, and scale autonomous AI agents across website chat, telephony voice calls, and automated enterprise workflows with sub-second latency.",
 };
 
 export default function RootLayout({
