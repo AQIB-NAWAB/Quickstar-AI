@@ -47,6 +47,112 @@ body {
   background-size: 100px 100px;
 }
 
+/* Firecrawl signature primary glowing button */
+.button-primary {
+  background: #fa5d19;
+  box-shadow: inset 0 -6px 12px rgba(255, 0, 0, 0.2), 0 2px 4px rgba(250, 93, 25, 0.12), 0 1px 1px rgba(250, 93, 25, 0.12), 0 .5px .5px rgba(250, 93, 25, 0.16);
+  background: color(display-p3 0.9816 0.3634 0.0984, #fa5d19);
+  box-shadow: inset 0 -6px 12px color(display-p3 0.9804 0.1127 0.098 / 0.2), 0 2px 4px color(display-p3 0.9804 0.3647 0.098 / 0.12), 0 1px 1px color(display-p3 0.9804 0.3647 0.098 / 0.12), 0 0.5px 0.5px color(display-p3 0.9804 0.3647 0.098 / 0.16);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.button-primary:hover {
+  box-shadow: inset 0 -6px 12px color(display-p3 0.9804 0.1127 0.098 / 0.25), 0 6px 14px color(display-p3 0.9804 0.3647 0.098 / 0.24), 0 1px 1px color(display-p3 0.9804 0.3647 0.098 / 0.15);
+  transform: translateY(-1px);
+}
+.button-primary:active {
+  transform: translateY(0) scale(0.995);
+}
+
+/* Rotating border highlight animation from Firecrawl */
+.hero-scraping-highlight {
+  position: relative;
+}
+.hero-scraping-highlight::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid var(--border-loud);
+  pointer-events: none;
+  animation: 2.4s linear infinite hero-scraping-highlight-before;
+  z-index: 2;
+}
+@keyframes hero-scraping-highlight-before {
+  0% {
+    border-color: var(--border-loud);
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.9;
+    border-color: var(--heat-100);
+  }
+  80% {
+    border-color: var(--border-loud);
+    opacity: 1;
+  }
+}
+
+/* Shimmering streaming text shine */
+.ai-chats-chat-thinking {
+  background: linear-gradient(to right, transparent 0%, rgba(250, 93, 25, 0.5) 25%, transparent 50%, transparent 100%), #262626;
+  -webkit-text-fill-color: transparent;
+  background-position: 100% 0;
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  animation: 3s linear infinite ai-chats-chat-shine;
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+}
+@keyframes ai-chats-chat-shine {
+  0% { background-position: 100% 0; }
+  50%, 100% { background-position: -100% 0; }
+}
+
+/* Radar pulse indicator */
+.ai-chats-realtime-indicator {
+  animation: 2.5s cubic-bezier(0.16, 1, 0.3, 1) infinite ai-chats-realtime-indicator;
+  transform: scale(0.6);
+}
+@keyframes ai-chats-realtime-indicator {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 0.2;
+  }
+  75%, 100% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(3.5);
+  }
+}
+
+/* Syntax highlighter token themes */
+.token-keyword { color: #b54216; font-weight: 500; }
+.token-string { color: #0d7a46; }
+.token-property { color: #1e5a96; }
+.token-function { color: #fa5d19; font-weight: 500; }
+.token-number { color: #8e3fc4; }
+.token-comment { color: #8c8c8c; font-style: italic; }
+.token-punctuation { color: #595959; }
+
+/* Character entrance animation */
+@keyframes char-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-char-in {
+  animation: char-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -62,3 +168,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.24);
 }
+

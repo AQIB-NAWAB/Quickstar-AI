@@ -1,85 +1,95 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Copy, Check, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { HeroAgentIllustration } from "./hero-agent-illustration";
 
 export function Hero() {
-  const [copied, setCopied] = useState(false);
-  const installCmd = "npm install @quickstart/sdk";
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(installCmd);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <section className="relative pt-12 pb-8 sm:pt-20 sm:pb-12 text-center overflow-hidden">
-      {/* Background Architectural Grid Lines */}
-      <div className="absolute inset-0 -z-10 pointer-events-none opacity-40 firecrawl-grid [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+    <section className="relative w-full bg-[#FAFAF8] overflow-hidden">
+      {/* Main Hero Container */}
+      <div className="max-w-[1400px] mx-auto px-5 sm:px-6 lg:px-8 pt-10 pb-14 lg:py-16 min-h-[660px] lg:min-h-[720px] flex items-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-12 items-center">
+          
+          {/* Left Column: Text (~49%) */}
+          <div className="lg:col-span-6 xl:col-span-6 flex flex-col justify-center max-w-2xl">
+            {/* Eyebrow */}
+            <div className="flex items-center gap-2 mb-7 lg:mb-8">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#FF571A] shrink-0" />
+              <span className="text-[12px] sm:text-[13px] font-mono font-semibold tracking-[0.1em] text-[#FF571A] uppercase">
+                KNOWLEDGE + TOOLS + AGENTS
+              </span>
+            </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        {/* Top Pill Badge */}
-        <Link
-          href="#architecture"
-          className="inline-flex items-center gap-2 p-1 pr-3 rounded-full text-xs font-medium text-neutral-600 bg-white border border-border-faint hover:border-neutral-300 transition-all shadow-sm mb-6 group"
-        >
-          <span className="px-2.5 py-0.5 rounded-full bg-heat-12 text-heat-100 font-semibold flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-heat-100" />
-            Enterprise
-          </span>
-          <span>Production-Scale Multi-Tenant AI Agent Platform</span>
-          <div className="w-4 h-4 rounded-full bg-accent-black text-white flex items-center justify-center group-hover:bg-heat-100 transition-colors">
-            <ArrowRight className="w-2.5 h-2.5" />
+            {/* Headline */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[68px] xl:text-[76px] font-bold tracking-tight text-[#262626] leading-[1.08] mb-7">
+              <span className="block">Build agents that</span>
+              <span className="block">
+                know <span className="text-[#FF571A]">your business.</span>
+              </span>
+            </h1>
+
+            {/* Supporting Copy */}
+            <p className="text-lg sm:text-[19px] lg:text-[20px] text-neutral-600 leading-relaxed max-w-xl mb-9">
+              Connect company knowledge and API tools.
+              <br className="hidden sm:inline" />
+              Publish an agent. Put it to work in a conversation.
+            </p>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 mb-11">
+              <Link
+                href="/register"
+                className="inline-flex items-center justify-center gap-2 h-[52px] px-7 rounded-[8px] bg-[#FF571A] hover:bg-[#E04810] text-[15px] font-semibold text-white shadow-sm transition-all active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
+              >
+                <span>Start building</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+
+              <Link
+                href="#playground"
+                className="inline-flex items-center justify-center h-[52px] px-6 rounded-[8px] border border-neutral-300 bg-white hover:bg-neutral-50 text-[15px] font-medium text-[#262626] transition-all active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              >
+                Try the playground
+              </Link>
+            </div>
+
+            {/* Capability Annotation */}
+            <div className="flex items-center gap-3 text-xs sm:text-[13px] font-mono text-neutral-500">
+              <span>Company knowledge</span>
+              <span className="text-neutral-300">/</span>
+              <span>API tools</span>
+              <span className="text-neutral-300">/</span>
+              <span>Published versions</span>
+            </div>
           </div>
-        </Link>
 
-        {/* Hero Title with exact Firecrawl Swiss styling */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-accent-black leading-[1.1] mb-6">
-          Build &amp; Deploy Autonomous AI Agents <br className="hidden sm:inline" />
-          <span className="text-heat-100">across Chat, Voice &amp; Workflows</span>
-        </h1>
+          {/* Right Column: Illustration (~51%) */}
+          <div className="lg:col-span-6 xl:col-span-6 flex items-center justify-center lg:justify-end">
+            <HeroAgentIllustration />
+          </div>
 
-        {/* Subtitle */}
-        <p className="max-w-2xl mx-auto text-base sm:text-lg text-neutral-600 leading-relaxed mb-8">
-          Connect your enterprise knowledge, private tools, and APIs. Deploy
-          production-ready AI agents across website chat, telephony voice calls, and
-          automated pipelines with{" "}
-          <span className="text-accent-black font-semibold">
-            10,000 req/sec scale
-          </span>{" "}
-          and zero data leakage.
-        </p>
+        </div>
+      </div>
 
-        {/* Action CTAs */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
-          <Link
-            href="/register"
-            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-10 text-sm font-semibold text-white bg-heat-100 hover:bg-[#e04f12] active:scale-[0.98] transition-all shadow-firecrawl-btn"
-          >
-            Start Building Free
-          </Link>
-
-          <button
-            onClick={handleCopy}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-10 text-sm font-medium text-accent-black bg-white hover:bg-neutral-50 active:scale-[0.98] border border-border-faint hover:border-neutral-300 transition-all shadow-sm group"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span className="text-emerald-700 font-semibold">Copied!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4 text-neutral-500 group-hover:text-accent-black transition-colors" />
-                <span>npm i @quickstart/sdk</span>
-              </>
-            )}
-          </button>
+      {/* Bottom Hero Rail */}
+      <div className="w-full border-t border-[#E8E8E5]">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] sm:text-[12px] font-mono text-neutral-500">
+          <span className="tracking-wider uppercase">
+            FROM COMPANY CONTEXT TO A USEFUL ANSWER
+          </span>
+          <div className="flex items-center gap-2 tracking-wide">
+            <span className="text-[#FF571A] font-semibold">01</span>
+            <span className="text-[#262626]">Connect</span>
+            <span className="text-neutral-400">→</span>
+            <span className="text-[#FF571A] font-semibold">02</span>
+            <span className="text-[#262626]">Publish</span>
+            <span className="text-neutral-400">→</span>
+            <span className="text-[#FF571A] font-semibold">03</span>
+            <span className="text-[#262626]">Run</span>
+          </div>
         </div>
       </div>
     </section>
   );
 }
-
