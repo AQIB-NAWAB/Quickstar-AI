@@ -5,13 +5,10 @@ coverage/
 .next/
 *.tsbuildinfo
 
-.env
-.env.*
 !.env.example
 
 .DS_Store
 .idea/
-.vscode/*
 !.vscode/extensions.json
 
 *.log
@@ -41,3 +38,4 @@ walkthrough_videos/
 
 
 design/
+config.bat
