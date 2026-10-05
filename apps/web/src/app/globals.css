@@ -169,3 +169,189 @@ body {
   background: rgba(0, 0, 0, 0.24);
 }
 
+/* ========================================================================= */
+/* Hero Conversation & Entrance Animations */
+/* ========================================================================= */
+@keyframes hero-msg-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-chip-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-dot-bounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-2.5px);
+    opacity: 1;
+  }
+}
+
+@keyframes hero-check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes hero-fade-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.animate-hero-msg-in {
+  animation: hero-msg-slide-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-hero-chip-in {
+  animation: hero-chip-pop 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-hero-check {
+  animation: hero-check-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-hero-fade-out {
+  animation: hero-fade-slide-out 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.hero-entrance-1 {
+  animation: hero-msg-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0ms forwards;
+}
+.hero-entrance-2 {
+  animation: hero-msg-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 80ms forwards;
+}
+.hero-entrance-3 {
+  animation: hero-msg-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 160ms forwards;
+}
+.hero-entrance-4 {
+  animation: hero-msg-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 240ms forwards;
+}
+.hero-entrance-5 {
+  animation: hero-msg-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 320ms forwards;
+}
+.hero-entrance-preview {
+  animation: hero-msg-slide-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 120ms forwards;
+}
+
+/* How It Works Section Animations */
+@keyframes hiw-check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes hiw-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-hiw-check {
+  animation: hiw-check-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-hiw-fade-up {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.hiw-entrance-header {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0ms forwards;
+}
+.hiw-entrance-col-1 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 100ms forwards;
+}
+.hiw-entrance-col-2 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 220ms forwards;
+}
+.hiw-entrance-col-3 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 340ms forwards;
+}
+
+/* Platform Capabilities Section Animations */
+.platform-entrance-header {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0ms forwards;
+}
+.platform-entrance-card-1 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 90ms forwards;
+}
+.platform-entrance-card-2 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 190ms forwards;
+}
+.platform-entrance-card-3 {
+  animation: hiw-fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) 290ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-msg-in,
+  .animate-hero-chip-in,
+  .animate-hero-check,
+  .animate-hero-fade-out,
+  .hero-entrance-1,
+  .hero-entrance-2,
+  .hero-entrance-3,
+  .hero-entrance-4,
+  .hero-entrance-5,
+  .hero-entrance-preview,
+  .animate-hiw-check,
+  .animate-hiw-fade-up,
+  .hiw-entrance-header,
+  .hiw-entrance-col-1,
+  .hiw-entrance-col-2,
+  .hiw-entrance-col-3,
+  .platform-entrance-header,
+  .platform-entrance-card-1,
+  .platform-entrance-card-2,
+  .platform-entrance-card-3 {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+

@@ -14,6 +14,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,8 +37,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div>
           {/* Brand header */}
           <div className="h-16 px-6 border-b border-border-faint flex items-center justify-between">
-            <Link href="/" className="text-xl font-bold tracking-tight text-accent-black">
-              firecrawl
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-accent-black hover:opacity-90 transition-opacity">
+              <BrandLogo className="w-6 h-6 shrink-0" />
+              <span>QuickStart<span className="text-[#FF571A]">AI</span></span>
             </Link>
             <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-heat-12 text-heat-100 border border-heat-24">
               PROD
@@ -98,8 +100,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 border-b border-border-faint bg-white/80 backdrop-blur-md px-6 flex items-center justify-between md:justify-end gap-4">
-          <Link href="/" className="md:hidden text-lg font-bold text-accent-black">
-            firecrawl
+          <Link href="/" className="md:hidden flex items-center gap-1.5 text-lg font-bold text-accent-black">
+            <BrandLogo className="w-5 h-5 shrink-0" />
+            <span>QuickStart<span className="text-[#FF571A]">AI</span></span>
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-xs text-neutral-500 font-mono">

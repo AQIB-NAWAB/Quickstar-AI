@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: "QuickStart AI — Production-Scale Multi-Tenant AI Agent Platform",
   description:
     "Build, deploy, and scale autonomous AI agents across website chat, telephony voice calls, and automated enterprise workflows with sub-second latency.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
