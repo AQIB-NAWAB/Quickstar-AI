@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "check": "pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test"
+    "integrity": "python3 scripts/check-repository-integrity.py",
+    "check": "pnpm run integrity && pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

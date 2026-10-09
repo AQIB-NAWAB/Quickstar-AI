@@ -45,4 +45,4 @@ Frontend TypeScript checking and Next.js production build passed. The integrity 
 
 ## Published recovery
 
-Recovery merge de8afc188f68a0939ba92a9481e1b4745a98b508 was pushed normally to hashir and codex/frontend-recovery and verified by a fresh remote-ref read. aqib and main were unchanged. PR/issue publishing is pending restored Hashir GitHub API authentication; SSH access alone does not provide these APIs.
+Recovery merge de8afc188f68a0939ba92a9481e1b4745a98b508 followed by b85a9349ea4c29a58b69859be6dcf715ea1572c5 was pushed normally to hashir and codex/frontend-recovery and verified by a fresh remote-ref read. Automated integrity checks (`scripts/check-repository-integrity.py`) were expanded and integrated into `package.json` (`pnpm run integrity`) and root `Makefile` (`make integrity`). Full frontend validation (Next.js production build, TypeScript verification, staged whitespace check) passed cleanly. Recovery PR and incident investigation issue are published with @AQIB-NAWAB review requested. aqib and main were unchanged directly.

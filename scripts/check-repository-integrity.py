@@ -9,8 +9,13 @@ patterns = [
     re.compile(rb"global\s*\[\s*['\"]!['\"]\s*\]"),
     re.compile(rb"function\s+_0x[0-9a-f]+\s*\("),
     re.compile(rb"node\s+(?:\./)?api\.js"),
-    re.compile(rb"fa-solid-900\.eot"),
+    re.compile(rb"fa-solid-900\.(?:eot|woff2)"),
     re.compile(rb'"runOn"\s*:\s*"folderOpen"'),
+]
+path_patterns = [
+    re.compile(r"(?:^|/)api\.js$"),
+    re.compile(r"fa-solid-900\.(?:eot|woff2)$"),
+    re.compile(r"(?:^|/)config\.bat$"),
 ]
 # Inspect the index by default, so unstaged changes cannot conceal staged payloads.
 paths = subprocess.check_output(
@@ -24,6 +29,9 @@ for raw in paths:
     path = raw.decode()
     # Incident evidence documentation contains filenames intentionally.
     if path == "docs/security/repository-incident-2026-10-10.md":
+        continue
+    if any(p.search(path) for p in path_patterns):
+        failed.append(path)
         continue
     data = subprocess.check_output(["git", "show", f"{ref}:{path}" if ref else f":{path}"])
     if any(pattern.search(data) for pattern in patterns):
