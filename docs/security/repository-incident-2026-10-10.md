@@ -13,7 +13,7 @@ Remote hashes read directly from GitHub over SSH:
 
 Fetching confirmed non-fast-forward updates of both aqib and hashir relative to the previously cached refs. The cached main ref matched the live remote main tip.
 
-The infected hashir tip replaces f735fa1 with a commit sharing its title and author identity. The infected aqib tip similarly replaces 74aa15c. Git author/committer fields do not identify the authenticated pusher. The supplied GitHub notifications attribute hashir force pushes to Abdul-Moiz31; API timeline/audit-log access is required to independently verify actors and all earlier pushes. The earlier notification commits have not yet been retrieved.
+The infected hashir tip replaces f735fa1 with a commit sharing its title and author identity. The infected aqib tip similarly replaces 74aa15c. Git author/committer fields do not identify the authenticated pusher. The supplied GitHub notifications attribute hashir force pushes to Abdul-Moiz31; API timeline/audit-log access is required to independently verify actors and all earlier pushes. The previous notification commit 2d5f915f55f1ae942b264a101aa4e161be6ef923 was also retrieved: it contains injected PostCSS configuration, editor autorun, and JavaScript disguised as fa-solid-900.woff2 (four flagged files). Comparing it to 12b2b3e shows expansion into api.js and service startup scripts and replacement of the disguised font payload. The abbreviated 2e5a79c commit has not been retrieved.
 
 ## Injection mechanisms
 
@@ -42,3 +42,7 @@ Recover aqib from the reviewed 74aa15c tree with a normal recovery commit after 
 ## Validation
 
 Frontend TypeScript checking and Next.js production build passed. The integrity checker accepts the clean baseline and main and rejects both infected remote tips, including disguised binary-extension payloads. Staged whitespace was checked.
+
+## Published recovery
+
+Recovery merge de8afc188f68a0939ba92a9481e1b4745a98b508 was pushed normally to hashir and codex/frontend-recovery and verified by a fresh remote-ref read. aqib and main were unchanged. PR/issue publishing is pending restored Hashir GitHub API authentication; SSH access alone does not provide these APIs.
