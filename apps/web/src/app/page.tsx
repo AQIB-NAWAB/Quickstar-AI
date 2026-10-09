@@ -1,5 +1,8 @@
 "use client";
 
+import "./landing.css";
+
+import { BrandCompanion } from "@/components/brand-companion";
 import { Navbar } from "@/components/navbar";
 import { Hero } from "@/components/hero";
 import { SocialProof } from "@/components/social-proof";
@@ -11,7 +14,7 @@ import { Footer } from "@/components/footer";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background-base">
+    <div className="landing-page relative min-h-screen flex flex-col bg-background-base">
       <Navbar />
 
       <main className="flex-1">
@@ -35,6 +38,7 @@ export default function HomePage() {
       </main>
 
       <Footer />
+      <BrandCompanion />
     </div>
   );
 }

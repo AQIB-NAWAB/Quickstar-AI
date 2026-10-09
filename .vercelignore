@@ -1,0 +1,23 @@
+# Local assets and documentation are not needed to build the frontend.
+/design/
+/walkthrough_videos/
+/logo/
+/docs/
+/memory-bank/
+/.agents/
+/.codex/
+/.archify/
+/.git/
+
+# Vercel installs dependencies and builds Next.js remotely.
+**/node_modules/
+**/.next/
+**/dist/
+**/coverage/
+**/.turbo/
+**/*.tsbuildinfo
+**/*.log
+
+# Configure deployment environment variables in Vercel instead.
+**/.env
+**/.env.*

@@ -41,3 +41,5 @@ walkthrough_videos/
 
 
 design/
+.vercel
+.env*

@@ -39,7 +39,7 @@ export default function ComingSoonPage() {
               aria-hidden="true"
             />
             <span className="text-[24px] sm:text-[26px] font-bold text-[#262626] tracking-tight leading-none">
-              QuickStart<span className="text-[#FF571A]">AI</span>
+              QuickStart<span className="text-[#FF571A]"> AI</span>
             </span>
           </Link>
 
