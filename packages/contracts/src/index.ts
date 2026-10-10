@@ -53,6 +53,15 @@ export type {
 
 export type { MembershipSnapshot } from "./membership.js";
 
+export {
+  PLATFORM_EVENTS_TOPIC,
+  PLATFORM_EVENT_TYPES,
+  isPlatformEventType,
+  type PlatformEventType,
+  type PlatformEventEnvelope,
+  type ConversationHandedOffData,
+} from "./platform-events.js";
+
 export type {
   AcquisitionAction,
   AcquisitionJobStatus,

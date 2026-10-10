@@ -50,6 +50,7 @@ export interface ConversationStore {
     workspaceId: string,
     conversationId: string,
     assigneeUserId: string,
+    requestId?: string | null,
   ): Promise<Conversation>;
   releaseHandoff(
     workspaceId: string,

@@ -17,6 +17,15 @@ import type {
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "unknown"]);
 
 export class MemoryConversationStore implements ConversationStore {
+  /** Test-only visibility for Feature 19 outbox writes. */
+  public outboxEvents: Array<{
+    id: string;
+    workspaceId: string;
+    type: string;
+    payload: Record<string, unknown>;
+    requestId: string | null;
+  }> = [];
+
   private conversations = new Map<string, Conversation>();
   private messages = new Map<string, Message>();
   private idempotency = new Map<string, string>(); // `${conversationId}:${idempotencyKey}` -> messageId
@@ -71,6 +80,7 @@ export class MemoryConversationStore implements ConversationStore {
     workspaceId: string,
     conversationId: string,
     assigneeUserId: string,
+    requestId?: string | null,
   ): Promise<Conversation> {
     const conv = await this.getConversation(workspaceId, conversationId);
     if (!conv) {
@@ -88,6 +98,14 @@ export class MemoryConversationStore implements ConversationStore {
     conv.state = "human";
     conv.assigneeUserId = assigneeUserId;
     conv.updatedAt = new Date();
+    const eventId = randomUUID();
+    this.outboxEvents.push({
+      id: eventId,
+      workspaceId,
+      type: "conversation.handed_off",
+      payload: { conversation_id: conversationId, assignee_user_id: assigneeUserId },
+      requestId: requestId ?? null,
+    });
     return conv;
   }
 

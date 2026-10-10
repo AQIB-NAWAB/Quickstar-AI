@@ -2024,10 +2024,12 @@ No email notifications. No mobile app. A simple API plus one page is enough if t
 
 ## 22. Feature 19 — Event platform
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** the objects that emit events (agent, conversation, handoff). Do not invent events for objects that do not exist.  
 **Can run beside:** Feature 20 only after the event envelope exists. Day 1 can be the envelope and one producer. Day 2 can be one consumer. If two people work, one owns the producer library, the other owns one consumer. Do not both edit the topic names.  
 **Deep topic:** queues and "at least once"
+
+**Admin-configured scenarios (e.g. “notify us when user asks about payment”):** tenants do **not** define custom Kafka event types. The platform emits **catalog** facts (`message.appended`, `conversation.handed_off`, …). Admins configure **workflows (Feature 20 / F8)** with triggers on those types plus **conditions** (keywords, intent, assignee) and **actions** (in-app notify F12, email, webhook F13). Optional **intent detection** is a later slice on top of `message.appended`, not a separate “custom events” bus feature.
 
 ### Pre-context
 
@@ -2095,6 +2097,8 @@ Events can exist. Nothing reacts with a multi-step business flow.
 ### What this is
 
 A workflow is a saved definition: when this event happens, run these steps (call a tool, write a lead, notify). A run row stores the current step so a crash resumes instead of starting over.
+
+Example: trigger `message.appended` + condition “text mentions payment” → action “create staff notification” — no tenant-defined event type on the bus (see Feature 19 note).
 
 ### Why now
 
