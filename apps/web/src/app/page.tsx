@@ -1,17 +1,20 @@
 "use client";
 
-import { Navbar } from "@/features/marketing/components/navbar";
-import { Hero } from "@/features/marketing/components/hero";
-import { SocialProof } from "@/features/marketing/components/social-proof";
-import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section";
-import { FeatureGrid } from "@/features/marketing/components/feature-grid";
-import { PricingSection } from "@/features/marketing/components/pricing-section";
+import "./landing.css";
+
+import { BrandCompanion } from "@/components/brand/brand-companion";
 import { CtaBanner } from "@/features/marketing/components/cta-banner";
+import { FeatureGrid } from "@/features/marketing/components/feature-grid";
 import { Footer } from "@/features/marketing/components/footer";
+import { Hero } from "@/features/marketing/components/hero";
+import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section";
+import { Navbar } from "@/features/marketing/components/navbar";
+import { PricingSection } from "@/features/marketing/components/pricing-section";
+import { SocialProof } from "@/features/marketing/components/social-proof";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-background-base">
+    <div className="landing-page relative min-h-screen flex flex-col bg-background-base">
       <Navbar />
 
       <main className="flex-1">
@@ -35,6 +38,7 @@ export default function HomePage() {
       </main>
 
       <Footer />
+      <BrandCompanion />
     </div>
   );
 }
