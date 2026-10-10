@@ -123,6 +123,56 @@ test("POST /turns rejects unpublished agent with 409 Conflict", async () => {
   });
 });
 
+test("POST /turns rejects human-handoff conversation with 409 Conflict", async () => {
+  await withRuntimeServer(async ({ port, agentClient, convClient, modelClient, createToken }) => {
+    const token = await createToken();
+
+    agentClient.agents.set(`${WS_A}:${AGENT_ID}`, {
+      id: AGENT_ID,
+      workspace_id: WS_A,
+      name: "Support Bot",
+      production_version_id: VERSION_ID,
+      instructions: "You are a customer support agent.",
+    });
+
+    agentClient.versions.set(`${WS_A}:${AGENT_ID}:${VERSION_ID}`, {
+      id: VERSION_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      release_number: 1,
+      snapshot: {
+        name: "Support Bot v1",
+        instructions: "You are a customer support agent.",
+        model_settings: { profile: "fake", model_id: "fake" },
+      },
+    });
+
+    convClient.conversations.set(`${WS_A}:${CONV_ID}`, {
+      id: CONV_ID,
+      workspace_id: WS_A,
+      agent_id: AGENT_ID,
+      state: "human",
+      assignee_user_id: "00000000-0000-0000-0000-000000000099",
+      last_seq: 0,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/v1/workspaces/${WS_A}/conversations/${CONV_ID}/turns`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": "idemp-handoff-block",
+      },
+      body: JSON.stringify({ message: "Bot should not answer" }),
+    });
+
+    assert.equal(res.status, 409);
+    const body = (await res.json()) as { error: { code: string } };
+    assert.equal(body.error.code, "CONFLICT");
+    assert.equal(modelClient.callCount, 0);
+  });
+});
+
 test("POST /turns fails closed with 404 on cross-workspace access (IDOR guard)", async () => {
   await withRuntimeServer(async ({ port, convClient, createToken }) => {
     const token = await createToken();

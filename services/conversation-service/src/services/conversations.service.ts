@@ -1,8 +1,8 @@
-import type { UpsertToolCallBody } from "@quickstart/contracts";
+import type { UpsertToolCallBody, WorkspaceRole } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { ToolCall } from "../domain/tool-call.js";
 import type { Conversation, Message } from "../domain/types.js";
-import type { AppendMessageResult, ConversationStore } from "../repository/types.js";
+import type { AppendMessageResult, ConversationStore, ListConversationsOptions } from "../repository/types.js";
 
 export class ConversationsService {
   constructor(private readonly store: ConversationStore) {}
@@ -37,8 +37,40 @@ export class ConversationsService {
     return conv;
   }
 
-  async listConversations(workspaceId: string, limit?: number): Promise<Conversation[]> {
-    return this.store.listConversations(workspaceId, limit);
+  async listConversations(
+    workspaceId: string,
+    options?: ListConversationsOptions,
+  ): Promise<Conversation[]> {
+    return this.store.listConversations(workspaceId, options);
+  }
+
+  async takeHandoff(
+    workspaceId: string,
+    conversationId: string,
+    assigneeUserId: string,
+  ): Promise<Conversation> {
+    if (!assigneeUserId?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "assignee user id is required",
+      });
+    }
+    return this.store.takeHandoff(workspaceId, conversationId, assigneeUserId);
+  }
+
+  async releaseHandoff(
+    workspaceId: string,
+    conversationId: string,
+    actorUserId: string,
+    actorRole: WorkspaceRole,
+  ): Promise<Conversation> {
+    if (!actorUserId?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "actor user id is required",
+      });
+    }
+    return this.store.releaseHandoff(workspaceId, conversationId, actorUserId, actorRole);
   }
 
   async appendMessage(input: {
@@ -46,6 +78,7 @@ export class ConversationsService {
     conversationId: string;
     senderType?: string;
     senderId?: string;
+    actorRole?: WorkspaceRole;
     text?: string;
     idempotencyKey?: string;
     metadata?: Record<string, unknown> | null;
@@ -66,10 +99,30 @@ export class ConversationsService {
       });
     }
 
+    const senderType = input.senderType ?? "user";
+    if (senderType === "human") {
+      const conv = await this.getConversation(input.workspaceId, input.conversationId);
+      if (conv.state !== "human") {
+        throw new AppError({
+          code: ErrorCode.CONFLICT,
+          message: "Human messages require an active handoff",
+        });
+      }
+      const senderId = input.senderId ?? "anonymous";
+      const role = input.actorRole;
+      const isAdmin = role === "owner" || role === "admin";
+      if (conv.assigneeUserId !== senderId && !isAdmin) {
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Only the assignee or an admin can send human messages",
+        });
+      }
+    }
+
     return this.store.appendMessage({
       workspaceId: input.workspaceId,
       conversationId: input.conversationId,
-      senderType: input.senderType ?? "user",
+      senderType,
       senderId: input.senderId ?? "anonymous",
       text,
       idempotencyKey,

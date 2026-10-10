@@ -1,8 +1,13 @@
+import type { ConversationState } from "./conversation-state.js";
+import { DEFAULT_CONVERSATION_STATE } from "./conversation-state.js";
+
 export type Conversation = {
   id: string;
   workspaceId: string;
   agentId: string | null;
   subjectKey: string | null;
+  state: ConversationState;
+  assigneeUserId: string | null;
   lastSeq: number;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +31,8 @@ export type ConversationJson = {
   workspace_id: string;
   agent_id: string | null;
   subject_key: string | null;
+  state: ConversationState;
+  assignee_user_id: string | null;
   last_seq: number;
   created_at: string;
   updated_at: string;
@@ -50,6 +57,8 @@ export function toConversationJson(c: Conversation): ConversationJson {
     workspace_id: c.workspaceId,
     agent_id: c.agentId,
     subject_key: c.subjectKey,
+    state: c.state ?? DEFAULT_CONVERSATION_STATE,
+    assignee_user_id: c.assigneeUserId ?? null,
     last_seq: c.lastSeq,
     created_at: c.createdAt.toISOString(),
     updated_at: c.updatedAt.toISOString(),

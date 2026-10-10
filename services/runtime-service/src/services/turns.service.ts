@@ -58,6 +58,13 @@ export class TurnsService {
       authHeaders,
     );
 
+    if (conversation.state === "human") {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Conversation is handled by a human agent; bot turns are disabled",
+      });
+    }
+
     const agentId = conversation.agent_id;
     if (!agentId) {
       throw new AppError({
@@ -278,6 +285,13 @@ export class TurnsService {
       conversationId,
       requestId,
     );
+
+    if (conversation.state === "human") {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Conversation is handled by a human agent; bot turns are disabled",
+      });
+    }
 
     const agentId = conversation.agent_id;
     if (!agentId) {

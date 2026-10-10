@@ -9,6 +9,8 @@ export const createConversationProxyRoutes: RouteModule<GatewayHttpContext> = (c
   router.post("/v1/workspaces/:workspaceId/conversations", ...chain);
   router.get("/v1/workspaces/:workspaceId/conversations", ...chain);
   router.get("/v1/workspaces/:workspaceId/conversations/:conversationId", ...chain);
+  router.post("/v1/workspaces/:workspaceId/conversations/:conversationId/take", ...chain);
+  router.post("/v1/workspaces/:workspaceId/conversations/:conversationId/release", ...chain);
   router.post("/v1/workspaces/:workspaceId/conversations/:conversationId/messages", ...chain);
   router.get("/v1/workspaces/:workspaceId/conversations/:conversationId/messages", ...chain);
 
