@@ -9,6 +9,8 @@ Remote hashes read directly from GitHub over SSH:
 | main | bb93700d993785c77da1f06c85544890d6326eac | No observed injection markers in inspected tracked blobs |
 | aqib (pre-recovery) | 6d91da4510adf19f513dd41034b448b3594d0e35 | 26 files with payload, execution, or editor autorun indicators |
 | hashir (pre-recovery) | 12b2b3ead6da8891b2ca088906bb3e44fde86f72 | 30 files with payload, execution, or editor autorun indicators |
+| aqib | 6d91da4510adf19f513dd41034b448b3594d0e35 | 26 files with payload, execution, or editor autorun indicators |
+| hashir | 12b2b3ead6da8891b2ca088906bb3e44fde86f72 | 30 files with payload, execution, or editor autorun indicators |
 | local frontend baseline | f735fa1 | No observed injection markers in inspected tracked blobs |
 
 Fetching confirmed non-fast-forward updates of both aqib and hashir relative to the previously cached refs. The cached main ref matched the live remote main tip.
@@ -38,6 +40,7 @@ A repository tree check rejects the observed execution and obfuscation patterns 
 @AQIB-NAWAB: investigate authenticated push activity and permissions; suspend access from suspected compromised accounts/credentials while investigating; revoke affected tokens, SSH/deploy keys, and sessions; examine installed apps and webhooks. Protect main, aqib, and hashir with review requirements, no force pushes, and appropriately restricted bypass actors. Audit CI runs triggered from infected branches. Any workstation that opened those branches or ran lint/build/dev/start needs endpoint investigation and credential rotation from a clean device. Rotate reachable repository/application/CI secrets if execution or exposure is suspected.
 
 Recover aqib from the reviewed 74aa15c tree with a normal recovery commit after preserving evidence and checking for legitimate later work. No remote owner permissions or credentials were changed by this audit.
+Recover aqib from the reviewed 74aa15c tree with a normal recovery commit after preserving evidence and checking for legitimate later work. Do not blindly reset it from this frontend task. No remote owner permissions or credentials were changed by this audit.
 
 ## Validation
 
@@ -48,3 +51,4 @@ Frontend TypeScript checking and Next.js production build passed. The integrity 
 Recovery merge de8afc188f68a0939ba92a9481e1b4745a98b508 followed by b85a9349ea4c29a58b69859be6dcf715ea1572c5 was pushed normally to hashir and verified by a fresh remote-ref read. Automated integrity checks (`scripts/check-repository-integrity.py`) were expanded and integrated into `package.json` (`pnpm run integrity`) and root `Makefile` (`make integrity`). Full frontend validation (Next.js production build, TypeScript verification, staged whitespace check) passed cleanly. Recovery PR #41 merged hashir recovery into main.
 
 **aqib recovery (closes #42):** A recovery merge on `aqib` retains compromised tip `6d91da4` as history while restoring the independently reviewed `74aa15c` tree (no observed injection markers). Post-recovery `origin/aqib` passes `scripts/check-repository-integrity.py`. `main` was already clean at merge of #41; do not merge pre-recovery `origin/aqib` into `main`.
+Recovery merge de8afc188f68a0939ba92a9481e1b4745a98b508 followed by b85a9349ea4c29a58b69859be6dcf715ea1572c5 was pushed normally to hashir and verified by a fresh remote-ref read. Automated integrity checks (`scripts/check-repository-integrity.py`) were expanded and integrated into `package.json` (`pnpm run integrity`) and root `Makefile` (`make integrity`). Full frontend validation (Next.js production build, TypeScript verification, staged whitespace check) passed cleanly. Recovery PR and incident investigation issue are published with @AQIB-NAWAB review requested. aqib and main were unchanged directly.
