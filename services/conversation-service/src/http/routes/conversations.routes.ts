@@ -22,6 +22,20 @@ export const createConversationsRoutes: RouteModule<ConversationHttpContext> = (
     asyncHandler(conversationsCtrl.listConversations),
   );
 
+  router.post(
+    "/v1/workspaces/:workspaceId/conversations/:conversationId/take",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.CONVERSATION_HANDOFF),
+    asyncHandler(conversationsCtrl.takeHandoff),
+  );
+
+  router.post(
+    "/v1/workspaces/:workspaceId/conversations/:conversationId/release",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.CONVERSATION_HANDOFF),
+    asyncHandler(conversationsCtrl.releaseHandoff),
+  );
+
   router.get(
     "/v1/workspaces/:workspaceId/conversations/:conversationId",
     ...chain,

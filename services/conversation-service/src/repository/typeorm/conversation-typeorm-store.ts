@@ -7,9 +7,12 @@ import type {
   AppendMessageResult,
   ConversationStore,
   CreateConversationInput,
+  ListConversationsOptions,
   ListMessagesInput,
   UpsertToolCallInput,
 } from "../types.js";
+import type { WorkspaceRole } from "@quickstart/contracts";
+import { DEFAULT_CONVERSATION_STATE } from "../../domain/conversation-state.js";
 import type { ToolCall } from "../../domain/tool-call.js";
 import { mapToolCallRow } from "../tool-call-mapper.js";
 import { ConversationEntity, MessageEntity } from "../entities/index.js";
@@ -38,6 +41,8 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
         workspaceId: input.workspaceId,
         agentId: input.agentId ?? null,
         subjectKey: input.subjectKey ?? null,
+        state: DEFAULT_CONVERSATION_STATE,
+        assigneeUserId: null,
         lastSeq: 0,
         createdAt: now,
         updatedAt: now,
@@ -53,13 +58,96 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
       return entity ? toConversation(entity) : null;
     },
 
-    async listConversations(workspaceId: string, limit = 50): Promise<Conversation[]> {
+    async listConversations(
+      workspaceId: string,
+      options: ListConversationsOptions = {},
+    ): Promise<Conversation[]> {
+      const limit = options.limit ?? 50;
+      const where: { workspaceId: string; state?: string } = { workspaceId };
+      if (options.state) {
+        where.state = options.state;
+      }
       const entities = await dataSource.manager.find(ConversationEntity, {
-        where: { workspaceId },
-        order: { createdAt: "DESC" },
+        where,
+        order: { updatedAt: "DESC" },
         take: limit,
       });
       return entities.map(toConversation);
+    },
+
+    async takeHandoff(
+      workspaceId: string,
+      conversationId: string,
+      assigneeUserId: string,
+    ): Promise<Conversation> {
+      const rows = await dataSource.query(
+        `UPDATE conversations
+         SET state = 'human', assignee_user_id = $3, updated_at = NOW()
+         WHERE id = $1 AND workspace_id = $2 AND state IN ('bot', 'waiting')
+         RETURNING *`,
+        [conversationId, workspaceId, assigneeUserId],
+      );
+      if (!rows.length) {
+        const existing = await dataSource.manager.findOne(ConversationEntity, {
+          where: { id: conversationId, workspaceId },
+        });
+        if (!existing) {
+          throw new AppError({
+            code: ErrorCode.NOT_FOUND,
+            message: "Conversation not found",
+          });
+        }
+        throw new AppError({
+          code: ErrorCode.CONFLICT,
+          message: "Conversation is already assigned or not available for handoff",
+        });
+      }
+      const updated = await dataSource.manager.findOne(ConversationEntity, {
+        where: { id: conversationId, workspaceId },
+      });
+      return toConversation(updated!);
+    },
+
+    async releaseHandoff(
+      workspaceId: string,
+      conversationId: string,
+      actorUserId: string,
+      actorRole: WorkspaceRole,
+    ): Promise<Conversation> {
+      const isAdmin = actorRole === "owner" || actorRole === "admin";
+      const rows = await dataSource.query(
+        `UPDATE conversations
+         SET state = 'bot', assignee_user_id = NULL, updated_at = NOW()
+         WHERE id = $1 AND workspace_id = $2 AND state = 'human'
+           AND ($4::boolean OR assignee_user_id = $3)
+         RETURNING *`,
+        [conversationId, workspaceId, actorUserId, isAdmin],
+      );
+      if (!rows.length) {
+        const existing = await dataSource.manager.findOne(ConversationEntity, {
+          where: { id: conversationId, workspaceId },
+        });
+        if (!existing) {
+          throw new AppError({
+            code: ErrorCode.NOT_FOUND,
+            message: "Conversation not found",
+          });
+        }
+        if (existing.state !== "human") {
+          throw new AppError({
+            code: ErrorCode.CONFLICT,
+            message: "Conversation is not in human handoff",
+          });
+        }
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Only the assignee or an admin can release this conversation",
+        });
+      }
+      const updated = await dataSource.manager.findOne(ConversationEntity, {
+        where: { id: conversationId, workspaceId },
+      });
+      return toConversation(updated!);
     },
 
     async appendMessage(input: AppendMessageInput): Promise<AppendMessageResult> {

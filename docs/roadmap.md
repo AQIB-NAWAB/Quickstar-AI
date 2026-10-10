@@ -1963,7 +1963,7 @@ No inbox UI here. No voice. Polish is not the goal. The failure cases are.
 
 ## 21. Feature 18 — Inbox and human handoff
 
-**Status:** `not_started`  
+**Status:** `done`  
 **Needs:** conversations  
 **Can run beside:** Feature 17 if the widget and the inbox do not edit the same service. Inbox can be an API on the conversation service plus a small staff page. **Voice track:** ship minimal handoff before heavy outbound (Feature 23); callers must be able to escalate to a human.  
 **Deep topic:** read-your-writes and two people taking the same chat

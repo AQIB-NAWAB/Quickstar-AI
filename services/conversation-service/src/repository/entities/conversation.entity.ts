@@ -17,6 +17,12 @@ export class ConversationEntity {
   @Column({ name: "subject_key", type: "varchar", length: 255, nullable: true })
   subjectKey!: string | null;
 
+  @Column({ type: "varchar", length: 32, default: "bot" })
+  state!: string;
+
+  @Column({ name: "assignee_user_id", type: "uuid", nullable: true })
+  assigneeUserId!: string | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 

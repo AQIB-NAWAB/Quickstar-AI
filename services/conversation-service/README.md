@@ -89,6 +89,32 @@ curl -s "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations/$CONVER
   -H "authorization: Bearer $TOKEN" | jq .
 ```
 
+### 4. Inbox handoff (take / release / human reply)
+
+```bash
+# Take conversation (sets state=human, assignee = JWT sub)
+curl -s -X POST "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations/$CONVERSATION_ID/take" \
+  -H "authorization: Bearer $TOKEN" | jq .
+
+# Staff message while in human state
+curl -s -X POST "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations/$CONVERSATION_ID/messages" \
+  -H "authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "text": "Hi, this is Alex from support.",
+    "idempotency_key": "human-msg-001",
+    "sender_type": "human"
+  }' | jq .
+
+# Release back to bot
+curl -s -X POST "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations/$CONVERSATION_ID/release" \
+  -H "authorization: Bearer $TOKEN" | jq .
+
+# Inbox list (human-owned threads)
+curl -s "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations?state=human&limit=50" \
+  -H "authorization: Bearer $TOKEN" | jq .
+```
+
 ## Running Tests
 
 ```bash

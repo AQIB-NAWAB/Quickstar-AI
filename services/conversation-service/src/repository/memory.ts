@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { WorkspaceRole } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
+import { canTakeFromState, DEFAULT_CONVERSATION_STATE } from "../domain/conversation-state.js";
 import type { Conversation, Message } from "../domain/types.js";
 import type { ToolCall } from "../domain/tool-call.js";
 import type {
@@ -7,6 +9,7 @@ import type {
   AppendMessageResult,
   ConversationStore,
   CreateConversationInput,
+  ListConversationsOptions,
   ListMessagesInput,
   UpsertToolCallInput,
 } from "./types.js";
@@ -27,6 +30,8 @@ export class MemoryConversationStore implements ConversationStore {
       workspaceId: input.workspaceId,
       agentId: input.agentId ?? null,
       subjectKey: input.subjectKey ?? null,
+      state: DEFAULT_CONVERSATION_STATE,
+      assigneeUserId: null,
       lastSeq: 0,
       createdAt: now,
       updatedAt: now,
@@ -43,15 +48,79 @@ export class MemoryConversationStore implements ConversationStore {
     return conv;
   }
 
-  async listConversations(workspaceId: string, limit = 50): Promise<Conversation[]> {
+  async listConversations(
+    workspaceId: string,
+    options: ListConversationsOptions = {},
+  ): Promise<Conversation[]> {
+    const limit = options.limit ?? 50;
     const list: Conversation[] = [];
     for (const conv of this.conversations.values()) {
-      if (conv.workspaceId === workspaceId) {
-        list.push(conv);
+      if (conv.workspaceId !== workspaceId) {
+        continue;
       }
+      if (options.state && conv.state !== options.state) {
+        continue;
+      }
+      list.push(conv);
     }
-    list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    list.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     return list.slice(0, limit);
+  }
+
+  async takeHandoff(
+    workspaceId: string,
+    conversationId: string,
+    assigneeUserId: string,
+  ): Promise<Conversation> {
+    const conv = await this.getConversation(workspaceId, conversationId);
+    if (!conv) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found",
+      });
+    }
+    if (!canTakeFromState(conv.state)) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Conversation is already assigned or not available for handoff",
+      });
+    }
+    conv.state = "human";
+    conv.assigneeUserId = assigneeUserId;
+    conv.updatedAt = new Date();
+    return conv;
+  }
+
+  async releaseHandoff(
+    workspaceId: string,
+    conversationId: string,
+    actorUserId: string,
+    actorRole: WorkspaceRole,
+  ): Promise<Conversation> {
+    const conv = await this.getConversation(workspaceId, conversationId);
+    if (!conv) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found",
+      });
+    }
+    if (conv.state !== "human") {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Conversation is not in human handoff",
+      });
+    }
+    const isAdmin = actorRole === "owner" || actorRole === "admin";
+    if (conv.assigneeUserId !== actorUserId && !isAdmin) {
+      throw new AppError({
+        code: ErrorCode.FORBIDDEN,
+        message: "Only the assignee or an admin can release this conversation",
+      });
+    }
+    conv.state = DEFAULT_CONVERSATION_STATE;
+    conv.assigneeUserId = null;
+    conv.updatedAt = new Date();
+    return conv;
   }
 
   async appendMessage(input: AppendMessageInput): Promise<AppendMessageResult> {

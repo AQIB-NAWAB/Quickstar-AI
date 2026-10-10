@@ -6,6 +6,8 @@ export type ConversationInfo = {
   workspace_id: string;
   agent_id: string | null;
   subject_key?: string | null;
+  state?: "bot" | "waiting" | "human";
+  assignee_user_id?: string | null;
   last_seq: number;
 };
 
