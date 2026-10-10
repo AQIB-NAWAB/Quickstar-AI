@@ -1,6 +1,8 @@
 import "reflect-metadata";
 import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
+import { Kafka } from "kafkajs";
 import type { DataSource } from "typeorm";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
@@ -14,6 +16,8 @@ import {
 import { createConversationDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmConversationStore } from "./repository/typeorm/conversation-typeorm-store.js";
 import { ConversationsService } from "./services/conversations.service.js";
+import { createOutboxPublisher } from "./events/outbox-publisher.js";
+import { createPlatformEventConsumer } from "./events/platform-consumer.js";
 
 export async function startConversationServer(): Promise<{
   server: Server;
@@ -76,6 +80,25 @@ export async function startConversationServer(): Promise<{
 
   logger.info("listening", { port: config.port, service: SERVICE_NAME });
 
+  const eventPool = new pg.Pool({ connectionString: config.databaseUrl });
+  let outboxPublisher: ReturnType<typeof createOutboxPublisher> | null = null;
+  let platformConsumer: ReturnType<typeof createPlatformEventConsumer> | null = null;
+
+  if (config.kafkaBrokers) {
+    const kafka = new Kafka({
+      clientId: "conversation-service",
+      brokers: config.kafkaBrokers.split(",").map((b) => b.trim()),
+    });
+    outboxPublisher = createOutboxPublisher({ pool: eventPool, kafka, logger });
+    await outboxPublisher.start();
+    if (config.eventConsumerEnabled) {
+      platformConsumer = createPlatformEventConsumer({ pool: eventPool, kafka, logger });
+      await platformConsumer.start();
+    }
+  } else {
+    logger.info("kafka.disabled", { detail: "KAFKA_BROKERS unset; outbox rows will not publish" });
+  }
+
   const shutdown = async () => {
     logger.info("shutdown", { service: SERVICE_NAME });
     await new Promise<void>((resolve, reject) => {
@@ -87,6 +110,13 @@ export async function startConversationServer(): Promise<{
     if (dataSource.isInitialized) {
       await dataSource.destroy();
     }
+    if (platformConsumer) {
+      await platformConsumer.stop();
+    }
+    if (outboxPublisher) {
+      await outboxPublisher.stop();
+    }
+    await eventPool.end();
     await shutdownTracing();
   };
 

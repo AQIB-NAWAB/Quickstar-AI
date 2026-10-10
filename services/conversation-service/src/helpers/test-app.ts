@@ -21,6 +21,8 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     httpRateLimitMax: 10_000,
     membershipCacheTtlSec: 60,
     membershipCacheNegativeTtlSec: 30,
+    kafkaBrokers: null,
+    eventConsumerEnabled: false,
     ...overrides,
   };
 }

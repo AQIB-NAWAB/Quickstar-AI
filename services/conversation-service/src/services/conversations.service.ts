@@ -48,6 +48,7 @@ export class ConversationsService {
     workspaceId: string,
     conversationId: string,
     assigneeUserId: string,
+    requestId?: string | null,
   ): Promise<Conversation> {
     if (!assigneeUserId?.trim()) {
       throw new AppError({
@@ -55,7 +56,7 @@ export class ConversationsService {
         message: "assignee user id is required",
       });
     }
-    return this.store.takeHandoff(workspaceId, conversationId, assigneeUserId);
+    return this.store.takeHandoff(workspaceId, conversationId, assigneeUserId, requestId);
   }
 
   async releaseHandoff(

@@ -79,33 +79,53 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
       workspaceId: string,
       conversationId: string,
       assigneeUserId: string,
+      requestId?: string | null,
     ): Promise<Conversation> {
-      const rows = await dataSource.query(
-        `UPDATE conversations
-         SET state = 'human', assignee_user_id = $3, updated_at = NOW()
-         WHERE id = $1 AND workspace_id = $2 AND state IN ('bot', 'waiting')
-         RETURNING *`,
-        [conversationId, workspaceId, assigneeUserId],
-      );
-      if (!rows.length) {
-        const existing = await dataSource.manager.findOne(ConversationEntity, {
-          where: { id: conversationId, workspaceId },
-        });
-        if (!existing) {
+      return dataSource.transaction(async (manager) => {
+        const rows = await manager.query(
+          `UPDATE conversations
+           SET state = 'human', assignee_user_id = $3, updated_at = NOW()
+           WHERE id = $1 AND workspace_id = $2 AND state IN ('bot', 'waiting')
+           RETURNING *`,
+          [conversationId, workspaceId, assigneeUserId],
+        );
+        if (!rows.length) {
+          const existing = await manager.findOne(ConversationEntity, {
+            where: { id: conversationId, workspaceId },
+          });
+          if (!existing) {
+            throw new AppError({
+              code: ErrorCode.NOT_FOUND,
+              message: "Conversation not found",
+            });
+          }
           throw new AppError({
-            code: ErrorCode.NOT_FOUND,
-            message: "Conversation not found",
+            code: ErrorCode.CONFLICT,
+            message: "Conversation is already assigned or not available for handoff",
           });
         }
-        throw new AppError({
-          code: ErrorCode.CONFLICT,
-          message: "Conversation is already assigned or not available for handoff",
+
+        const eventId = randomUUID();
+        await manager.query(
+          `INSERT INTO outbox_events (id, workspace_id, type, payload, request_id)
+           VALUES ($1, $2, $3, $4::jsonb, $5)`,
+          [
+            eventId,
+            workspaceId,
+            "conversation.handed_off",
+            JSON.stringify({
+              conversation_id: conversationId,
+              assignee_user_id: assigneeUserId,
+            }),
+            requestId ?? null,
+          ],
+        );
+
+        const updated = await manager.findOne(ConversationEntity, {
+          where: { id: conversationId, workspaceId },
         });
-      }
-      const updated = await dataSource.manager.findOne(ConversationEntity, {
-        where: { id: conversationId, workspaceId },
+        return toConversation(updated!);
       });
-      return toConversation(updated!);
     },
 
     async releaseHandoff(

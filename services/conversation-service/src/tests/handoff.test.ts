@@ -22,7 +22,7 @@ async function createConversation(base: string, token: string): Promise<string> 
 }
 
 test("take assigns conversation to staff; second take returns 409", async () => {
-  await withConversationServer(async ({ port, createToken }) => {
+  await withConversationServer(async ({ port, createToken, store }) => {
     const base = `http://127.0.0.1:${port}`;
     const tokenA = await createToken(USER_A);
     const tokenB = await createToken(USER_B);
@@ -38,6 +38,8 @@ test("take assigns conversation to staff; second take returns 409", async () => 
     };
     assert.equal(taken.conversation.state, "human");
     assert.equal(taken.conversation.assignee_user_id, USER_A);
+    assert.equal(store.outboxEvents.length, 1);
+    assert.equal(store.outboxEvents[0].type, "conversation.handed_off");
 
     const takeB = await fetch(
       `${base}/v1/workspaces/${WS_A}/conversations/${conversationId}/take`,

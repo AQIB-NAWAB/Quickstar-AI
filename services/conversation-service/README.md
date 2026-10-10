@@ -115,6 +115,10 @@ curl -s "http://127.0.0.1:3000/v1/workspaces/$WORKSPACE_ID/conversations?state=h
   -H "authorization: Bearer $TOKEN" | jq .
 ```
 
+### Event platform (Feature 19)
+
+When `KAFKA_BROKERS` is set (e.g. `localhost:9092` with `make up`), successful **take** writes an outbox row and a background publisher emits `conversation.handed_off` to topic `quickstart.platform.events`. Handoff metrics are updated idempotently by the in-process consumer. If Kafka is down, take still succeeds; outbox rows retry when the broker is back.
+
 ## Running Tests
 
 ```bash

@@ -147,6 +147,7 @@ export function createConversationsController(conversations: ConversationsServic
         tenant.workspaceId,
         conversationId,
         tenant.actorId,
+        requestId,
       );
 
       sendPlatformJson(res, 200, {

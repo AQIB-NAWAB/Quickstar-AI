@@ -10,6 +10,8 @@ export type ServiceConfig = {
   httpRateLimitMax: number;
   membershipCacheTtlSec: number;
   membershipCacheNegativeTtlSec: number;
+  kafkaBrokers: string | null;
+  eventConsumerEnabled: boolean;
 };
 
 export function loadServiceConfig(): ServiceConfig {
@@ -36,5 +38,7 @@ export function loadServiceConfig(): ServiceConfig {
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
     membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
     membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),
+    kafkaBrokers: process.env.KAFKA_BROKERS?.trim() || null,
+    eventConsumerEnabled: process.env.EVENT_CONSUMER_ENABLED !== "false",
   };
 }
