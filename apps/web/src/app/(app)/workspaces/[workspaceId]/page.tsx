@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loadWorkspaceShell } from "@/lib/auth/session";
+import { loadWorkspaceShell } from "@/lib/server/auth/session";
 
 type Props = { params: { workspaceId: string } };
 

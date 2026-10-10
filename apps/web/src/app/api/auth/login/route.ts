@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { applyTokenCookies, type TokenPair } from "@/lib/auth/cookies";
-import { gatewayFetch } from "@/lib/auth/gateway-server";
-import { ensureWorkspaceForUser } from "@/lib/auth/workspaces";
+import { applyTokenCookies, type TokenPair } from "@/lib/server/auth/cookies";
+import { gatewayFetch } from "@/lib/server/gateway/fetch";
+import { ensureWorkspaceForUser } from "@/lib/server/workspace/workspaces";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { email?: string; password?: string };

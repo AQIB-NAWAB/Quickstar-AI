@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { COOKIE_ACCESS, COOKIE_REFRESH } from "@/lib/auth/constants";
-import { clearTokenCookies } from "@/lib/auth/cookies";
-import { gatewayFetch } from "@/lib/auth/gateway-server";
+import { COOKIE_ACCESS, COOKIE_REFRESH } from "@/lib/server/auth/constants";
+import { clearTokenCookies } from "@/lib/server/auth/cookies";
+import { gatewayFetch } from "@/lib/server/gateway/fetch";
 
 export async function POST() {
   const jar = await cookies();

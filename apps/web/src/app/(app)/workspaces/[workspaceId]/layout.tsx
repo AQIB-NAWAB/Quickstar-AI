@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/app/app-shell";
-import { loadWorkspaceShell } from "@/lib/auth/session";
+import { AppShell } from "@/features/workspace/components/app-shell";
+import { loadWorkspaceShell } from "@/lib/server/auth/session";
 
 type Props = {
   children: React.ReactNode;
