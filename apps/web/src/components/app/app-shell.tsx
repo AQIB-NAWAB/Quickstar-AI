@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, ChevronDown, LayoutDashboard, LogOut, Settings, Sparkles } from "lucide-react";
+import { Bot, ChevronDown, LayoutDashboard, LogOut, Settings } from "lucide-react";
 import { InboxNavItem } from "@/components/app/inbox-nav-item";
 import { useEffect, useRef, useState } from "react";
-import { isOnboardingComplete, onboardingPath } from "@/lib/onboarding";
 import { BrandLogo } from "@/components/brand-logo";
 import type { WorkspaceSummary } from "@/lib/auth/workspaces";
 
@@ -29,18 +28,10 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [setupPending, setSetupPending] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setSetupPending(!isOnboardingComplete(workspaceId));
-  }, [workspaceId]);
 
   const base = `/workspaces/${workspaceId}`;
   const navigation = [
-    ...(setupPending
-      ? [{ name: "Setup guide", href: onboardingPath(workspaceId), icon: Sparkles, exact: true, highlight: true }]
-      : []),
     { name: "Overview", href: base, icon: LayoutDashboard, exact: true },
     { name: "Agents", href: `${base}/agents`, icon: Bot, soon: true },
     { name: "Settings", href: `${base}/settings`, icon: Settings, soon: true },

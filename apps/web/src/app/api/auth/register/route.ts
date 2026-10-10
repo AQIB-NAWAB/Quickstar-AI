@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { applyTokenCookies, type TokenPair } from "@/lib/auth/cookies";
 import { gatewayFetch } from "@/lib/auth/gateway-server";
 import { createWorkspace } from "@/lib/auth/workspaces";
-import { onboardingPath } from "@/lib/onboarding";
 
 type RegisterResponse = {
   user_id: string;
@@ -78,8 +77,7 @@ export async function POST(request: Request) {
   }
 
   const res = NextResponse.json({
-    redirect: onboardingPath(workspace.id, true),
-    is_new_account: true,
+    redirect: `/workspaces/${workspace.id}`,
   });
   applyTokenCookies(res, tokens);
   return res;

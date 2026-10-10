@@ -6,8 +6,6 @@ import { FormEvent, useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { resolvePostAuthRedirect, workspaceIdFromRedirect } from "@/lib/onboarding";
-
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,11 +36,7 @@ export function LoginForm() {
       if (next && next.startsWith("/workspaces/")) {
         router.replace(next);
       } else {
-        const workspaceId = workspaceIdFromRedirect(body.redirect);
-        const target = workspaceId
-          ? resolvePostAuthRedirect(workspaceId)
-          : (body.redirect ?? "/login");
-        router.replace(target);
+        router.replace(body.redirect ?? "/login");
       }
       router.refresh();
     } catch {
