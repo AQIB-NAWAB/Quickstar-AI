@@ -9,6 +9,9 @@ import { SERVICE_NAME } from "../controllers/health.controller.js";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import { createWorkspacesController } from "../controllers/workspaces.controller.js";
 import { createMembersController } from "../controllers/members.controller.js";
+import { createPublishableKeysController } from "../controllers/publishable-keys.controller.js";
+import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
+import type { PublishableKeysService } from "../services/publishable-keys.service.js";
 import type { WorkspaceHttpContext } from "./context.js";
 import { createWorkspaceApiRouter } from "./routes/index.js";
 
@@ -18,12 +21,14 @@ export type WorkspaceServices = {
   workspaces: WorkspacesService;
   members: MembersService;
   authorization: AuthorizationService;
+  publishableKeys?: PublishableKeysService;
 };
 
 export type CreateWorkspaceHttpServerOptions = {
   logger: Logger;
   services: WorkspaceServices;
   jwtSecret: string;
+  internalToken: string;
   requestTimeoutMs?: number;
   rateLimitWindowMs?: number;
   rateLimitMax?: number;
@@ -35,14 +40,20 @@ export function createHttpServer(options: CreateWorkspaceHttpServerOptions): App
 
   const authGuard = createAuthMiddleware(jwtSecret);
   const tenantGuard = requireTenantContext();
+  const internalAuth = createRequireInternalTokenMiddleware(options.internalToken);
+  if (!services.publishableKeys) {
+    throw new Error("publishableKeys service is required");
+  }
 
   const httpContext: WorkspaceHttpContext = {
     readinessProbes: options.readinessProbes ?? [],
     authGuard,
+    internalAuth,
     tenantMiddleware: [authGuard, tenantGuard],
     authorization: services.authorization,
     workspacesCtrl: createWorkspacesController(services.workspaces),
     membersCtrl: createMembersController(services.members),
+    publishableKeysCtrl: createPublishableKeysController(services.publishableKeys),
   };
 
   const apiRouter = createWorkspaceApiRouter(httpContext);

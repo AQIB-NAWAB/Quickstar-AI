@@ -1,5 +1,6 @@
 export type RuntimeConfig = {
   port: number;
+  internalToken: string;
   agentServiceUrl: string;
   conversationServiceUrl: string;
   modelGatewayUrl: string;
@@ -26,8 +27,14 @@ export function loadRuntimeConfig(): RuntimeConfig {
     throw new Error("JWT_ACCESS_SECRET must be set and at least 32 characters");
   }
 
+  const internalToken = process.env.RUNTIME_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN;
+  if (!internalToken || internalToken.length < 32) {
+    throw new Error("RUNTIME_INTERNAL_TOKEN must be set and at least 32 characters");
+  }
+
   return {
     port: Number(process.env.PORT ?? process.env.RUNTIME_PORT ?? 3006),
+    internalToken,
     agentServiceUrl: (process.env.AGENT_SERVICE_URL ?? process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
     conversationServiceUrl: (process.env.CONVERSATION_SERVICE_URL ?? process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     modelGatewayUrl: (process.env.MODEL_GATEWAY_URL ?? "http://127.0.0.1:3005").replace(/\/$/, ""),

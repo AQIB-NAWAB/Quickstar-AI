@@ -6,6 +6,7 @@ import type { WorkspaceAccessClient } from "../lib/workspace-access-client.js";
 export type ConversationHttpContext = {
   readinessProbes: ReadinessProbe[];
   authGuard: RequestHandler;
+  internalAuth: RequestHandler;
   tenantMiddleware: RequestHandler[];
   workspaceAccess: WorkspaceAccessClient;
   conversationsCtrl: ReturnType<typeof createConversationsController>;

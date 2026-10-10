@@ -30,7 +30,19 @@ export class ConversationClient {
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number = 5000,
+    private readonly widgetInternalToken?: string,
   ) {}
+
+  private widgetAuthHeaders(requestId: string): Record<string, string> {
+    if (!this.widgetInternalToken) {
+      throw new Error("widget internal token not configured");
+    }
+    return {
+      Authorization: `Bearer ${this.widgetInternalToken}`,
+      "x-request-id": requestId,
+      Accept: "application/json",
+    };
+  }
 
   async getConversation(
     workspaceId: string,
@@ -156,6 +168,106 @@ export class ConversationClient {
       });
     }
 
+    const data = (await res.json()) as { messages: MessageInfo[] };
+    return data.messages ?? [];
+  }
+
+  async getConversationWidget(
+    workspaceId: string,
+    conversationId: string,
+    requestId: string,
+  ): Promise<ConversationInfo> {
+    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}`;
+    const res = await fetchWithPolicy(
+      url,
+      { method: "GET", headers: this.widgetAuthHeaders(requestId) },
+      { timeoutMs: this.timeoutMs, maxRetries: 1 },
+    );
+    if (res.status === 404) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found in workspace",
+      });
+    }
+    if (!res.ok) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Conversation service failed with status ${res.status}`,
+      });
+    }
+    const data = (await res.json()) as { conversation: ConversationInfo };
+    return data.conversation;
+  }
+
+  async appendMessageWidget(
+    workspaceId: string,
+    conversationId: string,
+    params: {
+      text?: string;
+      idempotency_key?: string;
+      sender_type?: string;
+      sender_id?: string;
+      metadata?: Record<string, unknown> | null;
+    },
+    requestId: string,
+  ): Promise<AppendMessageResult> {
+    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/messages`;
+    const res = await fetchWithPolicy(
+      url,
+      {
+        method: "POST",
+        headers: { ...this.widgetAuthHeaders(requestId), "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      },
+      {
+        timeoutMs: this.timeoutMs,
+        maxRetries: 1,
+        hasIdempotencyKey: Boolean(params.idempotency_key),
+      },
+    );
+    if (res.status === 404) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found in workspace",
+      });
+    }
+    if (!res.ok && res.status !== 200 && res.status !== 201) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Failed to append message: status ${res.status}`,
+      });
+    }
+    const data = (await res.json()) as { message: MessageInfo; deduplicated?: boolean };
+    return {
+      message: data.message,
+      deduplicated: Boolean(data.deduplicated || res.status === 200),
+    };
+  }
+
+  async listMessagesWidget(
+    workspaceId: string,
+    conversationId: string,
+    requestId: string,
+    limit: number = 50,
+  ): Promise<MessageInfo[]> {
+    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/messages?limit=${limit}`;
+    const res = await fetchWithPolicy(
+      url,
+      { method: "GET", headers: this.widgetAuthHeaders(requestId) },
+      { timeoutMs: this.timeoutMs, maxRetries: 1 },
+    );
+    if (res.status === 404) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found in workspace",
+      });
+    }
+    if (!res.ok) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Failed to list messages: status ${res.status}`,
+      });
+    }
     const data = (await res.json()) as { messages: MessageInfo[] };
     return data.messages ?? [];
   }

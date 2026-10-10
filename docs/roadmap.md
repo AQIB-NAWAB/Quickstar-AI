@@ -269,7 +269,7 @@ Update these lines every day.
 | 14 | Memory | 09, 12 | 13 | done |
 | 15 | Tools and MCP | 12 | 16 | done |
 | 16 | Secrets | — | 15 | done |
-| 17 | Website chat widget | 12 | 18 | not_started |
+| 17 | Website chat widget | 12 | 18 | done |
 | 18 | Inbox and human handoff | 09 | 17, 21C | not_started |
 | 19 | Event platform | objects exist | 20 | not_started |
 | 20 | Workflow automation | 19 | 19 | not_started |

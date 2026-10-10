@@ -4,6 +4,7 @@ import type { RedisClientType } from "redis";
 import type { GatewayConfig } from "../config/environment.js";
 import { createRedisRateLimitMiddleware } from "../middleware/redis-rate-limit.js";
 import { createRequireAccessTokenMiddleware } from "../middleware/require-access-token.js";
+import { createRequirePublishableKeyMiddleware } from "../middleware/require-publishable-key.js";
 import { createRequireWorkspaceMembershipMiddleware } from "../middleware/require-workspace-membership.js";
 import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { GatewayHttpContext } from "./context.js";
@@ -31,6 +32,7 @@ export function createGatewayServer(options: CreateGatewayServerOptions): Applic
     }),
     requireAccessToken: createRequireAccessTokenMiddleware(config.jwtAccessSecret),
     requireWorkspaceMembership: createRequireWorkspaceMembershipMiddleware(workspaceAccess),
+    requirePublishableKey: createRequirePublishableKeyMiddleware(config),
   };
 
   const apiRouter = createGatewayApiRouter(httpContext);

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>QuickStart widget demo</title>
+  </head>
+  <body>
+    <h1>Widget demo</h1>
+    <p>Set publishable key and gateway URL in the script below. Serve this file from an allowed origin.</p>
+    <pre id="log"></pre>
+    <script>
+      const GATEWAY = "http://127.0.0.1:3000";
+      const PUBLISHABLE_KEY = "REPLACE_WITH_pk_live_KEY";
+      const ORIGIN = window.location.origin;
+
+      const logEl = document.getElementById("log");
+      function log(msg) {
+        logEl.textContent += msg + "\n";
+      }
+
+      async function run() {
+        const headers = {
+          "Content-Type": "application/json",
+          "X-Publishable-Key": PUBLISHABLE_KEY,
+          Origin: ORIGIN,
+        };
+        const create = await fetch(GATEWAY + "/v1/public/widget/conversations", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ subject_key: "demo-visitor-1", agent_id: "REPLACE_AGENT_UUID" }),
+        });
+        const created = await create.json();
+        log("conversation: " + JSON.stringify(created));
+
+        const turn = await fetch(
+          GATEWAY + "/v1/public/widget/conversations/" + created.conversation_id + "/turns",
+          {
+            method: "POST",
+            headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+            body: JSON.stringify({ message: "Hello from widget demo" }),
+          },
+        );
+        log("turn: " + JSON.stringify(await turn.json()));
+      }
+
+      run().catch((e) => log(String(e)));
+    </script>
+  </body>
+</html>

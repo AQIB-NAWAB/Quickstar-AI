@@ -5,6 +5,7 @@ import { SERVICE_NAME } from "../controllers/health.controller.js";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import type { WorkspaceAccessClient } from "../lib/workspace-access-client.js";
 import { createAuthMiddleware } from "../middleware/auth.middleware.js";
+import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
 import { requireTenantContext } from "../middleware/tenant.middleware.js";
 import type { ConversationsService } from "../services/conversations.service.js";
 import type { ConversationHttpContext } from "./context.js";
@@ -16,6 +17,7 @@ export type CreateConversationHttpServerOptions = {
   logger: Logger;
   conversations: ConversationsService;
   jwtSecret: string;
+  internalToken: string;
   workspaceAccess: WorkspaceAccessClient;
   requestTimeoutMs?: number;
   rateLimitWindowMs?: number;
@@ -32,6 +34,7 @@ export function createHttpServer(options: CreateConversationHttpServerOptions): 
   const httpContext: ConversationHttpContext = {
     readinessProbes: options.readinessProbes ?? [],
     authGuard,
+    internalAuth: createRequireInternalTokenMiddleware(options.internalToken),
     tenantMiddleware: [authGuard, tenantGuard],
     workspaceAccess,
     conversationsCtrl: createConversationsController(conversations),

@@ -9,9 +9,11 @@ import { createKnowledgeProxyRoutes } from "./proxy-knowledge.routes.js";
 import { createMemoryProxyRoutes } from "./proxy-memory.routes.js";
 import { createSecretsProxyRoutes } from "./proxy-secrets.routes.js";
 import { createWorkspaceProxyRoutes } from "./proxy-workspace.routes.js";
+import { createWidgetPublicRoutes } from "./widget-public.routes.js";
 
 const gatewayRouteModules = [
   createHealthRoutes,
+  createWidgetPublicRoutes,
   createIdentityProxyRoutes,
   createWorkspaceProxyRoutes,
   createAgentProxyRoutes,

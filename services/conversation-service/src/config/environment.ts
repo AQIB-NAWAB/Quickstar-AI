@@ -3,6 +3,7 @@ export type ServiceConfig = {
   databaseUrl: string;
   redisUrl: string;
   jwtAccessSecret: string;
+  internalToken: string;
   workspaceUrl: string;
   httpRequestTimeoutMs: number;
   httpRateLimitWindowMs: number;
@@ -17,12 +18,18 @@ export function loadServiceConfig(): ServiceConfig {
     throw new Error("JWT_ACCESS_SECRET must be set and at least 32 characters");
   }
 
+  const internalToken = process.env.CONVERSATION_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN;
+  if (!internalToken || internalToken.length < 32) {
+    throw new Error("CONVERSATION_INTERNAL_TOKEN must be set and at least 32 characters");
+  }
+
   return {
     port: Number(process.env.PORT ?? process.env.CONVERSATION_PORT ?? 3004),
     databaseUrl:
       process.env.DATABASE_URL ?? "postgresql://quickstart:quickstart@127.0.0.1:5433/quickstart",
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     jwtAccessSecret,
+    internalToken,
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),

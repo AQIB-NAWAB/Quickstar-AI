@@ -322,6 +322,7 @@ export async function withRuntimeServer(
     turnsService,
     workspaceAccess,
     jwtSecret: TEST_JWT_SECRET,
+    internalToken: "test-internal-token-at-least-32-chars!!",
   });
 
   const server = await new Promise<Server>((resolve) => {

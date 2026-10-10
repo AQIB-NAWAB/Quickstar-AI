@@ -6,4 +6,5 @@ export type GatewayHttpContext = {
   redisRateLimit: RequestHandler;
   requireAccessToken: RequestHandler;
   requireWorkspaceMembership: RequestHandler;
+  requirePublishableKey: RequestHandler;
 };

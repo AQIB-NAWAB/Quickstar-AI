@@ -31,6 +31,7 @@ export const WORKSPACE_PERMISSIONS = {
   TOOLS_RUN: "workspace.tools.run",
   SECRET_READ: "workspace.secret.read",
   SECRET_WRITE: "workspace.secret.write",
+  PUBLISHABLE_KEY_MANAGE: "workspace.publishable_key.manage",
 } as const;
 
 export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[keyof typeof WORKSPACE_PERMISSIONS];
@@ -58,6 +59,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.TOOLS_RUN,
     WORKSPACE_PERMISSIONS.SECRET_READ,
     WORKSPACE_PERMISSIONS.SECRET_WRITE,
+    WORKSPACE_PERMISSIONS.PUBLISHABLE_KEY_MANAGE,
   ],
   developer: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
@@ -73,6 +75,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.MEMORY_WRITE,
     WORKSPACE_PERMISSIONS.SECRET_READ,
     WORKSPACE_PERMISSIONS.SECRET_WRITE,
+    WORKSPACE_PERMISSIONS.PUBLISHABLE_KEY_MANAGE,
   ],
   operator: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
