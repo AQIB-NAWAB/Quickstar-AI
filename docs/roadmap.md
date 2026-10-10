@@ -320,7 +320,7 @@ Update these lines every day.
 | P7 | CI: test, image build, no manual laptop-only steps | P1 | P8 | not_started |
 | P8 | Network picture: public gateway, private services | P2 | P7 | not_started |
 | F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | done |
-| F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | not_started |
+| F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | done |
 | F3 | Knowledge and memory UI | F1, 11, 14 | F2 | not_started |
 | F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | done |
 | F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
@@ -3072,7 +3072,7 @@ No OAuth/SSO. No email verification flow. No mobile nav drawer (deferred to resp
 
 ### Feature F2 — Agent Builder and Agent Settings UI
 
-**Status:** `not_started` — **Wave 1** in section **6A**. Backend is done. Own `apps/web/src/features/agents/` only.
+**Status:** `done` — Agent list, creation form, multi-tab workbench (Identity, Instructions, Model, Tools, Versions), optimistic concurrency (expected_version), Publish/Rollback, and test drawer. Owns `apps/web/src/features/agents/`.
 **Needs:** F1, agent drafts (07), agent versions (08), tools (15), secrets (16)
 **Can run beside:** F3
 **Deep topic:** optimistic concurrency (version field), 409 conflict handling, multi-tab editing

@@ -33,7 +33,7 @@ export function AppShell({
   const base = `/workspaces/${workspaceId}`;
   const navigation = [
     { name: "Overview", href: base, icon: LayoutDashboard, exact: true },
-    { name: "Agents", href: `${base}/agents`, icon: Bot, soon: true },
+    { name: "Agents", href: `${base}/agents`, icon: Bot },
     { name: "Settings", href: `${base}/settings`, icon: Settings, soon: true },
   ];
 

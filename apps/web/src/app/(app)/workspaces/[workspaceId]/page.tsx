@@ -30,9 +30,14 @@ export default async function WorkspaceHomePage({ params }: Props) {
         <div className="rounded-16 border border-border-faint bg-white p-6 shadow-firecrawl-card">
           <h2 className="text-sm font-semibold text-accent-black">Agents</h2>
           <p className="mt-2 text-xs text-neutral-500 leading-relaxed">
-            Build and publish agent versions from the console. Agent builder UI arrives in F2.
+            Configure system prompts, select models, attach tools, and manage release versions.
           </p>
-          <span className="mt-4 inline-block text-xs font-mono text-neutral-400">Coming in F2</span>
+          <Link
+            href={`/workspaces/${activeWorkspace.id}/agents`}
+            className="mt-4 inline-flex text-xs font-semibold text-heat-100 hover:underline"
+          >
+            Manage agents →
+          </Link>
         </div>
       </div>
     </div>
