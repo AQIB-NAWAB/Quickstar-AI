@@ -1,5 +1,5 @@
-import { ConversationThread } from "@/components/inbox/conversation-thread";
-import { loadWorkspaceShell } from "@/lib/auth/session";
+import { ConversationThread } from "@/features/inbox/components/conversation-thread";
+import { loadWorkspaceShell } from "@/lib/server/auth/session";
 
 type Props = { params: { workspaceId: string; conversationId: string } };
 

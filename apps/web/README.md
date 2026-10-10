@@ -43,6 +43,10 @@ without using the upstream React 19 renderer. The upstream dependency is license
 AGPL-3.0-only; its license is included in the installed package. Node 22.12+ is
 required by that dependency.
 
+## Source layout
+
+See **[docs/FOLDER_STRUCTURE.md](./docs/FOLDER_STRUCTURE.md)** for how `features/`, `components/`, and `lib/server` are organized for parallel work.
+
 ## Staff app (F1) — local dev
 
 1. Start the data plane and backend: `make up`, identity (3001), workspace (3002), gateway (3000).

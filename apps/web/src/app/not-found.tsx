@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandLogo } from "@/components/brand-logo";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 export default function NotFound() {
   return (

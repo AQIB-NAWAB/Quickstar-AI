@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { proxyToGateway } from "@/lib/auth/bff-gateway";
+import { proxyToGateway } from "@/lib/server/gateway/proxy";
 
 type Params = { params: { workspaceId: string; conversationId: string } };
 

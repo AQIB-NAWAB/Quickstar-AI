@@ -2,15 +2,15 @@
 
 import "./landing.css";
 
-import { BrandCompanion } from "@/components/brand-companion";
-import { Navbar } from "@/components/navbar";
-import { Hero } from "@/components/hero";
-import { SocialProof } from "@/components/social-proof";
-import { HowItWorksSection } from "@/components/how-it-works-section";
-import { FeatureGrid } from "@/components/feature-grid";
-import { PricingSection } from "@/components/pricing-section";
-import { CtaBanner } from "@/components/cta-banner";
-import { Footer } from "@/components/footer";
+import { BrandCompanion } from "@/components/brand/brand-companion";
+import { CtaBanner } from "@/features/marketing/components/cta-banner";
+import { FeatureGrid } from "@/features/marketing/components/feature-grid";
+import { Footer } from "@/features/marketing/components/footer";
+import { Hero } from "@/features/marketing/components/hero";
+import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section";
+import { Navbar } from "@/features/marketing/components/navbar";
+import { PricingSection } from "@/features/marketing/components/pricing-section";
+import { SocialProof } from "@/features/marketing/components/social-proof";
 
 export default function HomePage() {
   return (

@@ -1,4 +1,4 @@
-import { InboxSidebar } from "@/components/inbox/inbox-sidebar";
+import { InboxSidebar } from "@/features/inbox/components/inbox-sidebar";
 
 type Props = {
   children: React.ReactNode;

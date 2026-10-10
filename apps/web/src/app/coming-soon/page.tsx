@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 export default function ComingSoonPage() {
   const [mounted, setMounted] = useState<boolean>(false);

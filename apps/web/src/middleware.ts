@@ -4,8 +4,8 @@ import {
   ACCESS_REFRESH_THRESHOLD_SEC,
   COOKIE_ACCESS,
   COOKIE_REFRESH,
-} from "@/lib/auth/constants";
-import { accessTokenNeedsRefresh } from "@/lib/auth/jwt";
+} from "@/lib/server/auth/constants";
+import { accessTokenNeedsRefresh } from "@/lib/server/auth/jwt";
 
 function redirectToLogin(request: NextRequest): NextResponse {
   const login = new URL("/login", request.url);

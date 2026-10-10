@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { applyTokenCookies, type TokenPair } from "@/lib/auth/cookies";
-import { gatewayFetch } from "@/lib/auth/gateway-server";
-import { createWorkspace } from "@/lib/auth/workspaces";
+import { applyTokenCookies, type TokenPair } from "@/lib/server/auth/cookies";
+import { gatewayFetch } from "@/lib/server/gateway/fetch";
+import { createWorkspace } from "@/lib/server/workspace/workspaces";
 
 type RegisterResponse = {
   user_id: string;
