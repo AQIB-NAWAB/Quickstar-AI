@@ -1,4 +1,4 @@
-.PHONY: up down logs ps smoke playground identity-migrate workspace-migrate agent-migrate conversation-migrate web-fetch-migrate knowledge-migrate knowledge-smoke memory-migrate secrets-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
+.PHONY: up down logs ps smoke playground integrity identity-migrate workspace-migrate agent-migrate conversation-migrate web-fetch-migrate knowledge-migrate knowledge-smoke memory-migrate secrets-migrate data-plane-up data-plane-down data-plane-logs data-plane-smoke
 
 COMPOSE = docker compose
 
@@ -6,6 +6,10 @@ up: data-plane-up
 down: data-plane-down
 logs: data-plane-logs
 smoke: data-plane-smoke
+
+integrity:
+	@chmod +x scripts/check-repository-integrity.py
+	@python3 scripts/check-repository-integrity.py
 
 knowledge-smoke:
 	@chmod +x scripts/smoke-knowledge-data-plane.sh
