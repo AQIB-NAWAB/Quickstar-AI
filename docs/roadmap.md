@@ -100,22 +100,32 @@ On **every** learn day, complete **Deep learning** (heading 11) for the feature 
 
 ---
 
-## 3. How two people work
+## 3. How the team works
 
-Two people work in this repo. The goal is that both can ship a **full feature** on the same day without waiting.
+From here on, a **product feature is end to end**. One person owns it until a staff user can do the job in `apps/web` and the API enforces the same rules. We do not mark a product feature done when only the service exists, and we do not open a second "frontend ticket" for the same job.
+
+A feature ships together:
+
+1. **Data and rules** in the service that owns them (Postgres, tests, failure behavior).
+2. **A public route** on the gateway (`:3000`), or an internal route if the caller is another service.
+3. **Staff UI** in `apps/web`: a page under `app/(app)/workspaces/...`, a folder `src/features/<name>/`, and a BFF route under `app/api/` so the browser uses httpOnly cookies.
+4. **A test the teammate can run** (service test and a short click-path or HTTP example for the screen).
+
+Three people can work the same day only on **three different features**. The split is by feature, which means different service directories and different `features/<name>/` folders.
 
 Rules:
 
-1. Pick **one feature** from the current pair in the progress board. The other person picks the other feature.
-2. A feature includes its own service (or its own clearly named route file), its tests, its failure behavior, and a short doc a teammate can run.
-3. Do not edit the same service directory on the same day.
-4. Do not edit the same shared package (`packages/*`) on the same day. If both features need a shared type, one person lands that package change first. The other person uses it the next day.
-5. Gateway route files stay split by feature (`proxy-agent`, `proxy-conversation`, and so on). Do not both edit `routes/index.ts` at the same time. Add your route module in your file, then one person wires the one-line register.
-6. Docs and tests are part of the feature, not a second-class task. If you own the feature, you own the happy path, the failure test, and the example.
+1. Pick **one feature** from section **6A**. Do not start it while a feature it **Needs** is still open.
+2. You may edit that feature's service **and** its `apps/web` feature folder in the same change. That is the point. You do not hand the screen to someone else.
+3. Do not edit another person's service, their `features/<name>/` folder, or the same shared package (`packages/*`) on the same day.
+4. If two features need a shared type, one person lands `packages/contracts` first. The other uses it the next day.
+5. Gateway route files stay split (`proxy-agent`, `proxy-conversation`, and so on). Do not both edit `routes/index.ts`. Add your module, then one person wires the one-line register.
+6. The browser never calls a service port and never stores access tokens in `localStorage`.
 7. A 15-minute sync is only for the JSON shape and the URL. After that, work alone.
-8. Do not start a feature whose "Needs" line is still open.
 
-We do not write owner names on tasks. Either person can take either track. The split is by **directory**, not by seniority.
+**Exceptions (no staff screen):** identity internals, membership cache, model gateway, web fetch, the event outbox, tracing, and platform labs **P1–P8**. Those are done when the service contract and tests pass. The product feature that *uses* them is still end to end (workflows use events; the workflow screen ships with workflows).
+
+Frontend layout: [apps/web/docs/FOLDER_STRUCTURE.md](../apps/web/docs/FOLDER_STRUCTURE.md).
 
 ---
 
@@ -142,7 +152,17 @@ The old board in this file was behind the code. This table matches the repo as o
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, gateway 3000. Postgres on the host is 5433.
+Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-10):
+
+| Feature | Status | Where | Note |
+| --- | --- | --- | --- |
+| Memory (14), tools (15), secrets (16) | Done | `memory-service`, agent tools, `secrets-service` | Gateway proxies memory, knowledge, secrets |
+| Widget API (17) | Partial | gateway `widget-public` + publishable keys | No embeddable JS bundle yet |
+| Inbox handoff (18) | Done | conversation `take`/`release`, runtime 409 | Staff UI is F4 |
+| Event platform (19) | Partial | conversation outbox + optional Kafka | Only `conversation.handed_off` is produced |
+| Staff web F1 + F4 | Done (core) | `apps/web` | Auth shell, inbox, transcript. Agents/settings still "Soon" |
+
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, gateway 3000, staff web **3005** (do not run model-gateway and Next on the same port). Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -197,18 +217,23 @@ Billing, security, ops (late):
   P1–P8  platform labs (parallel with product when files do not overlap)
 ```
 
-### 5B. Current focus path (knowledge-first)
+### 5B. Current focus path (end-to-end features)
 
-Ship in this order unless we explicitly reprioritize voice:
+A product feature is finished only when the API and the staff screen both work. Section **6A** is the list. Catch-up features already have APIs; the owner still ships the screen as part of that same feature. New features start with the service and the screen in one slice.
 
 ```text
-09B membership cache
-  → 11 knowledge ingest
-  → 13 retrieval in the runtime (embedding + search on each turn)
-  → 14 memory (when widget or inbox needs it)
-```
+Now (three people, three features):
+  Agents (07/08 + screen)
+  Knowledge and memory (11/14 + screen)
+  Workspace settings (05/16/keys + screen)
 
-Feature **10B** is already done; ingest (11) should call web-fetch for URL/crawl sources. Feature **12** chat turns are done; retrieval (13) extends the same runtime loop.
+Then, each as one feature:
+  Website widget (API already there + embed bundle + key screen if not done in settings)
+  Workflows (events 19b inside this feature, then service + builder screen)
+  Voice (21–21C + call log screen)
+  Campaigns, leads, usage, evaluation, audit (each: API + screen)
+  Platform labs P1–P8 and cloud deploy (no product screen)
+```
 
 ### 5C. Voice track (when we start telephony)
 
@@ -243,11 +268,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** **16** secrets (parallel); voice remains **§5C**
-- **Next production deep topic:** secret rotation and tool credential refs (16)
-- **Product priority:** Multi-tenant chat + knowledge + tools at scale; voice design target unchanged, scheduled in **§5C** unless reprioritized
-- **Finished features:** through **15** (14 memory, 15 tools/MCP v1); voice (**21+**) and streaming still open
-- **Board status:** synced to repo 2026-09-30; update this line when code and table disagree
+- **Current focus:** section **6A** — finish **Agents**, **Knowledge and memory**, and **Workspace settings** as end-to-end features (API already exists; the feature includes the staff screen)
+- **Next production deep topic:** publish pointer and version diff in the agent console (F2); do not invent a second agent store in the browser
+- **Product priority:** Staff can operate what the backend already stores (agents, knowledge, members, secrets, keys) before new voice or workflow services
+- **Finished features:** backend **01–16** and **18**; **17** and **19** partial; staff web **F1** and **F4** core
+- **Board status:** synced to repo 2026-10-10; update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -269,9 +294,9 @@ Update these lines every day.
 | 14 | Memory | 09, 12 | 13 | done |
 | 15 | Tools and MCP | 12 | 16 | done |
 | 16 | Secrets | — | 15 | done |
-| 17 | Website chat widget | 12 | 18 | done |
-| 18 | Inbox and human handoff | 09 | 17, 21C | not_started |
-| 19 | Event platform | objects exist | 20 | not_started |
+| 17 | Website chat widget | 12 | 18 | partial |
+| 18 | Inbox and human handoff | 09 | 17, 21C | done |
+| 19 | Event platform | objects exist | 20 | partial |
 | 20 | Workflow automation | 19 | 19 | not_started |
 | 21 | Voice path | 12, 09B | 21B | not_started |
 | 21B | Speech providers (STT/TTS) | 21 | 21C | not_started |
@@ -294,10 +319,10 @@ Update these lines every day.
 | P6 | Metrics that survive two copies | gateway | P5 | not_started |
 | P7 | CI: test, image build, no manual laptop-only steps | P1 | P8 | not_started |
 | P8 | Network picture: public gateway, private services | P2 | P7 | not_started |
-| F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | not_started |
+| F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | done |
 | F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | not_started |
 | F3 | Knowledge and memory UI | F1, 11, 14 | F2 | not_started |
-| F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | in_progress |
+| F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | done |
 | F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
 | F6 | Outbound voice and campaign management UI | F1, 21C, 23 | F5 | not_started |
 | F7 | Leads management UI | F1, 24 | F6 | not_started |
@@ -310,7 +335,60 @@ Update these lines every day.
 
 Platform labs **P1–P8** are real features. Either person can take one lab while the other takes a product feature (08, 09, …), as long as you do not edit the same files. Labs are how we learn Docker, Kubernetes, and cloud **by shipping**.
 
-Frontend features **F1–F13** are the complete staff web application and public surfaces. They live in `apps/web/` (Next.js). No F-slot touches any service directory. Each slot must ship working pages that call the gateway on port 3000.
+The **F1–F13** rows are the screen half of a product feature. They are not a second backlog. From section **3** onward, you pick the product feature in **6A** and ship the API and the screen together. F-numbers stay here so older notes still point at the same work.
+
+---
+
+## 6A. Remaining work — one feature, both sides
+
+Synced **2026-10-10**. This is the queue. Section 35 still has the long screen notes. You do not pick "backend" or "frontend" as the task. You pick a **feature** and finish both sides.
+
+**Done** means: the gateway route behaves correctly with two replicas of the service, and a staff user can complete the job in the web app (or, for the widget, a host page outside the staff app can).
+
+### Now — finish features whose API already exists
+
+The service work is in the repo. The feature is still open until the screen is in. One person per row. Same day is fine because the folders differ. Do not add a second service for these.
+
+| Feature | What the user can do when it is done | API already on :3000 | What you still ship | Directories you own |
+| --- | --- | --- | --- | --- |
+| **Agents** (07, 08, 15, screen F2) | Create a draft, edit instructions, attach tool names, publish, see versions, roll back. Runtime keeps using the published pointer. | Agents, publish, rollback, versions, diff | Pages, BFF, empty and error states. Secret values never appear; only secret names. | `apps/web/src/features/agents/`, `app/(app)/workspaces/[workspaceId]/agents/`, `app/api/workspaces/.../agents/`. Touch `agent-service` only if a real API bug blocks the screen. |
+| **Knowledge and memory** (11, 14, screen F3) | Add a text source, see ready or failed, open chunks. List and delete memory for a subject key. | `.../knowledge/*`, `.../memory/*` | Those screens in one feature folder. | `apps/web/src/features/knowledge/` and the matching `app/` routes and BFF. |
+| **Workspace settings** (05, 04 keys, 16, screen F10) | Invite a member, change a role, create an API key (shown once), rotate a secret by name, create a publishable key. | Members, invites, API keys, secrets, publishable keys | Settings pages. Billing UI waits for the usage feature. | `apps/web/src/features/settings/` and the matching routes and BFF. |
+
+**Inbox (09, 18, screen F4) is done for v1.** Leave it unless you are fixing a bug. Gaps that are not a new feature: no list cursor past 50, poll instead of SSE, no resolve button, `waiting` is reserved and unused.
+
+### Next — new product features (API and screen in the same slice)
+
+Start the next row only after the **Needs** row is done. The person who takes it writes the service, the gateway route, and the staff screen before calling it done.
+
+| Order | Feature | Needs | Ship together | Directories |
+| --- | --- | --- | --- | --- |
+| 1 | **Website widget** (17) | Runtime, publishable keys (settings feature if that screen is the key manager) | Public turn API already exists. Add the embed bundle and prove a host page can chat. SSE is a follow-up, not a second feature. | `packages/widget/` or `apps/widget/`. Key admin stays in settings if that feature is already open. |
+| 2 | **Workflows** (20 + screen F8) | Event rows the workflow can trust | Finish producers still missing (`conversation.released`, `message.appended`) in the same effort if the workflow needs them. Then workflow service, gateway routes, and a builder that runs one action. | `services/workflow-service/`, conversation-service only for the event rows you must add, `apps/web/src/features/workflows/` |
+| 3 | **Voice** (21, 21B, 22, 21C + screen F5) | Runtime, membership cache. Section **5C**. | Voice process on port 3008, one telephony vendor, and a staff call log. Do not merge the service with no log page. | `services/voice-service/`, `apps/web/src/features/voice/` |
+| 4 | **Campaigns** (23 + screen F6) | Voice reliability and telephony | Queue, caps, and the campaign screen. | One service (decide in the ADR), `features/campaigns/` |
+| 5 | **Leads** (24 + screen F7) | Workflows or a single event you already emit | Lead rows and the lead list. | Lead service, `features/leads/` |
+| 6 | **Usage** (26 + screen F9) | Model and web-fetch facts already log; there is no ledger | Ledger consumer off the request path, and a staff totals page. | Usage consumer, `features/usage/` |
+| 7 | **Evaluation** (25 + screen F11) | Runtime turns | Dataset, run, score, and the eval screen. | Eval service, `features/evaluation/` |
+| 8 | **Audit** (27 + screen F12) | Staff writes exist | Append-only audit rows and the audit screen. Say in the ADR whether a failed audit insert fails the user request. | Audit writer, `features/audit/` |
+| 9 | **Developer docs** (F13) | Public routes you are willing to freeze | API reference next to the routes, not a separate product. | `docs/` or a docs route in `apps/web` |
+| — | **Observability (28), cloud (29–30), labs P1–P8** | — | No staff product screen. Ship the probe, metric, or deploy path. | Platform files only |
+
+### What we will not do
+
+- Merge a product feature as "backend done" and leave the screen for later.
+- A second chat store in the Next.js process.
+- Custom Kafka event types per tenant. Workflows use the fixed catalog in `packages/contracts`.
+- Billing math on the gateway request path.
+- Setup state that exists only in `localStorage`.
+
+### This week
+
+| Person | Feature | Owns |
+| --- | --- | --- |
+| A | Agents | `features/agents/` and agent routes |
+| B | Knowledge and memory | `features/knowledge/` |
+| C | Workspace settings | `features/settings/` |
 
 ---
 
@@ -1900,7 +1978,7 @@ No full KMS integration until the cloud feature. Document the local master key a
 
 ## 20. Feature 17 — Website chat widget
 
-**Status:** `not_started`  
+**Status:** `partial` — public widget HTTP API and publishable keys are in the gateway. Embed bundle is **17b** in section **6A**.
 **Needs:** runtime streaming  
 **Can run beside:** Feature 18  
 **Deep topic:** horizontal scale of long connections
@@ -2024,7 +2102,7 @@ No email notifications. No mobile app. A simple API plus one page is enough if t
 
 ## 22. Feature 19 — Event platform
 
-**Status:** `done`  
+**Status:** `partial` — outbox, optional Kafka publisher/consumer, and `conversation.handed_off` exist. Remaining catalog is **19b** in section **6A**.
 **Needs:** the objects that emit events (agent, conversation, handoff). Do not invent events for objects that do not exist.  
 **Can run beside:** Feature 20 only after the event envelope exists. Day 1 can be the envelope and one producer. Day 2 can be one consumer. If two people work, one owns the producer library, the other owns one consumer. Do not both edit the topic names.  
 **Deep topic:** queues and "at least once"
@@ -2866,6 +2944,9 @@ We will not have a year of on-call practice. We will have a system another engin
 | 2026-09-28 | 14 | `memory-service` :3010, `conversations.subject_key`, runtime inject, ADR 0014 | No auto-extract; no vector memory; widget 17 not wired |
 | 2026-09-30 | 15 | `agents.tools`, `tool_calls`, runtime tool loop, model-gateway tools, ADR 0015 | Streaming tools; F2 UI; full MCP SDK; secrets in headers (16) |
 | 2026-09-29 | roadmap | Replaced frontend slots F1–F5 with complete F1–F13 roadmap | All 13 frontend slots documented with full detail; Section 35 fully rewritten |
+| 2026-10-10 | 18, 19, F1, F4 | Handoff API + outbox slice; staff auth shell and inbox UI | 19 catalog incomplete; F4 has no SSE or list cursor |
+| 2026-10-10 | roadmap | Section **6A** remaining end-to-end waves; board synced | Wave 1 is F2, F3, F10 on existing gateway APIs |
+| 2026-10-10 | roadmap | Section 3 and **6A**: a product feature includes API and staff screen before it is done | Catch-up is Agents, Knowledge, Settings; new work starts as one slice |
 
 ---
 
@@ -2902,7 +2983,7 @@ Rules that do not change:
 
 ### Feature F1 — Frontend Foundation (Landing Page, Auth, Layout, Design System)
 
-**Status:** `not_started`
+**Status:** `done` — httpOnly auth, middleware, workspace shell, landing CTAs. Extra UI kit pieces ship with the feature that needs them.
 **Needs:** identity (04), workspace (05), gateway (06)
 **Can run beside:** any product feature that does not edit `apps/web/`
 **Deep topic:** cookie-based JWT refresh in a server-rendered app; public vs authenticated routing
@@ -2991,7 +3072,7 @@ No OAuth/SSO. No email verification flow. No mobile nav drawer (deferred to resp
 
 ### Feature F2 — Agent Builder and Agent Settings UI
 
-**Status:** `not_started`
+**Status:** `not_started` — **Wave 1** in section **6A**. Backend is done. Own `apps/web/src/features/agents/` only.
 **Needs:** F1, agent drafts (07), agent versions (08), tools (15), secrets (16)
 **Can run beside:** F3
 **Deep topic:** optimistic concurrency (version field), 409 conflict handling, multi-tab editing
@@ -3073,7 +3154,7 @@ No agent clone/duplicate. No A/B version comparison UI. No drag-and-drop tool re
 
 ### Feature F3 — Knowledge and Memory UI
 
-**Status:** `not_started`
+**Status:** `not_started` — **Wave 1.** Gateway already proxies knowledge and memory. Build `features/knowledge`. See section **6A**.
 **Needs:** F1, knowledge ingest (11), memory (14)
 **Can run beside:** F2
 **Deep topic:** async ingest status polling with terminal stop condition; cross-system delete (UI must not orchestrate multi-system cleanup itself)
@@ -3135,7 +3216,7 @@ No file upload progress bar. No citation link from inbox back to source chunk. N
 
 ### Feature F4 — Conversation Inbox and Live Chat UI
 
-**Status:** `in_progress`
+**Status:** `done` (v1 staff inbox: list, thread, take, release, human send, transcript). Gaps listed in section **6A**. Do not reopen unless fixing a bug.
 **Needs:** F1, conversations (09), inbox and human handoff (18)
 **Can run beside:** F2
 **Deep topic:** cursor pagination, after_seq message append, SSE streaming, 409 race condition on take
@@ -3464,7 +3545,7 @@ No spend cap or alert UI. No org-level rollup across workspaces. No invoice or p
 
 ### Feature F10 — Workspace Settings (Members, Roles, API Keys, Billing, Secrets)
 
-**Status:** `not_started`
+**Status:** `not_started` — **Wave 1** in section **6A** for members, invites, API keys, secrets, and publishable keys. Billing screens wait for Feature **26**. Own `apps/web/src/features/settings/` only.
 **Needs:** F1, identity (04), workspace (05), secrets (16)
 **Can run beside:** F9
 **Deep topic:** RBAC permission display; API key value shown once then masked forever; secret vault — value never shown after creation
