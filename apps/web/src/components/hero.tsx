@@ -35,7 +35,7 @@ export function Hero() {
         <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-5 mb-1 sm:mb-2">
           {/* Primary CTA: Start building → */}
           <Link
-            href="/coming-soon"
+            href="/register"
             className="group inline-flex items-center justify-center gap-2 h-[44px] px-5 sm:px-6 rounded-[8px] bg-[#FF571A] hover:bg-[#E04810] text-[15px] font-semibold text-white transition-all duration-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
           >
             <span>Start building</span>

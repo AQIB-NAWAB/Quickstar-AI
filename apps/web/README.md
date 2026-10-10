@@ -43,6 +43,19 @@ without using the upstream React 19 renderer. The upstream dependency is license
 AGPL-3.0-only; its license is included in the installed package. Node 22.12+ is
 required by that dependency.
 
+## Staff app (F1) — local dev
+
+1. Start the data plane and backend: `make up`, identity (3001), workspace (3002), gateway (3000).
+2. Copy env: `cp .env.local.example .env.local`
+3. Run the app: `pnpm --filter @quickstart/web dev` → http://localhost:3005
+4. Register at `/register` or sign in at `/login`. Sessions use **httpOnly** cookies via `/api/auth/*` Route Handlers.
+
+Protected routes: `/workspaces/[workspaceId]/*` (middleware + silent refresh).
+
+## Inbox (F4)
+
+Staff inbox at `/workspaces/[workspaceId]/inbox` calls the gateway through **BFF** routes under `/api/workspaces/.../conversations` (access token from httpOnly cookies). The thread view loads the last ~50 messages, polls `after_seq` every 3s, supports take/release, human send, and a printable transcript.
+
 ## Landing page consistency
 
 The landing page's shared container, heading, description, eyebrow, and spacing

@@ -30,11 +30,12 @@ export async function fetchGateway<T = any>(
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      const nested = data.error as { code?: string; message?: string; request_id?: string } | undefined;
       return {
         error: {
-          code: data.code || `HTTP_${res.status}`,
-          message: data.message || res.statusText || "Request failed",
-          request_id: data.request_id,
+          code: nested?.code ?? data.code ?? `HTTP_${res.status}`,
+          message: nested?.message ?? data.message ?? res.statusText ?? "Request failed",
+          request_id: nested?.request_id ?? data.request_id,
         },
       };
     }

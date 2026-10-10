@@ -492,7 +492,7 @@ export function PricingSection() {
                 Close
               </button>
               <Link
-                href="/coming-soon"
+                href="/register"
                 onClick={closeModal}
                 className="px-4 py-2.5 bg-[#FF571A] text-white hover:bg-[#E04810] transition-colors rounded-[8px] text-sm font-semibold inline-flex items-center gap-1.5 shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
               >

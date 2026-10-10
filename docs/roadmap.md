@@ -297,7 +297,7 @@ Update these lines every day.
 | F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | not_started |
 | F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | not_started |
 | F3 | Knowledge and memory UI | F1, 11, 14 | F2 | not_started |
-| F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | not_started |
+| F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | in_progress |
 | F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
 | F6 | Outbound voice and campaign management UI | F1, 21C, 23 | F5 | not_started |
 | F7 | Leads management UI | F1, 24 | F6 | not_started |
@@ -3135,7 +3135,7 @@ No file upload progress bar. No citation link from inbox back to source chunk. N
 
 ### Feature F4 — Conversation Inbox and Live Chat UI
 
-**Status:** `not_started`
+**Status:** `in_progress`
 **Needs:** F1, conversations (09), inbox and human handoff (18)
 **Can run beside:** F2
 **Deep topic:** cursor pagination, after_seq message append, SSE streaming, 409 race condition on take

@@ -209,7 +209,7 @@ export function Navbar() {
         <div className="hidden min-[1100px]:flex items-center">
           {/* Sign in */}
           <Link
-            href="/coming-soon"
+            href="/login"
             className="text-[15px] font-medium text-[#262626] hover:text-[#FF571A] min-h-[44px] px-2 flex items-center mr-6 xl:mr-7 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-sm"
           >
             Sign in
@@ -217,7 +217,7 @@ export function Navbar() {
 
           {/* Split Compartment Get started CTA */}
           <Link
-            href="/coming-soon"
+            href="/register"
             className="group inline-flex items-center h-[44px] rounded-[8px] overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] select-none"
           >
             {/* Compartment 1: Orange text box */}
@@ -302,7 +302,7 @@ export function Navbar() {
             {/* Bottom Account Row: Sign in left, Split Get started CTA right */}
             <div className="px-5 sm:px-6 py-5 flex items-center justify-between gap-4">
               <Link
-                href="/coming-soon"
+                href="/login"
                 onClick={closeMenu}
                 className="text-[16px] font-medium text-[#262626] hover:text-[#FF571A] min-h-[44px] flex items-center transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
               >
@@ -310,7 +310,7 @@ export function Navbar() {
               </Link>
 
               <Link
-                href="/coming-soon"
+                href="/register"
                 onClick={closeMenu}
                 className="group inline-flex items-center h-[44px] rounded-[8px] overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
               >

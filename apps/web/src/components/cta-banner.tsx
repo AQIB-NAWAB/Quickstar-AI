@@ -147,7 +147,7 @@ export function CtaBanner() {
             {/* Primary Action Button */}
             <div className="mt-6 sm:mt-7">
               <Link
-                href="/coming-soon"
+                href="/register"
                 className="group inline-flex items-center justify-center gap-2 px-6 h-[44px] bg-[#FF571A] hover:bg-[#E04810] active:bg-[#CC4410] text-white font-semibold text-[15px] rounded-[8px] transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] select-none"
               >
                 <span>Get started</span>
