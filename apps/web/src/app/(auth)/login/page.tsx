@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
-  redirect("/coming-soon");
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background-base" />}>
+      <LoginForm />
+    </Suspense>
+  );
 }

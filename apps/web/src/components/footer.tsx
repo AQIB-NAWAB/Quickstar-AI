@@ -158,7 +158,7 @@ export function Footer() {
               </h3>
               <div className="grid grid-cols-2 gap-x-8 sm:gap-x-12 min-[1100px]:gap-x-8 xl:gap-x-0 gap-y-4 sm:gap-y-5 min-[1100px]:gap-y-6 xl:gap-y-8">
                 <Link
-                  href="/coming-soon"
+                  href="/register"
                   className="inline-flex items-center min-h-[44px] text-[18px] sm:text-[22px] min-[1100px]:text-[26px] xl:text-[32px] font-normal text-[#262626] leading-snug w-fit group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-[2px]"
                 >
                   <span className="relative">
@@ -171,7 +171,7 @@ export function Footer() {
                 </Link>
 
                 <Link
-                  href="/coming-soon"
+                  href="/login"
                   className="inline-flex items-center min-h-[44px] text-[18px] sm:text-[22px] min-[1100px]:text-[26px] xl:text-[32px] font-normal text-[#262626] leading-snug w-fit group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-[2px]"
                 >
                   <span className="relative">
