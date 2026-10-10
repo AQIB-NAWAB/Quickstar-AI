@@ -1,33 +1,33 @@
-"use client";
-
-import React from "react";
-
 export function SocialProof() {
-  const providers = ["OpenAI", "Anthropic", "Twilio", "AWS"];
+  const partners = [
+    { name: "OpenAI", label: "OPENAI" },
+    { name: "Anthropic", label: "ANTHROPIC" },
+    { name: "Twilio", label: "TWILIO" },
+    { name: "AWS", label: "AWS CLOUD" },
+    { name: "PostgreSQL", label: "POSTGRESQL" },
+    { name: "Apache Kafka", label: "APACHE KAFKA" },
+    { name: "OpenSearch", label: "OPENSEARCH" },
+    { name: "Valkey", label: "VALKEY REDIS" },
+  ];
 
   return (
-    <section className="landing-proof w-full bg-[#FAFAF8] select-none">
-      <div className="landing-container">
-        <div className="flex flex-col min-[1100px]:flex-row items-center justify-center gap-4 sm:gap-6 lg:gap-8 text-center sm:text-left">
-          {/* Left horizontal hairline divider */}
-          <div className="hidden md:block flex-1 h-[1px] bg-[#DADADD]" aria-hidden="true" />
+    <section className="py-12 border-y border-border-faint bg-white/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <p className="text-xs font-semibold tracking-widest text-neutral-400 uppercase mb-8">
+          Engineered on modern AI &amp; distributed cloud infrastructure
+        </p>
 
-          {/* Infrastructure caption */}
-          <span className="landing-eyebrow landing-eyebrow-muted">
-            BUILT WITH MODERN AI &amp; CLOUD INFRASTRUCTURE
-          </span>
-
-          {/* Muted infrastructure labels */}
-          <div className="flex items-center flex-wrap justify-center gap-5 sm:gap-7 lg:gap-8 text-[14px] text-[#666666] font-normal tracking-tight">
-            {providers.map((name) => (
-              <span key={name} className="transition-colors hover:text-[#141418]">
-                {name}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-6 items-center justify-center">
+          {partners.map((c) => (
+            <div
+              key={c.name}
+              className="flex items-center justify-center h-10 px-3 rounded-8 border border-transparent hover:border-border-faint hover:bg-white transition-all text-neutral-600 hover:text-accent-black"
+            >
+              <span className="font-mono text-xs font-bold tracking-wider opacity-80 hover:opacity-100 transition-opacity">
+                {c.label}
               </span>
-            ))}
-          </div>
-
-          {/* Right horizontal hairline divider */}
-          <div className="hidden md:block flex-1 h-[1px] bg-[#DADADD]" aria-hidden="true" />
+            </div>
+          ))}
         </div>
       </div>
     </section>

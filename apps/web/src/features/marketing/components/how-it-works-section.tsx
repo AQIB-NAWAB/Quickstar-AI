@@ -1,1021 +1,627 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileText,
-  CheckCircle2,
-  MoreVertical,
-  Plus,
-  ArrowUpRight,
-  X,
+  Package,
+  MessageSquare,
   Check,
-  Wrench,
-  Trash2,
-  Eye,
+  ChevronRight,
+  Pause,
+  Play,
 } from "lucide-react";
 
-export type StepType = "information" | "instructions" | "test";
-
-interface DocumentItem {
-  id: string;
-  name: string;
-  status: "Ready";
-}
-
-interface ConnectedTool {
-  id: string;
-  name: string;
-}
-
-interface StepMeta {
-  key: StepType;
+interface StepItem {
   num: string;
   title: string;
-  label: string;
-  heading: string;
+  description: string;
 }
 
-const STEPS: StepMeta[] = [
+const STEPS: StepItem[] = [
   {
-    key: "information",
     num: "01",
-    title: "Information",
-    label: "INFORMATION",
-    heading: "Give your agent something to work with.",
+    title: "Add your information",
+    description: "Bring in company documents and connect the tools your agent can use.",
   },
   {
-    key: "instructions",
     num: "02",
-    title: "Instructions",
-    label: "INSTRUCTIONS",
-    heading: "Give it a job.",
+    title: "Give it a role",
+    description: "Tell your agent how to respond and which tasks it should help with.",
   },
   {
-    key: "test",
     num: "03",
-    title: "Test",
-    label: "TEST",
-    heading: "Example conversation",
+    title: "Test, then publish",
+    description: "Try example questions, check the answers, and publish when you’re ready.",
   },
 ];
 
-const INITIAL_DOCUMENTS: DocumentItem[] = [
-  { id: "doc-1", name: "Company handbook.pdf", status: "Ready" },
-  { id: "doc-2", name: "Product guide.pdf", status: "Ready" },
-];
+const INSTRUCTION_TEXT =
+  "Help customers with product questions and orders. Use the company’s information.";
+const INSTRUCTION_WORDS = INSTRUCTION_TEXT.split(" ");
+
+/**
+ * Reusable Orange Circle Checkmark icon matching the approved visual specification.
+ */
+function OrangeCircleCheck({
+  active = true,
+  animating = false,
+  className = "",
+}: {
+  active?: boolean;
+  animating?: boolean;
+  className?: string;
+}) {
+  return (
+    <svg
+      className={`w-5 h-5 flex-shrink-0 transition-all duration-300 ${
+        active ? "text-[#FF571A] opacity-100 scale-100" : "text-[#FF571A]/30 opacity-30 scale-95"
+      } ${animating ? "animate-hiw-check" : ""} ${className}`}
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M6.5 10.2L8.8 12.5L13.5 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function HowItWorksSection() {
-  const [activeStep, setActiveStep] = useState<StepType>("information");
+  const sectionRef = useRef<HTMLElement>(null);
+  const [isInView, setIsInView] = useState(false);
+  const [hasEntered, setHasEntered] = useState(false);
+  const [isReducedMotion, setIsReducedMotion] = useState(false);
+  const [isTabVisible, setIsTabVisible] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
 
-  // Local state for documents and tools (persisted across tabs in session)
-  const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
-  const [tools, setTools] = useState<ConnectedTool[]>([]);
+  // Active progression state:
+  // activeStep: 1 | 2 | 3 | 0 (0 = settled/resting)
+  const [activeStep, setActiveStep] = useState<number>(1);
+  const [animatingStep, setAnimatingStep] = useState<number>(1);
 
-  // Dialog states
-  const [isAddDocOpen, setIsAddDocOpen] = useState(false);
-  const [isConnectToolOpen, setIsConnectToolOpen] = useState(false);
-  const [isPublishOpen, setIsPublishOpen] = useState(false);
-  const [activeMenuDocId, setActiveMenuDocId] = useState<string | null>(null);
-  const [viewDetailsDoc, setViewDetailsDoc] = useState<DocumentItem | null>(null);
+  // Step 1 states
+  const [s1Check1, setS1Check1] = useState(true);
+  const [s1Check2, setS1Check2] = useState(true);
+  const [s1Check3, setS1Check3] = useState(true);
+  const [chevron1Active, setChevron1Active] = useState(false);
 
-  // Trigger element refs for accessible focus restoration
-  const addDocTriggerRef = useRef<HTMLButtonElement>(null);
-  const connectToolTriggerRef = useRef<HTMLButtonElement>(null);
-  const publishTriggerRef = useRef<HTMLButtonElement>(null);
-  const menuTriggerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  // Step 2 states
+  const [s2BorderHighlight, setS2BorderHighlight] = useState(false);
+  const [s2WordCount, setS2WordCount] = useState(INSTRUCTION_WORDS.length);
+  const [s2Pill, setS2Pill] = useState(true);
+  const [chevron2Active, setChevron2Active] = useState(false);
 
-  // Instructions state (persisted across tab switches)
-  const agentRole = "Customer support";
-  const [instructionsText, setInstructionsText] = useState(
-    "Help customers with product questions and orders. Use the company’s information. Ask for confirmation before taking an action.",
-  );
-  const [allowOrderLookup, setAllowOrderLookup] = useState(true);
-  const [allowFollowUpTask, setAllowFollowUpTask] = useState(true);
+  // Step 3 states
+  const [s3Check1, setS3Check1] = useState(true);
+  const [s3Check2, setS3Check2] = useState(true);
+  const [s3Published, setS3Published] = useState(true);
 
-  // Test state
-  const [testInput, setTestInput] = useState("");
-  const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; text: string; source?: string }[]
-  >([
-    {
-      role: "user",
-      text: "What is your return policy?",
-    },
-    {
-      role: "assistant",
-      text: "Unopened items can be returned within 30 days with proof of purchase.",
-      source: "Company handbook.pdf",
-    },
-  ]);
-
-  // Tablist refs for keyboard arrow navigation
-  const sideTabListRef = useRef<HTMLDivElement>(null);
-  const mobileTabListRef = useRef<HTMLDivElement>(null);
-
-  // Close menus and modals on Escape key + restore trigger focus
+  // Check prefers-reduced-motion
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (isAddDocOpen) {
-          setIsAddDocOpen(false);
-          addDocTriggerRef.current?.focus();
-        }
-        if (isConnectToolOpen) {
-          setIsConnectToolOpen(false);
-          connectToolTriggerRef.current?.focus();
-        }
-        if (isPublishOpen) {
-          setIsPublishOpen(false);
-          publishTriggerRef.current?.focus();
-        }
-        if (viewDetailsDoc) {
-          const docId = viewDetailsDoc.id;
-          setViewDetailsDoc(null);
-          menuTriggerRefs.current.get(docId)?.focus();
-        }
-        setActiveMenuDocId(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isAddDocOpen, isConnectToolOpen, isPublishOpen, viewDetailsDoc]);
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setIsReducedMotion(mediaQuery.matches);
 
-  const dialogOpen = isAddDocOpen || isConnectToolOpen || isPublishOpen || !!viewDetailsDoc;
-  useEffect(() => {
-    if (!dialogOpen) return;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const dialog = document.querySelector<HTMLElement>("[data-setup-dialog]");
-    const selector = 'button:not([disabled]), input, textarea, select, a[href], [tabindex="0"]';
-    dialog?.querySelector<HTMLElement>(selector)?.focus();
-    const trapFocus = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !dialog) return;
-      const elements = Array.from(dialog.querySelectorAll<HTMLElement>(selector));
-      const first = elements[0],
-        last = elements[elements.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsReducedMotion(e.matches);
     };
-    document.addEventListener("keydown", trapFocus);
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  // Browser tab visibility handling
+  useEffect(() => {
+    const handleVisibility = () => {
+      setIsTabVisible(!document.hidden);
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+  // Viewport intersection observer
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          setHasEntered(true);
+        } else {
+          setIsInView(false);
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Process animation sequence controller
+  useEffect(() => {
+    // If reduced motion is requested, lock immediately into completed final state
+    if (isReducedMotion) {
+      setActiveStep(0);
+      setS1Check1(true);
+      setS1Check2(true);
+      setS1Check3(true);
+      setChevron1Active(false);
+      setS2BorderHighlight(false);
+      setS2WordCount(INSTRUCTION_WORDS.length);
+      setS2Pill(true);
+      setChevron2Active(false);
+      setS3Check1(true);
+      setS3Check2(true);
+      setS3Published(true);
+      return;
+    }
+
+    if (!isInView || !isPlaying || !isTabVisible) return;
+
+    let isMounted = true;
+    const timeouts: NodeJS.Timeout[] = [];
+
+    const schedule = (fn: () => void, ms: number) => {
+      const id = setTimeout(() => {
+        if (isMounted) fn();
+      }, ms);
+      timeouts.push(id);
+    };
+
+    const runSequence = () => {
+      // Phase 1: Step 1 (0ms - 2200ms)
+      // Only reset Step 1 checks so panels do not all visibly empty at once
+      setActiveStep(1);
+      setAnimatingStep(1);
+      setS1Check1(false);
+      setS1Check2(false);
+      setS1Check3(false);
+      setChevron1Active(false);
+
+      // Step 1 checkmarks pop in sequence
+      schedule(() => setS1Check1(true), 400);
+      schedule(() => setS1Check2(true), 900);
+      schedule(() => setS1Check3(true), 1500);
+      schedule(() => setChevron1Active(true), 1800);
+
+      // Phase 2: Step 2 (2200ms - 4600ms)
+      schedule(() => {
+        setActiveStep(2);
+        setAnimatingStep(2);
+        setS2BorderHighlight(true);
+        // Reset only Step 2 when its turn begins
+        setS2WordCount(0);
+        setS2Pill(false);
+        setChevron2Active(false);
+      }, 2200);
+
+      // Progressive text reveals in word groups
+      schedule(() => setS2WordCount(3), 2400);
+      schedule(() => setS2WordCount(6), 2750);
+      schedule(() => setS2WordCount(8), 3100);
+      schedule(() => setS2WordCount(INSTRUCTION_WORDS.length), 3450);
+      schedule(() => setS2BorderHighlight(false), 3600);
+      schedule(() => setS2Pill(true), 3800);
+      schedule(() => setChevron2Active(true), 4200);
+
+      // Phase 3: Step 3 (4600ms - 7000ms)
+      schedule(() => {
+        setActiveStep(3);
+        setAnimatingStep(3);
+        // Reset only Step 3 when its turn begins
+        setS3Check1(false);
+        setS3Check2(false);
+        setS3Published(false);
+      }, 4600);
+
+      schedule(() => setS3Check1(true), 5000);
+      schedule(() => setS3Check2(true), 5450);
+      schedule(() => setS3Published(true), 6000);
+
+      // Phase 4: Settled / Reading State (7000ms - 14500ms)
+      // Hold completed state so visitors have 7.5 seconds to comfortably read
+      schedule(() => {
+        setActiveStep(0);
+        setAnimatingStep(0);
+        setChevron1Active(false);
+        setChevron2Active(false);
+      }, 7000);
+
+      // Low-frequency cycle replay
+      schedule(() => {
+        if (isMounted && isPlaying) {
+          runSequence();
+        }
+      }, 14500);
+    };
+
+    // Run cycle
+    runSequence();
+
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", trapFocus);
-      if (previousFocus?.isConnected) previousFocus.focus();
+      isMounted = false;
+      timeouts.forEach(clearTimeout);
     };
-  }, [dialogOpen]);
+  }, [isInView, isPlaying, isReducedMotion, isTabVisible]);
 
-  // Handlers for Add Document
-  const handleAddSampleDoc = () => {
-    const nextCount = documents.length + 1;
-    const docName =
-      nextCount === 3 ? "Sample document.pdf" : `Sample document ${nextCount - 2}.pdf`;
-    const newDoc: DocumentItem = {
-      id: `doc-${Date.now()}`,
-      name: docName,
-      status: "Ready",
-    };
-    setDocuments((prev) => [...prev, newDoc]);
-    setIsAddDocOpen(false);
-    addDocTriggerRef.current?.focus();
-  };
-
-  // Handlers for Tool Toggle
-  const handleToggleTool = (toolName: string) => {
-    setTools((prev) => {
-      const exists = prev.some((t) => t.name === toolName);
-      if (exists) return prev.filter((t) => t.name !== toolName);
-      return [...prev, { id: `tool-${Date.now()}`, name: toolName }];
+  const togglePlayPause = useCallback(() => {
+    setIsPlaying((prev) => {
+      const next = !prev;
+      // If pausing, immediately settle into completed reference state
+      if (!next) {
+        setActiveStep(0);
+        setS1Check1(true);
+        setS1Check2(true);
+        setS1Check3(true);
+        setChevron1Active(false);
+        setS2BorderHighlight(false);
+        setS2WordCount(INSTRUCTION_WORDS.length);
+        setS2Pill(true);
+        setChevron2Active(false);
+        setS3Check1(true);
+        setS3Check2(true);
+        setS3Published(true);
+      }
+      return next;
     });
-  };
+  }, []);
 
-  // Handlers for Document Removal
-  const handleRemoveDoc = (id: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
-    setActiveMenuDocId(null);
-    menuTriggerRefs.current.delete(id);
-  };
-
-  // Test prompt deterministic submission
-  const handleRunExample = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const query = testInput.trim().toLowerCase();
-    if (!query) return;
-
-    let responseText = "";
-    let responseSource: string | undefined = undefined;
-
-    if (query.includes("return") || query.includes("refund")) {
-      responseText = "Unopened items can be returned within 30 days with proof of purchase.";
-      responseSource = "Company handbook.pdf";
-    } else if (
-      query.includes("product") ||
-      query.includes("guide") ||
-      query.includes("install") ||
-      query.includes("feature")
-    ) {
-      responseText =
-        "QuickStartAI connects your company handbook and product documentation to intelligent agents.";
-      responseSource = "Product guide.pdf";
-    } else if (
-      query.includes("order") ||
-      query.includes("lookup") ||
-      query.includes("track") ||
-      query.includes("status")
-    ) {
-      responseText = "Orders can be retrieved using your customer order reference.";
-      responseSource = "Order lookup tool";
-    } else {
-      responseText = "This preview supports return-policy, product, and order examples.";
-    }
-
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", text: testInput.trim() },
-      { role: "assistant", text: responseText, source: responseSource },
-    ]);
-    setTestInput("");
-  };
-
-  // Vertical arrow key navigation for side tabs
-  const handleVerticalTabKeyDown = (e: React.KeyboardEvent, currentStep: StepType) => {
-    const currentIndex = STEPS.findIndex((s) => s.key === currentStep);
-    let targetIndex = currentIndex;
-
-    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-      e.preventDefault();
-      targetIndex = (currentIndex + 1) % STEPS.length;
-    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      targetIndex = (currentIndex - 1 + STEPS.length) % STEPS.length;
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      targetIndex = 0;
-    } else if (e.key === "End") {
-      e.preventDefault();
-      targetIndex = STEPS.length - 1;
-    }
-
-    if (targetIndex !== currentIndex) {
-      const nextStep = STEPS[targetIndex].key;
-      setActiveStep(nextStep);
-      const tabList = e.currentTarget.closest('[role="tablist"]');
-      tabList?.querySelector<HTMLButtonElement>(`[data-step="${nextStep}"]`)?.focus();
-    }
-  };
+  const renderedInstructionText =
+    s2WordCount >= INSTRUCTION_WORDS.length
+      ? INSTRUCTION_TEXT
+      : INSTRUCTION_WORDS.slice(0, s2WordCount).join(" ");
 
   return (
     <section
       id="how-it-works"
-      className="landing-section w-full bg-[#FAFAF8]"
+      ref={sectionRef}
+      className="relative w-full bg-[#191919] text-[#FAFAF8] py-14 sm:py-16 lg:py-24 border-t border-[#262626]"
+      aria-label="How QuickStart AI works"
     >
-      <div className="landing-container">
-        {/* ============================================================ */}
-        {/* Two-Column Section Layout: Left Copy & Right Setup Sheet     */}
-        {/* ============================================================ */}
-        <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,0.36fr)_minmax(0,0.64fr)] gap-10 min-[1100px]:gap-12 xl:gap-12 items-start">
-          {/* ========================================================== */}
-          {/* LEFT COLUMN: Eyebrow, Heading, Description, Selectors      */}
-          {/* ========================================================== */}
-          <div className="landing-intro flex flex-col">
-            {/* Eyebrow */}
-            <div className="landing-eyebrow-row">
-              <span className="landing-eyebrow">
-                HOW IT WORKS
+      <div className="max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-12">
+        {/* ============================================================== */}
+        {/* HEADER ROW: Left Title + Right Supporting Statement */}
+        {/* ============================================================== */}
+        <div
+          className={`flex flex-col lg:flex-row lg:items-end justify-between gap-6 lg:gap-12 ${
+            hasEntered && !isReducedMotion ? "hiw-entrance-header" : ""
+          }`}
+        >
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm sm:text-base font-medium text-[#FF571A] select-none">
+                How it works
               </span>
+              {/* Subtle accessibility playback toggle */}
+              <button
+                type="button"
+                onClick={togglePlayPause}
+                aria-label={isPlaying ? "Pause process preview" : "Play process preview"}
+                title={isPlaying ? "Pause process preview" : "Play process preview"}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[#858585] hover:text-[#FAFAF8] hover:bg-[#252525] transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF571A]"
+              >
+                {isPlaying ? (
+                  <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 ml-0.5" aria-hidden="true" />
+                )}
+              </button>
             </div>
 
-            {/* Heading with exact desktop 3-line breaks */}
-            <h2 className="landing-title">
-              <span className="block">Your knowledge.</span>
-              <span className="block">An agent</span>
-              <span className="block">
-                that <span className="text-[#FF571A]">acts.</span>
-              </span>
+            <h2 className="mt-4 sm:mt-5 text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-semibold text-[#FAFAF8] tracking-[-0.035em] leading-[1.1]">
+              From your information<br className="hidden sm:inline" />{" "}
+              to a working agent.
             </h2>
-
-            {/* Description */}
-            <p className="landing-description landing-description-spaced max-w-[440px]">
-              Connect your information. Give it a job.
-              <span className="block">Try it before you publish.</span>
-            </p>
-
-            {/* Three Step Selectors */}
-            <div
-              role="region"
-              aria-label="How it works step selectors"
-              className="hidden min-[1100px]:flex mt-8 flex-col gap-2"
-            >
-              {STEPS.map((step) => {
-                const isActive = activeStep === step.key;
-                return (
-                  <button
-                    key={step.key}
-                    type="button"
-                    onClick={() => setActiveStep(step.key)}
-                    aria-current={isActive ? "step" : undefined}
-                    className="flex items-center gap-6 min-h-[44px] py-1 text-left transition-colors group focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                  >
-                    <span
-                      className={`font-mono text-[16px] sm:text-[17px] xl:text-[20px] font-medium w-7 transition-colors ${
-                        isActive ? "text-[#FF571A]" : "text-[#74746F] group-hover:text-[#262626]"
-                      }`}
-                    >
-                      {step.num}
-                    </span>
-                    <span
-                      className={`text-[16px] sm:text-[17px] xl:text-[20px] font-medium transition-colors ${
-                        isActive ? "text-[#FF571A]" : "text-[#74746F] group-hover:text-[#262626]"
-                      }`}
-                    >
-                      {step.title}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
-          {/* ========================================================== */}
-          {/* RIGHT COLUMN: Tilted Setup Sheet with Vertical Side Tabs   */}
-          {/* ========================================================== */}
-          <div className="w-full flex justify-center min-[1100px]:justify-end">
-            {/* Unified Rotated Assembly Container */}
-            <div className="w-full max-w-[840px] relative transition-transform duration-300 min-[1100px]:-rotate-[2deg] origin-top-left">
-              {/* Mobile Horizontal Tabs (Attached above sheet on small screens) */}
+          <div className="lg:pb-1.5 flex-shrink-0">
+            <p className="text-base sm:text-lg lg:text-[19px] text-[#B0B0B0] font-normal leading-[1.45]">
+              Add what it should know.<br />
+              Decide what it should do.
+            </p>
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* THREE-STEP COLUMNS */}
+        {/* ============================================================== */}
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10 mt-12 sm:mt-16 list-none p-0 m-0">
+          {/* ------------------------------------------------------------ */}
+          {/* STEP 1: Add your information */}
+          {/* ------------------------------------------------------------ */}
+          <li
+            className={`flex flex-col ${
+              hasEntered && !isReducedMotion ? "hiw-entrance-col-1" : ""
+            }`}
+          >
+            {/* Top row: Number + Rule + Decorative Chevron */}
+            <div className="relative flex items-center gap-3.5">
+              <span
+                className={`text-xl sm:text-[22px] font-medium tracking-tight transition-colors duration-300 select-none ${
+                  activeStep === 1 ? "text-[#FF8045]" : "text-[#FF571A]"
+                }`}
+              >
+                01
+              </span>
+              <div className="flex-1 h-[1px] bg-[#383838] relative overflow-hidden">
+                <div
+                  className={`absolute inset-0 bg-[#FF571A] transition-opacity duration-500 ${
+                    activeStep === 1 ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </div>
+
+              {/* Chevron pointing to step 2 (hidden on mobile, centered in gap on md+) */}
               <div
-                ref={mobileTabListRef}
-                role="tablist"
-                aria-label="Agent setup steps"
-                className="flex min-[1100px]:hidden items-center border border-[#262626] rounded-t-[12px] overflow-hidden bg-[#FAFAF8] mb-[-1px] relative z-10"
+                aria-hidden="true"
+                className={`hidden md:flex items-center justify-center absolute left-[calc(100%+16px)] lg:left-[calc(100%+20px)] top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 transition-colors duration-300 select-none ${
+                  chevron1Active ? "text-[#FF571A]" : "text-[#555555]"
+                }`}
               >
-                {STEPS.map((tab) => {
-                  const isActive = activeStep === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      role="tab"
-                      data-step={tab.key}
-                      id={`mobile-step-tab-${tab.key}`}
-                      aria-selected={isActive}
-                      aria-controls="setup-sheet-panel"
-                      tabIndex={isActive ? 0 : -1}
-                      onClick={() => setActiveStep(tab.key)}
-                      onKeyDown={(e) => handleVerticalTabKeyDown(e, tab.key)}
-                      className={`flex-1 min-h-[44px] py-2.5 px-3 text-[14px] font-semibold transition-colors text-center ${
-                        isActive
-                          ? "bg-[#FF571A] text-[#262626]"
-                          : "text-[#74746F] hover:text-[#262626] border-r last:border-r-0 border-[#262626]/20"
-                      }`}
-                    >
-                      {tab.title}
-                    </button>
-                  );
-                })}
+                <ChevronRight className="w-4 h-4 stroke-[1.5]" />
               </div>
+            </div>
 
-              {/* Flex row of Sheet Body + Attached Side Tabs */}
-              <div className="flex items-start">
-                {/* 1. Main Sheet Surface */}
-                <div
-                  id="setup-sheet-panel"
-                  role="tabpanel"
-                  aria-label={`${STEPS.find((step) => step.key === activeStep)?.title} preview`}
-                  className="flex-1 bg-white border border-[#262626] rounded-b-[12px] min-[1100px]:rounded-[12px] shadow-[0_2px_2px_rgba(0,0,0,0.06)] relative z-10 overflow-hidden flex flex-col justify-between min-h-[460px] sm:min-h-[510px] xl:min-h-[560px] min-w-0"
-                >
-                  {/* Top Orange Strip (clipped to rounded corners) */}
-                  <div className="w-full h-[7px] bg-[#FF571A] shrink-0" />
+            {/* Title & Description */}
+            <h3 className="text-[22px] sm:text-[24px] font-semibold text-[#FAFAF8] mt-4 sm:mt-5 mb-2 tracking-tight">
+              Add your information
+            </h3>
+            <p className="text-[15px] sm:text-[16px] text-[#B0B0B0] leading-[1.5] min-h-[46px] sm:min-h-[50px] mb-6">
+              Bring in company documents and connect the tools your agent can use.
+            </p>
 
-                  {/* Sheet Header */}
-                  <div className="px-6 sm:px-8 pt-6 pb-5 xl:pt-8 xl:pb-6 flex items-center gap-3.5 xl:gap-5">
-                    {/* Small empty orange circle, decorative */}
-                    <div
-                      className="w-[22px] h-[22px] rounded-full border-[1.8px] border-[#FF571A] shrink-0"
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <h3 className="text-[22px] sm:text-[24px] xl:text-[30px] font-bold text-[#262626] leading-tight m-0">
-                        Customer support
-                      </h3>
-                      <p className="text-[14px] xl:text-[16px] text-[#74746F] m-0 mt-0.5">
-                        Example agent
-                      </p>
+            {/* Miniature Panel: Company Information */}
+            <div className="flex-1 bg-[#202020] border border-[#383838] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 hover:border-[#484848] hover:bg-[#232323] cursor-default select-none min-h-[235px] lg:min-h-[245px]">
+              <div>
+                {/* Panel Header */}
+                <div className="flex items-center gap-2.5 pb-3.5 mb-2 border-b border-[#303030]">
+                  <FileText
+                    className="w-[18px] h-[18px] text-[#FF571A] stroke-[1.75]"
+                    aria-hidden="true"
+                  />
+                  <span className="text-[15px] sm:text-[16px] font-semibold text-[#FAFAF8]">
+                    Company information
+                  </span>
+                </div>
+
+                {/* Rows */}
+                <div className="flex flex-col divide-y divide-[#2a2a2a]/80">
+                  {/* Row 1: Return policy */}
+                  <div className="flex items-center justify-between py-2.5 sm:py-3 text-[14px] sm:text-[15px]">
+                    <div className="flex items-center gap-3">
+                      <FileText
+                        className="w-4 h-4 text-[#858585] stroke-[1.5]"
+                        aria-hidden="true"
+                      />
+                      <span className="text-[#FAFAF8]">Return policy</span>
                     </div>
+                    <OrangeCircleCheck
+                      active={s1Check1}
+                      animating={s1Check1 && animatingStep === 1}
+                    />
                   </div>
 
-                  {/* Full-width fine divider beneath header */}
-                  <div className="mx-6 sm:mx-8 border-b border-[#DEDED8]" />
-
-                  {/* Dynamic State Content Body */}
-                  <div className="p-6 sm:px-8 sm:py-7 flex-1 flex flex-col justify-between">
-                    {/* ------------------------------------------------ */}
-                    {/* STATE 1: INFORMATION                             */}
-                    {/* ------------------------------------------------ */}
-                    {activeStep === "information" && (
-                      <div className="flex flex-col justify-between h-full">
-                        <div>
-                          <span className="text-[12px] sm:text-[12px] xl:text-[14px] font-semibold tracking-wider text-[#74746F] uppercase block mb-1">
-                            INFORMATION
-                          </span>
-                          <h4 className="text-[21px] sm:text-[23px] xl:text-[28px] font-semibold text-[#262626] leading-snug mb-5 m-0">
-                            Give your agent something to work with.
-                          </h4>
-
-                          {/* Document Rows */}
-                          <div className="flex flex-col">
-                            {documents.length === 0 ? (
-                              <div className="py-6 border-b border-[#DEDED8] text-center text-[14px] text-[#74746F]">
-                                No documents attached. Click below to add sample information.
-                              </div>
-                            ) : (
-                              documents.map((doc) => (
-                                <div
-                                  key={doc.id}
-                                  className="py-3 sm:py-3.5 flex items-center justify-between border-b border-[#DEDED8] min-h-[72px] xl:min-h-[86px]"
-                                >
-                                  {/* Left: Document icon in neutral box + filename */}
-                                  <div className="flex items-center gap-3.5 min-w-0 pr-2">
-                                    <div className="w-10 h-10 xl:w-12 xl:h-12 rounded-[8px] bg-[#F4F4F0] flex items-center justify-center shrink-0 text-[#262626]">
-                                      <FileText className="w-6 h-6 xl:w-7 xl:h-7 stroke-[1.5]" />
-                                    </div>
-                                    <span className="min-w-0 text-[15px] sm:text-[16px] xl:text-[18px] font-normal text-[#262626] [overflow-wrap:anywhere] sm:truncate">
-                                      {doc.name}
-                                    </span>
-                                  </div>
-
-                                  {/* Right: Green check + Ready + Ellipsis menu */}
-                                  <div className="flex items-center gap-3.5 shrink-0">
-                                    <div className="inline-flex items-center gap-1.5">
-                                      <CheckCircle2 className="w-5 h-5 xl:w-6 xl:h-6 text-[#16A34A] stroke-[2] shrink-0" />
-                                      <span className="text-[14px] sm:text-[14px] xl:text-[16px] text-[#74746F] font-normal">
-                                        {doc.status}
-                                      </span>
-                                    </div>
-
-                                    <div className="relative">
-                                      <button
-                                        ref={(el) => {
-                                          if (el) menuTriggerRefs.current.set(doc.id, el);
-                                          else menuTriggerRefs.current.delete(doc.id);
-                                        }}
-                                        type="button"
-                                        aria-label={`Options for ${doc.name}`}
-                                        aria-expanded={activeMenuDocId === doc.id}
-                                        aria-haspopup="true"
-                                        onClick={() =>
-                                          setActiveMenuDocId((curr) =>
-                                            curr === doc.id ? null : doc.id,
-                                          )
-                                        }
-                                        className="h-11 w-11 inline-flex items-center justify-center rounded hover:bg-neutral-100 text-[#74746F] transition-colors focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                                      >
-                                        <MoreVertical className="w-4 h-4" />
-                                      </button>
-
-                                      {/* Dropdown menu */}
-                                      {activeMenuDocId === doc.id && (
-                                        <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[#DEDED8] rounded-[8px] shadow-lg py-1 z-30">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setViewDetailsDoc(doc);
-                                              setActiveMenuDocId(null);
-                                            }}
-                                            className="w-full px-3 py-1.5 text-left text-[13px] text-[#262626] hover:bg-[#FAFAF8] flex items-center gap-2"
-                                          >
-                                            <Eye className="w-3.5 h-3.5 text-[#74746F]" />
-                                            <span>View example details</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveDoc(doc.id)}
-                                            className="w-full px-3 py-1.5 text-left text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            <span>Remove from preview</span>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          {/* Connected Tools Chips */}
-                          {tools.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-2 pt-3">
-                              {tools.map((t) => (
-                                <span
-                                  key={t.id}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[12px] bg-[#FAFAF8] text-[#262626] border border-[#DEDED8] font-medium"
-                                >
-                                  <Wrench className="w-3 h-3 text-[#FF571A]" />
-                                  <span>{t.name}</span>
-                                  <button
-                                    type="button"
-                                    aria-label={`Disconnect ${t.name}`}
-                                    onClick={() => handleToggleTool(t.name)}
-                                    className="hover:opacity-75 focus-visible:outline-none"
-                                  >
-                                    <X className="w-3 h-3 text-[#74746F]" />
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Actions Row */}
-                          <div className="flex flex-wrap items-center justify-between gap-4 mt-6">
-                            <button
-                              ref={addDocTriggerRef}
-                              type="button"
-                              onClick={() => setIsAddDocOpen(true)}
-                              className="inline-flex items-center gap-2 h-[48px] px-4 xl:px-5 rounded-[8px] border border-[#262626] bg-white text-[14px] xl:text-[16px] font-medium text-[#262626] hover:bg-neutral-50 transition-colors focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                            >
-                              <Plus className="w-4 h-4 stroke-[2.2]" />
-                              <span>Add a document</span>
-                            </button>
-
-                            <button
-                              ref={connectToolTriggerRef}
-                              type="button"
-                              onClick={() => setIsConnectToolOpen(true)}
-                              className="inline-flex items-center gap-1.5 text-[14px] xl:text-[16px] font-medium text-[#262626] hover:text-[#FF571A] transition-colors py-2 focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                            >
-                              <span>Connect a tool</span>
-                              <ArrowUpRight className="w-4 h-4 stroke-[2]" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Bottom Note */}
-                        <div className="pt-6 mt-4">
-                          <p className="text-[13px] sm:text-[13px] xl:text-[14px] text-[#74746F] m-0">
-                            Preview uses example information
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ------------------------------------------------ */}
-                    {/* STATE 2: INSTRUCTIONS                           */}
-                    {/* ------------------------------------------------ */}
-                    {activeStep === "instructions" && (
-                      <div className="flex flex-col justify-between h-full">
-                        <div>
-                          <span className="text-[12px] sm:text-[12px] xl:text-[14px] font-semibold tracking-wider text-[#74746F] uppercase block mb-1">
-                            INSTRUCTIONS
-                          </span>
-                          <h4 className="text-[21px] sm:text-[23px] xl:text-[28px] font-semibold text-[#262626] leading-snug mb-4 m-0">
-                            Give it a job.
-                          </h4>
-
-                          {/* Role Header */}
-                          <div className="flex items-center gap-2 mb-4">
-                            <span className="text-[13px] font-medium text-[#74746F]">Role:</span>
-                            <span className="px-2.5 py-1 rounded-[6px] bg-[#F4F4F0] border border-[#DEDED8] text-[13px] font-semibold text-[#262626]">
-                              {agentRole}
-                            </span>
-                          </div>
-
-                          {/* Instructions Textarea */}
-                          <div className="flex flex-col gap-1.5 mb-4">
-                            <label
-                              htmlFor="instructions-field"
-                              className="text-[13px] font-semibold text-[#262626]"
-                            >
-                              Instructions
-                            </label>
-                            <textarea
-                              id="instructions-field"
-                              rows={3}
-                              value={instructionsText}
-                              onChange={(e) => setInstructionsText(e.target.value)}
-                              className="w-full min-h-[86px] p-3 rounded-[8px] border border-[#DEDED8] bg-white text-[14px] text-[#262626] leading-relaxed focus:outline-none focus:border-[#FF571A] focus:ring-1 focus:ring-[#FF571A] transition-colors resize-none"
-                            />
-                          </div>
-
-                          {/* Allowed Actions Toggles */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                            <button
-                              type="button"
-                              aria-pressed={allowOrderLookup}
-                              onClick={() => setAllowOrderLookup((p) => !p)}
-                              className={`px-3.5 py-2.5 rounded-[8px] border text-left flex items-center justify-between transition-colors min-h-[44px] ${
-                                allowOrderLookup
-                                  ? "border-[#262626] bg-[#FAFAF8] text-[#262626]"
-                                  : "border-[#DEDED8] bg-white text-[#74746F]"
-                              }`}
-                            >
-                              <span className="text-[13.5px] font-medium">Look up an order</span>
-                              <div
-                                className={`w-4 h-4 rounded-[4px] border flex items-center justify-center ${
-                                  allowOrderLookup
-                                    ? "bg-[#FF571A] border-[#FF571A] text-white"
-                                    : "border-[#DEDED8] bg-white"
-                                }`}
-                              >
-                                {allowOrderLookup && <Check className="w-3 h-3 stroke-[2.5]" />}
-                              </div>
-                            </button>
-
-                            <button
-                              type="button"
-                              aria-pressed={allowFollowUpTask}
-                              onClick={() => setAllowFollowUpTask((p) => !p)}
-                              className={`px-3.5 py-2.5 rounded-[8px] border text-left flex items-center justify-between transition-colors min-h-[44px] ${
-                                allowFollowUpTask
-                                  ? "border-[#262626] bg-[#FAFAF8] text-[#262626]"
-                                  : "border-[#DEDED8] bg-white text-[#74746F]"
-                              }`}
-                            >
-                              <span className="text-[13.5px] font-medium">
-                                Create a follow-up task
-                              </span>
-                              <div
-                                className={`w-4 h-4 rounded-[4px] border flex items-center justify-center ${
-                                  allowFollowUpTask
-                                    ? "bg-[#FF571A] border-[#FF571A] text-white"
-                                    : "border-[#DEDED8] bg-white"
-                                }`}
-                              >
-                                {allowFollowUpTask && <Check className="w-3 h-3 stroke-[2.5]" />}
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Bottom Note */}
-                        <div className="pt-4">
-                          <p className="text-[13px] sm:text-[13px] xl:text-[14px] text-[#74746F] m-0">
-                            Changes apply to this preview only.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ------------------------------------------------ */}
-                    {/* STATE 3: TEST                                    */}
-                    {/* ------------------------------------------------ */}
-                    {activeStep === "test" && (
-                      <div className="flex flex-col justify-between h-full">
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <span className="text-[12px] sm:text-[12px] xl:text-[14px] font-semibold tracking-wider text-[#74746F] uppercase block mb-0.5">
-                                TEST
-                              </span>
-                              <h4 className="text-[20px] sm:text-[22px] font-semibold text-[#262626] leading-snug m-0">
-                                Example conversation
-                              </h4>
-                            </div>
-
-                            <button
-                              ref={publishTriggerRef}
-                              type="button"
-                              onClick={() => setIsPublishOpen(true)}
-                              className="inline-flex items-center h-[34px] px-3.5 rounded-[6px] border border-[#FF571A] text-[13px] font-semibold text-[#FF571A] hover:bg-[#FF571A] hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                            >
-                              Publish preview
-                            </button>
-                          </div>
-
-                          {/* Messages stream container */}
-                          <div className="w-full bg-[#FAFAF8] rounded-[8px] p-3 flex flex-col gap-2.5 max-h-[175px] overflow-y-auto border border-[#DEDED8] mb-3.5">
-                            {messages.map((m, idx) => (
-                              <div
-                                key={idx}
-                                className={`flex flex-col ${
-                                  m.role === "user" ? "items-end" : "items-start"
-                                }`}
-                              >
-                                <div
-                                  className={`p-2.5 rounded-[8px] text-[13px] leading-relaxed max-w-[85%] ${
-                                    m.role === "user"
-                                      ? "bg-[#262626] text-white"
-                                      : "bg-white border border-[#DEDED8] text-[#262626]"
-                                  }`}
-                                >
-                                  <p className="m-0">{m.text}</p>
-                                  {m.source && (
-                                    <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#74746F] bg-neutral-100 px-1.5 py-0.5 rounded">
-                                      <FileText className="w-3 h-3" />
-                                      <span>{m.source}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Input form */}
-                          <form onSubmit={handleRunExample} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              aria-label="Example question"
-                              value={testInput}
-                              onChange={(e) => setTestInput(e.target.value)}
-                              placeholder="Ask a question (e.g. return policy, product info)..."
-                              className="flex-1 min-w-0 h-[44px] px-3 rounded-[6px] border border-[#DEDED8] bg-white text-[13.5px] text-[#262626] focus:outline-none focus:border-[#FF571A] transition-colors"
-                            />
-                            <button
-                              type="submit"
-                              className="h-[44px] shrink-0 px-3 rounded-[6px] bg-[#FF571A] text-white text-[13.5px] font-semibold hover:bg-[#E04810] transition-colors focus-visible:outline-2 focus-visible:outline-[#FF571A]"
-                            >
-                              Run example
-                            </button>
-                          </form>
-                        </div>
-
-                        {/* Bottom Note */}
-                        <div className="pt-4">
-                          <p className="text-[13px] sm:text-[13px] xl:text-[14px] text-[#74746F] m-0">
-                            Preview uses example information
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                  {/* Row 2: Product guide */}
+                  <div className="flex items-center justify-between py-2.5 sm:py-3 text-[14px] sm:text-[15px]">
+                    <div className="flex items-center gap-3">
+                      <FileText
+                        className="w-4 h-4 text-[#858585] stroke-[1.5]"
+                        aria-hidden="true"
+                      />
+                      <span className="text-[#FAFAF8]">Product guide</span>
+                    </div>
+                    <OrangeCircleCheck
+                      active={s1Check2}
+                      animating={s1Check2 && animatingStep === 1}
+                    />
                   </div>
-                </div>
 
-                {/* 2. Desktop Vertical Side Tabs (Attached to right edge) */}
-                <div
-                  ref={sideTabListRef}
-                  role="tablist"
-                  aria-orientation="vertical"
-                  aria-label="Agent setup steps"
-                  className="hidden min-[1100px]:flex flex-col -ml-[1px] pt-[20px] z-20"
-                >
-                  {STEPS.map((tab) => {
-                    const isActive = activeStep === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        role="tab"
-                        data-step={tab.key}
-                        id={`side-tab-${tab.key}`}
-                        aria-selected={isActive}
-                        aria-controls="setup-sheet-panel"
-                        tabIndex={isActive ? 0 : -1}
-                        onClick={() => setActiveStep(tab.key)}
-                        onKeyDown={(e) => handleVerticalTabKeyDown(e, tab.key)}
-                        className={`w-[44px] h-[130px] xl:w-[46px] xl:h-[145px] rounded-r-[10px] border border-l-0 border-[#262626] flex items-center justify-center transition-colors relative mb-[-1px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] ${
-                          isActive
-                            ? "bg-[#FF571A] text-[#262626] z-30"
-                            : "bg-[#FAFAF8] text-[#262626] hover:bg-white z-10"
-                        }`}
-                      >
-                        <span className="[writing-mode:vertical-rl] select-none text-[13.5px] xl:text-[16px] font-medium tracking-wide">
-                          {tab.title}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {/* Row 3: Order lookup */}
+                  <div className="flex items-center justify-between py-2.5 sm:py-3 text-[14px] sm:text-[15px]">
+                    <div className="flex items-center gap-3">
+                      <Package
+                        className="w-4 h-4 text-[#858585] stroke-[1.5]"
+                        aria-hidden="true"
+                      />
+                      <span className="text-[#FAFAF8]">Order lookup</span>
+                    </div>
+                    <OrangeCircleCheck
+                      active={s1Check3}
+                      animating={s1Check3 && animatingStep === 1}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </li>
 
-      {/* ============================================================ */}
-      {/* Accessible Local Modals                                      */}
-      {/* ============================================================ */}
-
-      {/* 1. Add Document Dialog */}
-      {isAddDocOpen && (
-        <div
-          role="dialog"
-          data-setup-dialog
-          aria-modal="true"
-          aria-labelledby="add-doc-title"
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-        >
-          <div className="bg-white border border-[#DEDED8] rounded-[12px] p-6 max-w-md w-full shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="add-doc-title" className="text-[17px] font-semibold text-[#262626] m-0">
-                Add a document to preview
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddDocOpen(false);
-                  addDocTriggerRef.current?.focus();
-                }}
-                className="p-1 rounded text-[#74746F] hover:text-[#262626]"
-                aria-label="Close dialog"
+          {/* ------------------------------------------------------------ */}
+          {/* STEP 2: Give it a role */}
+          {/* ------------------------------------------------------------ */}
+          <li
+            className={`flex flex-col ${
+              hasEntered && !isReducedMotion ? "hiw-entrance-col-2" : ""
+            }`}
+          >
+            {/* Top row: Number + Rule + Decorative Chevron */}
+            <div className="relative flex items-center gap-3.5">
+              <span
+                className={`text-xl sm:text-[22px] font-medium tracking-tight transition-colors duration-300 select-none ${
+                  activeStep === 2 ? "text-[#FF8045]" : "text-[#FF571A]"
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
+                02
+              </span>
+              <div className="flex-1 h-[1px] bg-[#383838] relative overflow-hidden">
+                <div
+                  className={`absolute inset-0 bg-[#FF571A] transition-opacity duration-500 ${
+                    activeStep === 2 ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </div>
+
+              {/* Chevron pointing to step 3 (hidden on mobile, centered in gap on md+) */}
+              <div
+                aria-hidden="true"
+                className={`hidden md:flex items-center justify-center absolute left-[calc(100%+16px)] lg:left-[calc(100%+20px)] top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 transition-colors duration-300 select-none ${
+                  chevron2Active ? "text-[#FF571A]" : "text-[#555555]"
+                }`}
+              >
+                <ChevronRight className="w-4 h-4 stroke-[1.5]" />
+              </div>
             </div>
-            <p className="text-[14px] text-[#74746F] mb-6 leading-relaxed m-0">
-              This preview simulates document attachment without uploading real files. Clicking
-              below will add a sample document to your workspace view.
+
+            {/* Title & Description */}
+            <h3 className="text-[22px] sm:text-[24px] font-semibold text-[#FAFAF8] mt-4 sm:mt-5 mb-2 tracking-tight">
+              Give it a role
+            </h3>
+            <p className="text-[15px] sm:text-[16px] text-[#B0B0B0] leading-[1.5] min-h-[46px] sm:min-h-[50px] mb-6">
+              Tell your agent how to respond and which tasks it should help with.
             </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddDocOpen(false);
-                  addDocTriggerRef.current?.focus();
-                }}
-                className="px-4 py-2 text-[14px] font-medium text-[#74746F] hover:text-[#262626]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAddSampleDoc}
-                className="px-4 py-2 rounded-[6px] bg-[#FF571A] text-white text-[14px] font-semibold hover:bg-[#E04810] transition-colors"
-              >
-                Add sample document
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* 2. Connect Tool Dialog */}
-      {isConnectToolOpen && (
-        <div
-          role="dialog"
-          data-setup-dialog
-          aria-modal="true"
-          aria-labelledby="connect-tool-title"
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-        >
-          <div className="bg-white border border-[#DEDED8] rounded-[12px] p-6 max-w-md w-full shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="connect-tool-title" className="text-[17px] font-semibold text-[#262626] m-0">
-                Connect a tool
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConnectToolOpen(false);
-                  connectToolTriggerRef.current?.focus();
-                }}
-                className="p-1 rounded text-[#74746F] hover:text-[#262626]"
-                aria-label="Close dialog"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-[14px] text-[#74746F] mb-5 leading-relaxed m-0">
-              Enable simulated tools your preview agent can invoke to look up records or create
-              tasks:
-            </p>
-            <div className="flex flex-col gap-2.5 mb-6">
-              {["Order lookup", "Follow-up tasks"].map((toolName) => {
-                const isConnected = tools.some((t) => t.name === toolName);
-                return (
-                  <button
-                    key={toolName}
-                    type="button"
-                    onClick={() => handleToggleTool(toolName)}
-                    className={`px-4 py-3 rounded-[8px] border text-left flex items-center justify-between transition-colors min-h-[44px] ${
-                      isConnected
-                        ? "border-[#FF571A] bg-[#FAFAF8]"
-                        : "border-[#DEDED8] hover:border-[#74746F]"
-                    }`}
+            {/* Miniature Panel: Agent Instructions */}
+            <div className="flex-1 bg-[#202020] border border-[#383838] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 hover:border-[#484848] hover:bg-[#232323] cursor-default select-none min-h-[235px] lg:min-h-[245px]">
+              <div>
+                {/* Panel Header */}
+                <div className="flex items-center gap-2.5 pb-3.5 mb-3.5 border-b border-[#303030]">
+                  <MessageSquare
+                    className="w-[18px] h-[18px] text-[#FF571A] stroke-[1.75]"
+                    aria-hidden="true"
+                  />
+                  <span className="text-[15px] sm:text-[16px] font-semibold text-[#FAFAF8]">
+                    Agent instructions
+                  </span>
+                </div>
+
+                {/* Instruction area */}
+                <div
+                  className={`bg-[#252525] border rounded-lg p-3.5 sm:p-4 transition-colors duration-300 ${
+                    s2BorderHighlight
+                      ? "border-[#FF571A]/60 shadow-[0_0_12px_rgba(255,87,26,0.15)]"
+                      : "border-[#383838]"
+                  }`}
+                >
+                  {/* Screen reader complete text */}
+                  <span className="sr-only">{INSTRUCTION_TEXT}</span>
+                  {/* Visual progressive streaming text */}
+                  <p
+                    className="text-[14px] sm:text-[15px] text-[#FAFAF8] leading-[1.45] min-h-[42px]"
+                    aria-hidden={s2WordCount < INSTRUCTION_WORDS.length}
                   >
-                    <span className="text-[14px] xl:text-[16px] font-medium text-[#262626]">
-                      {toolName}
-                    </span>
-                    <span
-                      className={`text-[12px] font-semibold px-2 py-0.5 rounded ${
-                        isConnected ? "bg-[#FF571A] text-white" : "bg-neutral-100 text-[#74746F]"
-                      }`}
-                    >
-                      {isConnected ? "Connected" : "Connect"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConnectToolOpen(false);
-                  connectToolTriggerRef.current?.focus();
-                }}
-                className="px-4 py-2 rounded-[6px] bg-[#262626] text-white text-[14px] font-semibold"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                    {renderedInstructionText}
+                    {s2WordCount > 0 && s2WordCount < INSTRUCTION_WORDS.length && (
+                      <span className="inline-block w-1.5 h-3.5 ml-1 bg-[#FF571A] animate-pulse align-middle" />
+                    )}
+                  </p>
+                </div>
+              </div>
 
-      {/* 3. Publish Preview Dialog */}
-      {isPublishOpen && (
-        <div
-          role="dialog"
-          data-setup-dialog
-          aria-modal="true"
-          aria-labelledby="publish-dialog-title"
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-        >
-          <div className="bg-white border border-[#DEDED8] rounded-[12px] p-6 max-w-md w-full shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3
-                id="publish-dialog-title"
-                className="text-[17px] font-semibold text-[#262626] m-0"
+              {/* Bottom: Role Pill & Note */}
+              <div
+                className={`flex items-center gap-3 mt-3.5 sm:mt-4 transition-all duration-300 ${
+                  s2Pill ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+                }`}
               >
-                Preview complete
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPublishOpen(false);
-                  publishTriggerRef.current?.focus();
-                }}
-                className="p-1 rounded text-[#74746F] hover:text-[#262626]"
-                aria-label="Close dialog"
-              >
-                <X className="w-4 h-4" />
-              </button>
+                <span className="px-3 py-1 rounded-full border border-[#444444] text-[12px] sm:text-[13px] text-[#FAFAF8] bg-[#222222] select-none">
+                  Customer support
+                </span>
+                <span className="text-[12px] sm:text-[13px] text-[#858585] select-none">
+                  Example role
+                </span>
+              </div>
             </div>
-            <p className="text-[14px] text-[#74746F] mb-6 leading-relaxed m-0">
-              This demonstration does not publish a live agent.
-            </p>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPublishOpen(false);
-                  publishTriggerRef.current?.focus();
-                }}
-                className="px-5 py-2 rounded-[6px] bg-[#262626] text-white text-[14px] font-semibold hover:bg-black transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </li>
 
-      {/* 4. View Document Details Dialog */}
-      {viewDetailsDoc && (
-        <div
-          role="dialog"
-          data-setup-dialog
-          aria-modal="true"
-          aria-labelledby="view-doc-title"
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-        >
-          <div className="bg-white border border-[#DEDED8] rounded-[12px] p-6 max-w-md w-full shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="view-doc-title" className="text-[17px] font-semibold text-[#262626] m-0">
-                {viewDetailsDoc.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  const docId = viewDetailsDoc.id;
-                  setViewDetailsDoc(null);
-                  menuTriggerRefs.current.get(docId)?.focus();
-                }}
-                className="p-1 rounded text-[#74746F] hover:text-[#262626]"
-                aria-label="Close dialog"
+          {/* ------------------------------------------------------------ */}
+          {/* STEP 3: Test, then publish */}
+          {/* ------------------------------------------------------------ */}
+          <li
+            className={`flex flex-col ${
+              hasEntered && !isReducedMotion ? "hiw-entrance-col-3" : ""
+            }`}
+          >
+            {/* Top row: Number + Rule */}
+            <div className="relative flex items-center gap-3.5">
+              <span
+                className={`text-xl sm:text-[22px] font-medium tracking-tight transition-colors duration-300 select-none ${
+                  activeStep === 3 ? "text-[#FF8045]" : "text-[#FF571A]"
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
+                03
+              </span>
+              <div className="flex-1 h-[1px] bg-[#383838] relative overflow-hidden">
+                <div
+                  className={`absolute inset-0 bg-[#FF571A] transition-opacity duration-500 ${
+                    activeStep === 3 ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </div>
             </div>
-            <p className="text-[14px] text-[#74746F] mb-4 leading-relaxed m-0">
-              Example document attached to the workspace knowledge store. Status is{" "}
-              <span className="font-semibold text-[#16A34A]">Ready</span> for agent retrieval.
+
+            {/* Title & Description */}
+            <h3 className="text-[22px] sm:text-[24px] font-semibold text-[#FAFAF8] mt-4 sm:mt-5 mb-2 tracking-tight">
+              Test, then publish
+            </h3>
+            <p className="text-[15px] sm:text-[16px] text-[#B0B0B0] leading-[1.5] min-h-[46px] sm:min-h-[50px] mb-6">
+              Try example questions, check the answers, and publish when you’re ready.
             </p>
-            <div className="p-3 bg-[#FAFAF8] rounded border border-[#DEDED8] text-[12.5px] text-[#74746F] mb-6 font-mono">
-              Status: Ready • Vectors indexed: 42 chunks
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  const docId = viewDetailsDoc.id;
-                  setViewDetailsDoc(null);
-                  menuTriggerRefs.current.get(docId)?.focus();
-                }}
-                className="px-4 py-2 rounded-[6px] bg-[#262626] text-white text-[14px] font-semibold"
+
+            {/* Miniature Panel: Ready to publish */}
+            <div className="flex-1 bg-[#202020] border border-[#383838] rounded-xl p-5 flex flex-col justify-between transition-all duration-200 hover:border-[#484848] hover:bg-[#232323] cursor-default select-none min-h-[235px] lg:min-h-[245px]">
+              <div>
+                {/* Panel Header */}
+                <div className="flex items-center gap-2.5 pb-3.5 mb-2 border-b border-[#303030]">
+                  <OrangeCircleCheck active={true} className="w-[18px] h-[18px]" />
+                  <span className="text-[15px] sm:text-[16px] font-semibold text-[#FAFAF8]">
+                    Ready to publish
+                  </span>
+                </div>
+
+                {/* Checklist Rows */}
+                <div className="flex flex-col divide-y divide-[#2a2a2a]/80">
+                  <div className="flex items-center gap-3 py-2.5 sm:py-3 text-[14px] sm:text-[15px]">
+                    <OrangeCircleCheck
+                      active={s3Check1}
+                      animating={s3Check1 && animatingStep === 3}
+                    />
+                    <span className="text-[#FAFAF8]">Information added</span>
+                  </div>
+                  <div className="flex items-center gap-3 py-2.5 sm:py-3 text-[14px] sm:text-[15px]">
+                    <OrangeCircleCheck
+                      active={s3Check2}
+                      animating={s3Check2 && animatingStep === 3}
+                    />
+                    <span className="text-[#FAFAF8]">Instructions set</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom: Published Status Badge & Draft Note */}
+              <div
+                className={`flex flex-wrap items-center gap-2.5 sm:gap-3 mt-3.5 sm:mt-4 transition-all duration-300 ${
+                  s3Published ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+                }`}
               >
-                Close
-              </button>
+                <div className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-3.5 rounded-lg bg-[#FF571A] text-white font-semibold text-[13px] sm:text-[14px] shadow-sm select-none">
+                  <Check className="w-4 h-4 stroke-[2.5]" aria-hidden="true" />
+                  <span>Published</span>
+                </div>
+                <span className="text-[11px] sm:text-[12px] text-[#858585] select-none leading-tight">
+                  Keep improving your draft
+                </span>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </li>
+        </ol>
+      </div>
     </section>
   );
 }
