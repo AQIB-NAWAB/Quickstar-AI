@@ -3,6 +3,8 @@ import { signAccessToken } from "@quickstart/auth";
 import { createLogger } from "@quickstart/logging";
 import type { ServiceConfig } from "../config/environment.js";
 import { createHttpServer, type WorkspaceServices } from "../http/create-server.js";
+import { MemoryPublishableKeysStore } from "../repository/memory-publishable-keys.js";
+import { publishableKeysPortFromMemory } from "../repository/publishable-keys-port.js";
 import { MemoryWorkspaceStore } from "../repository/memory.js";
 import { createWorkspaceServices } from "../services/index.js";
 
@@ -12,6 +14,7 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     databaseUrl: "postgresql://unused",
     redisUrl: "redis://unused",
     jwtAccessSecret: "test-secret-at-least-32-characters-long!!",
+    internalToken: "test-internal-token-at-least-32-chars!!",
     httpRequestTimeoutMs: 30_000,
     httpRateLimitWindowMs: 60_000,
     httpRateLimitMax: 10_000,
@@ -21,9 +24,13 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
 
 export function createTestWorkspaceServices(existingStore?: MemoryWorkspaceStore) {
   const store = existingStore ?? new MemoryWorkspaceStore();
+  const publishableKeysMemory = new MemoryPublishableKeysStore();
   const config = testServiceConfig();
-  const services = createWorkspaceServices(store);
-  return { store, config, services };
+  const services = createWorkspaceServices(
+    store,
+    publishableKeysPortFromMemory(publishableKeysMemory),
+  );
+  return { store, config, services, publishableKeysMemory };
 }
 
 export async function createTestToken(
@@ -49,15 +56,19 @@ export async function withWorkspaceServer(
     port: number;
     services: WorkspaceServices;
     store: MemoryWorkspaceStore;
+    publishableKeysMemory: MemoryPublishableKeysStore;
+    config: ServiceConfig;
     jwtSecret: string;
     createToken: (userId: string, orgId?: string) => Promise<string>;
   }) => Promise<void>,
   existingStore?: MemoryWorkspaceStore,
 ): Promise<void> {
-  const { store, config, services } = createTestWorkspaceServices(existingStore);
+  const { store, config, services, publishableKeysMemory } =
+    createTestWorkspaceServices(existingStore);
   const app = createHttpServer({
     services,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     logger: createLogger({ service: "service-workspace-test" }),
   });
 
@@ -74,6 +85,8 @@ export async function withWorkspaceServer(
       port: address.port,
       services,
       store,
+      publishableKeysMemory,
+      config,
       jwtSecret: config.jwtAccessSecret,
       createToken: (userId: string, orgId?: string) =>
         createTestToken(userId, orgId, config.jwtAccessSecret),

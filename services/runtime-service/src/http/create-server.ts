@@ -2,7 +2,9 @@ import type { Logger } from "@quickstart/logging";
 import { createPlatformApp, type Application } from "@quickstart/http-server";
 import { SERVICE_NAME, type ReadinessProbe } from "../controllers/health.controller.js";
 import { createTurnsController } from "../controllers/turns.controller.js";
+import { createWidgetTurnsController } from "../controllers/widget-turns.controller.js";
 import { createAuthMiddleware } from "../middleware/auth.middleware.js";
+import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
 import { requireTenantContext } from "../middleware/tenant.middleware.js";
 import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { TurnsService } from "../services/turns.service.js";
@@ -16,6 +18,7 @@ export type CreateRuntimeHttpServerOptions = {
   turnsService: TurnsService;
   workspaceAccess: WorkspaceAccessClient;
   jwtSecret?: string;
+  internalToken: string;
   readinessProbes?: ReadinessProbe[];
   requestTimeoutMs?: number;
   rateLimitWindowMs?: number;
@@ -31,8 +34,10 @@ export function createHttpServer(options: CreateRuntimeHttpServerOptions): Appli
   const httpContext: RuntimeHttpContext = {
     readinessProbes: options.readinessProbes ?? [],
     authGuard,
+    internalAuth: createRequireInternalTokenMiddleware(options.internalToken),
     tenantMiddleware: [authGuard, tenantGuard],
     turnsCtrl: createTurnsController(turnsService),
+    widgetTurnsCtrl: createWidgetTurnsController(turnsService),
     workspaceAccess,
   };
 

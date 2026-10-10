@@ -1,0 +1,166 @@
+import crypto from "node:crypto";
+import { AppError, ErrorCode } from "@quickstart/errors";
+import { asyncHandler, createServiceRouter, requestIdFromResponse, sendPlatformJson, type RouteModule } from "@quickstart/http-server";
+import { getInternalJson, postInternalJson } from "../../lib/internal-fetch.js";
+import type { WidgetContext } from "../../middleware/require-publishable-key.js";
+import type { GatewayHttpContext } from "../context.js";
+
+function widgetContext(res: { locals: unknown }): WidgetContext {
+  return (res.locals as { widget: WidgetContext }).widget;
+}
+
+function routeParam(val: string | string[] | undefined): string {
+  if (Array.isArray(val)) return val[0] ?? "";
+  return val ?? "";
+}
+
+export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) => {
+  const router = createServiceRouter();
+  const { config, requirePublishableKey } = ctx;
+
+  router.post(
+    "/v1/public/widget/conversations",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const body = req.body as { agent_id?: string; subject_key?: string | null };
+      const agentId = body.agent_id ?? widget.defaultAgentId;
+      if (!agentId) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "agent_id is required when the publishable key has no default agent",
+          requestId,
+        });
+      }
+
+      const { status, json } = await postInternalJson<{
+        conversation?: { id: string };
+        error?: { message?: string };
+      }>(
+        config.conversationUrl,
+        `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations`,
+        config.internalToken,
+        { agent_id: agentId, subject_key: body.subject_key ?? null },
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      if (status !== 201) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: json.error?.message ?? "Failed to create widget conversation",
+          requestId,
+        });
+      }
+      sendPlatformJson(res, 201, {
+        request_id: requestId,
+        conversation_id: json.conversation!.id,
+        workspace_id: widget.workspaceId,
+      });
+    }),
+  );
+
+  router.get(
+    "/v1/public/widget/conversations/:conversationId/messages",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const conversationId = routeParam(req.params.conversationId);
+      const afterSeq = req.query.after_seq;
+      const query =
+        afterSeq !== undefined && afterSeq !== ""
+          ? `?after_seq=${encodeURIComponent(String(afterSeq))}`
+          : "";
+
+      const { status, json } = await getInternalJson<{
+        messages?: unknown[];
+        error?: { message?: string };
+      }>(
+        config.conversationUrl,
+        `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
+        config.internalToken,
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      if (status === 404) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+          requestId,
+        });
+      }
+      if (status !== 200) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: json.error?.message ?? "Failed to list messages",
+          requestId,
+        });
+      }
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        messages: json.messages ?? [],
+      });
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/conversations/:conversationId/turns",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as { message?: string; subject_key?: string; actor_id?: string };
+      const rawHeaderKey = req.headers["idempotency-key"];
+      const headerKey = Array.isArray(rawHeaderKey) ? rawHeaderKey[0] : rawHeaderKey;
+      const idempotencyKey = headerKey || crypto.randomUUID();
+
+      const { status, json } = await postInternalJson<{
+        turn?: unknown;
+        error?: { message?: string; code?: string };
+      }>(
+        config.runtimeUrl,
+        `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/turns`,
+        config.internalToken,
+        {
+          message: body.message ?? "",
+          subject_key: body.subject_key,
+          actor_id: body.actor_id,
+        },
+        requestId,
+        config.httpRequestTimeoutMs,
+        { "idempotency-key": idempotencyKey },
+      );
+
+      if (status === 404) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+          requestId,
+        });
+      }
+      if (status >= 400 && status < 500 && json.error?.code) {
+        throw new AppError({
+          code: json.error.code as ErrorCode,
+          message: json.error.message ?? "Widget turn rejected",
+          requestId,
+        });
+      }
+      if (status !== 200 && status !== 201) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: json.error?.message ?? "Widget turn failed",
+          requestId,
+        });
+      }
+
+      res.status(status);
+      res.setHeader("x-request-id", requestId);
+      res.setHeader("content-type", "application/json");
+      res.send(JSON.stringify({ request_id: requestId, turn: json.turn }));
+    }),
+  );
+
+  return router;
+};

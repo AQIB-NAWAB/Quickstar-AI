@@ -5,6 +5,7 @@ import { SERVICE_NAME } from "../controllers/health.controller.js";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import type { WorkspaceAccessClient } from "../lib/workspace-access-client.js";
 import { createAuthMiddleware } from "../middleware/auth.middleware.js";
+import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
 import { requireTenantContext } from "../middleware/tenant.middleware.js";
 import type { AgentsService } from "../services/agents.service.js";
 import type { AgentHttpContext } from "./context.js";
@@ -16,6 +17,7 @@ export type CreateAgentHttpServerOptions = {
   logger: Logger;
   agents: AgentsService;
   jwtSecret: string;
+  internalToken: string;
   workspaceAccess: WorkspaceAccessClient;
   requestTimeoutMs?: number;
   rateLimitWindowMs?: number;
@@ -32,6 +34,7 @@ export function createHttpServer(options: CreateAgentHttpServerOptions): Applica
   const httpContext: AgentHttpContext = {
     readinessProbes: options.readinessProbes ?? [],
     authGuard,
+    internalAuth: createRequireInternalTokenMiddleware(options.internalToken),
     tenantMiddleware: [authGuard, tenantGuard],
     workspaceAccess,
     agentsCtrl: createAgentsController(agents),

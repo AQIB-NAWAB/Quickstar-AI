@@ -62,6 +62,7 @@ export async function startConversationServer(): Promise<{
     logger,
     conversations,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     workspaceAccess,
     requestTimeoutMs: config.httpRequestTimeoutMs,
     rateLimitWindowMs: config.httpRateLimitWindowMs,

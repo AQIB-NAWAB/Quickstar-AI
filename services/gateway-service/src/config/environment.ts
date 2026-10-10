@@ -1,5 +1,6 @@
 export type GatewayConfig = {
   port: number;
+  internalToken: string;
   identityUrl: string;
   workspaceUrl: string;
   agentUrl: string;
@@ -23,8 +24,14 @@ export function loadGatewayConfig(): GatewayConfig {
     throw new Error("JWT_ACCESS_SECRET must be set and at least 32 characters");
   }
 
+  const internalToken = process.env.GATEWAY_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN;
+  if (!internalToken || internalToken.length < 32) {
+    throw new Error("GATEWAY_INTERNAL_TOKEN must be set and at least 32 characters");
+  }
+
   return {
     port: Number(process.env.PORT ?? process.env.GATEWAY_PORT ?? 3000),
+    internalToken,
     identityUrl: (process.env.IDENTITY_URL ?? "http://127.0.0.1:3001").replace(/\/$/, ""),
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
     agentUrl: (process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),

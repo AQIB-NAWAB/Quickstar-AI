@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 import type { DataSource } from "typeorm";
 import { createLogger } from "@quickstart/logging";
 import { initTracing, shutdownTracing } from "@quickstart/tracing";
@@ -8,6 +9,8 @@ import { createRedisClient } from "@quickstart/utilities";
 import { loadServiceConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 import { createWorkspaceDataSource } from "./repository/typeorm/data-source.js";
+import { PublishableKeysRepository } from "./repository/publishable-keys.repository.js";
+import { publishableKeysPortFromPg } from "./repository/publishable-keys-port.js";
 import { createTypeOrmWorkspaceStore } from "./repository/typeorm/workspace-typeorm-store.js";
 import { createWorkspaceServices } from "./services/index.js";
 
@@ -36,7 +39,9 @@ export async function startWorkspaceServer(): Promise<{
   }
   logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
-  const services = createWorkspaceServices(store, redisClient);
+  const pgPool = new pg.Pool({ connectionString: config.databaseUrl });
+  const publishableKeysPort = publishableKeysPortFromPg(new PublishableKeysRepository(pgPool));
+  const services = createWorkspaceServices(store, publishableKeysPort, redisClient);
   const readinessProbes = [
     async () => {
       await dataSource.query("SELECT 1");
@@ -50,6 +55,7 @@ export async function startWorkspaceServer(): Promise<{
     logger,
     services,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     requestTimeoutMs: config.httpRequestTimeoutMs,
     rateLimitWindowMs: config.httpRateLimitWindowMs,
     rateLimitMax: config.httpRateLimitMax,
@@ -73,6 +79,7 @@ export async function startWorkspaceServer(): Promise<{
     if (dataSource.isInitialized) {
       await dataSource.destroy();
     }
+    await pgPool.end();
     await shutdownTracing();
   };
 

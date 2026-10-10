@@ -4,12 +4,18 @@ import type { WorkspaceStore } from "../repository/types.js";
 import { WorkspacesService } from "./workspaces.service.js";
 import { MembersService } from "./members.service.js";
 import { AuthorizationService } from "./authorization.service.js";
+import { PublishableKeysService, type PublishableKeysStorePort } from "./publishable-keys.service.js";
 
 export * from "./workspaces.service.js";
 export * from "./members.service.js";
 export * from "./authorization.service.js";
+export * from "./publishable-keys.service.js";
 
-export function createWorkspaceServices(store: WorkspaceStore, redis?: RedisClientType) {
+export function createWorkspaceServices(
+  store: WorkspaceStore,
+  publishableKeysStore?: PublishableKeysStorePort,
+  redis?: RedisClientType,
+) {
   const cacheHooks = redis
     ? {
         onMembershipChanged: async (workspaceId: string, userId: string) => {
@@ -22,5 +28,8 @@ export function createWorkspaceServices(store: WorkspaceStore, redis?: RedisClie
     workspaces: new WorkspacesService(store),
     members: new MembersService(store, cacheHooks),
     authorization: new AuthorizationService(store),
+    publishableKeys: publishableKeysStore
+      ? new PublishableKeysService(publishableKeysStore)
+      : undefined,
   };
 }

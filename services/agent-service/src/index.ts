@@ -62,6 +62,7 @@ export async function startAgentServer(): Promise<{
     logger,
     agents,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     workspaceAccess,
     requestTimeoutMs: config.httpRequestTimeoutMs,
     rateLimitWindowMs: config.httpRateLimitWindowMs,

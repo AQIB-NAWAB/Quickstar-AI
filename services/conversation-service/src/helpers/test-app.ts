@@ -14,6 +14,7 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     databaseUrl: "postgresql://unused",
     redisUrl: "redis://unused",
     jwtAccessSecret: "test-secret-at-least-32-characters-long!!",
+    internalToken: "test-internal-token-at-least-32-chars!!",
     workspaceUrl: "http://127.0.0.1:9",
     httpRequestTimeoutMs: 5_000,
     httpRateLimitWindowMs: 60_000,
@@ -60,6 +61,7 @@ export async function withConversationServer(
   const app = createHttpServer({
     conversations,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     workspaceAccess,
     logger: createLogger({ service: "service-conversation-test" }),
   });

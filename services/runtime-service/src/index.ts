@@ -27,8 +27,16 @@ export async function main(): Promise<void> {
   const logger = createLogger({ service: SERVICE_NAME });
   const config = loadRuntimeConfig();
 
-  const agentClient = new AgentClient(config.agentServiceUrl, config.httpRequestTimeoutMs);
-  const conversationClient = new ConversationClient(config.conversationServiceUrl, config.httpRequestTimeoutMs);
+  const agentClient = new AgentClient(
+    config.agentServiceUrl,
+    config.httpRequestTimeoutMs,
+    config.internalToken,
+  );
+  const conversationClient = new ConversationClient(
+    config.conversationServiceUrl,
+    config.httpRequestTimeoutMs,
+    config.internalToken,
+  );
   const modelGatewayClient = new ModelGatewayClient(
     config.modelGatewayUrl,
     config.modelGatewayInternalToken,
@@ -80,6 +88,7 @@ export async function main(): Promise<void> {
     turnsService,
     workspaceAccess,
     jwtSecret: config.jwtAccessSecret,
+    internalToken: config.internalToken,
     requestTimeoutMs: config.httpRequestTimeoutMs,
     rateLimitWindowMs: config.httpRateLimitWindowMs,
     rateLimitMax: config.httpRateLimitMax,

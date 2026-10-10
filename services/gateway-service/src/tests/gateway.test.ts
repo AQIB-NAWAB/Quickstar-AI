@@ -5,6 +5,8 @@ import { signAccessToken } from "@quickstart/auth";
 
 process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? "test-secret-at-least-32-characters-long!!";
+process.env.INTERNAL_TOKEN =
+  process.env.INTERNAL_TOKEN ?? "test-internal-token-at-least-32-chars!!";
 
 import { createLogger } from "@quickstart/logging";
 import { createRedisClient } from "@quickstart/utilities";
@@ -142,6 +144,17 @@ test("rate limit returns 429 RATE_LIMITED with request_id", async () => {
     },
     { httpRateLimitMax: 3, httpRateLimitWindowMs: 60_000 },
   );
+});
+
+test("POST /v1/public/widget/conversations without publishable key returns 401", async () => {
+  await withGateway(async (port) => {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/public/widget/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://127.0.0.1:8080" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 401);
+  });
 });
 
 test("POST /v1/workspaces/:id/conversations/:id/turns proxies to runtime", async () => {

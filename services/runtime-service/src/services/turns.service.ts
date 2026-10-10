@@ -261,4 +261,185 @@ export class TurnsService {
       usage,
     };
   }
+
+  /** Website widget path — uses internal service routes (no staff JWT). */
+  async executeWidgetTurn(input: {
+    workspaceId: string;
+    conversationId: string;
+    text?: string;
+    idempotencyKey: string;
+    actorId: string;
+    requestId: string;
+  }): Promise<TurnResult> {
+    const { workspaceId, conversationId, text, idempotencyKey, actorId, requestId } = input;
+
+    const conversation = await this.conversationClient.getConversationWidget(
+      workspaceId,
+      conversationId,
+      requestId,
+    );
+
+    const agentId = conversation.agent_id;
+    if (!agentId) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Conversation has no agent assigned",
+      });
+    }
+
+    const agent = await this.agentClient.getAgentWidget(workspaceId, agentId, requestId);
+    if (!agent.production_version_id) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Agent has no published version",
+      });
+    }
+
+    const version = await this.agentClient.getVersionWidget(
+      workspaceId,
+      agentId,
+      agent.production_version_id,
+      requestId,
+    );
+
+    const agentTools = version.snapshot.tools ?? [];
+    if (agentTools.length > 0) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Tools are not supported on widget turns yet",
+      });
+    }
+
+    const asstIdempotencyKey = `${idempotencyKey}:asst`;
+    const userMsgResult = await this.conversationClient.appendMessageWidget(
+      workspaceId,
+      conversationId,
+      {
+        text: text ?? "",
+        idempotency_key: idempotencyKey,
+        sender_type: "user",
+        sender_id: actorId,
+      },
+      requestId,
+    );
+
+    if (userMsgResult.deduplicated) {
+      const recentMessages = await this.conversationClient.listMessagesWidget(
+        workspaceId,
+        conversationId,
+        requestId,
+        20,
+      );
+      const existingAsst = recentMessages.find((m) => m.idempotency_key === asstIdempotencyKey);
+      if (existingAsst) {
+        return {
+          deduplicated: true,
+          conversation_id: conversationId,
+          agent_id: agentId,
+          agent_version_id: version.id,
+          user_message: userMsgResult.message,
+          assistant_message: existingAsst,
+        };
+      }
+    }
+
+    const history = await this.conversationClient.listMessagesWidget(
+      workspaceId,
+      conversationId,
+      requestId,
+      50,
+    );
+
+    const chatMessages: ChatMessage[] = [];
+    let retrievedChunkIds: string[] = [];
+    let knowledgeContext = "";
+    if (this.knowledgeClient && text) {
+      const readyCount = await this.knowledgeClient.readyCount(workspaceId, requestId);
+      if (readyCount > 0) {
+        const chunks = await this.knowledgeClient.retrieve(workspaceId, text, requestId, 5);
+        retrievedChunkIds = chunks.map((c) => c.chunk_id);
+        knowledgeContext = chunks
+          .map((c) => c.text)
+          .join("\n\n")
+          .slice(0, MAX_RETRIEVAL_CHARS);
+      }
+    }
+
+    const systemParts: string[] = [];
+    if (version.snapshot.instructions) {
+      systemParts.push(version.snapshot.instructions);
+    }
+    if (knowledgeContext) {
+      systemParts.push(
+        `Use the following knowledge snippets when answering:\n\n${knowledgeContext}`,
+      );
+    }
+
+    const subjectKey = conversation.subject_key?.trim();
+    if (this.memoryClient && subjectKey) {
+      const memoryFacts = await this.memoryClient.listFacts(
+        workspaceId,
+        subjectKey,
+        requestId,
+        20,
+      );
+      if (memoryFacts.length > 0) {
+        const memoryBlock = memoryFacts
+          .map((f) => `- ${f.fact_text}`)
+          .join("\n")
+          .slice(0, MAX_MEMORY_INJECT_CHARS);
+        systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
+      }
+    }
+
+    if (systemParts.length > 0) {
+      chatMessages.push({ role: "system", content: systemParts.join("\n\n") });
+    }
+
+    const sorted = [...history].sort((a, b) => a.seq - b.seq);
+    for (const msg of sorted) {
+      const role = msg.sender_type === "assistant" ? "assistant" : "user";
+      chatMessages.push({ role, content: msg.text });
+    }
+
+    const modelSettings = version.snapshot.model_settings ?? {};
+    const profile = (modelSettings.profile as string) || "fake";
+    const modelId = (modelSettings.model_id as string) || "fake";
+    const temperature =
+      typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
+
+    const completion = await this.modelGatewayClient.complete({
+      workspace_id: workspaceId,
+      request_id: requestId,
+      model: { profile, model_id: modelId },
+      messages: chatMessages,
+      temperature,
+    });
+
+    const asstMsgResult = await this.conversationClient.appendMessageWidget(
+      workspaceId,
+      conversationId,
+      {
+        text: completion.content,
+        idempotency_key: asstIdempotencyKey,
+        sender_type: "assistant",
+        sender_id: version.id,
+        metadata:
+          retrievedChunkIds.length > 0
+            ? { retrieved_chunk_ids: retrievedChunkIds }
+            : undefined,
+      },
+      requestId,
+    );
+
+    return {
+      deduplicated: false,
+      conversation_id: conversationId,
+      agent_id: agentId,
+      agent_version_id: version.id,
+      user_message: userMsgResult.message,
+      assistant_message: asstMsgResult.message,
+      usage: completion.usage,
+    };
+  }
 }
