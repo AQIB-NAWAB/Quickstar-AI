@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function runSecretsMigrations(pool: Pool): Promise<void> {
   const sql = readFileSync(
-    join(__dirname, "../../../migrations/001_secrets.sql"),
+    join(__dirname, "../../migrations/001_secrets.sql"),
     "utf-8",
   );
   await pool.query(sql);
