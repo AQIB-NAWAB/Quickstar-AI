@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .turbo/
+.next/
 *.tsbuildinfo
 
 .env
@@ -39,3 +40,6 @@ walkthrough_videos/
 
 
 
+design/
+.vercel
+.env*
