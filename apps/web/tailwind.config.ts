@@ -32,6 +32,7 @@ const config: Config = {
         "border-loud": "#e6e6e6",
         "accent-bluetron": "#2a6dfb",
         "accent-amethyst": "#9061ff",
+        "accent-crimson": "#eb3424",
         "accent-forest": "#42c366",
         "accent-honey": "#ecb730",
       },

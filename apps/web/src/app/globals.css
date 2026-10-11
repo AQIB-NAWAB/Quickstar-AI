@@ -1452,3 +1452,47 @@ body {
 .spark-guide-connector .spark-guide-line-reference { stroke: none; }
 .spark-guide-connector .spark-guide-line-part { opacity: .8; }
 .spark-guide-connector circle { fill: none; }
+
+/* F3/F10 console layouts follow the approved compact white/orange designs. */
+.console-feature { min-width: 0; }
+.console-feature .text-xs { font-size: 13px; line-height: 1.5; }
+.console-feature .shadow-sm { box-shadow: none; }
+.console-feature input:not([type="checkbox"]), .console-feature select { min-height: 38px; min-width: 0; }
+.console-feature button { min-height: 36px; }
+.console-feature button:focus-visible, .console-feature a:focus-visible { outline: 2px solid #fa5d19; outline-offset: 3px; }
+.console-feature th { font-size: 11px; }
+.console-feature td { overflow-wrap: anywhere; }
+.console-feature [role="alert"] { overflow-wrap: anywhere; }
+.settings-feature > div > div.bg-white { border-radius: 12px; }
+@media (max-width: 639px) {
+  .console-feature .min-w-\[200px\], .console-feature .min-w-\[220px\], .console-feature .min-w-\[280px\] { min-width: 0; }
+  .console-feature table, .console-feature tbody { display: block; width: 100%; }
+  .console-feature thead { display: none; }
+  .console-feature tr { display: block; padding: 12px 16px; }
+  .console-feature td { display: block; width: 100%; max-width: none; min-width: 0; padding: 6px 0; text-align: left; white-space: normal; }
+  .console-feature td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; color: #737373; font-size: 11px; font-weight: 500; }
+  .console-feature td:last-child { text-align: right; }
+  .console-feature button { min-height: 44px; }
+  .console-feature input:not([type="checkbox"]), .console-feature select { min-height: 44px; }
+  .console-feature [role="dialog"] { max-height: calc(100dvh - 32px); }
+}
+
+/* Shared console treatment used by all approved workspace feature designs. */
+.workspace-console { font-size: 13px; line-height: 1.5; }
+.workspace-console .text-xs { font-size: 13px; line-height: 1.5; }
+.workspace-console .shadow-xs, .workspace-console .shadow-sm { box-shadow: none; }
+.workspace-console :is(input:not([type="checkbox"]):not([type="range"]), select) { min-height: 36px; min-width: 0; max-width: 100%; }
+.workspace-console textarea { max-width: 100%; }
+.workspace-console :is(button,a):focus-visible { outline: 2px solid #fa5d19; outline-offset: 3px; }
+.workspace-console label.uppercase { text-transform: none; letter-spacing: normal; }
+.workspace-console pre { min-width: 0; overflow-x: auto; }
+.workspace-console h1 { line-height: 1.2; }
+@media (max-width: 639px) {
+  .workspace-console :is(input:not([type="checkbox"]):not([type="range"]), select) { min-height: 44px; }
+  .workspace-console [role="dialog"] { max-height: calc(100dvh - 32px); overflow-y: auto; }
+}
+
+.workspace-console :is(input:not([type="checkbox"]):not([type="range"]), select, textarea) { border-radius: 6px; }
+.workspace-console :is(th,h3,h4).uppercase { text-transform: none; letter-spacing: normal; }
+
+.workspace-console input:is([type="checkbox"], [type="radio"]) { accent-color: #fa5d19; }

@@ -1,9 +1,0 @@
-A · Prompt Bot ← recommended
-
-Idea: Bubble bot, eyes khud terminal prompt hain: > aur caret. Bot, tumhara purana icon aur developer purpose ek shape mein.
-
-Tests (light, dark, one-colour, mirror, 32px tak) sab pass. Dark mode mein cutouts apne aap 
-#171717 dikhate hain.
-Audit 100/100, sirf 
-#fa5d19, koi text, mask ya raster nahi.
-Risk: ab bhi chat-bubble silhouette hai. Eyes ka >| isay chatbot se alag karta hai.

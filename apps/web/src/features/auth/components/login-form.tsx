@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "./password-input";
 import { Input } from "@/components/ui/input";
 export function LoginForm() {
   const router = useRouter();
@@ -64,27 +65,20 @@ export function LoginForm() {
           label="Email"
           name="email"
           type="email"
+          placeholder="you@company.com"
+          className="h-11 rounded-8 text-[13px]"
           autoComplete="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <PasswordInput value={password} onChange={setPassword} />
         {error ? (
-          <p className="rounded-10 border border-red-100 bg-red-50 px-3 py-2 text-sm text-accent-crimson">
+          <p role="alert" className="rounded-10 border border-red-100 bg-red-50 px-3 py-2 text-sm text-accent-crimson">
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full" loading={loading}>
+        <Button type="submit" className="w-full h-11 rounded-8 bg-heat-100 hover:bg-heat-100/90 shadow-none" loading={loading}>
           Sign in
         </Button>
       </form>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  BarChart3,
   Bot,
   Check,
   CheckCircle2,
@@ -390,6 +391,13 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
             </button>
           );
         })}
+        <Link
+          href={`/workspaces/${workspaceId}/agents/${agent.id}/eval`}
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 hover:border-neutral-300 transition-all whitespace-nowrap ml-auto sm:ml-0"
+        >
+          <BarChart3 className="w-4 h-4 text-[#fa5d19]" />
+          Evaluation
+        </Link>
       </div>
 
       {/* TAB 1: INSTRUCTIONS & SYSTEM PROMPT */}

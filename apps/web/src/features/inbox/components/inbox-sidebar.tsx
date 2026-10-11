@@ -19,9 +19,10 @@ const LIST_REFRESH_MS = 8000;
 
 type Props = {
   workspaceId: string;
+  isPreview?: boolean;
 };
 
-export function InboxSidebar({ workspaceId }: Props) {
+export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
   const pathname = usePathname();
   const [filter, setFilter] = useState<"all" | ConversationState>("all");
   const [search, setSearch] = useState("");
@@ -30,13 +31,13 @@ export function InboxSidebar({ workspaceId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const activeId = useMemo(() => {
-    const prefix = `/workspaces/${workspaceId}/inbox/`;
+    const prefix = isPreview ? "/preview/inbox/" : `/workspaces/${workspaceId}/inbox/`;
     if (!pathname.startsWith(prefix)) {
       return null;
     }
     const rest = pathname.slice(prefix.length).split("/")[0];
     return rest || null;
-  }, [pathname, workspaceId]);
+  }, [pathname, workspaceId, isPreview]);
 
   const load = useCallback(async () => {
     const { conversations: list, error: err } = await listConversations(workspaceId, {
@@ -75,7 +76,7 @@ export function InboxSidebar({ workspaceId }: Props) {
   }, [conversations, search]);
 
   return (
-    <aside className="w-full md:w-80 lg:w-96 shrink-0 border-r border-border-faint bg-white flex flex-col min-h-0">
+    <aside className={clsx(activeId ? "hidden md:flex" : "flex", "w-full md:w-80 lg:w-96 shrink-0 border-r border-border-faint bg-white flex flex-col min-h-0")}>
       <div className="p-4 border-b border-border-faint space-y-3">
         <div>
           <h1 className="text-sm font-bold text-accent-black">Inbox</h1>

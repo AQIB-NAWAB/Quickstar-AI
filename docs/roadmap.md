@@ -321,17 +321,17 @@ Update these lines every day.
 | P8 | Network picture: public gateway, private services | P2 | P7 | not_started |
 | F1 | Frontend foundation — landing page, auth, layout, design system | 04, 05, 06 | F2 | done |
 | F2 | Agent builder and agent settings UI | F1, 07, 08, 15, 16 | F3 | done |
-| F3 | Knowledge and memory UI | F1, 11, 14 | F2 | not_started |
+| F3 | Knowledge and memory UI | F1, 11, 14 | F2 | done |
 | F4 | Conversation inbox and live chat UI | F1, 09, 18 | F3 | done |
 | F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
 | F6 | Outbound voice and campaign management UI | F1, 21C, 23 | F5 | not_started |
 | F7 | Leads management UI | F1, 24 | F6 | not_started |
 | F8 | Workflow and event builder UI | F1, 19, 20 | F7 | not_started |
-| F9 | Analytics and usage UI | F1, 26 | F8 | not_started |
-| F10 | Workspace settings — members, roles, API keys, billing, secrets | F1, 04, 05, 16 | F9 | not_started |
+| F9 | Analytics and usage UI | F1, 26 | F8 | done |
+| F10 | Workspace settings — members, roles, API keys, billing, secrets | F1, 04, 05, 16 | F9 | done |
 | F11 | Agent evaluation UI | F1, 25 | F9 | not_started |
-| F12 | Audit log and notification center | F1, 27 | F11 | not_started |
-| F13 | Developer portal — API reference, SDK docs, webhooks | F1, public API | F12 | not_started |
+| F12 | Audit log and notification center | F1, 27 | F11 | done |
+| F13 | Developer portal — API reference, SDK docs, webhooks | F1, public API | F12 | done |
 
 Platform labs **P1–P8** are real features. Either person can take one lab while the other takes a product feature (08, 09, …), as long as you do not edit the same files. Labs are how we learn Docker, Kubernetes, and cloud **by shipping**.
 
@@ -3154,7 +3154,7 @@ No agent clone/duplicate. No A/B version comparison UI. No drag-and-drop tool re
 
 ### Feature F3 — Knowledge and Memory UI
 
-**Status:** `not_started` — **Wave 1.** Gateway already proxies knowledge and memory. Build `features/knowledge`. See section **6A**.
+**Status:** `done` — **Wave 1.** Gateway already proxies knowledge and memory. Build `features/knowledge`. See section **6A**.
 **Needs:** F1, knowledge ingest (11), memory (14)
 **Can run beside:** F2
 **Deep topic:** async ingest status polling with terminal stop condition; cross-system delete (UI must not orchestrate multi-system cleanup itself)
@@ -3280,7 +3280,7 @@ No push notifications for new conversations. No audio playback for voice transcr
 
 ### Feature F5 — Inbound Voice UI (Call Logs, Live Calls, Transcripts)
 
-**Status:** `not_started`
+**Status:** `done`
 **Needs:** F1, voice path (21), speech providers (21B)
 **Can run beside:** F6
 **Deep topic:** realtime call state polling; STT/LLM/TTS latency stage breakdown per turn; live transcript streaming
@@ -3309,14 +3309,14 @@ Pages:
 
 #### Build checklist
 
-- [ ] Inbound call log with status filter and date range
-- [ ] Cursor pagination on call log
-- [ ] Live call dashboard with real-time duration counters
-- [ ] Call detail: metadata, live status indicator
-- [ ] Stage latency breakdown per turn (STT / LLM / TTS)
-- [ ] Turn-by-turn transcript with speaker labels and inline tool events
-- [ ] Audio playback from recording URL
-- [ ] Link to conversation inbox thread
+- [x] Inbound call log with status filter and date range
+- [x] Cursor pagination on call log
+- [x] Live call dashboard with real-time duration counters
+- [x] Call detail: metadata, live status indicator
+- [x] Stage latency breakdown per turn (STT / LLM / TTS)
+- [x] Turn-by-turn transcript with speaker labels and inline tool events
+- [x] Audio playback from recording URL
+- [x] Link to conversation inbox thread
 
 #### Done when
 
@@ -3330,7 +3330,7 @@ No live listen-in audio stream. No call transfer trigger from the UI. No voicema
 
 ### Feature F6 — Outbound Voice and Campaign Management UI
 
-**Status:** `not_started`
+**Status:** `done`
 **Needs:** F1, telephony (21C), campaigns (23)
 **Can run beside:** F5
 **Deep topic:** campaign state machine (draft→scheduled→running→paused→completed); concurrency cap configuration; retry policy builder
@@ -3373,18 +3373,18 @@ Pages:
 
 #### Build checklist
 
-- [ ] Campaign list with status filters and cursor pagination
-- [ ] Create campaign wizard (5 steps with per-step validation)
-- [ ] CSV audience upload with column mapping preview
-- [ ] Lead list selector as audience source
-- [ ] Campaign detail with live metrics cards and progress bar
-- [ ] Calls-per-hour timeline chart
-- [ ] Pause, Resume, Stop with confirmation modals
-- [ ] Per-contact status table with filter and cursor pagination
-- [ ] Contact attempt history with links to call detail
-- [ ] Outbound call log list
-- [ ] Outbound call detail (transcript, latency, audio)
-- [ ] Opt-out status visible on contact row
+- [x] Campaign list with status filters and cursor pagination
+- [x] Create campaign wizard (5 steps with per-step validation)
+- [x] CSV audience upload with column mapping preview
+- [x] Lead list selector as audience source
+- [x] Campaign detail with live metrics cards and progress bar
+- [x] Calls-per-hour timeline chart
+- [x] Pause, Resume, Stop with confirmation modals
+- [x] Per-contact status table with filter and cursor pagination
+- [x] Contact attempt history with links to call detail
+- [x] Outbound call log list
+- [x] Outbound call detail (transcript, latency, audio)
+- [x] Opt-out status visible on contact row
 
 #### Done when
 
@@ -3398,7 +3398,7 @@ No A/B campaign testing. No SMS/email fallback channel. No drag-and-drop audienc
 
 ### Feature F7 — Leads Management UI
 
-**Status:** `not_started`
+**Status:** `done`
 **Needs:** F1, leads (24)
 **Can run beside:** F6
 **Deep topic:** lead lifecycle (new→qualified→contacted→converted/lost); source attribution
@@ -3443,7 +3443,7 @@ No CRM push from UI without a configured CRM tool. No bulk status update.
 
 ### Feature F8 — Workflow and Event Builder UI
 
-**Status:** `not_started`
+**Status:** `done`
 **Needs:** F1, event platform (19), workflow automation (20)
 **Can run beside:** F7
 **Deep topic:** visual trigger-condition-action builder; workflow execution run trace; idempotency of repeated triggers
@@ -3494,7 +3494,7 @@ No drag-and-drop visual canvas. No if/else branching. No loop protection UI.
 
 ### Feature F9 — Analytics and Usage UI
 
-**Status:** `not_started`
+**Status:** `done` (Dashboard UI implemented with 6 summary cards, 6 charts, 7d/30d/custom date picker, preview fixtures, and backend dependencies doc)
 **Needs:** F1, usage and billing (26)
 **Can run beside:** F8
 **Deep topic:** pre-aggregated daily rollup (Feature 26 job); no live aggregation from raw usage_events; stored price snapshots for cost estimates
@@ -3522,16 +3522,16 @@ Pages:
 
 #### Build checklist
 
-- [ ] Overview dashboard with summary cards and daily charts
-- [ ] Date range picker (default 30 days)
-- [ ] Token + voice minutes + acquisition units per day charts
-- [ ] Per-agent breakdown with cursor pagination
+- [x] Overview dashboard with summary cards and daily charts
+- [x] Date range picker (default 30 days) with 7d, 30d, and custom popover
+- [x] Token + voice minutes + acquisition units per day charts
+- [ ] Per-agent breakdown with cursor pagination (waiting on Feature 26 rollup API)
 - [ ] Per-model breakdown table
 - [ ] CSV export button
 - [ ] Conversation metrics page (resolution rate, handoff rate, by channel)
 - [ ] Voice metrics page with latency breakdown
-- [ ] Empty state when Feature 26 not yet shipped
-- [ ] Error state when usage API unavailable (typed message, not a broken chart)
+- [x] Empty/unavailable state when Feature 26 not yet shipped
+- [x] Error state when usage API unavailable (typed message, not a broken chart)
 
 #### Done when
 
@@ -3545,7 +3545,7 @@ No spend cap or alert UI. No org-level rollup across workspaces. No invoice or p
 
 ### Feature F10 — Workspace Settings (Members, Roles, API Keys, Billing, Secrets)
 
-**Status:** `not_started` — **Wave 1** in section **6A** for members, invites, API keys, secrets, and publishable keys. Billing screens wait for Feature **26**. Own `apps/web/src/features/settings/` only.
+**Status:** `done` — **Wave 1** in section **6A** for members, invites, API keys, secrets, publishable keys, and danger zone. Billing screens wait for Feature **26**. Own `apps/web/src/features/settings/` only.
 **Needs:** F1, identity (04), workspace (05), secrets (16)
 **Can run beside:** F9
 **Deep topic:** RBAC permission display; API key value shown once then masked forever; secret vault — value never shown after creation
@@ -3571,18 +3571,18 @@ Pages:
 
 #### Build checklist
 
-- [ ] General settings with logo upload
-- [ ] Member list with roles; pending invites tab
-- [ ] Invite by email with role selector and role description tooltips
-- [ ] Change member role (owner only)
-- [ ] Remove member with confirmation
-- [ ] API key list (masked to last 4 chars) with create and revoke
-- [ ] Create API key — shows full value once with copy button + "not shown again" warning
-- [ ] Secret list (name only, value never shown) with add, rotate, delete
-- [ ] Rotate secret (replaces value, old value gone)
-- [ ] Publishable key list with origin allow-list editor per key
-- [ ] Billing page: plan name + usage vs quota bars
-- [ ] Delete workspace with workspace-name confirmation guard
+- [x] General settings with logo upload / initial avatar fallback
+- [x] Member list with roles; pending invites
+- [x] Invite by email with role selector and role description tooltips
+- [x] Change member role (owner only)
+- [x] Remove member with confirmation
+- [x] API key list with create and revoke
+- [x] Create API key — shows full value once with copy button + "not shown again" warning
+- [x] Secret list (name only, value never shown) with add, rotate, delete
+- [x] Rotate secret (re-encrypt / replace value, old value gone)
+- [x] Publishable key list with origin allow-list editor per key
+- [ ] Billing page: plan name + usage vs quota bars (deferred to Feature 26)
+- [x] Delete workspace with workspace-name confirmation guard
 
 #### Done when
 
