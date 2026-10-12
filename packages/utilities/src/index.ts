@@ -10,3 +10,5 @@ export {
   type FetchWithPolicyOptions,
 } from "./retry.js";
 export { createRedisClient, runWithIdempotency, runWithRedisLock } from "./redis-helpers.js";
+
+export { assertPublicUrl, fetchPublicText, publicAddress } from "./public-web.js";

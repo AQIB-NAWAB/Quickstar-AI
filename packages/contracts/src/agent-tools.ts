@@ -2,7 +2,7 @@
 
 export type ToolParameterSchema = {
   type: "object";
-  properties?: Record<string, { type: string; description?: string }>;
+  properties?: Record<string, { type: string; description?: string; items?: { type: string } }>;
   required?: string[];
 };
 
@@ -35,7 +35,13 @@ export type AgentMcpToolDefinition = AgentToolDefinitionBase & {
   allowed_tool_names: string[];
 };
 
+export type AgentBuiltinLeadToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_leads";
+  action: "start" | "status" | "results" | "cancel";
+};
+
 export type AgentToolDefinition =
+  | AgentBuiltinLeadToolDefinition
   | AgentHttpToolDefinition
   | AgentBuiltinWebToolDefinition
   | AgentMcpToolDefinition;

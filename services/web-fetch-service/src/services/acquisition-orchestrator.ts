@@ -285,8 +285,12 @@ export class AcquisitionOrchestrator {
     }
     if (lastError instanceof ProviderError) {
       throw new AppError({
-        code: lastError.httpStatus === 504 ? ErrorCode.UPSTREAM_TIMEOUT : ErrorCode.UPSTREAM_UNAVAILABLE,
+        code:
+          lastError.httpStatus === 504
+            ? ErrorCode.UPSTREAM_TIMEOUT
+            : ErrorCode.UPSTREAM_UNAVAILABLE,
         message: lastError.message,
+        details: { retryable: lastError.retryable, upstream_status: lastError.httpStatus ?? null },
       });
     }
     throw new AppError({
@@ -310,7 +314,7 @@ export class AcquisitionOrchestrator {
     } catch (error) {
       if (error instanceof Error && error.message === "CIRCUIT_OPEN") {
         throw new ProviderError(`circuit open for ${profileId}`, {
-          retryable: false,
+          retryable: true,
           httpStatus: 503,
         });
       }

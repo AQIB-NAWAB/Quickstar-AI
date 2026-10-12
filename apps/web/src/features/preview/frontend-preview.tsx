@@ -20,7 +20,6 @@ import { AnalyticsDashboard } from "@/features/analytics/components/analytics-da
 import { createFixtureDataSource } from "@/features/analytics/lib/data-source";
 import { WorkflowPreviewView } from "@/features/workflows/components/workflow-preview-view";
 import { LeadsPage } from "@/features/leads/components/leads-page";
-import { leadsPreviewStore } from "@/features/leads/lib/preview-store";
 import { CampaignPreviewView } from "@/features/campaigns/components/campaign-preview-view";
 import { VoicePreviewView } from "@/features/voice/components/voice-preview-view";
 import { AuditList } from "@/features/audit/components/audit-list";
@@ -394,7 +393,6 @@ export function FrontendPreview({ view }: { view: string[] }) {
           <CampaignPreviewView view={view} />
         ) : view[0] === "leads" ? (
           <LeadsPage
-            repository={leadsPreviewStore}
             workspaceId={workspace.id}
             workspaceSlug={workspace.slug}
             isSampleData={true}

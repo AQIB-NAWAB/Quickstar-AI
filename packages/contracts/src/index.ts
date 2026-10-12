@@ -89,6 +89,14 @@ export type {
   SearchResultItem,
 } from "./web-fetch.js";
 
+export type {
+  BusinessInput,
+  LeadRunInput,
+  LeadPolicy,
+  LeadEvidence,
+  CampaignLeadDelivery,
+} from "./lead-generation.js";
+
 export {
   CALL_DIRECTIONS,
   CALL_STATES,

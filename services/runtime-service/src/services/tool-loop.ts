@@ -66,7 +66,7 @@ export class ToolLoop {
         tool_calls: completion.tool_calls,
       });
 
-      for (const call of completion.tool_calls) {
+      for (const [callIndex, call] of completion.tool_calls.entries()) {
         const tool = findTool(input.tools, call.name);
         if (!tool) {
           messages.push({
@@ -78,7 +78,11 @@ export class ToolLoop {
           continue;
         }
 
-        const toolCallKey = buildToolCallKey(input.turnIdempotencyKey, round, call.name);
+        const toolCallKey = buildToolCallKey(
+          input.turnIdempotencyKey,
+          round,
+          `${call.name}:${callIndex}`,
+        );
         const existing = await this.toolCallsClient.listByTurn(
           input.workspaceId,
           input.conversationId,
@@ -90,7 +94,7 @@ export class ToolLoop {
           const replay =
             prior.response_json != null
               ? JSON.stringify(prior.response_json)
-              : prior.error_code ?? prior.status;
+              : (prior.error_code ?? prior.status);
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -119,6 +123,7 @@ export class ToolLoop {
           requestId: input.requestId,
           toolCallKey,
           timeoutMs,
+          authorization: input.authHeaders.authorization,
         });
 
         await this.toolCallsClient.upsert(

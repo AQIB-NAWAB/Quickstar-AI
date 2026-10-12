@@ -10,6 +10,8 @@ export const WORKSPACE_ROLES = [
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
 export const WORKSPACE_PERMISSIONS = {
+  LEADS_READ: "workspace.leads.read",
+  LEADS_WRITE: "workspace.leads.write",
   WORKSPACE_READ: "workspace.read",
   WORKSPACE_UPDATE: "workspace.update",
   WORKSPACE_DELETE: "workspace.delete",
@@ -50,11 +52,14 @@ export const WORKSPACE_PERMISSIONS = {
   LEAD_EDIT: "workspace.lead.edit",
 } as const;
 
-export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[keyof typeof WORKSPACE_PERMISSIONS];
+export type WorkspacePermission =
+  (typeof WORKSPACE_PERMISSIONS)[keyof typeof WORKSPACE_PERMISSIONS];
 
 const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = {
   owner: Object.values(WORKSPACE_PERMISSIONS),
   admin: [
+    WORKSPACE_PERMISSIONS.LEADS_READ,
+    WORKSPACE_PERMISSIONS.LEADS_WRITE,
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
     WORKSPACE_PERMISSIONS.WORKSPACE_UPDATE,
     WORKSPACE_PERMISSIONS.MEMBER_INVITE,
@@ -94,6 +99,8 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.LEAD_EDIT,
   ],
   developer: [
+    WORKSPACE_PERMISSIONS.LEADS_READ,
+    WORKSPACE_PERMISSIONS.LEADS_WRITE,
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
     WORKSPACE_PERMISSIONS.AGENT_CREATE,
     WORKSPACE_PERMISSIONS.AGENT_READ,
@@ -123,6 +130,8 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.LEAD_EDIT,
   ],
   operator: [
+    WORKSPACE_PERMISSIONS.LEADS_READ,
+    WORKSPACE_PERMISSIONS.LEADS_WRITE,
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
     WORKSPACE_PERMISSIONS.AGENT_READ,
     WORKSPACE_PERMISSIONS.ANALYTICS_READ,
@@ -144,6 +153,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.LEAD_EDIT,
   ],
   analyst: [
+    WORKSPACE_PERMISSIONS.LEADS_READ,
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,
     WORKSPACE_PERMISSIONS.AGENT_READ,
     WORKSPACE_PERMISSIONS.ANALYTICS_READ,
@@ -174,7 +184,10 @@ export function permissionsForRole(role: WorkspaceRole): readonly WorkspacePermi
   return ROLE_PERMISSIONS[role] ?? [];
 }
 
-export function roleHasPermission(role: WorkspaceRole, permission: WorkspacePermission | string): boolean {
+export function roleHasPermission(
+  role: WorkspaceRole,
+  permission: WorkspacePermission | string,
+): boolean {
   const permissions = permissionsForRole(role);
   return permissions.includes(permission as WorkspacePermission);
 }

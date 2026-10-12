@@ -1,0 +1,84 @@
+[
+  {
+    "id": "lead-start",
+    "name": "start_lead_research",
+    "description": "Start background business prospect research for the current authorized workspace. Use only targeting categories supplied or confirmed by the user. Return the run ID immediately. Never invent a campaign ID.",
+    "type": "builtin_leads",
+    "action": "start",
+    "idempotent": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Target business categories"
+        },
+        "location": { "type": "string", "description": "Optional target location" },
+        "target_count": {
+          "type": "integer",
+          "description": "Desired accepted prospect count; not a guarantee"
+        },
+        "required_contact": { "type": "string", "description": "none, email, or phone" },
+        "company_size": {
+          "type": "string",
+          "description": "Optional company size, requires evidence"
+        },
+        "contact_role": {
+          "type": "string",
+          "description": "Optional contact role, requires evidence"
+        },
+        "instructions": { "type": "string", "description": "Additional qualification context" },
+        "campaign_id": {
+          "type": "string",
+          "description": "Optional existing workspace campaign UUID, only if supplied"
+        },
+        "excluded_domains": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Business domains to exclude"
+        }
+      },
+      "required": ["categories"]
+    }
+  },
+  {
+    "id": "lead-status",
+    "name": "get_lead_research_status",
+    "description": "Read the state, progress, and stopping reason of a background research run.",
+    "type": "builtin_leads",
+    "action": "status",
+    "idempotent": true,
+    "parameters": {
+      "type": "object",
+      "properties": { "run_id": { "type": "string" } },
+      "required": ["run_id"]
+    }
+  },
+  {
+    "id": "lead-results",
+    "name": "get_lead_research_results",
+    "description": "Read the first page of researched candidates and evidence. Never claim all results were returned if there is a next cursor.",
+    "type": "builtin_leads",
+    "action": "results",
+    "idempotent": true,
+    "parameters": {
+      "type": "object",
+      "properties": { "run_id": { "type": "string" } },
+      "required": ["run_id"]
+    }
+  },
+  {
+    "id": "lead-cancel",
+    "name": "cancel_lead_research",
+    "description": "Cancel research only when the user requests it. Already accepted campaign deliveries continue. This does not cancel voice outreach.",
+    "type": "builtin_leads",
+    "action": "cancel",
+    "idempotent": true,
+    "parameters": {
+      "type": "object",
+      "properties": { "run_id": { "type": "string" } },
+      "required": ["run_id"]
+    }
+  }
+]

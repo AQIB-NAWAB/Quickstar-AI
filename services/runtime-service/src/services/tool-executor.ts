@@ -30,9 +30,13 @@ export class ToolExecutor {
       requestId: string;
       toolCallKey: string;
       timeoutMs: number;
+      authorization?: string;
     },
   ): Promise<ToolExecutionResult> {
     try {
+      if (tool.type === "builtin_leads") {
+        return await this.executeLeads(tool, args, ctx);
+      }
       if (tool.type === "http") {
         return await this.executeHttp(tool, args, ctx);
       }
@@ -76,6 +80,54 @@ export class ToolExecutor {
       const message = error instanceof Error ? error.message : "tool execution failed";
       return { ok: false, content: message, errorCode: "TOOL_FAILED", status: "unknown" };
     }
+  }
+
+  private async executeLeads(
+    tool: AgentToolDefinition & { type: "builtin_leads" },
+    args: Record<string, unknown>,
+    ctx: {
+      workspaceId: string;
+      requestId: string;
+      toolCallKey: string;
+      timeoutMs: number;
+      authorization?: string;
+    },
+  ): Promise<ToolExecutionResult> {
+    if (!ctx.authorization)
+      throw new AppError({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "Lead tools require the caller's access token",
+      });
+    const base = (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(/\/$/, "");
+    const root = `${base}/v1/workspaces/${encodeURIComponent(ctx.workspaceId)}/lead-generation/runs`;
+    const id = String(args.run_id ?? "");
+    if (tool.action !== "start" && !/^[0-9a-f-]{36}$/i.test(id))
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "run_id required" });
+    const url =
+      tool.action === "start"
+        ? root
+        : `${root}/${encodeURIComponent(id)}${tool.action === "results" ? "/results" : tool.action === "cancel" ? "/cancel" : ""}`;
+    const res = await fetchWithPolicy(
+      url,
+      {
+        method: ["start", "cancel"].includes(tool.action) ? "POST" : "GET",
+        headers: {
+          authorization: ctx.authorization,
+          "content-type": "application/json",
+          "x-request-id": ctx.requestId,
+          "idempotency-key": ctx.toolCallKey,
+        },
+        body: tool.action === "start" ? JSON.stringify(args) : undefined,
+      },
+      { timeoutMs: ctx.timeoutMs, maxRetries: 0 },
+    );
+    const content = (await res.text()).slice(0, 16000);
+    return {
+      ok: res.ok,
+      content,
+      status: res.ok ? "succeeded" : "failed",
+      ...(res.ok ? {} : { errorCode: `LEAD_HTTP_${res.status}` }),
+    };
   }
 
   private async executeHttp(
@@ -147,14 +199,24 @@ export class ToolExecutor {
       if (!url) {
         throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "url argument required" });
       }
-      const result = await this.webFetch.scrape(ctx.workspaceId, ctx.requestId, url, ctx.toolCallKey);
+      const result = await this.webFetch.scrape(
+        ctx.workspaceId,
+        ctx.requestId,
+        url,
+        ctx.toolCallKey,
+      );
       return { ok: true, content: result.text.slice(0, 8000), status: "succeeded" };
     }
     const query = String(args.query ?? "");
     if (!query) {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "query argument required" });
     }
-    const result = await this.webFetch.search(ctx.workspaceId, ctx.requestId, query, ctx.toolCallKey);
+    const result = await this.webFetch.search(
+      ctx.workspaceId,
+      ctx.requestId,
+      query,
+      ctx.toolCallKey,
+    );
     const joined = result.results.map((r) => r.snippet ?? r.title ?? "").join("\n");
     return { ok: true, content: joined.slice(0, 8000), status: "succeeded" };
   }

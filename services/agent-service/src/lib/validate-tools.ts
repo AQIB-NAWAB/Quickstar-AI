@@ -22,23 +22,38 @@ function isPrivateHost(host: string): boolean {
 
 function validateHttpTool(tool: AgentToolDefinition & { type: "http" }): void {
   if (!tool.base_url?.trim()) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "http tool requires base_url" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool requires base_url",
+    });
   }
   let url: URL;
   try {
     url = new URL(tool.base_url);
   } catch {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "http tool base_url must be a valid URL" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool base_url must be a valid URL",
+    });
   }
   if (!["http:", "https:"].includes(url.protocol)) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "http tool base_url must be http or https" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool base_url must be http or https",
+    });
   }
   const host = url.hostname;
   if (isPrivateHost(host)) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "http tool host is not allow-listed for production" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool host is not allow-listed for production",
+    });
   }
   if (!tool.allowed_hosts?.length) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "http tool requires allowed_hosts" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool requires allowed_hosts",
+    });
   }
   const allowed = tool.allowed_hosts.map((h) => h.toLowerCase());
   if (!allowed.includes(host.toLowerCase())) {
@@ -49,26 +64,41 @@ function validateHttpTool(tool: AgentToolDefinition & { type: "http" }): void {
   }
   for (const ah of tool.allowed_hosts) {
     if (isPrivateHost(ah)) {
-      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "allowed_hosts may not include private hosts" });
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "allowed_hosts may not include private hosts",
+      });
     }
   }
 }
 
 function validateMcpTool(tool: AgentToolDefinition & { type: "mcp" }): void {
   if (!tool.server_url?.trim()) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "mcp tool requires server_url" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "mcp tool requires server_url",
+    });
   }
   let url: URL;
   try {
     url = new URL(tool.server_url);
   } catch {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "mcp server_url must be a valid URL" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "mcp server_url must be a valid URL",
+    });
   }
   if (isPrivateHost(url.hostname)) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "mcp server_url host is not allow-listed" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "mcp server_url host is not allow-listed",
+    });
   }
   if (!tool.allowed_tool_names?.length) {
-    throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "mcp tool requires allowed_tool_names" });
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "mcp tool requires allowed_tool_names",
+    });
   }
 }
 
@@ -99,7 +129,10 @@ export function validateAgentTools(tools: AgentToolDefinition[]): AgentToolDefin
       });
     }
     if (names.has(name)) {
-      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: `duplicate tool name: ${name}` });
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `duplicate tool name: ${name}`,
+      });
     }
     names.add(name);
     const timeout = raw.timeout_ms ?? DEFAULT_TOOL_TIMEOUT_MS;
@@ -109,12 +142,28 @@ export function validateAgentTools(tools: AgentToolDefinition[]): AgentToolDefin
         message: `tool timeout_ms must be between 1000 and ${MAX_TOOL_TIMEOUT_MS}`,
       });
     }
-    const tool = { ...raw, name, id: raw.id.trim(), description: raw.description.trim(), timeout_ms: timeout };
+    const tool = {
+      ...raw,
+      name,
+      id: raw.id.trim(),
+      description: raw.description.trim(),
+      timeout_ms: timeout,
+    };
     if (tool.type === "http") {
       validateHttpTool(tool);
     } else if (tool.type === "builtin_web") {
       if (tool.action !== "scrape" && tool.action !== "search") {
-        throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "builtin_web action must be scrape or search" });
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "builtin_web action must be scrape or search",
+        });
+      }
+    } else if (tool.type === "builtin_leads") {
+      if (!["start", "status", "results", "cancel"].includes(tool.action)) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "Invalid builtin_leads action",
+        });
       }
     } else if (tool.type === "mcp") {
       validateMcpTool(tool);
