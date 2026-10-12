@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
 import type { TenantContext } from "@quickstart/auth";
+import { DEFAULT_AGENT_VOICE_SETTINGS } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { snapshotFromAgent } from "../../domain/types.js";
 import { diffSnapshots } from "../../utils/version-diff.js";
@@ -33,6 +34,7 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
         modelSettings: input.modelSettings ?? {},
         channels: input.channels ?? defaultChannels,
         tools: input.tools ?? [],
+        voice: input.voice ?? { ...DEFAULT_AGENT_VOICE_SETTINGS },
         version: 1,
         productionVersionId: null,
         createdAt: now,
@@ -91,6 +93,7 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       if (input.modelSettings !== undefined) entity.modelSettings = input.modelSettings;
       if (input.channels !== undefined) entity.channels = input.channels;
       if (input.tools !== undefined) entity.tools = input.tools;
+      if (input.voice !== undefined) entity.voice = input.voice;
       entity.version = entity.version + 1;
       entity.updatedAt = new Date();
 

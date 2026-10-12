@@ -1,45 +1,39 @@
+import {
+  deleteWorkflowApi,
+  getRunApi,
+  getWorkflowApi,
+  listRunsApi,
+  listWorkflowsApi,
+  saveWorkflowApi,
+} from "./client";
 import { previewStore } from "./preview-store";
 import type {
-RepositoryResult,
-WorkflowDefinition,
-WorkflowListItem,
-WorkflowRepository,
-WorkflowRun,
+  RepositoryResult,
+  WorkflowDefinition,
+  WorkflowListItem,
+  WorkflowRepository,
+  WorkflowRun,
 } from "./types";
 
 export function createProductionWorkflowRepository(): WorkflowRepository {
-  const unavailableMsg = "Workflow automation is not available yet. This workspace's workflow engine is not connected.";
-
   return {
-    async listWorkflows(_workspaceId: string): Promise<RepositoryResult<WorkflowListItem[]>> {
-    void _workspaceId;
-      return { status: "unavailable", message: unavailableMsg };
+    listWorkflows(workspaceId, signal) {
+      return listWorkflowsApi(workspaceId, signal);
     },
-    async getWorkflow(_workspaceId: string, _workflowId: string): Promise<RepositoryResult<WorkflowDefinition>> {
-    void _workspaceId;
-    void _workflowId;
-      return { status: "unavailable", message: unavailableMsg };
+    getWorkflow(workspaceId, workflowId, signal) {
+      return getWorkflowApi(workspaceId, workflowId, signal);
     },
-    async saveWorkflow(_workspaceId: string, _workflow: WorkflowDefinition): Promise<RepositoryResult<WorkflowDefinition>> {
-    void _workspaceId;
-    void _workflow;
-      return { status: "unavailable", message: unavailableMsg };
+    saveWorkflow(workspaceId, workflow) {
+      return saveWorkflowApi(workspaceId, workflow);
     },
-    async deleteWorkflow(_workspaceId: string, _workflowId: string): Promise<RepositoryResult<boolean>> {
-    void _workspaceId;
-    void _workflowId;
-      return { status: "unavailable", message: unavailableMsg };
+    deleteWorkflow(workspaceId, workflowId) {
+      return deleteWorkflowApi(workspaceId, workflowId);
     },
-    async listRuns(_workspaceId: string, _workflowId: string): Promise<RepositoryResult<WorkflowRun[]>> {
-    void _workspaceId;
-    void _workflowId;
-      return { status: "unavailable", message: unavailableMsg };
+    listRuns(workspaceId, workflowId, signal) {
+      return listRunsApi(workspaceId, workflowId, signal);
     },
-    async getRun(_workspaceId: string, _workflowId: string, _runId: string): Promise<RepositoryResult<WorkflowRun>> {
-    void _workspaceId;
-    void _workflowId;
-    void _runId;
-      return { status: "unavailable", message: unavailableMsg };
+    getRun(workspaceId, workflowId, runId, signal) {
+      return getRunApi(workspaceId, workflowId, runId, signal);
     },
   };
 }
@@ -50,3 +44,5 @@ export function getWorkflowRepository(isDevelopmentPreview = false): WorkflowRep
   }
   return createProductionWorkflowRepository();
 }
+
+export type { RepositoryResult, WorkflowDefinition, WorkflowListItem, WorkflowRun };

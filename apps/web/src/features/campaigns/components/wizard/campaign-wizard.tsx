@@ -3,7 +3,7 @@
 import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getCampaignRepository } from "../../lib/repository";
 import type { CampaignRepository, WizardDraft } from "../../lib/types";
 import { AudienceStep } from "./audience-step";
@@ -17,32 +17,70 @@ export function createDefaultDraft(): WizardDraft {
   return {
     name: "Product demo follow-up",
     description: "Outbound follow-up for contacts who requested a product demo.",
-    agentId: "agent-sales",
+    agentId: "00000000-0000-4000-8000-000000000001",
     agentName: "Sales assistant",
     audienceSource: "csv",
     fileName: "demo-contacts.csv",
     rowCount: 1200,
+    csvHeaders: ["phone_number", "full_name", "email", "company", "title"],
+    parsedRows: [
+      {
+        phone_number: "+12025550104",
+        full_name: "Alex Morgan",
+        email: "alex@example.com",
+        company: "Acme Labs",
+        title: "VP Sales",
+      },
+      {
+        phone_number: "+12025550118",
+        full_name: "Jordan Lee",
+        email: "jordan@example.com",
+        company: "Brightfield",
+        title: "Founder",
+      },
+    ],
+    columnMappings: [
+      { sourceColumn: "phone_number", key: "phone", role: "dial" },
+      { sourceColumn: "full_name", key: "name", role: "identity" },
+      { sourceColumn: "email", key: "email", role: "contact_email" },
+      { sourceColumn: "company", key: "company", role: "custom" },
+      { sourceColumn: "title", key: "title", role: "custom" },
+    ],
     mappedColumns: {
       phone: "phone_number",
       name: "full_name",
       email: "email",
-      customFields: { Company: "company" },
+      customFields: { company: "company", title: "title" },
     },
     parsedRowsPreview: [
       {
         name: "Alex Morgan",
-        phone: "+1 202 555 0104",
+        phone: "+12025550104",
         email: "alex@example.com",
-        customFields: { Company: "Acme Labs" },
+        customFields: { company: "Acme Labs", title: "VP Sales" },
       },
       {
         name: "Jordan Lee",
-        phone: "+1 202 555 0118",
+        phone: "+12025550118",
         email: "jordan@example.com",
-        customFields: { Company: "Brightfield" },
+        customFields: { company: "Brightfield", title: "Founder" },
       },
     ],
-    validCount: 1200,
+    preparedTargets: [
+      {
+        phone: "+12025550104",
+        name: "Alex Morgan",
+        email: "alex@example.com",
+        attributes: { company: "Acme Labs", title: "VP Sales" },
+      },
+      {
+        phone: "+12025550118",
+        name: "Jordan Lee",
+        email: "jordan@example.com",
+        attributes: { company: "Brightfield", title: "Founder" },
+      },
+    ],
+    validCount: 2,
     invalidCount: 0,
     duplicateCount: 0,
     schedule: {
@@ -80,7 +118,10 @@ export function CampaignWizard({
   baseBackUrl,
 }: CampaignWizardProps) {
   const router = useRouter();
-  const repo = repository || getCampaignRepository(isPreview);
+  const repo = useMemo(
+    () => repository ?? getCampaignRepository(isPreview),
+    [repository, isPreview],
+  );
   const localDraftKey = `quickstart:campaign-draft:${workspaceId}`;
 
   const [step, setStep] = useState(1);

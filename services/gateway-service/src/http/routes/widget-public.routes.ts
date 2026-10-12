@@ -1,6 +1,13 @@
 import crypto from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import { asyncHandler, createServiceRouter, requestIdFromResponse, sendPlatformJson, type RouteModule } from "@quickstart/http-server";
+import {
+  asyncHandler,
+  createServiceRouter,
+  requestIdFromResponse,
+  sendPlatformJson,
+  type RequestHandler,
+  type RouteModule,
+} from "@quickstart/http-server";
 import { getInternalJson, postInternalJson } from "../../lib/internal-fetch.js";
 import type { WidgetContext } from "../../middleware/require-publishable-key.js";
 import type { GatewayHttpContext } from "../context.js";
@@ -17,6 +24,35 @@ function routeParam(val: string | string[] | undefined): string {
 export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) => {
   const router = createServiceRouter();
   const { config, requirePublishableKey } = ctx;
+
+  // The browser's CORS preflight does not include X-Publishable-Key, so it
+  // cannot be checked against the per-key origin list yet. The actual request
+  // is always checked by requirePublishableKey before these headers are added.
+  const widgetPreflight: RequestHandler = (req, res) => {
+    const rawOrigin = req.headers.origin;
+    const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
+    if (origin) {
+      try {
+        const normalizedOrigin = new URL(origin).origin;
+        res.setHeader("Access-Control-Allow-Origin", normalizedOrigin);
+        res.setHeader("Vary", "Origin");
+      } catch {
+        res.status(400).end();
+        return;
+      }
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, X-Publishable-Key, Idempotency-Key",
+    );
+    res.setHeader("Access-Control-Max-Age", "600");
+    res.status(204).end();
+  };
+
+  router.options("/v1/public/widget/conversations", widgetPreflight);
+  router.options("/v1/public/widget/conversations/:conversationId/messages", widgetPreflight);
+  router.options("/v1/public/widget/conversations/:conversationId/turns", widgetPreflight);
 
   router.post(
     "/v1/public/widget/conversations",

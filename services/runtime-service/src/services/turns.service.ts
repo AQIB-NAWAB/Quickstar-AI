@@ -15,6 +15,10 @@ export type ExecuteTurnInput = {
   actorId: string;
   authHeaders: Record<string, string>;
   requestId: string;
+  /** Voice edge sets channel=voice and a shorter deadline. */
+  channel?: "chat" | "voice" | "widget";
+  deadlineMs?: number;
+  callId?: string;
 };
 
 export type TurnResult = {
@@ -49,6 +53,7 @@ export class TurnsService {
       actorId,
       authHeaders,
       requestId,
+      deadlineMs,
     } = input;
 
     // 1. Fetch conversation (fails with 404 NOT_FOUND if wrong workspace)
@@ -213,32 +218,57 @@ export class TurnsService {
         : undefined;
 
     const agentTools = version.snapshot.tools ?? [];
-    let assistantText: string;
+    let assistantText = "";
     let usage: TokenUsage | undefined;
 
-    if (agentTools.length > 0 && this.toolLoop) {
-      const loopResult = await this.toolLoop.run({
-        workspaceId,
-        conversationId,
-        requestId,
-        turnIdempotencyKey: idempotencyKey,
-        authHeaders,
-        model: { profile, model_id: modelId },
-        temperature,
-        tools: agentTools,
-        chatMessages,
-      });
-      assistantText = loopResult.content;
+    const runModel = async (): Promise<void> => {
+      if (agentTools.length > 0 && this.toolLoop) {
+        const loopResult = await this.toolLoop.run({
+          workspaceId,
+          conversationId,
+          requestId,
+          turnIdempotencyKey: idempotencyKey,
+          authHeaders,
+          model: { profile, model_id: modelId },
+          temperature,
+          tools: agentTools,
+          chatMessages,
+        });
+        assistantText = loopResult.content;
+      } else {
+        const completion = await this.modelGatewayClient.complete({
+          workspace_id: workspaceId,
+          request_id: requestId,
+          model: { profile, model_id: modelId },
+          messages: chatMessages,
+          temperature,
+        });
+        assistantText = completion.content;
+        usage = completion.usage;
+      }
+    };
+
+    if (deadlineMs && deadlineMs > 0) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          runModel(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(
+                new AppError({
+                  code: ErrorCode.UPSTREAM_TIMEOUT,
+                  message: "Voice turn deadline exceeded",
+                }),
+              );
+            }, deadlineMs);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     } else {
-      const completion = await this.modelGatewayClient.complete({
-        workspace_id: workspaceId,
-        request_id: requestId,
-        model: { profile, model_id: modelId },
-        messages: chatMessages,
-        temperature,
-      });
-      assistantText = completion.content;
-      usage = completion.usage;
+      await runModel();
     }
 
     // 8. Append assistant message with agent_version_id recorded as sender_id

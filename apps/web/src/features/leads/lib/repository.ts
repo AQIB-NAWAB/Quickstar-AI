@@ -1,17 +1,18 @@
+import { getLeadApi, listLeadsApi, updateLeadStatusApi } from "./client";
 import { leadsPreviewStore } from "./preview-store";
 import type {
-LeadDetail,
-LeadStatus,
-LeadsListResponse,
-LeadsRepository,
-RepositoryResult,
+  LeadDetail,
+  LeadStatus,
+  LeadsListResponse,
+  LeadsRepository,
+  RepositoryResult,
 } from "./types";
 
 export class UnavailableLeadsRepository implements LeadsRepository {
   async listLeads(
     _workspaceId: string,
     _filters?: { q?: string; status?: string; tag?: string },
-    _signal?: AbortSignal
+    _signal?: AbortSignal,
   ): Promise<RepositoryResult<LeadsListResponse>> {
     void _workspaceId;
     void _filters;
@@ -25,7 +26,7 @@ export class UnavailableLeadsRepository implements LeadsRepository {
   async getLead(
     _workspaceId: string,
     _leadId: string,
-    _signal?: AbortSignal
+    _signal?: AbortSignal,
   ): Promise<RepositoryResult<LeadDetail>> {
     void _workspaceId;
     void _leadId;
@@ -40,7 +41,7 @@ export class UnavailableLeadsRepository implements LeadsRepository {
     _workspaceId: string,
     _leadId: string,
     _status: LeadStatus,
-    _version?: number
+    _version?: number,
   ): Promise<RepositoryResult<LeadDetail>> {
     void _workspaceId;
     void _leadId;
@@ -53,9 +54,22 @@ export class UnavailableLeadsRepository implements LeadsRepository {
   }
 }
 
+/** Stable singleton — avoids useEffect([repo]) request loops. */
+const productionLeadsRepository: LeadsRepository = {
+  listLeads(workspaceId, filters, signal) {
+    return listLeadsApi(workspaceId, filters, signal);
+  },
+  getLead(workspaceId, leadId, signal) {
+    return getLeadApi(workspaceId, leadId, signal);
+  },
+  updateLeadStatus(workspaceId, leadId, status, version) {
+    return updateLeadStatusApi(workspaceId, leadId, status, version);
+  },
+};
+
 export function getLeadsRepository(isPreview = false): LeadsRepository {
   if (isPreview) {
     return leadsPreviewStore;
   }
-  return new UnavailableLeadsRepository();
+  return productionLeadsRepository;
 }

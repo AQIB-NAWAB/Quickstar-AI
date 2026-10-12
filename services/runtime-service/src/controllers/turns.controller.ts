@@ -19,6 +19,9 @@ export function createTurnsController(turnsService: TurnsService) {
         message?: string;
         text?: string;
         idempotency_key?: string;
+        channel?: "chat" | "voice" | "widget";
+        deadline_ms?: number;
+        call_id?: string;
       };
 
       const text = body.message ?? body.text ?? "";
@@ -47,6 +50,9 @@ export function createTurnsController(turnsService: TurnsService) {
         actorId,
         authHeaders,
         requestId,
+        channel: body.channel,
+        deadlineMs: body.deadline_ms,
+        callId: body.call_id,
       });
 
       const statusCode = result.deduplicated ? 200 : 201;

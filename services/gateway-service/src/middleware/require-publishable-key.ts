@@ -76,6 +76,13 @@ export function createRequirePublishableKeyMiddleware(config: GatewayConfig): Re
         );
       }
 
+      // Browser clients need this header on the actual response as well as on
+      // preflight. Reflect only the origin that has passed the key allow-list.
+      if (origin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+      }
+
       (res.locals as { widget?: WidgetContext }).widget = {
         workspaceId: json.workspace_id,
         keyId: json.key_id,

@@ -152,17 +152,18 @@ The old board in this file was behind the code. This table matches the repo as o
 
 Shared permission strings live in `packages/contracts` so workspace and agent do not copy two different role lists.
 
-Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-10):
+Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-12):
 
 | Feature | Status | Where | Note |
 | --- | --- | --- | --- |
 | Memory (14), tools (15), secrets (16) | Done | `memory-service`, agent tools, `secrets-service` | Gateway proxies memory, knowledge, secrets |
-| Widget API (17) | Partial | gateway `widget-public` + publishable keys | No embeddable JS bundle yet |
+| Website widget (17) | Partial | gateway public routes, publishable keys, `apps/web/public/quickstart-widget.js` | API turn, history, retry, and origin checks pass locally; rendered browser check remains |
 | Inbox handoff (18) | Done | conversation `take`/`release`, runtime 409 | Staff UI is F4 |
-| Event platform (19) | Partial | conversation outbox + optional Kafka | Only `conversation.handed_off` is produced |
+| Event platform (19) | Done (catalog v1) | conversation outbox + Kafka | `handed_off`, `released`, `message.appended` produced; consumer idempotency remains |
+| Workflows (20) | Done | `services/workflow-service` :3012 + staff UI | Definitions, Kafka consumer, runs/steps, side effects, dead letters |
 | Staff web F1 + F4 | Done (core) | `apps/web` | Auth shell, inbox, transcript. Agents/settings still "Soon" |
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, gateway 3000, staff web **3005** (do not run model-gateway and Next on the same port). Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, gateway 3000, staff web **3015** locally when model-gateway holds 3005. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -268,11 +269,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** section **6A** — finish **Agents**, **Knowledge and memory**, and **Workspace settings** as end-to-end features (API already exists; the feature includes the staff screen)
-- **Next production deep topic:** publish pointer and version diff in the agent console (F2); do not invent a second agent store in the browser
-- **Product priority:** Staff can operate what the backend already stores (agents, knowledge, members, secrets, keys) before new voice or workflow services
-- **Finished features:** backend **01–16** and **18**; **17** and **19** partial; staff web **F1** and **F4** core
-- **Board status:** synced to repo 2026-10-10; update this line when code and table disagree
+- **Current focus:** section **6A** — close **Website widget (17)** browser proof if still open; next product feature is **Voice** (or Campaigns after voice)
+- **Next production deep topic:** voice path drain and per-call stage budgets (Feature 21)
+- **Product priority:** Widget browser proof, then voice track when scheduled
+- **Finished features:** backend **01–16**, **18–20**; **17** partial; staff web **F1–F4**, **F8**, **F10** core
+- **Board status:** synced to repo 2026-10-12; update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -296,8 +297,8 @@ Update these lines every day.
 | 16 | Secrets | — | 15 | done |
 | 17 | Website chat widget | 12 | 18 | partial |
 | 18 | Inbox and human handoff | 09 | 17, 21C | done |
-| 19 | Event platform | objects exist | 20 | partial |
-| 20 | Workflow automation | 19 | 19 | not_started |
+| 19 | Event platform | objects exist | 20 | done |
+| 20 | Workflow automation | 19 | 19 | done |
 | 21 | Voice path | 12, 09B | 21B | not_started |
 | 21B | Speech providers (STT/TTS) | 21 | 21C | not_started |
 | 22 | Voice reliability | 21 | 21C | not_started |
@@ -326,7 +327,7 @@ Update these lines every day.
 | F5 | Inbound voice — call logs, live calls, transcripts | F1, 21, 21B | F6 | not_started |
 | F6 | Outbound voice and campaign management UI | F1, 21C, 23 | F5 | not_started |
 | F7 | Leads management UI | F1, 24 | F6 | not_started |
-| F8 | Workflow and event builder UI | F1, 19, 20 | F7 | not_started |
+| F8 | Workflow and event builder UI | F1, 19, 20 | F7 | done |
 | F9 | Analytics and usage UI | F1, 26 | F8 | done |
 | F10 | Workspace settings — members, roles, API keys, billing, secrets | F1, 04, 05, 16 | F9 | done |
 | F11 | Agent evaluation UI | F1, 25 | F9 | not_started |
@@ -363,15 +364,14 @@ Start the next row only after the **Needs** row is done. The person who takes it
 
 | Order | Feature | Needs | Ship together | Directories |
 | --- | --- | --- | --- | --- |
-| 1 | **Website widget** (17) | Runtime, publishable keys (settings feature if that screen is the key manager) | Public turn API already exists. Add the embed bundle and prove a host page can chat. SSE is a follow-up, not a second feature. | `packages/widget/` or `apps/widget/`. Key admin stays in settings if that feature is already open. |
-| 2 | **Workflows** (20 + screen F8) | Event rows the workflow can trust | Finish producers still missing (`conversation.released`, `message.appended`) in the same effort if the workflow needs them. Then workflow service, gateway routes, and a builder that runs one action. | `services/workflow-service/`, conversation-service only for the event rows you must add, `apps/web/src/features/workflows/` |
-| 3 | **Voice** (21, 21B, 22, 21C + screen F5) | Runtime, membership cache. Section **5C**. | Voice process on port 3008, one telephony vendor, and a staff call log. Do not merge the service with no log page. | `services/voice-service/`, `apps/web/src/features/voice/` |
-| 4 | **Campaigns** (23 + screen F6) | Voice reliability and telephony | Queue, caps, and the campaign screen. | One service (decide in the ADR), `features/campaigns/` |
-| 5 | **Leads** (24 + screen F7) | Workflows or a single event you already emit | Lead rows and the lead list. | Lead service, `features/leads/` |
-| 6 | **Usage** (26 + screen F9) | Model and web-fetch facts already log; there is no ledger | Ledger consumer off the request path, and a staff totals page. | Usage consumer, `features/usage/` |
-| 7 | **Evaluation** (25 + screen F11) | Runtime turns | Dataset, run, score, and the eval screen. | Eval service, `features/evaluation/` |
-| 8 | **Audit** (27 + screen F12) | Staff writes exist | Append-only audit rows and the audit screen. Say in the ADR whether a failed audit insert fails the user request. | Audit writer, `features/audit/` |
-| 9 | **Developer docs** (F13) | Public routes you are willing to freeze | API reference next to the routes, not a separate product. | `docs/` or a docs route in `apps/web` |
+| 1 | **Website widget** (17) | Runtime, publishable keys (settings feature if that screen is the key manager) | Embed bundle and host-page demo are implemented. Prove chat and refresh persistence in a running local stack. SSE is a follow-up, not a second feature. | `apps/web/public/quickstart-widget.js`, `fixtures/widget-demo.html`; key admin stays in settings. |
+| 2 | **Voice** (21, 21B, 22, 21C + screen F5) | Runtime, membership cache. Section **5C**. | Voice process on port 3008, one telephony vendor, and a staff call log. Do not merge the service with no log page. | `services/voice-service/`, `apps/web/src/features/voice/` |
+| 3 | **Campaigns** (23 + screen F6) | Voice reliability and telephony | Queue, caps, and the campaign screen. | One service (decide in the ADR), `features/campaigns/` |
+| 4 | **Leads** (24 + screen F7) | Workflows or a single event you already emit | Lead rows and the lead list. | Lead service, `features/leads/` |
+| 5 | **Usage** (26 + screen F9) | Model and web-fetch facts already log; there is no ledger | Ledger consumer off the request path, and a staff totals page. | Usage consumer, `features/usage/` |
+| 6 | **Evaluation** (25 + screen F11) | Runtime turns | Dataset, run, score, and the eval screen. | Eval service, `features/evaluation/` |
+| 7 | **Audit** (27 + screen F12) | Staff writes exist | Append-only audit rows and the audit screen. Say in the ADR whether a failed audit insert fails the user request. | Audit writer, `features/audit/` |
+| 8 | **Developer docs** (F13) | Public routes you are willing to freeze | API reference next to the routes, not a separate product. | `docs/` or a docs route in `apps/web` |
 | — | **Observability (28), cloud (29–30), labs P1–P8** | — | No staff product screen. Ship the probe, metric, or deploy path. | Platform files only |
 
 ### What we will not do
@@ -1978,14 +1978,14 @@ No full KMS integration until the cloud feature. Document the local master key a
 
 ## 20. Feature 17 — Website chat widget
 
-**Status:** `partial` — public widget HTTP API and publishable keys are in the gateway. Embed bundle is **17b** in section **6A**.
-**Needs:** runtime streaming  
+**Status:** `partial` — public widget HTTP API, publishable-key management, static browser bundle, and local host-page demo are implemented. Local API turn/history, idempotent retry, and allowed-origin checks pass; rendered browser check remains because no browser surface is available in this environment. SSE is follow-up work.
+**Needs:** runtime chat turns
 **Can run beside:** Feature 18  
 **Deep topic:** horizontal scale of long connections
 
 ### Pre-context
 
-The runtime can answer. There is no browser client. There is no admin UI in this repo yet. This feature is the embeddable chat, not the staff console.
+The runtime can answer, and workspace settings manage publishable keys. `apps/web/public/quickstart-widget.js` provides a browser chat client; `fixtures/widget-demo.html` is the local host-page example. This feature is the embeddable chat, not the staff console.
 
 ### What this is
 
@@ -2001,9 +2001,9 @@ The junior shortcut puts the service API key in the widget and lets any domain u
 
 ### Production shape
 
-The gateway checks the publishable key and the site origin allow-list. The widget sends with `conversation_id` and the last `seq` after reconnect. Transport is SSE plus normal HTTP to send a message, unless we write down why we need WebSocket. SSE is the default because proxies and reconnect are simpler.
+The gateway checks the publishable key and the site origin allow-list. The current client uses request/response JSON, stores the visitor and `conversation_id`, and reloads stored messages after a page refresh. SSE with replay by `seq` remains a follow-up; normal HTTP sends each message.
 
-The gateway proxies the stream. It does not run the model.
+The gateway proxies turns. It does not run the model.
 
 ### What breaks at scale
 
@@ -2011,7 +2011,7 @@ Thousands of open chats mean thousands of held connections. The limit is connect
 
 ### Choice
 
-We take publishable keys, origin allow-list, SSE, and reconnect by seq.
+We take publishable keys, origin allow-list, request/response turns, and browser persistence for the v1 widget. SSE and reconnect by `seq` remain follow-up work.
 
 We reject a secret in the bundle.
 
@@ -2024,8 +2024,8 @@ The load balancer must allow long SSE timeouts. Sticky sessions are a crutch. Re
 ### Low-level design
 
 - Issue and revoke publishable keys, workspace scoped, origin list
-- Widget bundle in this repo, built as static files
-- Send message, subscribe to tokens, replay after seq
+- Static widget bundle in `apps/web/public/quickstart-widget.js`
+- Send messages and reload history; SSE token subscription and replay after seq are follow-up work
 - Test: wrong origin is rejected
 - Test: reconnect does not duplicate the user message (idempotency key)
 
@@ -2102,7 +2102,7 @@ No email notifications. No mobile app. A simple API plus one page is enough if t
 
 ## 22. Feature 19 — Event platform
 
-**Status:** `partial` — outbox, optional Kafka publisher/consumer, and `conversation.handed_off` exist. Remaining catalog is **19b** in section **6A**.
+**Status:** `done` — outbox, Kafka publisher/consumer, and catalog producers `conversation.handed_off`, `conversation.released`, `message.appended` (plus declared `agent.published`).
 **Needs:** the objects that emit events (agent, conversation, handoff). Do not invent events for objects that do not exist.  
 **Can run beside:** Feature 20 only after the event envelope exists. Day 1 can be the envelope and one producer. Day 2 can be one consumer. If two people work, one owns the producer library, the other owns one consumer. Do not both edit the topic names.  
 **Deep topic:** queues and "at least once"
@@ -2164,7 +2164,7 @@ Not every table emits events on day one. List the events you actually ship.
 
 ## 23. Feature 20 — Workflow automation
 
-**Status:** `not_started`  
+**Status:** `done` — `services/workflow-service` (:3012), gateway proxy, staff UI wired; Kafka consumer; runs/steps/side effects/dead letters. See [ADR 0020](./adr/0020-workflows.md).
 **Needs:** events  
 **Deep topic:** retries and poison messages
 
@@ -2219,7 +2219,7 @@ One real event starts a run, the action happens once, and a forced retry does no
 
 ### Still unsafe
 
-No visual builder. No canvas UI. JSON definition is enough.
+Email and agent-handoff actions record side-effect rows; they do not yet call SES or conversation take. Webhook secret refs are names only until secrets vault resolution is wired on the worker. Per-workspace run concurrency caps and SSE-style live run traces are later.
 
 ---
 

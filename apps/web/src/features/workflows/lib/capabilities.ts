@@ -12,14 +12,14 @@ export interface WorkflowCapabilities {
 }
 
 export const PRODUCTION_WORKFLOW_CAPABILITIES: WorkflowCapabilities = {
-  canRead: false,
-  canEdit: false,
-  canActivate: false,
-  canPause: false,
-  canDelete: false,
-  canReadRuns: false,
-  isPersistenceConnected: false,
-  supportedActions: [],
+  canRead: true,
+  canEdit: true,
+  canActivate: true,
+  canPause: true,
+  canDelete: true,
+  canReadRuns: true,
+  isPersistenceConnected: true,
+  supportedActions: ["webhook", "update_tags", "email_notification", "agent_handoff"],
 };
 
 export const PREVIEW_WORKFLOW_CAPABILITIES: WorkflowCapabilities = {

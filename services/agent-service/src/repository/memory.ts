@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { TenantContext } from "@quickstart/auth";
+import { DEFAULT_AGENT_VOICE_SETTINGS } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Agent, AgentVersion } from "../domain/types.js";
 import { snapshotFromAgent } from "../domain/types.js";
@@ -33,6 +34,7 @@ export class MemoryAgentStore implements AgentStore {
       modelSettings: input.modelSettings ?? {},
       channels: input.channels ?? defaultChannels,
       tools: input.tools ?? [],
+      voice: input.voice ?? { ...DEFAULT_AGENT_VOICE_SETTINGS },
       version: 1,
       productionVersionId: null,
       createdAt: now,
@@ -92,6 +94,7 @@ export class MemoryAgentStore implements AgentStore {
     if (input.modelSettings !== undefined) agent.modelSettings = input.modelSettings;
     if (input.channels !== undefined) agent.channels = input.channels;
     if (input.tools !== undefined) agent.tools = input.tools;
+    if (input.voice !== undefined) agent.voice = input.voice;
     agent.version += 1;
     agent.updatedAt = new Date();
     return agent;

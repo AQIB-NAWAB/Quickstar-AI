@@ -1,9 +1,17 @@
 import type {
+AudienceFieldDef,
 CampaignContact,
 CampaignDetail,
 ContactAttempt,
 OutboundCall
 } from "./types";
+
+const DEFAULT_AUDIENCE_SCHEMA: AudienceFieldDef[] = [
+  { key: "phone", label: "Phone", role: "dial", required: true },
+  { key: "name", label: "Name", role: "identity" },
+  { key: "email", label: "Email", role: "contact_email" },
+  { key: "company", label: "Company", role: "custom" },
+];
 
 export const SAMPLE_CAMPAIGNS: CampaignDetail[] = [
   {
@@ -21,6 +29,7 @@ export const SAMPLE_CAMPAIGNS: CampaignDetail[] = [
     createdAt: "2026-10-09T14:00:00.000Z",
     updatedAt: "2026-10-10T14:25:00.000Z",
     version: 1,
+    audienceSchema: DEFAULT_AUDIENCE_SCHEMA,
     schedule: {
       startDate: "2026-10-10",
       startTime: "09:00",
@@ -72,6 +81,7 @@ export const SAMPLE_CAMPAIGNS: CampaignDetail[] = [
     createdAt: "2026-10-11T10:00:00.000Z",
     updatedAt: "2026-10-11T10:00:00.000Z",
     version: 1,
+    audienceSchema: DEFAULT_AUDIENCE_SCHEMA,
     schedule: {
       startDate: "2026-10-15",
       startTime: "10:00",
@@ -116,6 +126,7 @@ export const SAMPLE_CAMPAIGNS: CampaignDetail[] = [
     createdAt: "2026-10-10T16:00:00.000Z",
     updatedAt: "2026-10-10T16:00:00.000Z",
     version: 1,
+    audienceSchema: DEFAULT_AUDIENCE_SCHEMA,
     schedule: {
       startDate: "2026-10-15",
       startTime: "09:00",
@@ -160,6 +171,7 @@ export const SAMPLE_CAMPAIGNS: CampaignDetail[] = [
     createdAt: "2026-10-04T12:00:00.000Z",
     updatedAt: "2026-10-06T18:00:00.000Z",
     version: 1,
+    audienceSchema: DEFAULT_AUDIENCE_SCHEMA,
     schedule: {
       startDate: "2026-10-05",
       startTime: "09:00",

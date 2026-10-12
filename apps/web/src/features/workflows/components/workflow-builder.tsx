@@ -74,12 +74,32 @@ export function WorkflowBuilder({
     }
   }
 
-  function handleToggleActive() {
-    if (!isPreview) {
+  async function handleToggleActive() {
+    if (isPreview) {
+      setFeedbackMessage("Activation is disabled in preview mode.");
+      return;
+    }
+    if (!onSaveWorkflow) {
       setFeedbackMessage("Workflow activation requires connected backend execution engine.");
       return;
     }
-    setFeedbackMessage("Activation is disabled in preview mode.");
+    if (workflow.status !== "active" && workflow.actions.length === 0) {
+      setFeedbackMessage("Add at least one action before activating.");
+      return;
+    }
+    setIsSaving(true);
+    setFeedbackMessage(null);
+    try {
+      const nextStatus = workflow.status === "active" ? "paused" : "active";
+      const next = { ...workflow, status: nextStatus as typeof workflow.status };
+      await onSaveWorkflow(next);
+      markSaved(next);
+      setFeedbackMessage(nextStatus === "active" ? "Workflow activated." : "Workflow paused.");
+    } catch (err: unknown) {
+      setFeedbackMessage((err instanceof Error ? err.message : null) || "Failed to update status.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (

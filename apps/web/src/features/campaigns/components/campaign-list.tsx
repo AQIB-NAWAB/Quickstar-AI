@@ -2,7 +2,7 @@
 
 import { AlertCircle,Megaphone,Plus,Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect,useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import { formatNumber,formatPercent,formatScheduledUtc } from "../lib/format";
 import { getCampaignRepository } from "../lib/repository";
 import type { CampaignRepository,CampaignSummary,RepositoryResult } from "../lib/types";
@@ -21,40 +21,54 @@ export function CampaignList({
   repository,
   baseRoute,
 }: CampaignListProps) {
-  const repo = repository || getCampaignRepository(isPreview);
+  const repo = useMemo(
+    () => repository ?? getCampaignRepository(isPreview),
+    [repository, isPreview],
+  );
   const basePath = baseRoute || (isPreview ? "/preview/campaigns" : `/workspaces/${workspaceId}/campaigns`);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [result, setResult] = useState<RepositoryResult<CampaignSummary[]> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
 
     repo
-      .listCampaigns(workspaceId, { q: search, status: statusFilter })
+      .listCampaigns(
+        workspaceId,
+        { q: debouncedSearch || undefined, status: statusFilter },
+        controller.signal,
+      )
       .then((res) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setResult(res);
           setLoading(false);
         }
       })
       .catch((err) => {
-        if (!cancelled) {
-          setResult({
-            status: "error",
-            message: err instanceof Error ? err.message : "Failed to load campaigns",
-          });
-          setLoading(false);
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
         }
+        setResult({
+          status: "error",
+          message: err instanceof Error ? err.message : "Failed to load campaigns",
+        });
+        setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [repo, workspaceId, search, statusFilter]);
+  }, [repo, workspaceId, debouncedSearch, statusFilter]);
 
   const campaigns = result?.status === "ready" ? result.data : [];
 

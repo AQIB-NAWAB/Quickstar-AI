@@ -9,6 +9,10 @@ export type GatewayConfig = {
   knowledgeUrl: string;
   memoryUrl: string;
   secretsUrl: string;
+  workflowUrl: string;
+  campaignUrl: string;
+  voiceUrl: string;
+  leadUrl: string;
   leadGenerationUrl?: string;
   jwtAccessSecret: string;
   redisUrl: string;
@@ -52,6 +56,26 @@ export function loadGatewayConfig(): GatewayConfig {
       process.env.SECRETS_URL ??
       process.env.SECRETS_SERVICE_URL ??
       "http://127.0.0.1:3011"
+    ).replace(/\/$/, ""),
+    workflowUrl: (
+      process.env.WORKFLOW_URL ??
+      process.env.WORKFLOW_SERVICE_URL ??
+      "http://127.0.0.1:3012"
+    ).replace(/\/$/, ""),
+    campaignUrl: (
+      process.env.CAMPAIGN_URL ??
+      process.env.CAMPAIGN_SERVICE_URL ??
+      "http://127.0.0.1:3013"
+    ).replace(/\/$/, ""),
+    voiceUrl: (
+      process.env.VOICE_URL ??
+      process.env.VOICE_SERVICE_URL ??
+      "http://127.0.0.1:3008"
+    ).replace(/\/$/, ""),
+    leadUrl: (
+      process.env.LEAD_URL ??
+      process.env.LEAD_SERVICE_URL ??
+      "http://127.0.0.1:3014"
     ).replace(/\/$/, ""),
     leadGenerationUrl: (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(
       /\/$/,

@@ -60,6 +60,16 @@ export {
   type PlatformEventType,
   type PlatformEventEnvelope,
   type ConversationHandedOffData,
+  type ConversationReleasedData,
+  type MessageAppendedData,
+  type AgentPublishedData,
+  type CampaignStartedData,
+  type CampaignPausedData,
+  type CampaignCompletedData,
+  type CampaignTargetAttemptedData,
+  type LeadCreatedData,
+  type LeadUpdatedData,
+  type LeadStatusChangedData,
 } from "./platform-events.js";
 
 export type {
@@ -86,3 +96,25 @@ export type {
   LeadEvidence,
   CampaignLeadDelivery,
 } from "./lead-generation.js";
+
+export {
+  CALL_DIRECTIONS,
+  CALL_STATES,
+  DEFAULT_AGENT_VOICE_SETTINGS,
+  DEFAULT_VOICE_DEADLINE_MS,
+  DEFAULT_VOICE_MODE,
+  TELEPHONY_PROVIDER_IDS,
+  VOICE_MODES,
+  isCallState,
+  isVoiceMode,
+  s2sProfileAllowed,
+  type AgentVoiceSettings,
+  type CallDirection,
+  type CallRecord,
+  type CallStageTimings,
+  type CallState,
+  type CallTranscriptSegment,
+  type TelephonyProviderId,
+  type VoiceMode,
+  type VoiceTurnRequestBody,
+} from "./voice.js";
