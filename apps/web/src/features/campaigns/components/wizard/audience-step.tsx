@@ -41,7 +41,7 @@ export function AudienceStep({
   function applyMappings(
     parsedRows: Record<string, string>[],
     mappings: ColumnMapping[],
-    fileMeta?: { fileName: string; rowCount: number },
+    fileMeta?: { fileName: string; rowCount: number; csvHeaders?: string[] },
   ) {
     const active = mappings.filter(Boolean);
     const validation = validateAudienceWithMappings(parsedRows, active);
@@ -57,9 +57,10 @@ export function AudienceStep({
     onUpdate({
       ...(fileMeta ?? {}),
       csvHeaders:
-        draft.csvHeaders.length > 0
+        fileMeta?.csvHeaders ??
+        (draft.csvHeaders.length > 0
           ? draft.csvHeaders
-          : Object.keys(parsedRows[0] ?? {}),
+          : Object.keys(parsedRows[0] ?? {})),
       parsedRows,
       columnMappings: active,
       mappedColumns: {
@@ -107,10 +108,10 @@ export function AudienceStep({
       }
 
       const mappings = buildDefaultMappings(parsed.headers);
-      onUpdate({ csvHeaders: parsed.headers });
       applyMappings(parsed.rows, mappings, {
         fileName: file.name,
         rowCount: parsed.totalRows,
+        csvHeaders: parsed.headers,
       });
       setError(null);
     };

@@ -47,17 +47,21 @@ async function bff<T>(
   }
 }
 
+function failResult<T>(status: number, error?: ApiError): RepositoryResult<T> {
+  if (status === 0) return { status: "unavailable", message: error?.message || "Service unavailable" };
+  if (status === 403) return { status: "forbidden", message: error?.message || "Forbidden" };
+  if (status === 404) return { status: "not_found", message: error?.message || "Not found" };
+  if (status === 409) return { status: "conflict", message: error?.message || "Conflict" };
+  return { status: "error", message: error?.message || "Request failed" };
+}
+
 function toResult<T>(
   status: number,
   data: T | undefined,
   error?: ApiError,
 ): RepositoryResult<T> {
-  if (status === 0) return { status: "unavailable", message: error?.message || "Service unavailable" };
-  if (status === 403) return { status: "forbidden", message: error?.message || "Forbidden" };
-  if (status === 404) return { status: "not_found", message: error?.message || "Not found" };
-  if (status === 409) return { status: "conflict", message: error?.message || "Conflict" };
-  if (status >= 500 || !data) {
-    return { status: "error", message: error?.message || "Request failed" };
+  if (status === 0 || status === 403 || status === 404 || status === 409 || status >= 400 || data === undefined) {
+    return failResult(status, error);
   }
   return { status: "ready", data };
 }
@@ -256,7 +260,7 @@ export async function getCampaignApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}`,
     { signal },
   );
-  if (error || !data?.campaign) return toResult(status, undefined, error);
+  if (error || !data?.campaign) return failResult<CampaignDetail>(status, error);
   return toResult(status, mapDetail(data.campaign));
 }
 
@@ -290,7 +294,9 @@ export async function getContactApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/contacts/${encodeURIComponent(contactId)}`,
     { signal },
   );
-  if (error || !data?.contact) return toResult(status, undefined, error);
+  if (error || !data?.contact) {
+    return failResult<{ contact: CampaignContact; attempts: ContactAttempt[] }>(status, error);
+  }
   return toResult(status, {
     contact: mapContact(data.contact),
     attempts: (data.attempts ?? []).map(mapAttempt),
@@ -366,7 +372,7 @@ export async function saveDraftApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns`,
     { method: "POST", body: JSON.stringify(body) },
   );
-  if (error || !data?.campaign) return toResult(status, undefined, error);
+  if (error || !data?.campaign) return failResult<CampaignSummary>(status, error);
   return toResult(status, mapSummary(data.campaign));
 }
 
@@ -383,7 +389,7 @@ async function controlApi(
       body: JSON.stringify({ expected_version: version }),
     },
   );
-  if (error || !data?.campaign) return toResult(status, undefined, error);
+  if (error || !data?.campaign) return failResult<CampaignDetail>(status, error);
   return toResult(status, mapDetail(data.campaign));
 }
 
