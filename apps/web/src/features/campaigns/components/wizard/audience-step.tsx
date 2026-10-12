@@ -56,9 +56,11 @@ export function AudienceStep({
 
     onUpdate({
       ...(fileMeta ?? {}),
-      csvHeaders: Object.keys(parsedRows[0] ?? {}).length
-        ? Object.keys(parsedRows[0] ?? {})
-        : draft.csvHeaders,
+      csvHeaders:
+        draft.csvHeaders.length > 0
+          ? draft.csvHeaders
+          : Object.keys(parsedRows[0] ?? {}),
+      parsedRows,
       columnMappings: active,
       mappedColumns: {
         phone: dial?.sourceColumn ?? "",
@@ -105,11 +107,11 @@ export function AudienceStep({
       }
 
       const mappings = buildDefaultMappings(parsed.headers);
+      onUpdate({ csvHeaders: parsed.headers });
       applyMappings(parsed.rows, mappings, {
         fileName: file.name,
         rowCount: parsed.totalRows,
       });
-      onUpdate({ csvHeaders: parsed.headers });
       setError(null);
     };
 
@@ -139,22 +141,8 @@ export function AudienceStep({
       next.push({ sourceColumn, key, role });
     }
 
-    // Re-validate using last uploaded preview rows if we only have preview;
-    // full re-parse needs the file — for mapping tweaks use prepared raw from preview store.
-    // When headers exist but we lack full rows, keep counts and update schema only.
-    const rowsFromPreview = draft.preparedTargets.map((t) => {
-      const row: Record<string, string> = {};
-      for (const m of draft.columnMappings) {
-        if (m.role === "dial") row[m.sourceColumn] = t.phone;
-        else if (m.role === "identity") row[m.sourceColumn] = t.name ?? "";
-        else if (m.role === "contact_email") row[m.sourceColumn] = t.email ?? "";
-        else row[m.sourceColumn] = t.attributes[m.key] ?? "";
-      }
-      return row;
-    });
-
-    if (rowsFromPreview.length > 0) {
-      applyMappings(rowsFromPreview, next);
+    if (draft.parsedRows.length > 0) {
+      applyMappings(draft.parsedRows, next);
     } else {
       onUpdate({ columnMappings: next });
     }

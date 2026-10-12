@@ -23,6 +23,22 @@ export function createDefaultDraft(): WizardDraft {
     fileName: "demo-contacts.csv",
     rowCount: 1200,
     csvHeaders: ["phone_number", "full_name", "email", "company", "title"],
+    parsedRows: [
+      {
+        phone_number: "+12025550104",
+        full_name: "Alex Morgan",
+        email: "alex@example.com",
+        company: "Acme Labs",
+        title: "VP Sales",
+      },
+      {
+        phone_number: "+12025550118",
+        full_name: "Jordan Lee",
+        email: "jordan@example.com",
+        company: "Brightfield",
+        title: "Founder",
+      },
+    ],
     columnMappings: [
       { sourceColumn: "phone_number", key: "phone", role: "dial" },
       { sourceColumn: "full_name", key: "name", role: "identity" },
