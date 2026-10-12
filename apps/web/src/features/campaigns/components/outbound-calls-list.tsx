@@ -2,7 +2,7 @@
 
 import { AlertCircle,PhoneCall } from "lucide-react";
 import Link from "next/link";
-import { useEffect,useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import { formatDuration,formatUtcDateTime } from "../lib/format";
 import { getCampaignRepository } from "../lib/repository";
 import type { CampaignRepository,OutboundCall,RepositoryResult } from "../lib/types";
@@ -20,36 +20,40 @@ export function OutboundCallsList({
   repository,
   baseRoute,
 }: OutboundCallsListProps) {
-  const repo = repository || getCampaignRepository(isPreview);
+  const repo = useMemo(
+    () => repository ?? getCampaignRepository(isPreview),
+    [repository, isPreview],
+  );
   const basePath = baseRoute || (isPreview ? "/preview/voice/outbound" : `/workspaces/${workspaceId}/voice/outbound`);
 
   const [result, setResult] = useState<RepositoryResult<OutboundCall[]> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
 
     repo
-      .listOutboundCalls(workspaceId)
+      .listOutboundCalls(workspaceId, controller.signal)
       .then((res) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setResult(res);
           setLoading(false);
         }
       })
       .catch((err) => {
-        if (!cancelled) {
-          setResult({
-            status: "error",
-            message: err instanceof Error ? err.message : "Failed to load outbound calls",
-          });
-          setLoading(false);
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
         }
+        setResult({
+          status: "error",
+          message: err instanceof Error ? err.message : "Failed to load outbound calls",
+        });
+        setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [repo, workspaceId]);
 
