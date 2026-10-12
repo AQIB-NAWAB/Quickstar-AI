@@ -9,6 +9,9 @@ export const PLATFORM_EVENT_TYPES = [
   "campaign.paused",
   "campaign.completed",
   "campaign.target.attempted",
+  "lead.created",
+  "lead.updated",
+  "lead.status_changed",
 ] as const;
 
 export type PlatformEventType = (typeof PLATFORM_EVENT_TYPES)[number];
@@ -71,6 +74,22 @@ export type CampaignTargetAttemptedData = {
   attempt_id: string;
   attempt_number: number;
   outcome: string;
+};
+
+export type LeadCreatedData = {
+  lead_id: string;
+  source: string;
+  external_id?: string | null;
+};
+
+export type LeadUpdatedData = {
+  lead_id: string;
+};
+
+export type LeadStatusChangedData = {
+  lead_id: string;
+  from_status: string;
+  to_status: string;
 };
 
 export function isPlatformEventType(value: string): value is PlatformEventType {

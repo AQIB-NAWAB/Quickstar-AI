@@ -67,6 +67,9 @@ export {
   type CampaignPausedData,
   type CampaignCompletedData,
   type CampaignTargetAttemptedData,
+  type LeadCreatedData,
+  type LeadUpdatedData,
+  type LeadStatusChangedData,
 } from "./platform-events.js";
 
 export type {
