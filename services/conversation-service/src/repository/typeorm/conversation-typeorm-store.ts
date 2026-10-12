@@ -134,40 +134,58 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
       actorUserId: string,
       actorRole: WorkspaceRole,
     ): Promise<Conversation> {
-      const isAdmin = actorRole === "owner" || actorRole === "admin";
-      const rows = await dataSource.query(
-        `UPDATE conversations
-         SET state = 'bot', assignee_user_id = NULL, updated_at = NOW()
-         WHERE id = $1 AND workspace_id = $2 AND state = 'human'
-           AND ($4::boolean OR assignee_user_id = $3)
-         RETURNING *`,
-        [conversationId, workspaceId, actorUserId, isAdmin],
-      );
-      if (!rows.length) {
-        const existing = await dataSource.manager.findOne(ConversationEntity, {
+      return dataSource.transaction(async (manager) => {
+        const isAdmin = actorRole === "owner" || actorRole === "admin";
+        const rows = await manager.query(
+          `UPDATE conversations
+           SET state = 'bot', assignee_user_id = NULL, updated_at = NOW()
+           WHERE id = $1 AND workspace_id = $2 AND state = 'human'
+             AND ($4::boolean OR assignee_user_id = $3)
+           RETURNING *`,
+          [conversationId, workspaceId, actorUserId, isAdmin],
+        );
+        if (!rows.length) {
+          const existing = await manager.findOne(ConversationEntity, {
+            where: { id: conversationId, workspaceId },
+          });
+          if (!existing) {
+            throw new AppError({
+              code: ErrorCode.NOT_FOUND,
+              message: "Conversation not found",
+            });
+          }
+          if (existing.state !== "human") {
+            throw new AppError({
+              code: ErrorCode.CONFLICT,
+              message: "Conversation is not in human handoff",
+            });
+          }
+          throw new AppError({
+            code: ErrorCode.FORBIDDEN,
+            message: "Only the assignee or an admin can release this conversation",
+          });
+        }
+
+        await manager.query(
+          `INSERT INTO outbox_events (id, workspace_id, type, payload, request_id)
+           VALUES ($1, $2, $3, $4::jsonb, $5)`,
+          [
+            randomUUID(),
+            workspaceId,
+            "conversation.released",
+            JSON.stringify({
+              conversation_id: conversationId,
+              released_by_user_id: actorUserId,
+            }),
+            null,
+          ],
+        );
+
+        const updated = await manager.findOne(ConversationEntity, {
           where: { id: conversationId, workspaceId },
         });
-        if (!existing) {
-          throw new AppError({
-            code: ErrorCode.NOT_FOUND,
-            message: "Conversation not found",
-          });
-        }
-        if (existing.state !== "human") {
-          throw new AppError({
-            code: ErrorCode.CONFLICT,
-            message: "Conversation is not in human handoff",
-          });
-        }
-        throw new AppError({
-          code: ErrorCode.FORBIDDEN,
-          message: "Only the assignee or an admin can release this conversation",
-        });
-      }
-      const updated = await dataSource.manager.findOne(ConversationEntity, {
-        where: { id: conversationId, workspaceId },
+        return toConversation(updated!);
       });
-      return toConversation(updated!);
     },
 
     async appendMessage(input: AppendMessageInput): Promise<AppendMessageResult> {
@@ -217,6 +235,27 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
           });
 
           await manager.save(msgEntity);
+
+          await manager.query(
+            `INSERT INTO outbox_events (id, workspace_id, type, payload, request_id)
+             VALUES ($1, $2, $3, $4::jsonb, $5)`,
+            [
+              randomUUID(),
+              input.workspaceId,
+              "message.appended",
+              JSON.stringify({
+                conversation_id: input.conversationId,
+                message: {
+                  id: msgEntity.id,
+                  text: msgEntity.text,
+                  role: msgEntity.senderType,
+                  seq: msgEntity.seq,
+                },
+              }),
+              null,
+            ],
+          );
+
           return { message: toMessage(msgEntity), deduplicated: false };
         });
       } catch (error) {

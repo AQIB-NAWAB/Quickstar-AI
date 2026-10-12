@@ -1,4 +1,5 @@
 import type { TenantContext } from "@quickstart/auth";
+import { s2sProfileAllowed } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Agent, AgentVersion, AgentVersionDiff, PublishResult } from "../domain/types.js";
 import { validateAgentTools } from "../lib/validate-tools.js";
@@ -59,6 +60,21 @@ export class AgentsService {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
         message: "base_version is required and must be an integer",
+      });
+    }
+    const agent = await this.getAgent(tenant, agentId);
+    const knowledgeEnabled = Boolean(
+      (agent.modelSettings as { knowledge_enabled?: boolean }).knowledge_enabled,
+    );
+    const s2sCheck = s2sProfileAllowed({
+      voice_mode: agent.voice.voice_mode,
+      toolsCount: agent.tools.length,
+      knowledgeEnabled,
+    });
+    if (!s2sCheck.ok) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: s2sCheck.reason,
       });
     }
     return this.store.publish(tenant, agentId, baseVersion);

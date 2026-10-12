@@ -1,9 +1,9 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { WorkflowUnavailableState } from "@/features/workflows/components/workflow-unavailable-state";
+import { WorkflowsWorkspaceView } from "@/features/workflows/components/workflows-workspace-view";
 
 export const metadata = {
-  title: "New Workflow — QuickStart AI",
-  description: "Create an event-driven automation workflow.",
+  title: "New workflow — QuickStart AI",
+  description: "Create an event-driven automation.",
 };
 
 type Props = {
@@ -12,11 +12,10 @@ type Props = {
 
 export default async function NewWorkflowPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
-  const backUrl = `/workspaces/${encodeURIComponent(activeWorkspace.id)}/workflows`;
 
   return (
     <div className="w-full">
-      <WorkflowUnavailableState backUrl={backUrl} />
+      <WorkflowsWorkspaceView workspaceId={activeWorkspace.id} view={{ kind: "new" }} />
     </div>
   );
 }

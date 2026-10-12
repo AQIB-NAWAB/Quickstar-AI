@@ -85,6 +85,20 @@ export function createOutboxPublisher(options: OutboxPublisherOptions): {
         return;
       }
       running = true;
+      const admin = kafka.admin();
+      try {
+        await admin.connect();
+        const topics = await admin.listTopics();
+        if (!topics.includes(PLATFORM_EVENTS_TOPIC)) {
+          await admin.createTopics({
+            topics: [{ topic: PLATFORM_EVENTS_TOPIC, numPartitions: 3, replicationFactor: 1 }],
+            waitForLeaders: true,
+          });
+          logger.info("outbox.topic_created", { topic: PLATFORM_EVENTS_TOPIC });
+        }
+      } finally {
+        await admin.disconnect().catch(() => undefined);
+      }
       producer = kafka.producer();
       await producer.connect();
       timer = setInterval(() => {

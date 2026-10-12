@@ -1,5 +1,5 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { WorkflowUnavailableState } from "@/features/workflows/components/workflow-unavailable-state";
+import { WorkflowsWorkspaceView } from "@/features/workflows/components/workflows-workspace-view";
 
 export const metadata = {
   title: "Workflow Builder — QuickStart AI",
@@ -12,11 +12,13 @@ type Props = {
 
 export default async function WorkflowDetailPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
-  const backUrl = `/workspaces/${encodeURIComponent(activeWorkspace.id)}/workflows`;
 
   return (
     <div className="w-full">
-      <WorkflowUnavailableState backUrl={backUrl} />
+      <WorkflowsWorkspaceView
+        workspaceId={activeWorkspace.id}
+        view={{ kind: "edit", workflowId: params.workflowId }}
+      />
     </div>
   );
 }

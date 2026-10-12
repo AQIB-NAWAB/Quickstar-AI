@@ -7,6 +7,8 @@ const DIFF_FIELDS = [
   "environment",
   "model_settings",
   "channels",
+  "voice",
+  "tools",
 ] as const;
 
 function stableJson(value: unknown): string {

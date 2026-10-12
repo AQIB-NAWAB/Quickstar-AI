@@ -1,4 +1,8 @@
-import type { AgentToolDefinition } from "@quickstart/contracts";
+import {
+  DEFAULT_AGENT_VOICE_SETTINGS,
+  type AgentToolDefinition,
+  type AgentVoiceSettings,
+} from "@quickstart/contracts";
 
 export type AgentChannels = {
   chat: boolean;
@@ -13,6 +17,7 @@ export type AgentSnapshot = {
   model_settings: Record<string, unknown>;
   channels: AgentChannels;
   tools: AgentToolDefinition[];
+  voice: AgentVoiceSettings;
   draft_version: number;
 };
 
@@ -26,6 +31,7 @@ export type Agent = {
   modelSettings: Record<string, unknown>;
   channels: AgentChannels;
   tools: AgentToolDefinition[];
+  voice: AgentVoiceSettings;
   version: number;
   productionVersionId: string | null;
   createdAt: Date;
@@ -68,6 +74,7 @@ export type AgentJson = {
   model_settings: Record<string, unknown>;
   channels: AgentChannels;
   tools: AgentToolDefinition[];
+  voice: AgentVoiceSettings;
   version: number;
   production_version_id: string | null;
   created_at: string;
@@ -93,6 +100,7 @@ export function snapshotFromAgent(agent: Agent): AgentSnapshot {
     model_settings: agent.modelSettings,
     channels: agent.channels,
     tools: agent.tools,
+    voice: agent.voice ?? { ...DEFAULT_AGENT_VOICE_SETTINGS },
     draft_version: agent.version,
   };
 }
@@ -108,6 +116,7 @@ export function toAgentJson(agent: Agent): AgentJson {
     model_settings: agent.modelSettings,
     channels: agent.channels,
     tools: agent.tools,
+    voice: agent.voice ?? { ...DEFAULT_AGENT_VOICE_SETTINGS },
     version: agent.version,
     production_version_id: agent.productionVersionId,
     created_at: agent.createdAt.toISOString(),

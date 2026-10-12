@@ -1,9 +1,9 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { WorkflowUnavailableState } from "@/features/workflows/components/workflow-unavailable-state";
+import { WorkflowsWorkspaceView } from "@/features/workflows/components/workflows-workspace-view";
 
 export const metadata = {
-  title: "Run Diagnostics — QuickStart AI",
-  description: "View run diagnostic trace and payload details.",
+  title: "Workflow run — QuickStart AI",
+  description: "Inspect a single workflow run.",
 };
 
 type Props = {
@@ -12,14 +12,12 @@ type Props = {
 
 export default async function WorkflowRunDetailPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
-  const backUrl = `/workspaces/${encodeURIComponent(activeWorkspace.id)}/workflows/${encodeURIComponent(params.workflowId)}/runs`;
 
   return (
     <div className="w-full">
-      <WorkflowUnavailableState
-        backUrl={backUrl}
-        title="Run diagnostics are not available yet."
-        description="Detailed execution step traces and payload diagnostics require a connected workflow runtime engine."
+      <WorkflowsWorkspaceView
+        workspaceId={activeWorkspace.id}
+        view={{ kind: "run", workflowId: params.workflowId, runId: params.runId }}
       />
     </div>
   );

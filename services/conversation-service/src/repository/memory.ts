@@ -138,6 +138,16 @@ export class MemoryConversationStore implements ConversationStore {
     conv.state = DEFAULT_CONVERSATION_STATE;
     conv.assigneeUserId = null;
     conv.updatedAt = new Date();
+    this.outboxEvents.push({
+      id: randomUUID(),
+      workspaceId,
+      type: "conversation.released",
+      payload: {
+        conversation_id: conversationId,
+        released_by_user_id: actorUserId,
+      },
+      requestId: null,
+    });
     return conv;
   }
 
@@ -184,6 +194,22 @@ export class MemoryConversationStore implements ConversationStore {
 
     this.messages.set(id, message);
     this.idempotency.set(idemKey, id);
+
+    this.outboxEvents.push({
+      id: randomUUID(),
+      workspaceId: input.workspaceId,
+      type: "message.appended",
+      payload: {
+        conversation_id: input.conversationId,
+        message: {
+          id: message.id,
+          text: message.text,
+          role: message.senderType,
+          seq: message.seq,
+        },
+      },
+      requestId: null,
+    });
 
     return { message, deduplicated: false };
   }

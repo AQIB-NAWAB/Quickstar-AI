@@ -145,11 +145,13 @@ export function WorkflowHeader({
             <button
               type="button"
               onClick={onToggleActive}
-              disabled={!isPreview} // Activate disabled in preview and without engine
+              disabled={isPreview || isSaving || !onToggleActive}
               title={
-                !isPreview
-                  ? "Workflow automation engine is not connected."
-                  : "Activation is disabled in preview mode."
+                isPreview
+                  ? "Activation is disabled in preview mode."
+                  : workflow.status === "active"
+                    ? "Pause this workflow"
+                    : "Activate this workflow"
               }
               className={`px-4 py-1.5 rounded-6 text-xs font-semibold shadow-xs transition-colors ${
                 workflow.status === "active"

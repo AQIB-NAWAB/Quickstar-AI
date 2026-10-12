@@ -69,7 +69,18 @@ export interface CampaignSummary {
   version?: number;
 }
 
+export type AudienceFieldRole = "dial" | "identity" | "contact_email" | "custom";
+
+export interface AudienceFieldDef {
+  key: string;
+  label: string;
+  role: AudienceFieldRole;
+  sourceColumn?: string;
+  required?: boolean;
+}
+
 export interface CampaignDetail extends CampaignSummary {
+  audienceSchema: AudienceFieldDef[];
   schedule: CampaignSchedule;
   pacing: CampaignPacing;
   retryPolicy: CampaignRetryPolicy;
@@ -83,7 +94,9 @@ export interface CampaignContact {
   name: string | null;
   phone: string;
   email: string | null;
+  /** Arbitrary mapped CSV/API fields (not limited to fixed columns). */
   customFields?: Record<string, string>;
+  attributes?: Record<string, string>;
   status: ContactStatus;
   attemptsCount: number;
   lastAttemptAt: string | null; // ISO UTC
@@ -127,6 +140,14 @@ export interface OutboundCall {
   }[];
 }
 
+export interface ColumnMapping {
+  /** CSV header name */
+  sourceColumn: string;
+  /** Stable attribute key stored on the target */
+  key: string;
+  role: AudienceFieldRole;
+}
+
 export interface WizardDraft {
   name: string;
   description: string;
@@ -135,6 +156,13 @@ export interface WizardDraft {
   audienceSource: "csv" | "saved_list";
   fileName?: string;
   rowCount?: number;
+  /** All headers discovered from the uploaded CSV */
+  csvHeaders: string[];
+  /** Full parsed rows retained for remapping without re-upload */
+  parsedRows: Record<string, string>[];
+  /** Role mapping for any header — not limited to phone/name/email */
+  columnMappings: ColumnMapping[];
+  /** @deprecated Prefer columnMappings; kept for preview fixtures */
   mappedColumns: {
     phone: string;
     name?: string;
@@ -146,6 +174,13 @@ export interface WizardDraft {
     name?: string;
     email?: string;
     customFields?: Record<string, string>;
+  }[];
+  /** Full validated rows ready to POST as targets (attributes flexible). */
+  preparedTargets: {
+    phone: string;
+    name?: string | null;
+    email?: string | null;
+    attributes: Record<string, string>;
   }[];
   validCount: number;
   invalidCount: number;

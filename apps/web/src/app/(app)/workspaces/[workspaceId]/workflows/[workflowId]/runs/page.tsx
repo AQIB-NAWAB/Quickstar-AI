@@ -1,9 +1,9 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { WorkflowUnavailableState } from "@/features/workflows/components/workflow-unavailable-state";
+import { WorkflowsWorkspaceView } from "@/features/workflows/components/workflows-workspace-view";
 
 export const metadata = {
-  title: "Workflow Runs — QuickStart AI",
-  description: "View workflow execution history and run traces.",
+  title: "Workflow runs — QuickStart AI",
+  description: "Inspect workflow execution history.",
 };
 
 type Props = {
@@ -12,14 +12,12 @@ type Props = {
 
 export default async function WorkflowRunsPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
-  const backUrl = `/workspaces/${encodeURIComponent(activeWorkspace.id)}/workflows/${encodeURIComponent(params.workflowId)}`;
 
   return (
     <div className="w-full">
-      <WorkflowUnavailableState
-        backUrl={backUrl}
-        title="Execution history is not available yet."
-        description="This workspace does not currently have a connected execution history service or telemetry data."
+      <WorkflowsWorkspaceView
+        workspaceId={activeWorkspace.id}
+        view={{ kind: "runs", workflowId: params.workflowId }}
       />
     </div>
   );
