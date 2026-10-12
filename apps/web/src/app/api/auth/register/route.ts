@@ -71,13 +71,18 @@ export async function POST(request: Request) {
 
   if (!workspace) {
     return NextResponse.json(
-      { error: { code: "WORKSPACE_SETUP_FAILED", message: "Account created but workspace setup failed" } },
+      {
+        error: {
+          code: "WORKSPACE_SETUP_FAILED",
+          message: "Account created but workspace setup failed",
+        },
+      },
       { status: 503 },
     );
   }
 
   const res = NextResponse.json({
-    redirect: `/workspaces/${workspace.id}`,
+    redirect: `/workspaces/${workspace.id}/agents`,
   });
   applyTokenCookies(res, tokens);
   return res;

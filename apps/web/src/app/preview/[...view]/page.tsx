@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { FrontendPreview } from "@/features/preview/frontend-preview";
 
 export default function PreviewPage({ params }: { params: { view: string[] } }) {
   if (process.env.NODE_ENV !== "development") notFound();
+  if (params.view[0] === "overview") redirect("/preview/agents");
   if (
     ![
-      "overview",
       "inbox",
       "knowledge",
       "memory",
@@ -15,6 +15,7 @@ export default function PreviewPage({ params }: { params: { view: string[] } }) 
       "workflows",
       "leads",
       "campaigns",
+      "integrations",
       "voice",
       "audit",
       "notifications",

@@ -1,11 +1,11 @@
 "use client";
 
-import { AlertCircle,ArrowLeft,CheckCircle2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 import { getCampaignRepository } from "../../lib/repository";
-import type { CampaignRepository,WizardDraft } from "../../lib/types";
+import type { CampaignRepository, WizardDraft } from "../../lib/types";
 import { AudienceStep } from "./audience-step";
 import { DetailsStep } from "./details-step";
 import { RetryPolicyStep } from "./retry-policy-step";
@@ -81,14 +81,44 @@ export function CampaignWizard({
 }: CampaignWizardProps) {
   const router = useRouter();
   const repo = repository || getCampaignRepository(isPreview);
+  const localDraftKey = `quickstart:campaign-draft:${workspaceId}`;
 
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<WizardDraft>(() => createDefaultDraft());
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [localDraftSaved, setLocalDraftSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const backUrl = baseBackUrl || (isPreview ? "/preview/campaigns" : `/workspaces/${workspaceId}/campaigns`);
+  const backUrl =
+    baseBackUrl || (isPreview ? "/preview/campaigns" : `/workspaces/${workspaceId}/campaigns`);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(localDraftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { draft?: WizardDraft; step?: number };
+        if (parsed.draft) {
+          setDraft(parsed.draft);
+          setStep(Math.min(5, Math.max(1, parsed.step ?? 1)));
+          setLocalDraftSaved(true);
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(localDraftKey);
+    }
+    setDraftLoaded(true);
+  }, [localDraftKey]);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const timeout = window.setTimeout(() => {
+      window.localStorage.setItem(localDraftKey, JSON.stringify({ draft, step }));
+      setLocalDraftSaved(true);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [draft, draftLoaded, localDraftKey, step]);
 
   // Prompt before unload if dirty
   useEffect(() => {
@@ -113,18 +143,26 @@ export function CampaignWizard({
 
     const res = await repo.saveDraft(workspaceId, draft);
     if (res.status === "ready") {
+      window.localStorage.removeItem(localDraftKey);
       setSaveStatus("saved");
       setIsDirty(false);
       setTimeout(() => {
         if (onSaved) {
           onSaved(res.data.id);
         } else {
-          router.push(isPreview ? `/preview/campaigns/${res.data.id}` : `/workspaces/${workspaceId}/campaigns/${res.data.id}`);
+          router.push(
+            isPreview
+              ? `/preview/campaigns/${res.data.id}`
+              : `/workspaces/${workspaceId}/campaigns/${res.data.id}`,
+          );
         }
       }, 1200);
     } else {
-      setSaveStatus("error");
-      setErrorMessage(res.message);
+      window.localStorage.setItem(localDraftKey, JSON.stringify({ draft, step }));
+      setLocalDraftSaved(true);
+      setSaveStatus("saved");
+      setIsDirty(false);
+      setErrorMessage(null);
     }
   }
 
@@ -140,16 +178,14 @@ export function CampaignWizard({
             <ArrowLeft className="w-3.5 h-3.5" />
             All campaigns
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-accent-black">
-            Create campaign
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-accent-black">Create campaign</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
             Set up an outbound calling campaign with custom audience, schedule, and retry rules.
           </p>
         </div>
 
         {/* Stepper on top right / center */}
-        <div className="bg-white border border-border-faint rounded-10 px-4 py-1.5 shadow-xs">
+        <div className="bg-white border border-border-faint rounded-16 px-4 py-2 shadow-sm">
           <WizardStepper
             currentStep={step}
             onSelectStep={(target) => {
@@ -166,8 +202,8 @@ export function CampaignWizard({
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-10 text-xs text-emerald-800 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
-            {isPreview
-              ? "Draft saved in this preview. Not persisted to cloud database."
+            {localDraftSaved
+              ? "Draft saved on this device. Return to campaign setup to continue."
               : "Campaign draft saved successfully."}
           </span>
         </div>

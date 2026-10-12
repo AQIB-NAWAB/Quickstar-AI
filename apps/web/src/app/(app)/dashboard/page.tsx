@@ -9,7 +9,7 @@ export default async function LegacyDashboardRedirect() {
   }
   const workspaceId = await ensureWorkspaceForUser(token);
   if (workspaceId) {
-    redirect(`/workspaces/${workspaceId}`);
+    redirect(`/workspaces/${workspaceId}/agents`);
   }
   redirect("/login");
 }
