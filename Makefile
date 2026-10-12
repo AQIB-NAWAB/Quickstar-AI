@@ -68,3 +68,7 @@ data-plane-smoke:
 
 ps:
 	$(COMPOSE) ps
+
+lead-generation-migrate:
+	pnpm --filter @quickstart/service-lead-generation build
+	pnpm --filter @quickstart/service-lead-generation migrate

@@ -1,4 +1,4 @@
-import { fetchWithPolicy } from "@quickstart/utilities";
+import { fetchPublicText } from "@quickstart/utilities";
 import type { AcquisitionProviderProfileConfig, WebFetchConfig } from "../config/environment.js";
 import { ProviderError } from "../domain/types.js";
 import type { ScrapeProviderInput, ScrapeProviderOutput } from "../domain/types.js";
@@ -25,33 +25,12 @@ export class DirectHttpAcquisitionProvider implements AcquisitionProvider {
     }
 
     try {
-      const response = await fetchWithPolicy(
-        input.url,
-        {
-          method: "GET",
-          headers: {
-            "user-agent": "QuickStart-WebFetch/1.0",
-            accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
-          },
-          redirect: "follow",
-        },
-        { timeoutMs: this.config.scrapeTimeoutMs, maxRetries: 0 },
-      );
-
-      if (!response.ok) {
-        throw new ProviderError(`direct_http status ${response.status}`, {
-          retryable: response.status === 429 || response.status >= 500,
-          httpStatus: response.status,
-        });
-      }
-
-      const contentType = response.headers.get("content-type") ?? "";
-      const buffer = await response.arrayBuffer();
-      if (buffer.byteLength > this.config.directHttpMaxBytes) {
-        throw new ProviderError("response too large", { retryable: false, httpStatus: 413 });
-      }
-
-      const body = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      const response = await fetchPublicText(input.url, {
+        timeoutMs: this.config.scrapeTimeoutMs,
+        maxBytes: this.config.directHttpMaxBytes,
+      });
+      const contentType = response.contentType;
+      const body = response.text;
 
       if (contentType.includes("text/html") || body.trimStart().startsWith("<")) {
         const text = htmlToPlainText(body);
@@ -61,7 +40,7 @@ export class DirectHttpAcquisitionProvider implements AcquisitionProvider {
         return {
           text,
           title: extractTitle(body),
-          finalUrl: response.url,
+          finalUrl: response.finalUrl,
         };
       }
 
@@ -70,7 +49,7 @@ export class DirectHttpAcquisitionProvider implements AcquisitionProvider {
         if (!text) {
           throw new ProviderError("empty text body", { retryable: false, httpStatus: 422 });
         }
-        return { text, finalUrl: response.url };
+        return { text, finalUrl: response.finalUrl };
       }
 
       throw new ProviderError("unsupported content type for direct_http", {
@@ -80,6 +59,25 @@ export class DirectHttpAcquisitionProvider implements AcquisitionProvider {
     } catch (error) {
       if (error instanceof ProviderError) {
         throw error;
+      }
+      const message = error instanceof Error ? error.message : "";
+      const status = /^WEB_HTTP_(\d+)$/.exec(message);
+      if (status) {
+        const httpStatus = Number(status[1]);
+        throw new ProviderError("direct_http upstream status", {
+          retryable: httpStatus === 429 || httpStatus >= 500,
+          httpStatus,
+        });
+      }
+      if (
+        ["UNSAFE_URL", "WEB_TOO_LARGE", "WEB_REDIRECT_LIMIT", "WEB_INVALID_REDIRECT"].includes(
+          message,
+        )
+      ) {
+        throw new ProviderError("direct_http rejected unsafe or oversized response", {
+          retryable: false,
+          httpStatus: 400,
+        });
       }
       throw new ProviderError("direct_http fetch failed", { retryable: true });
     }

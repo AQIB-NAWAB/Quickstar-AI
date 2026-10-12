@@ -76,3 +76,12 @@ See [.cursorrules](.cursorrules) for commit hygiene (no AI co-author trailers).
 ## License
 
 TBD.
+
+## Lead generation backend
+
+The workspace-scoped lead generation service provides onboarding research,
+category-based runs, evidence-backed qualification, audited dynamic tier policies,
+fair scheduling and a campaign delivery adapter. See [the service README](services/lead-generation-service/README.md)
+and [API and integration contracts](docs/lead-generation.md).
+Windows setup: `scripts/setup-lead-generation.ps1`. Explicit demo mode uses synthetic
+data; live research requires configured providers and a verified campaign contract.

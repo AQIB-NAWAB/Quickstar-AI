@@ -43,3 +43,6 @@ walkthrough_videos/
 design/
 .vercel
 .env*
+
+!.env.example
+!.env.leads.example

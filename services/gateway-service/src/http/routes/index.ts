@@ -11,7 +11,10 @@ import { createSecretsProxyRoutes } from "./proxy-secrets.routes.js";
 import { createWorkspaceProxyRoutes } from "./proxy-workspace.routes.js";
 import { createWidgetPublicRoutes } from "./widget-public.routes.js";
 
+import { createLeadGenerationProxyRoutes } from "./proxy-lead-generation.routes.js";
+
 const gatewayRouteModules = [
+  createLeadGenerationProxyRoutes,
   createHealthRoutes,
   createWidgetPublicRoutes,
   createIdentityProxyRoutes,

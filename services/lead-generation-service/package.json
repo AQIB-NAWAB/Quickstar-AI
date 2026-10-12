@@ -1,0 +1,29 @@
+{
+  "name": "@quickstart/service-lead-generation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/tests/*.test.js",
+    "start": "node dist/index.js",
+    "migrate": "node dist/migrate.js",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@quickstart/auth": "workspace:*",
+    "@quickstart/contracts": "workspace:*",
+    "@quickstart/errors": "workspace:*",
+    "@quickstart/http-server": "workspace:*",
+    "@quickstart/logging": "workspace:*",
+    "@quickstart/tracing": "workspace:*",
+    "@quickstart/workspace-access": "workspace:*",
+    "pg": "^8.16.3",
+    "@quickstart/utilities": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5",
+    "@electric-sql/pglite": "^0.3.14"
+  }
+}
