@@ -1,9 +1,80 @@
+import type { AudienceFieldRole, ColumnMapping } from "./types";
 import { normalizePhone } from "./format";
 
 export interface ParsedCsvResult {
   headers: string[];
   rows: Record<string, string>[];
   totalRows: number;
+}
+
+export function slugifyHeader(header: string): string {
+  return header
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64) || "field";
+}
+
+export function guessRole(header: string): AudienceFieldRole {
+  const h = header.toLowerCase();
+  if (h.includes("phone") || h.includes("mobile") || h.includes("msisdn") || h === "tel") {
+    return "dial";
+  }
+  if (h.includes("email") || h.includes("e-mail")) {
+    return "contact_email";
+  }
+  if (
+    h === "name" ||
+    h.includes("full_name") ||
+    h.includes("firstname") ||
+    h.includes("first_name") ||
+    h.includes("lastname") ||
+    h.includes("last_name") ||
+    h.includes("contact_name")
+  ) {
+    return "identity";
+  }
+  return "custom";
+}
+
+export function buildDefaultMappings(headers: string[]): ColumnMapping[] {
+  const mappings: ColumnMapping[] = [];
+  const usedKeys = new Set<string>();
+  let dialAssigned = false;
+  let identityAssigned = false;
+  let emailAssigned = false;
+
+  for (const header of headers) {
+    let role = guessRole(header);
+    if (role === "dial" && dialAssigned) role = "custom";
+    if (role === "identity" && identityAssigned) role = "custom";
+    if (role === "contact_email" && emailAssigned) role = "custom";
+
+    let key = slugifyHeader(header);
+    if (role === "dial") key = "phone";
+    if (role === "identity") key = "name";
+    if (role === "contact_email") key = "email";
+
+    let unique = key;
+    let i = 2;
+    while (usedKeys.has(unique)) {
+      unique = `${key}_${i++}`;
+    }
+    usedKeys.add(unique);
+
+    if (role === "dial") dialAssigned = true;
+    if (role === "identity") identityAssigned = true;
+    if (role === "contact_email") emailAssigned = true;
+
+    mappings.push({ sourceColumn: header, key: unique, role });
+  }
+
+  if (!dialAssigned && headers.length > 0) {
+    mappings[0] = { ...mappings[0], role: "dial", key: "phone" };
+  }
+
+  return mappings;
 }
 
 export interface ValidationSummary {
@@ -141,37 +212,71 @@ export function parseCsvText(text: string): ParsedCsvResult {
 
 /**
  * Validates parsed CSV rows against column mappings:
- * - Phone is required and must match international format
+ * - Dial role column is required and must match international E.164
  * - Checks for duplicates by normalized phone
+ * - All other mapped columns become flexible attributes
  */
 export function validateAudienceRows(
   rows: Record<string, string>[],
   phoneColumn: string,
   _nameColumn?: string,
-  _emailColumn?: string
+  _emailColumn?: string,
 ): ValidationSummary {
-    void _nameColumn;
-    void _emailColumn;
+  void _nameColumn;
+  void _emailColumn;
+  return validateAudienceWithMappings(rows, [
+    { sourceColumn: phoneColumn, key: "phone", role: "dial" },
+  ]);
+}
+
+export type PreparedAudienceRow = {
+  phone: string;
+  name?: string | null;
+  email?: string | null;
+  attributes: Record<string, string>;
+  raw: Record<string, string>;
+};
+
+export function validateAudienceWithMappings(
+  rows: Record<string, string>[],
+  mappings: ColumnMapping[],
+): ValidationSummary & { prepared: PreparedAudienceRow[] } {
+  const dial = mappings.find((m) => m.role === "dial");
+  const identity = mappings.find((m) => m.role === "identity");
+  const emailMap = mappings.find((m) => m.role === "contact_email");
+
   const validRows: Record<string, string>[] = [];
+  const prepared: PreparedAudienceRow[] = [];
   const invalidRows: { rowNumber: number; reason: string; raw: Record<string, string> }[] = [];
   const duplicateRows: { rowNumber: number; phone: string; raw: Record<string, string> }[] = [];
   const seenPhones = new Set<string>();
 
+  if (!dial) {
+    return {
+      validRows: [],
+      invalidRows: rows.map((raw, idx) => ({
+        rowNumber: idx + 2,
+        reason: "No dial (phone) column mapped",
+        raw,
+      })),
+      duplicateRows: [],
+      validCount: 0,
+      invalidCount: rows.length,
+      duplicateCount: 0,
+      prepared: [],
+    };
+  }
+
   rows.forEach((row, idx) => {
-    const rowNum = idx + 2; // +1 for 1-based, +1 for header
-    const rawPhone = row[phoneColumn]?.trim() || "";
+    const rowNum = idx + 2;
+    const rawPhone = row[dial.sourceColumn]?.trim() || "";
 
     if (!rawPhone) {
-      invalidRows.push({
-        rowNumber: rowNum,
-        reason: "Missing phone number",
-        raw: row,
-      });
+      invalidRows.push({ rowNumber: rowNum, reason: "Missing phone number", raw: row });
       return;
     }
 
     const normalized = normalizePhone(rawPhone);
-    // International E.164 check: starts with +, at least 7 digits, max 15 digits
     const isValidE164 = /^\+[1-9]\d{6,14}$/.test(normalized);
 
     if (!isValidE164) {
@@ -184,16 +289,27 @@ export function validateAudienceRows(
     }
 
     if (seenPhones.has(normalized)) {
-      duplicateRows.push({
-        rowNumber: rowNum,
-        phone: normalized,
-        raw: row,
-      });
+      duplicateRows.push({ rowNumber: rowNum, phone: normalized, raw: row });
       return;
     }
 
     seenPhones.add(normalized);
     validRows.push(row);
+
+    const attributes: Record<string, string> = {};
+    for (const m of mappings) {
+      if (m.role === "dial") continue;
+      const value = row[m.sourceColumn]?.trim() ?? "";
+      if (value) attributes[m.key] = value;
+    }
+
+    prepared.push({
+      phone: normalized,
+      name: identity ? row[identity.sourceColumn]?.trim() || null : null,
+      email: emailMap ? row[emailMap.sourceColumn]?.trim() || null : null,
+      attributes,
+      raw: row,
+    });
   });
 
   return {
@@ -203,5 +319,6 @@ export function validateAudienceRows(
     validCount: validRows.length,
     invalidCount: invalidRows.length,
     duplicateCount: duplicateRows.length,
+    prepared,
   };
 }

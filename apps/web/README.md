@@ -56,6 +56,41 @@ See **[docs/FOLDER_STRUCTURE.md](./docs/FOLDER_STRUCTURE.md)** for how `features
 
 Protected routes: `/workspaces/[workspaceId]/*` (middleware + silent refresh).
 
+## Website chat widget (Feature 17)
+
+The static browser bundle is published at `/quickstart-widget.js`. It has no
+runtime dependency on React and can be loaded on a customer site with a
+workspace publishable key:
+
+```html
+<script
+  async
+  src="https://YOUR-QUICKSTART-WEB-HOST/quickstart-widget.js"
+  data-gateway-url="https://YOUR-QUICKSTART-GATEWAY"
+  data-publishable-key="pk_live_..."
+  data-agent-id="PUBLISHED_AGENT_UUID"
+  data-title="Chat with us"
+></script>
+```
+
+In workspace settings, add the full page origin (scheme, host, and port) to the
+publishable key's allowed origins. The widget keeps an anonymous visitor id and
+conversation id in that browser's local storage and reloads the thread when the
+visitor returns. The browser sends only the publishable key; never put a secret
+API key in the script.
+
+For a local end-to-end demo, start the gateway and services, run the web app on
+port 3015 (port 3005 is used by the model gateway), configure the fixture with
+a publishable key and published agent, then serve the repo root from
+`http://127.0.0.1:8080`:
+
+```bash
+python3 -m http.server 8080
+```
+
+Add `http://127.0.0.1:8080` to the key's allowed origins and open
+`http://127.0.0.1:8080/fixtures/widget-demo.html`.
+
 ## Inbox (F4)
 
 Staff inbox at `/workspaces/[workspaceId]/inbox` calls the gateway through **BFF** routes under `/api/workspaces/.../conversations` (access token from httpOnly cookies). The thread view loads the last ~50 messages, polls `after_seq` every 3s, supports take/release, human send, and a printable transcript.

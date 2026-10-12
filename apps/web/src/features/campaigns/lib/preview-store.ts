@@ -207,6 +207,13 @@ class InMemoryCampaignPreviewStore implements CampaignRepository {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       version: 1,
+      audienceSchema: draft.columnMappings.map((m) => ({
+        key: m.key,
+        label: m.sourceColumn,
+        role: m.role,
+        sourceColumn: m.sourceColumn,
+        required: m.role === "dial",
+      })),
       schedule: draft.schedule,
       pacing: draft.pacing,
       retryPolicy: draft.retryPolicy,

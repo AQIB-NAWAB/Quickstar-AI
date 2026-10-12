@@ -72,6 +72,7 @@ export function createAgentsController(agents: AgentsService) {
         expected_version?: number;
         version?: number;
         tools?: AgentToolDefinition[];
+        voice?: import("@quickstart/contracts").AgentVoiceSettings;
       };
 
       const expectedVersion = body.expected_version ?? body.version;
@@ -85,6 +86,7 @@ export function createAgentsController(agents: AgentsService) {
           ? { chat: body.channels.chat ?? true, voice: body.channels.voice ?? false }
           : undefined,
         tools: body.tools,
+        voice: body.voice,
         expectedVersion: expectedVersion as number,
       });
 

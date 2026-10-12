@@ -9,6 +9,9 @@ export type GatewayConfig = {
   knowledgeUrl: string;
   memoryUrl: string;
   secretsUrl: string;
+  workflowUrl: string;
+  campaignUrl: string;
+  voiceUrl: string;
   jwtAccessSecret: string;
   redisUrl: string;
   httpRequestTimeoutMs: number;
@@ -40,6 +43,9 @@ export function loadGatewayConfig(): GatewayConfig {
     knowledgeUrl: (process.env.KNOWLEDGE_URL ?? process.env.KNOWLEDGE_SERVICE_URL ?? "http://127.0.0.1:3009").replace(/\/$/, ""),
     memoryUrl: (process.env.MEMORY_URL ?? process.env.MEMORY_SERVICE_URL ?? "http://127.0.0.1:3010").replace(/\/$/, ""),
     secretsUrl: (process.env.SECRETS_URL ?? process.env.SECRETS_SERVICE_URL ?? "http://127.0.0.1:3011").replace(/\/$/, ""),
+    workflowUrl: (process.env.WORKFLOW_URL ?? process.env.WORKFLOW_SERVICE_URL ?? "http://127.0.0.1:3012").replace(/\/$/, ""),
+    campaignUrl: (process.env.CAMPAIGN_URL ?? process.env.CAMPAIGN_SERVICE_URL ?? "http://127.0.0.1:3013").replace(/\/$/, ""),
+    voiceUrl: (process.env.VOICE_URL ?? process.env.VOICE_SERVICE_URL ?? "http://127.0.0.1:3008").replace(/\/$/, ""),
     jwtAccessSecret,
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),

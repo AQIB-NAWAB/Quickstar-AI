@@ -2,48 +2,47 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>QuickStart widget demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuickStart AI chat widget demo</title>
+    <style>
+      body {
+        max-width: 720px;
+        margin: 64px auto;
+        padding: 0 24px;
+        color: #202020;
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+      }
+      code {
+        padding: 2px 5px;
+        border-radius: 4px;
+        background: #f2f2f2;
+      }
+    </style>
   </head>
   <body>
-    <h1>Widget demo</h1>
-    <p>Set publishable key and gateway URL in the script below. Serve this file from an allowed origin.</p>
-    <pre id="log"></pre>
-    <script>
-      const GATEWAY = "http://127.0.0.1:3000";
-      const PUBLISHABLE_KEY = "REPLACE_WITH_pk_live_KEY";
-      const ORIGIN = window.location.origin;
-
-      const logEl = document.getElementById("log");
-      function log(msg) {
-        logEl.textContent += msg + "\n";
-      }
-
-      async function run() {
-        const headers = {
-          "Content-Type": "application/json",
-          "X-Publishable-Key": PUBLISHABLE_KEY,
-          Origin: ORIGIN,
-        };
-        const create = await fetch(GATEWAY + "/v1/public/widget/conversations", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ subject_key: "demo-visitor-1", agent_id: "REPLACE_AGENT_UUID" }),
-        });
-        const created = await create.json();
-        log("conversation: " + JSON.stringify(created));
-
-        const turn = await fetch(
-          GATEWAY + "/v1/public/widget/conversations/" + created.conversation_id + "/turns",
-          {
-            method: "POST",
-            headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
-            body: JSON.stringify({ message: "Hello from widget demo" }),
-          },
-        );
-        log("turn: " + JSON.stringify(await turn.json()));
-      }
-
-      run().catch((e) => log(String(e)));
-    </script>
+    <h1>QuickStart AI chat widget</h1>
+    <p>
+      This is a customer-site example. Configure a publishable key in the script tag below, add this
+      page's origin to that key's allowed origins, and publish the agent.
+    </p>
+    <p>
+      Open the launcher in the lower-right corner to chat. The visitor and conversation are saved in
+      this browser, so reloading the page restores the same thread.
+    </p>
+    <p>
+      For local use, serve this file from <code>http://127.0.0.1:8080</code>, add that exact origin
+      to the publishable key, and run the QuickStart web app on port 3005.
+    </p>
+    <script
+      defer
+      src="http://127.0.0.1:3015/quickstart-widget.js"
+      data-gateway-url="http://127.0.0.1:3000"
+      data-publishable-key="REPLACE_WITH_pk_live_KEY"
+      data-agent-id="REPLACE_WITH_PUBLISHED_AGENT_UUID"
+      data-title="QuickStart support"
+      data-color="#f15a24"
+    ></script>
   </body>
 </html>
