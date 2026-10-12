@@ -27,12 +27,14 @@ export async function POST(request: Request) {
   const workspaceId = await ensureWorkspaceForUser(login.data.access_token);
   if (!workspaceId) {
     return NextResponse.json(
-      { error: { code: "WORKSPACE_SETUP_FAILED", message: "Could not load or create a workspace" } },
+      {
+        error: { code: "WORKSPACE_SETUP_FAILED", message: "Could not load or create a workspace" },
+      },
       { status: 503 },
     );
   }
 
-  const res = NextResponse.json({ redirect: `/workspaces/${workspaceId}` });
+  const res = NextResponse.json({ redirect: `/workspaces/${workspaceId}/agents` });
   applyTokenCookies(res, login.data);
   return res;
 }

@@ -32,6 +32,7 @@ const config: Config = {
         "border-loud": "#e6e6e6",
         "accent-bluetron": "#2a6dfb",
         "accent-amethyst": "#9061ff",
+        "accent-crimson": "#eb3424",
         "accent-forest": "#42c366",
         "accent-honey": "#ecb730",
       },
@@ -68,8 +69,7 @@ const config: Config = {
       boxShadow: {
         "firecrawl-card":
           "0px 0px 44px 0px rgba(0, 0, 0, 0.02), 0px 88px 56px -20px rgba(0, 0, 0, 0.03), 0px 56px 56px -20px rgba(0, 0, 0, 0.02), 0px 32px 32px -20px rgba(0, 0, 0, 0.03), 0px 16px 24px -12px rgba(0, 0, 0, 0.03), 0px 0px 0px 1px #ededed",
-        "firecrawl-btn":
-          "0px 2px 4px rgba(250, 93, 25, 0.2), 0px 1px 2px rgba(0, 0, 0, 0.05)",
+        "firecrawl-btn": "0px 2px 4px rgba(250, 93, 25, 0.2), 0px 1px 2px rgba(0, 0, 0, 0.05)",
       },
     },
   },

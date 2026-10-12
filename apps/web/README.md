@@ -10,7 +10,7 @@ When connecting the frontend to a deployed backend, set
 
 ## Ignition logo and companion
 
-The supplied `newLogo` artwork is published under `public/brand`. `BrandLogo`
+The brand logo artwork is published under `src/assets/logo` and `public/brand`. `BrandLogo`
 preserves its flame silhouette and transparent eyes; the navbar, footer, app shell,
 coming-soon page, and favicon use the new mark.
 
