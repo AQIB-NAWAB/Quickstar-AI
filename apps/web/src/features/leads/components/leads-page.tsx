@@ -4,25 +4,26 @@ import { Download } from "lucide-react";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
 import { useEffect,useMemo,useState } from "react";
 import { filterLeads } from "../lib/filters";
-import type { LeadDetail,LeadStatus,LeadSummary,LeadsRepository } from "../lib/types";
+import { getLeadsRepository } from "../lib/repository";
+import type { LeadDetail,LeadStatus,LeadSummary } from "../lib/types";
 import { CsvExportDialog } from "./csv-export-dialog";
 import { LeadDetailDrawer } from "./lead-detail-drawer";
 import { LeadFilters } from "./lead-filters";
 import { LeadTable } from "./lead-table";
 
 interface LeadsPageProps {
-  repository: LeadsRepository;
   workspaceId: string;
   workspaceSlug?: string;
   isSampleData?: boolean;
 }
 
 export function LeadsPage({
-  repository,
   workspaceId,
   workspaceSlug = "acme-support",
   isSampleData = false,
 }: LeadsPageProps) {
+  // Construct on the client — class instances cannot cross the RSC boundary.
+  const repository = useMemo(() => getLeadsRepository(isSampleData), [isSampleData]);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

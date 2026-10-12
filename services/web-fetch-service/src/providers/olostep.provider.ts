@@ -107,15 +107,26 @@ export class OlostepAcquisitionProvider implements AcquisitionProvider {
     }
 
     const json = (await response.json()) as {
-      results?: Array<{ url?: string; link?: string; title?: string; snippet?: string }>;
-      search?: { results?: Array<{ url?: string; link?: string; title?: string; snippet?: string }> };
+      results?: Array<{ url?: string; link?: string; title?: string; snippet?: string; description?: string }>;
+      search?: {
+        results?: Array<{ url?: string; link?: string; title?: string; snippet?: string; description?: string }>;
+      };
+      result?: {
+        links?: Array<{ url?: string; link?: string; title?: string; snippet?: string; description?: string }>;
+      };
     };
-    const raw = json.results ?? json.search?.results ?? [];
-    const results = raw.slice(0, input.maxResults).map((item, index) => ({
-      url: item.url ?? item.link ?? `https://example.com/${index}`,
-      title: item.title ?? "Untitled",
-      snippet: item.snippet ?? "",
-    }));
+    const raw = json.results ?? json.search?.results ?? json.result?.links ?? [];
+    const results = raw.slice(0, input.maxResults).flatMap((item) => {
+      const url = item.url ?? item.link;
+      if (!url || !/^https?:\/\//i.test(url)) return [];
+      return [
+        {
+          url,
+          title: item.title ?? "Untitled",
+          snippet: item.snippet ?? item.description ?? "",
+        },
+      ];
+    });
 
     return { results };
   }

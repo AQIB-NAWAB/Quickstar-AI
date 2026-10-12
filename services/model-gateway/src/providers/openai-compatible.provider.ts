@@ -1,15 +1,76 @@
+import type { ChatMessage, ModelToolCall } from "@quickstart/contracts";
 import type { ProviderProfileConfig } from "../config/environment.js";
 import { ProviderError } from "../domain/types.js";
 import type { ProviderCompletionInput, ProviderCompletionOutput } from "../domain/types.js";
 import type { ChatProvider } from "./types.js";
 
+type OpenAiToolCall = {
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string };
+};
+
 type OpenAiChatResponse = {
   choices?: Array<{
-    message?: { content?: string };
+    message?: {
+      content?: string | null;
+      tool_calls?: OpenAiToolCall[];
+    };
     finish_reason?: string;
   }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
+
+function parseToolArguments(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : { value: parsed };
+  } catch {
+    return { raw };
+  }
+}
+
+function mapToolCalls(calls: OpenAiToolCall[] | undefined): ModelToolCall[] | undefined {
+  if (!calls?.length) return undefined;
+  return calls
+    .map((call, index) => ({
+      id: call.id || `tool-call-${index + 1}`,
+      name: call.function?.name ?? "",
+      arguments: parseToolArguments(call.function?.arguments),
+    }))
+    .filter((call) => call.name.length > 0);
+}
+
+function mapMessages(messages: ChatMessage[]): Record<string, unknown>[] {
+  return messages.map((message) => {
+    if (message.role === "tool") {
+      return {
+        role: "tool",
+        tool_call_id: message.tool_call_id,
+        content: message.content,
+        ...(message.name ? { name: message.name } : {}),
+      };
+    }
+    if (message.role === "assistant" && message.tool_calls?.length) {
+      return {
+        role: "assistant",
+        content: message.content || null,
+        tool_calls: message.tool_calls.map((call) => ({
+          id: call.id,
+          type: "function",
+          function: {
+            name: call.name,
+            arguments: JSON.stringify(call.arguments ?? {}),
+          },
+        })),
+      };
+    }
+    return { role: message.role, content: message.content };
+  });
+}
 
 export class OpenAiCompatibleProvider implements ChatProvider {
   readonly profileId: string;
@@ -27,9 +88,15 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     const response = await this.post("/chat/completions", body);
     const json = (await response.json()) as OpenAiChatResponse;
     const choice = json.choices?.[0];
+    const toolCalls = mapToolCalls(choice?.message?.tool_calls);
+    const finishReason =
+      toolCalls?.length && choice?.finish_reason !== "tool_calls"
+        ? "tool_calls"
+        : (choice?.finish_reason ?? "stop");
     return {
       content: choice?.message?.content ?? "",
-      finishReason: choice?.finish_reason ?? "stop",
+      finishReason,
+      ...(toolCalls ? { toolCalls } : {}),
       usage: {
         inputTokens: json.usage?.prompt_tokens ?? 0,
         outputTokens: json.usage?.completion_tokens ?? 0,
@@ -97,13 +164,24 @@ export class OpenAiCompatibleProvider implements ChatProvider {
   }
 
   private buildBody(input: ProviderCompletionInput, stream: boolean): Record<string, unknown> {
-    return {
+    const body: Record<string, unknown> = {
       model: input.modelId,
-      messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: input.temperature,
-      max_tokens: input.maxTokens,
+      messages: mapMessages(input.messages),
       stream,
     };
+    if (input.temperature !== undefined) body.temperature = input.temperature;
+    if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
+    if (input.tools?.length) {
+      body.tools = input.tools.map((tool) => ({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          ...(tool.parameters ? { parameters: tool.parameters } : {}),
+        },
+      }));
+    }
+    return body;
   }
 
   private async post(path: string, body: Record<string, unknown>): Promise<Response> {
