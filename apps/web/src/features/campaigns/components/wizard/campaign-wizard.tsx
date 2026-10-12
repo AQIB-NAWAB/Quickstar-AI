@@ -3,7 +3,7 @@
 import { AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getCampaignRepository } from "../../lib/repository";
 import type { CampaignRepository, WizardDraft } from "../../lib/types";
 import { AudienceStep } from "./audience-step";
@@ -118,7 +118,10 @@ export function CampaignWizard({
   baseBackUrl,
 }: CampaignWizardProps) {
   const router = useRouter();
-  const repo = repository || getCampaignRepository(isPreview);
+  const repo = useMemo(
+    () => repository ?? getCampaignRepository(isPreview),
+    [repository, isPreview],
+  );
   const localDraftKey = `quickstart:campaign-draft:${workspaceId}`;
 
   const [step, setStep] = useState(1);

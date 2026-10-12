@@ -2,7 +2,7 @@
 
 import { AlertCircle,ArrowLeft,Megaphone } from "lucide-react";
 import Link from "next/link";
-import { useEffect,useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import { getCampaignRepository } from "../lib/repository";
 import type { CampaignContact,CampaignDetail,ContactAttempt,RepositoryResult } from "../lib/types";
 import { CampaignAttempts } from "./campaign-attempts";
@@ -24,7 +24,7 @@ export function AuthenticatedCampaignView({
   tab,
   contactId,
 }: AuthenticatedCampaignViewProps) {
-  const repo = getCampaignRepository(false);
+  const repo = useMemo(() => getCampaignRepository(false), []);
   const [campaignResult, setCampaignResult] = useState<RepositoryResult<CampaignDetail> | null>(null);
   const [contactsResult, setContactsResult] = useState<RepositoryResult<CampaignContact[]> | null>(null);
   const [attemptsResult, setAttemptsResult] = useState<RepositoryResult<ContactAttempt[]> | null>(null);
@@ -34,16 +34,16 @@ export function AuthenticatedCampaignView({
   const backUrl = `/workspaces/${workspaceId}/campaigns`;
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
 
     Promise.all([
-      repo.getCampaign(workspaceId, campaignId),
-      repo.listContacts(workspaceId, campaignId),
-      repo.listAttempts(workspaceId, campaignId),
+      repo.getCampaign(workspaceId, campaignId, controller.signal),
+      repo.listContacts(workspaceId, campaignId, undefined, controller.signal),
+      repo.listAttempts(workspaceId, campaignId, controller.signal),
     ])
       .then(([cRes, contRes, attRes]) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setCampaignResult(cRes);
           setContactsResult(contRes);
           setAttemptsResult(attRes);
@@ -51,17 +51,18 @@ export function AuthenticatedCampaignView({
         }
       })
       .catch((err) => {
-        if (!cancelled) {
-          setCampaignResult({
-            status: "error",
-            message: err instanceof Error ? err.message : "Failed to load campaign",
-          });
-          setLoading(false);
+        if (controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
         }
+        setCampaignResult({
+          status: "error",
+          message: err instanceof Error ? err.message : "Failed to load campaign",
+        });
+        setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [repo, workspaceId, campaignId]);
 
