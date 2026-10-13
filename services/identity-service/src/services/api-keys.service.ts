@@ -5,7 +5,12 @@ import { apiKeyMaterial, hashToken } from "../utils/password-hasher.js";
 
 export function createApiKeysService(repository: IdentityStore) {
   return {
-    async createApiKey(orgId: string, userId: string, name: string) {
+    async createApiKey(
+      orgId: string,
+      userId: string,
+      name: string,
+      audit?: { requestId: string },
+    ) {
       const membership = await repository.getMembership(orgId, userId);
       if (!membership) {
         throw new AppError({ code: ErrorCode.FORBIDDEN, message: "Not a member of organization" });
@@ -16,14 +21,17 @@ export function createApiKeysService(repository: IdentityStore) {
 
       const { raw, prefix } = apiKeyMaterial();
       const id = randomUUID();
-      await repository.createApiKey({
-        id,
-        orgId,
-        name: name.trim(),
-        keyPrefix: prefix,
-        keyHash: hashToken(raw),
-        createdBy: userId,
-      });
+      await repository.createApiKey(
+        {
+          id,
+          orgId,
+          name: name.trim(),
+          keyPrefix: prefix,
+          keyHash: hashToken(raw),
+          createdBy: userId,
+        },
+        audit,
+      );
 
       return {
         id,
@@ -47,12 +55,21 @@ export function createApiKeysService(repository: IdentityStore) {
       }));
     },
 
-    async revokeApiKey(orgId: string, userId: string, keyId: string) {
+    async revokeApiKey(
+      orgId: string,
+      userId: string,
+      keyId: string,
+      audit?: { requestId: string },
+    ) {
       const membership = await repository.getMembership(orgId, userId);
       if (!membership) {
         throw new AppError({ code: ErrorCode.FORBIDDEN, message: "Not a member of organization" });
       }
-      const ok = await repository.revokeApiKey(orgId, keyId);
+      const ok = await repository.revokeApiKey(
+        orgId,
+        keyId,
+        audit ? { actorUserId: userId, requestId: audit.requestId } : undefined,
+      );
       if (!ok) {
         throw new AppError({ code: ErrorCode.NOT_FOUND, message: "API key not found" });
       }

@@ -17,6 +17,7 @@ import { PgCampaignsRepository } from "./repository/campaigns.repository.js";
 import { createLocalRecordingStore } from "./repository/recording.store.js";
 import { createSpeechBundle } from "./speech/factory.js";
 import { createHttpRuntimeClient } from "./clients/runtime.client.js";
+import { createUsageIngestClient } from "./clients/usage.client.js";
 import { createRedisCallCaps } from "./caps/call-caps.js";
 import { CallSessionOrchestrator } from "./session/orchestrator.js";
 import { CampaignsService } from "./services/campaigns.service.js";
@@ -56,6 +57,11 @@ export async function startVoiceServer(): Promise<{
     config.httpRequestTimeoutMs,
     config.internalToken,
   );
+  const usageIngest = createUsageIngestClient({
+    usageUrl: config.usageUrl,
+    internalToken: config.usageInternalToken,
+    logger,
+  });
 
   const redisClient = createRedisClient(config.redisUrl);
   await redisClient.connect();
@@ -76,6 +82,7 @@ export async function startVoiceServer(): Promise<{
     logger,
     config.spokenFallbackPhrase,
     config.defaultVoiceDeadlineMs,
+    usageIngest,
   );
   orchestrator.setDraining(config.draining);
 
@@ -123,6 +130,7 @@ export async function startVoiceServer(): Promise<{
       orchestrator,
       calls: callsRepo,
       statusIdempotency,
+      usageIngest,
     }),
   });
 

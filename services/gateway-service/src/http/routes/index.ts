@@ -13,6 +13,8 @@ import { createCampaignProxyRoutes } from "./proxy-campaign.routes.js";
 import { createVoiceProxyRoutes } from "./proxy-voice.routes.js";
 import { createLeadProxyRoutes } from "./proxy-lead.routes.js";
 import { createEvalProxyRoutes } from "./proxy-eval.routes.js";
+import { createUsageProxyRoutes } from "./proxy-usage.routes.js";
+import { createAuditProxyRoutes } from "./proxy-audit.routes.js";
 import { createWorkspaceProxyRoutes } from "./proxy-workspace.routes.js";
 import { createWidgetPublicRoutes } from "./widget-public.routes.js";
 
@@ -35,6 +37,8 @@ const gatewayRouteModules = [
   createVoiceProxyRoutes,
   createLeadProxyRoutes,
   createEvalProxyRoutes,
+  createUsageProxyRoutes,
+  createAuditProxyRoutes,
 ] as const;
 
 export function createGatewayApiRouter(context: GatewayHttpContext): Router {

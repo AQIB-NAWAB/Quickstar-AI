@@ -118,3 +118,13 @@ export {
   type VoiceMode,
   type VoiceTurnRequestBody,
 } from "./voice.js";
+
+export {
+  USAGE_KINDS,
+  type UsageKind,
+  type UsageFactIngestBody,
+  type UsageEntry,
+  type UsageListResponse,
+} from "./usage.js";
+
+export type { AuditEntry, AuditListResponse } from "./audit.js";

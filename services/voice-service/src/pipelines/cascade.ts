@@ -1,5 +1,6 @@
 import type { AgentVoiceSettings, CallStageTimings } from "@quickstart/contracts";
 import type { RuntimeClient } from "../clients/runtime.client.js";
+import type { UsageIngestClient } from "../clients/usage.client.js";
 import type { AudioChunk, SpeechToText, TextToSpeech } from "../speech/types.js";
 
 export type CascadeTurnInput = {
@@ -26,11 +27,36 @@ export type CascadeTurnResult = {
 };
 
 export class CascadePipeline {
+  private speechSeq = 0;
+
   constructor(
     private readonly stt: SpeechToText,
     private readonly tts: TextToSpeech,
     private readonly runtime: RuntimeClient,
+    private readonly usageIngest?: UsageIngestClient,
   ) {}
+
+  private emitSpeech(
+    input: CascadeTurnInput,
+    unit: "stt" | "tts",
+    provider: string,
+    units: number,
+  ): void {
+    if (!this.usageIngest) return;
+    const seq = ++this.speechSeq;
+    const source = input.callId || input.requestId;
+    this.usageIngest.emit({
+      workspace_id: input.workspaceId,
+      kind: "voice",
+      units,
+      unit_label: unit,
+      provider,
+      idempotency_key: `speech:${input.workspaceId}:${source}:${unit}:${seq}`,
+      request_id: input.requestId,
+      source_id: input.callId,
+      detail: { unit, call_id: input.callId },
+    });
+  }
 
   async runUtterance(input: CascadeTurnInput): Promise<CascadeTurnResult> {
     let bargedIn = false;
@@ -39,6 +65,7 @@ export class CascadePipeline {
     }
 
     const sttResult = await this.stt.transcribe(input.audio, input.abortSignal);
+    this.emitSpeech(input, "stt", sttResult.provider, 1);
     let assistantText = input.spokenFallback;
     let agentId = "";
     let agentVersionId = "";
@@ -90,6 +117,7 @@ export class CascadePipeline {
         input.voice.tts_voice_id,
         input.abortSignal,
       );
+      this.emitSpeech(input, "tts", ttsResult.provider, 1);
 
       return {
         userText: sttResult.text,

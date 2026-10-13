@@ -14,6 +14,8 @@ export type GatewayConfig = {
   voiceUrl: string;
   leadUrl: string;
   evalUrl: string;
+  usageUrl: string;
+  auditUrl: string;
   leadGenerationUrl?: string;
   jwtAccessSecret: string;
   redisUrl: string;
@@ -82,6 +84,16 @@ export function loadGatewayConfig(): GatewayConfig {
       process.env.EVAL_URL ??
       process.env.EVAL_SERVICE_URL ??
       "http://127.0.0.1:3016"
+    ).replace(/\/$/, ""),
+    usageUrl: (
+      process.env.USAGE_URL ??
+      process.env.USAGE_SERVICE_URL ??
+      "http://127.0.0.1:3017"
+    ).replace(/\/$/, ""),
+    auditUrl: (
+      process.env.AUDIT_URL ??
+      process.env.AUDIT_SERVICE_URL ??
+      "http://127.0.0.1:3018"
     ).replace(/\/$/, ""),
     leadGenerationUrl: (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(
       /\/$/,

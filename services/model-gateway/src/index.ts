@@ -6,6 +6,7 @@ import { createRedisClient } from "@quickstart/utilities";
 import { loadModelGatewayConfig } from "./config/environment.js";
 import { JevOpenRouterClient } from "./decisions/jev-openrouter.client.js";
 import { createModelGatewayServer, SERVICE_NAME } from "./http/create-server.js";
+import { createUsageIngestClient } from "./clients/usage.client.js";
 import { createRedisInflightCap } from "./lib/inflight-cap.js";
 import { createProviderRegistry } from "./providers/registry.js";
 import { CompletionOrchestrator } from "./services/completion-orchestrator.js";
@@ -33,7 +34,18 @@ export async function startModelGatewayServer(): Promise<{
 
   const registry = createProviderRegistry(config);
   const inflight = createRedisInflightCap(redisClient, config.modelMaxInflight);
-  const orchestrator = new CompletionOrchestrator(config, registry, inflight, logger);
+  const usageIngest = createUsageIngestClient({
+    usageUrl: config.usageUrl,
+    internalToken: config.usageInternalToken,
+    logger,
+  });
+  const orchestrator = new CompletionOrchestrator(
+    config,
+    registry,
+    inflight,
+    logger,
+    usageIngest,
+  );
 
   const jev =
     config.openRouterApiKey

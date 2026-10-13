@@ -138,7 +138,7 @@ export function createMemoryRepository(): IdentityStore {
       }
     },
 
-    async createApiKey(record) {
+    async createApiKey(record, _audit) {
       apiKeys.set(record.id, {
         ...record,
         revokedAt: null,
@@ -150,7 +150,7 @@ export function createMemoryRepository(): IdentityStore {
       return [...apiKeys.values()].filter((k) => k.orgId === orgId && !k.revokedAt);
     },
 
-    async revokeApiKey(orgId, keyId) {
+    async revokeApiKey(orgId, keyId, _audit) {
       const key = apiKeys.get(keyId);
       if (!key || key.orgId !== orgId || key.revokedAt) {
         return false;

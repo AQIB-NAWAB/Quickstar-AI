@@ -34,7 +34,9 @@ export function createMembersController(members: MembersService) {
       const targetUserId = routeParam(req.params.userId);
       const body = req.body as { role: WorkspaceRole };
 
-      const member = await members.updateMemberRole(tenant, targetUserId, body.role);
+      const member = await members.updateMemberRole(tenant, targetUserId, body.role, {
+        requestId,
+      });
       sendPlatformJson(res, 200, {
         request_id: requestId,
         member,

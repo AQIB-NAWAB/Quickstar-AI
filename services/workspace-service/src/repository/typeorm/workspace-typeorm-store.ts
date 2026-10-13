@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
+import { insertAuditEntry } from "@quickstart/audit-writer";
 import type { TenantContext } from "@quickstart/auth";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { WorkspaceRole } from "../../domain/permissions.js";
@@ -148,23 +149,44 @@ export function createTypeOrmWorkspaceStore(dataSource: DataSource): WorkspaceSt
       targetUserId: string,
       newRole: WorkspaceRole,
       updatedByUserId: string,
+      audit?: { requestId: string; previousRole?: WorkspaceRole },
     ) {
-      const entity = await dataSource.manager.findOne(WorkspaceMembershipEntity, {
-        where: { workspaceId: tenant.workspaceId, userId: targetUserId },
-      });
-      if (!entity) {
-        throw new AppError({
-          code: ErrorCode.NOT_FOUND,
-          message: "Workspace membership not found",
+      return await dataSource.transaction(async (manager) => {
+        const entity = await manager.findOne(WorkspaceMembershipEntity, {
+          where: { workspaceId: tenant.workspaceId, userId: targetUserId },
         });
-      }
+        if (!entity) {
+          throw new AppError({
+            code: ErrorCode.NOT_FOUND,
+            message: "Workspace membership not found",
+          });
+        }
 
-      entity.role = newRole;
-      entity.roleUpdatedAt = new Date();
-      entity.roleUpdatedBy = updatedByUserId;
+        const previousRole = audit?.previousRole ?? entity.role;
+        entity.role = newRole;
+        entity.roleUpdatedAt = new Date();
+        entity.roleUpdatedBy = updatedByUserId;
 
-      await dataSource.manager.save(entity);
-      return toWorkspaceMembership(entity);
+        await manager.save(entity);
+
+        if (audit?.requestId) {
+          await insertAuditEntry((sql, params) => manager.query(sql, params), {
+            workspaceId: tenant.workspaceId,
+            actorUserId: updatedByUserId,
+            action: "member.role_updated",
+            targetType: "membership",
+            targetId: targetUserId,
+            requestId: audit.requestId,
+            metadata: {
+              previous_role: previousRole,
+              new_role: newRole,
+              target_user_id: targetUserId,
+            },
+          });
+        }
+
+        return toWorkspaceMembership(entity);
+      });
     },
 
     async removeMember(tenant: TenantContext, targetUserId: string) {

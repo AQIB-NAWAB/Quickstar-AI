@@ -55,7 +55,12 @@ export class AgentsService {
     }
   }
 
-  async publish(tenant: TenantContext, agentId: string, baseVersion: number): Promise<PublishResult> {
+  async publish(
+    tenant: TenantContext,
+    agentId: string,
+    baseVersion: number,
+    audit?: { requestId: string },
+  ): Promise<PublishResult> {
     if (!Number.isInteger(baseVersion)) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
@@ -77,7 +82,7 @@ export class AgentsService {
         message: s2sCheck.reason,
       });
     }
-    return this.store.publish(tenant, agentId, baseVersion);
+    return this.store.publish(tenant, agentId, baseVersion, audit);
   }
 
   async rollback(

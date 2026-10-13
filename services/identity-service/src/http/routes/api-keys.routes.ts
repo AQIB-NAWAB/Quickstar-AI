@@ -57,6 +57,7 @@ export const createApiKeysRoutes: RouteModule<IdentityHttpContext> = (ctx) => {
         auth.userId,
         keyId,
         services.apiKeys,
+        requestId,
       );
     }),
   );

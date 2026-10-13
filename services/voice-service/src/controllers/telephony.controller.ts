@@ -5,6 +5,7 @@ import {
   sendPlatformJson,
   type RequestHandler,
 } from "@quickstart/http-server";
+import type { UsageIngestClient } from "../clients/usage.client.js";
 import type { CallsRepository } from "../repository/calls.repository.js";
 import type { CallSessionOrchestrator } from "../session/orchestrator.js";
 import type { SipBridgeProvider } from "../telephony/sip-provider.js";
@@ -38,9 +39,10 @@ export function createTelephonyController(
     statusIdempotency: StatusIdempotencyStore;
     /** Default workspace for CPaaS webhooks that omit workspace_id (staging harness). */
     defaultWebhookWorkspaceId?: string;
+    usageIngest?: UsageIngestClient;
   },
 ) {
-  const { sip, orchestrator, calls, statusIdempotency } = opts;
+  const { sip, orchestrator, calls, statusIdempotency, usageIngest } = opts;
 
   function findProvider(providerId: string) {
     return router.list().find((p) => p.id === providerId);
@@ -230,11 +232,29 @@ export function createTelephonyController(
           eventType === "no-answer" ||
           eventType === "canceled";
         if (terminal) {
+          const endedAt = new Date();
           await calls.updateState(workspaceId, callId, {
             state: eventType === "completed" ? "completed" : "failed",
             failureCode: eventType === "completed" ? null : eventType,
-            endedAt: new Date(),
+            endedAt,
           });
+          // Async ledger emit after status update — not a ledger write in-process.
+          if (eventType === "completed" && usageIngest) {
+            const row = await calls.get(workspaceId, callId);
+            const started = row?.started_at?.getTime() ?? endedAt.getTime();
+            const minutes = Math.max(0, (endedAt.getTime() - started) / 60_000);
+            usageIngest.emit({
+              workspace_id: workspaceId,
+              kind: "voice",
+              units: minutes,
+              unit_label: "minutes",
+              provider: providerId,
+              idempotency_key: `telephony:${workspaceId}:${callId}:completed`,
+              request_id: callSid,
+              source_id: callId,
+              detail: { call_id: callId, event: eventType },
+            });
+          }
         }
       }
 

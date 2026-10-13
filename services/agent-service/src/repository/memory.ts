@@ -114,7 +114,12 @@ export class MemoryAgentStore implements AgentStore {
     return true;
   }
 
-  async publish(tenant: TenantContext, agentId: string, baseVersion: number) {
+  async publish(
+    tenant: TenantContext,
+    agentId: string,
+    baseVersion: number,
+    _audit?: { requestId: string },
+  ) {
     const agent = this.agents.get(agentId);
     if (!agent || agent.workspaceId !== tenant.workspaceId) {
       throw new AppError({

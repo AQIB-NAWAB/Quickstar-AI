@@ -47,6 +47,7 @@ export interface WorkspaceStore {
     targetUserId: string,
     newRole: WorkspaceRole,
     updatedByUserId: string,
+    audit?: { requestId: string; previousRole?: WorkspaceRole },
   ): Promise<WorkspaceMembership>;
   removeMember(tenant: TenantContext, targetUserId: string): Promise<boolean>;
 

@@ -21,7 +21,11 @@ export class SecretsService {
     return this.repo.listNames(workspaceId);
   }
 
-  async create(workspaceId: string, input: SecretCreateInput): Promise<SecretSummaryRow> {
+  async create(
+    workspaceId: string,
+    input: SecretCreateInput,
+    audit?: { actorUserId: string; requestId: string },
+  ): Promise<SecretSummaryRow> {
     this.validateName(input.name);
     this.validateValue(input.value);
     const ciphertext = encrypt(input.value, this.encryptionKey);
@@ -30,6 +34,7 @@ export class SecretsService {
       name: input.name,
       ciphertext,
       keyVersion: this.keyVersion,
+      audit,
     });
   }
 
@@ -42,6 +47,7 @@ export class SecretsService {
     name: string,
     newEncryptionKey: string,
     newKeyVersion: number,
+    audit?: { actorUserId: string; requestId: string },
   ): Promise<SecretSummaryRow> {
     const row = await this.repo.getByName(workspaceId, name);
     if (!row) {
@@ -54,6 +60,7 @@ export class SecretsService {
       name,
       newCiphertext,
       newKeyVersion,
+      audit,
     });
     if (!rotated) {
       throw new AppError({
@@ -76,8 +83,12 @@ export class SecretsService {
     return decrypt(row.ciphertext, this.encryptionKey);
   }
 
-  async delete(workspaceId: string, name: string): Promise<void> {
-    const deleted = await this.repo.deleteByName(workspaceId, name);
+  async delete(
+    workspaceId: string,
+    name: string,
+    audit?: { actorUserId: string; requestId: string },
+  ): Promise<void> {
+    const deleted = await this.repo.deleteByName(workspaceId, name, audit);
     if (!deleted) {
       throw new AppError({ code: ErrorCode.NOT_FOUND, message: `Secret '${name}' not found` });
     }

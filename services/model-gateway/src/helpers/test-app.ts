@@ -28,6 +28,8 @@ export function testModelGatewayConfig(
     httpRateLimitWindowMs: 60_000,
     httpRateLimitMax: 10_000,
     providerProfiles: [{ id: "fake", driver: "fake" }],
+    usageUrl: "http://127.0.0.1:3017",
+    usageInternalToken: TEST_INTERNAL_TOKEN,
     ...overrides,
   };
 }

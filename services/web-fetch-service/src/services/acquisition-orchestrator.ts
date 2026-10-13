@@ -11,6 +11,7 @@ import type { Logger } from "@quickstart/logging";
 import { CircuitBreaker } from "@quickstart/utilities";
 import type { WebFetchConfig } from "../config/environment.js";
 import { ProviderError } from "../domain/types.js";
+import type { UsageIngestClient } from "../clients/usage.client.js";
 import type { DailyUnitBudget } from "../lib/daily-budget.js";
 import type { InflightCap } from "../lib/inflight-cap.js";
 import { logAcquisitionUsage } from "../lib/usage-logger.js";
@@ -36,6 +37,7 @@ export class AcquisitionOrchestrator {
     private readonly budget: DailyUnitBudget,
     private readonly jobs: JobRepository,
     private readonly logger: Logger,
+    private readonly usageIngest?: UsageIngestClient,
   ) {}
 
   async scrape(body: ScrapeRequestBody): Promise<ScrapeResponseBody> {
@@ -61,15 +63,19 @@ export class AcquisitionOrchestrator {
       const profile = this.registry.listEnabledProfiles().find((p) => p.id === result.profileId);
       const unitCost = profile?.unitCostMicrosScrape ?? 0;
 
-      logAcquisitionUsage(this.logger, {
-        workspace_id: body.workspace_id,
-        request_id: body.request_id,
-        action: "scrape",
-        provider: result.profileId,
-        units: 1,
-        estimated_cost_micros: unitCost,
-        latency_ms: Date.now() - started,
-      });
+      logAcquisitionUsage(
+        this.logger,
+        {
+          workspace_id: body.workspace_id,
+          request_id: body.request_id,
+          action: "scrape",
+          provider: result.profileId,
+          units: 1,
+          estimated_cost_micros: unitCost,
+          latency_ms: Date.now() - started,
+        },
+        this.usageIngest,
+      );
 
       return {
         text: result.output.text,
@@ -150,15 +156,19 @@ export class AcquisitionOrchestrator {
           const profile = this.registry.listEnabledProfiles().find((p) => p.id === profileId);
           const unitCost = profile?.unitCostMicrosSearch ?? 0;
 
-          logAcquisitionUsage(this.logger, {
-            workspace_id: body.workspace_id,
-            request_id: body.request_id,
-            action: "search",
-            provider: profileId,
-            units: 1,
-            estimated_cost_micros: unitCost,
-            latency_ms: Date.now() - started,
-          });
+          logAcquisitionUsage(
+            this.logger,
+            {
+              workspace_id: body.workspace_id,
+              request_id: body.request_id,
+              action: "search",
+              provider: profileId,
+              units: 1,
+              estimated_cost_micros: unitCost,
+              latency_ms: Date.now() - started,
+            },
+            this.usageIngest,
+          );
 
           return {
             results: output.results,
