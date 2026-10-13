@@ -67,6 +67,14 @@ eval-migrate:
 	pnpm --filter @quickstart/service-eval build
 	pnpm --filter @quickstart/service-eval migrate
 
+usage-migrate:
+	pnpm --filter @quickstart/service-usage build
+	pnpm --filter @quickstart/service-usage migrate
+
+audit-migrate:
+	pnpm --filter @quickstart/service-audit build
+	pnpm --filter @quickstart/service-audit migrate
+
 web-acquisition-migrate: web-fetch-migrate
 
 data-plane-up:

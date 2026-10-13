@@ -165,7 +165,7 @@ Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-12):
 | Speech providers (21B) | Done (v1) | `speech/` OpenAI + fake profiles, `scripts/check-voice-speech-proof.mjs` | Env-gated OpenAI STT/TTS; fail-closed flag; usage stubs; 21C still open |
 | Staff web F1 + F4 | Done (core) | `apps/web` | Auth shell, inbox, transcript. Agents/settings still "Soon" |
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, campaign 3013, lead 3014, staff web **3015**, eval 3016, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, campaign 3013, lead 3014, staff web **3015**, eval 3016, usage 3017, audit 3018, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -267,11 +267,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** section **6A** — next is **26** Usage and billing; V1 voice load/drain can run beside
-- **Next production deep topic:** usage ledger idempotency and money facts (Feature 26)
-- **Product priority:** Voice **21–23** + leads **24** + eval harness **25** done for v1; keep widget SSE as follow-up only
-- **Finished features:** backend **01–25** + **21B** + **21C**; staff web **F1–F4**, **F8**, **F10** core
-- **Board status:** synced to repo 2026-10-13 (Feature 25 proof); update this line when code and table disagree
+- **Current focus:** section **6A** — next is **28** Observability and alerts; V1 voice load/drain can run beside
+- **Next production deep topic:** metrics that mean unhealthy + alert on error rate (Feature 28)
+- **Product priority:** Voice **21–23** + leads **24** + eval **25** + usage **26** + audit **27** done for v1; keep widget SSE as follow-up only
+- **Finished features:** backend **01–27** + **21B** + **21C**; staff web **F1–F4**, **F8**, **F10** core
+- **Board status:** synced to repo 2026-10-13 (Feature 27 proof); update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -305,8 +305,8 @@ Update these lines every day.
 | V1 | Voice load and drain proof | 22, P3 | P3 | not_started |
 | 24 | Leads | 19 | 23 | done |
 | 25 | Evaluation | 12 | 26 | done |
-| 26 | Usage and billing | 10, 12, 21B, 21C | 25 | not_started |
-| 27 | Audit and security | all writes | 28 | not_started |
+| 26 | Usage and billing | 10, 12, 21B, 21C | 25 | done |
+| 27 | Audit and security | all writes | 28 | done |
 | 28 | Observability and alerts | traces exist | 27 | not_started |
 | 29 | Cloud deploy (AWS, Kubernetes, CI) | features above | 30 | not_started |
 | 30 | Load, failure, recovery, SDKs | 29 | 29 | not_started |
@@ -2645,8 +2645,8 @@ No human labeling UI. No automatic publish block. No tool-expectation scoring. N
 
 ## 29. Feature 26 — Usage and billing
 
-**Status:** `not_started`  
-**Needs:** model usage events from the model gateway and runtime; acquisition usage facts from web acquisition (10B); **voice** usage facts from voice-service (21B STT/TTS units, 21C telephony minutes) — **voice slice should land when 21C ships**, not only at end of roadmap  
+**Status:** `done` (v1 ledger)  
+**Needs:** model usage events from the model gateway and runtime; acquisition usage facts from web acquisition (10B); **voice** usage facts from voice-service (21B STT/TTS units, 21C telephony minutes)  
 **Deep topic:** idempotency and money
 
 ### Pre-context
@@ -2655,7 +2655,7 @@ The model gateway can emit a usage record. Web acquisition (10B) emits units per
 
 ### What this is
 
-A ledger row per model call, per acquisition action, and (later) per voice minute: workspace_id, units, `kind` (`model` | `acquisition` | `voice`), idempotency key, price snapshot. Invoices are a later rollup. This feature stores the facts that an invoice would need.
+A ledger row per model call, per acquisition action, and per voice minute / speech unit: workspace_id, units, `kind` (`model` | `acquisition` | `voice`), idempotency key, price snapshot. Invoices are a later rollup. This feature stores the facts that an invoice would need.
 
 ### Why now
 
@@ -2694,19 +2694,23 @@ The ledger stays on the primary. A warehouse can copy it later. The product must
 - Test: a completed call does not write the ledger inside the voice request path (event or outbox only)
 - No card charging in this feature
 
+### Shipped
+
+`services/usage-service` (:3017), ADR 0026, internal ingest + staff GET, producer fire-and-forget emits, `scripts/check-usage-proof.mjs`.
+
 ### Done when
 
-A completed fake model call creates one ledger row, and a replay does not add another.
+A completed fake model call creates one ledger row, and a replay does not add another. **Met** (proof green).
 
 ### Still unsafe
 
-No payment provider. No tax. No PDF invoice. Say so in the ADR.
+No payment provider. No tax. No PDF invoice. No F9 daily rollup API. Fire-and-forget ingest can lose facts if usage-service is down (outbox follow-up).
 
 ---
 
 ## 30. Feature 27 — Audit and security
 
-**Status:** `not_started`  
+**Status:** `done` (v1 trail)  
 **Needs:** the write paths we care about (auth, role change, publish, secret delete)  
 **Can run beside:** Feature 28  
 **Deep topic:** tenant leaks and redaction
@@ -2753,9 +2757,13 @@ CloudTrail and the app audit answer different questions. Keep both. Ship the app
 - Test: secret value is absent from the audit row
 - Test: another org cannot list these rows
 
+### Shipped
+
+`services/audit-service` (:3018), ADR 0027, same-TX writers (publish, role, secrets, publishable + org API keys), fail closed, `scripts/check-audit-proof.mjs`.
+
 ### Done when
 
-Those actions write audit rows and the tests pass.
+Those actions write audit rows and the tests pass. **Met** (proof green).
 
 ### Still unsafe
 
@@ -3555,12 +3563,12 @@ Pages:
 - [x] Overview dashboard with summary cards and daily charts
 - [x] Date range picker (default 30 days) with 7d, 30d, and custom popover
 - [x] Token + voice minutes + acquisition units per day charts
-- [ ] Per-agent breakdown with cursor pagination (waiting on Feature 26 rollup API)
+- [ ] Per-agent breakdown with cursor pagination (waiting on F9 daily rollup API; ledger list/sum shipped in Feature 26)
 - [ ] Per-model breakdown table
 - [ ] CSV export button
 - [ ] Conversation metrics page (resolution rate, handoff rate, by channel)
 - [ ] Voice metrics page with latency breakdown
-- [x] Empty/unavailable state when Feature 26 not yet shipped
+- [x] Empty/unavailable state when F9 analytics rollup not yet connected (ledger exists; charts wait on rollup)
 - [x] Error state when usage API unavailable (typed message, not a broken chart)
 
 #### Done when
@@ -3611,7 +3619,7 @@ Pages:
 - [x] Secret list (name only, value never shown) with add, rotate, delete
 - [x] Rotate secret (re-encrypt / replace value, old value gone)
 - [x] Publishable key list with origin allow-list editor per key
-- [ ] Billing page: plan name + usage vs quota bars (deferred to Feature 26)
+- [ ] Billing page: plan name + usage vs quota bars (deferred; ledger facts exist, no payments/quotas UI yet)
 - [x] Delete workspace with workspace-name confirmation guard
 
 #### Done when

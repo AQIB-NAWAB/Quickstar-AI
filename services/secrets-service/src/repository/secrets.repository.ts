@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { insertAuditEntry } from "@quickstart/audit-writer";
 
 export type SecretRow = {
   id: string;
@@ -19,6 +20,11 @@ export type SecretSummaryRow = {
   key_version: number;
   created_at: string;
   updated_at: string;
+};
+
+export type SecretAudit = {
+  actorUserId: string;
+  requestId: string;
 };
 
 const FULL_COLUMNS = `id, workspace_id, name, ciphertext, key_version,
@@ -56,19 +62,50 @@ export class SecretsRepository {
     name: string;
     ciphertext: string;
     keyVersion: number;
+    audit?: SecretAudit;
   }): Promise<SecretSummaryRow> {
     const id = randomUUID();
-    const result = await this.pool.query<SecretSummaryRow>(
-      `INSERT INTO secrets (id, workspace_id, name, ciphertext, key_version)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (workspace_id, name)
-       DO UPDATE SET ciphertext  = EXCLUDED.ciphertext,
-                     key_version = EXCLUDED.key_version,
-                     updated_at  = NOW()
-       RETURNING ${SUMMARY_COLUMNS}`,
-      [id, input.workspaceId, input.name, input.ciphertext, input.keyVersion],
-    );
-    return result.rows[0]!;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM secrets WHERE workspace_id = $1 AND name = $2`,
+        [input.workspaceId, input.name],
+      );
+      const wasUpdate = Boolean(existing.rows[0]);
+      const result = await client.query<SecretSummaryRow>(
+        `INSERT INTO secrets (id, workspace_id, name, ciphertext, key_version)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (workspace_id, name)
+         DO UPDATE SET ciphertext  = EXCLUDED.ciphertext,
+                       key_version = EXCLUDED.key_version,
+                       updated_at  = NOW()
+         RETURNING ${SUMMARY_COLUMNS}`,
+        [id, input.workspaceId, input.name, input.ciphertext, input.keyVersion],
+      );
+      const row = result.rows[0]!;
+      if (input.audit) {
+        await insertAuditEntry((sql, params) => client.query(sql, params), {
+          workspaceId: input.workspaceId,
+          actorUserId: input.audit.actorUserId,
+          action: wasUpdate ? "secret.updated" : "secret.created",
+          targetType: "secret",
+          targetId: row.id,
+          requestId: input.audit.requestId,
+          metadata: {
+            name: row.name,
+            key_version: row.key_version,
+          },
+        });
+      }
+      await client.query("COMMIT");
+      return row;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   /** Rotate: update ciphertext and bump key_version for an existing row */
@@ -77,24 +114,87 @@ export class SecretsRepository {
     name: string;
     newCiphertext: string;
     newKeyVersion: number;
+    audit?: SecretAudit;
   }): Promise<SecretSummaryRow | null> {
-    const result = await this.pool.query<SecretSummaryRow>(
-      `UPDATE secrets
-       SET ciphertext  = $3,
-           key_version = $4,
-           updated_at  = NOW()
-       WHERE workspace_id = $1 AND name = $2
-       RETURNING ${SUMMARY_COLUMNS}`,
-      [input.workspaceId, input.name, input.newCiphertext, input.newKeyVersion],
-    );
-    return result.rows[0] ?? null;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<SecretSummaryRow>(
+        `UPDATE secrets
+         SET ciphertext  = $3,
+             key_version = $4,
+             updated_at  = NOW()
+         WHERE workspace_id = $1 AND name = $2
+         RETURNING ${SUMMARY_COLUMNS}`,
+        [input.workspaceId, input.name, input.newCiphertext, input.newKeyVersion],
+      );
+      const row = result.rows[0] ?? null;
+      if (row && input.audit) {
+        await insertAuditEntry((sql, params) => client.query(sql, params), {
+          workspaceId: input.workspaceId,
+          actorUserId: input.audit.actorUserId,
+          action: "secret.rotated",
+          targetType: "secret",
+          targetId: row.id,
+          requestId: input.audit.requestId,
+          metadata: {
+            name: row.name,
+            key_version: row.key_version,
+          },
+        });
+      }
+      await client.query("COMMIT");
+      return row;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
-  async deleteByName(workspaceId: string, name: string): Promise<boolean> {
-    const result = await this.pool.query(
-      `DELETE FROM secrets WHERE workspace_id = $1 AND name = $2`,
-      [workspaceId, name],
-    );
-    return (result.rowCount ?? 0) > 0;
+  async deleteByName(
+    workspaceId: string,
+    name: string,
+    audit?: SecretAudit,
+  ): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<SecretSummaryRow>(
+        `SELECT ${SUMMARY_COLUMNS} FROM secrets WHERE workspace_id = $1 AND name = $2`,
+        [workspaceId, name],
+      );
+      const row = existing.rows[0];
+      if (!row) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      await client.query(`DELETE FROM secrets WHERE workspace_id = $1 AND name = $2`, [
+        workspaceId,
+        name,
+      ]);
+      if (audit) {
+        await insertAuditEntry((sql, params) => client.query(sql, params), {
+          workspaceId,
+          actorUserId: audit.actorUserId,
+          action: "secret.deleted",
+          targetType: "secret",
+          targetId: row.id,
+          requestId: audit.requestId,
+          metadata: {
+            name: row.name,
+            key_version: row.key_version,
+          },
+        });
+      }
+      await client.query("COMMIT");
+      return true;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }

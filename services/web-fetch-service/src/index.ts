@@ -8,6 +8,7 @@ import { loadWebFetchConfig } from "./config/environment.js";
 import { createPgJobRepository } from "./jobs/pg.repository.js";
 import { startCrawlWorker } from "./jobs/worker.js";
 import { createWebFetchServer, SERVICE_NAME } from "./http/create-server.js";
+import { createUsageIngestClient } from "./clients/usage.client.js";
 import { createRedisDailyUnitBudget } from "./lib/daily-budget.js";
 import { createRedisInflightCap } from "./lib/inflight-cap.js";
 import { createProviderRegistry } from "./providers/registry.js";
@@ -38,6 +39,11 @@ export async function startWebFetchServer(): Promise<{
   const registry = createProviderRegistry(config);
   const inflight = createRedisInflightCap(redisClient, config.maxInflight);
   const budget = createRedisDailyUnitBudget(redisClient, config.dailyUnitsPerWorkspace);
+  const usageIngest = createUsageIngestClient({
+    usageUrl: config.usageUrl,
+    internalToken: config.usageInternalToken,
+    logger,
+  });
   const orchestrator = new AcquisitionOrchestrator(
     config,
     registry,
@@ -45,6 +51,7 @@ export async function startWebFetchServer(): Promise<{
     budget,
     jobs,
     logger,
+    usageIngest,
   );
 
   const worker = startCrawlWorker({ config, jobs, orchestrator, logger });

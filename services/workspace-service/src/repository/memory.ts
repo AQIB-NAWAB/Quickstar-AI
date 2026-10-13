@@ -148,6 +148,7 @@ export class MemoryWorkspaceStore implements WorkspaceStore {
     targetUserId: string,
     newRole: WorkspaceRole,
     updatedByUserId: string,
+    _audit?: { requestId: string; previousRole?: WorkspaceRole },
   ): Promise<WorkspaceMembership> {
     const mem = this.memberships.get(`${tenant.workspaceId}:${targetUserId}`);
     if (!mem) {

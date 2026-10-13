@@ -10,6 +10,7 @@ import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
 import type { CallCaps } from "../caps/call-caps.js";
 import type { RuntimeClient } from "../clients/runtime.client.js";
+import type { UsageIngestClient } from "../clients/usage.client.js";
 import { CascadePipeline } from "../pipelines/cascade.js";
 import { S2SPipeline } from "../pipelines/s2s.js";
 import type { CallsRepository } from "../repository/calls.repository.js";
@@ -64,8 +65,9 @@ export class CallSessionOrchestrator {
     private readonly logger: Logger,
     private readonly spokenFallback: string,
     private readonly deadlineMs = DEFAULT_VOICE_DEADLINE_MS,
+    usageIngest?: UsageIngestClient,
   ) {
-    this.cascade = new CascadePipeline(speech.stt, speech.tts, runtime);
+    this.cascade = new CascadePipeline(speech.stt, speech.tts, runtime, usageIngest);
     this.s2s = new S2SPipeline(speech.s2s, speech.stt);
   }
 

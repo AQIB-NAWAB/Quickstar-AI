@@ -6,11 +6,12 @@ This document defines the backend contracts, data structures, and boundaries req
 
 ## 1. Current Working Tree Status
 
-As of this implementation:
-- **Telemetry logging:** Model calls and web fetch acquisition actions record telemetry events, but there is no centralized queryable usage ledger or aggregated reporting service.
-- **Permissions:** The contract permission `workspace.analytics.read` is declared and enforced on the workspace route.
-- **Reporting API:** No public gateway route exists yet for workspace-level usage aggregation (`/v1/workspaces/:workspaceId/analytics`).
-- **Frontend Behavior:** In production, the authenticated route `/workspaces/:workspaceId/analytics` honestly presents an understated unavailable banner:
+As of Feature 26 (usage ledger):
+- **Ledger shipped:** `usage-service` (:3017) owns append-only `usage_entries`. Producers (model-gateway, web-fetch, voice) fire-and-forget POST to `POST /internal/v1/usage/ingest`. Staff list/sum: `GET /v1/workspaces/:workspaceId/usage` (permission `workspace.usage.read`) via gateway.
+- **Telemetry logging:** Structured logs (`model.usage`, `acquisition.usage`, `speech.usage`) remain for ops; the ledger is the money SoR.
+- **Permissions:** `workspace.analytics.read` remains for the future F9 rollup route; `workspace.usage.read` gates the raw ledger list.
+- **Reporting API (F9):** No daily-rollup `/v1/workspaces/:workspaceId/analytics` yet — charts still need a rollup job / date-range aggregation beyond list+sum.
+- **Frontend Behavior:** In production, the authenticated route `/workspaces/:workspaceId/analytics` still presents an understated unavailable banner until the F9 analytics endpoint exists:
   > *"Analytics data is not available yet. This workspace's usage reporting is not connected."*
   with metric cards displaying "—", while keeping date-range controls fully functional.
 - **Development Preview:** The visual layout, charts, and interactive date controls are previewable with deterministic sample data at `/preview/analytics`.

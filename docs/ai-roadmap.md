@@ -1220,7 +1220,136 @@ No human labeling UI, no automatic publish block, no tool-expectation scoring, n
 
 ---
 
+## Feature 26 — Usage ledger (append-only)
+
+**Status:** done (v1 ledger)  
+**Deep topic:** money vs logs, idempotency keys, price snapshot, emit-vs-ledger split
+
+### Pre-context
+
+Model gateway, web-fetch, and voice already emit structured usage logs (`model.usage`, `acquisition.usage`, `speech.usage`). Logs rotate. Finance cannot rebuild a bill from rotated logs. Feature 26 stores append-only ledger rows so a later invoice has facts.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Money vs logs | Ledger rows in Postgres are the SoR for billable units; structured logs stay for ops |
+| Idempotency key | Unique key per billed action; `INSERT … ON CONFLICT DO NOTHING` stops replay double-charges |
+| Price snapshot | `price_micros` + `currency` copied onto the row so later price changes do not rewrite history |
+| Emit vs write | Producers POST a fact to internal ingest after success; they do not INSERT the ledger themselves |
+| Fire-and-forget | Completion / voice success must not fail if usage-service is down; warn and continue |
+| Tenant isolation | Every list/sum filters `workspace_id`; cross-workspace sums stay empty of the other |
+
+### Scale notes
+
+A row per token chunk or per audio packet melts Postgres at 5,000 concurrent calls. Write **one row per model call**, **one per acquisition action**, **one per finished call (telephony minutes)** / speech unit call — not per packet. Index `(workspace_id, created_at)`. Uniqueness stops replay storms. Correctness lives in Postgres (two-replica safe), not process memory.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Replay same idempotency key | Still one row |
+| Cross-workspace sum after insert in A | B empty of A’s rows |
+| usage-service down during emit | User request succeeds; warn log; fact may be lost (v1; outbox later) |
+| Ledger INSERT on voice webhook critical path | Rejected design — async POST after status update only |
+
+### Junior shortcut we will not ship
+
+In-memory counters. Mutable balance without idempotency. Ledger INSERT inside the voice webhook / model complete critical path that fails the user request if billing is down. Trust rotated logs as money SoR.
+
+### Decision + spike
+
+**Decision:** New `usage-service` (:3017); `usage_entries` append-only; producers fire-and-forget POST `POST /internal/v1/usage/ingest`; price snapshot from env/config (or acquisition `estimated_cost_micros`); staff `GET /v1/workspaces/:id/usage` via gateway; no Stripe/tax/PDF.
+
+**Idempotency keys:**
+- model: `model:{workspace_id}:{request_id}`
+- acquisition: `acquisition:{workspace_id}:{request_id}:{action}`
+- speech: `speech:{workspace_id}:{call_id|request_id}:{stt|tts}:{seq}`
+- telephony: `telephony:{workspace_id}:{call_id}:completed`
+
+**Spike (shipped):** migration, ingest + staff GET, producer emits, `scripts/check-usage-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 26
+- [x] ADR 0026 + `workspace.usage.read`
+- [x] usage-service + gateway proxy
+- [x] Wire model-gateway / web-fetch / voice emits
+- [x] Tests + proof
+- [x] Roadmap 26 → done; focus → 27
+
+### Done when (extended)
+
+Fake model call → one ledger row; replay → still one; tenant isolation green.
+
+### Still unsafe (extended)
+
+No payment provider, tax, PDF invoice, Stripe, or F9 charts. Crawl per-page metering incomplete. Ingest loss if usage-service is down during fire-and-forget (outbox is the follow-up).
+
+---
+
+## Feature 27 — Audit and security
+
+**Status:** done (v1 trail)  
+**Deep topic:** same-TX vs emit, fail-closed, redaction, tenant isolation
+
+### Pre-context
+
+Sensitive writes (publish, role change, secret/API key lifecycle) exist without a listable audit trail. Role columns store `role_updated_by` but that is not a security review log. Structured logs rotate and can leak bodies.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Same-TX audit | Insert `audit_entries` in the same Postgres transaction as the sensitive change |
+| Fail closed | If the audit insert fails, the user write fails and rolls back |
+| Redaction | Metadata holds ids/names/roles/prefixes only — never ciphertext, raw keys, passwords, or prompts |
+| Tenant isolation | Staff list always filters `workspace_id` (+ time range); cross-workspace empty of the other |
+| Not logs | Logs are ops; audit rows are the SoR for "who did what" |
+
+### Scale notes
+
+Full prompts/ciphertext in audit melt storage and leak under export. Unfiltered list APIs scan forever — require workspace (or org) filter and a time range (default 7d, max 90d). Index `(workspace_id, created_at DESC)`. Correctness in the TX/row, not process memory.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Audit INSERT fails mid-publish | Publish rolls back; no production pointer change |
+| Secret create audited | Metadata has name/id/key_version; no value/ciphertext |
+| List workspace B after publish in A | Empty of A’s rows |
+| List without time bounds | Defaulted / capped — never full table scan |
+
+### Junior shortcut we will not ship
+
+Log the JSON body. Fire-and-forget audit that can lose role-change evidence. Mutable "last action" column. Cross-workspace list without filter.
+
+### Decision + spike
+
+**Decision:** `audit-service` (:3018) owns `audit_entries` + staff GET; writers insert in-process same-TX (fail closed); `workspace.audit.read`; ADR 0027.
+
+**Spike (shipped):** migration, writer helper, publish/role/secret/key audits, `scripts/check-audit-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 27
+- [x] ADR 0027 + `workspace.audit.read`
+- [x] audit-service + gateway proxy
+- [x] Same-TX writers
+- [x] Tests + proof
+- [x] Roadmap 27 → done; focus → 28
+
+### Done when (extended)
+
+Publish / role / secret / key actions write audit rows; secret value absent; cross-tenant list empty.
+
+### Still unsafe (extended)
+
+No SIEM, no WORM; DB admin can delete rows. CSV export / notification center incomplete.
+
+---
+
 ## Future sections
 
-- Features **16–25**, **21B**, and **21C** are documented above; keep status in sync with the progress board.
-- Next when scheduled: Feature **26** Usage and billing; V1 voice load/drain can run beside.
+- Features **16–27**, **21B**, and **21C** are documented above; keep status in sync with the progress board.
+- Next when scheduled: Feature **28** Observability and alerts; V1 voice load/drain can run beside.

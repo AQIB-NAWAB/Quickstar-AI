@@ -33,6 +33,9 @@ export type WebFetchConfig = {
   directHttpMaxBytes: number;
   providerProfiles: AcquisitionProviderProfileConfig[];
   workerPollMs: number;
+  /** Fire-and-forget ledger ingest (Feature 26). */
+  usageUrl: string;
+  usageInternalToken: string;
 };
 
 function requireToken(): string {
@@ -102,6 +105,7 @@ export function loadWebFetchConfig(): WebFetchConfig {
   const olostepApiKey = process.env.OLOSTEP_API_KEY;
   const fromJson = loadProfilesFromJson();
   const providerProfiles = fromJson ?? defaultProfiles(olostepApiKey);
+  const internalToken = requireToken();
 
   return {
     port: Number(
@@ -110,7 +114,7 @@ export function loadWebFetchConfig(): WebFetchConfig {
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     databaseUrl:
       process.env.DATABASE_URL ?? "postgresql://quickstart:quickstart@127.0.0.1:5433/quickstart",
-    internalToken: requireToken(),
+    internalToken,
     maxInflight: Number(process.env.ACQUISITION_MAX_INFLIGHT ?? 200),
     scrapeTimeoutMs: Number(process.env.ACQUISITION_SCRAPE_TIMEOUT_MS ?? 30_000),
     dailyUnitsPerWorkspace: Number(process.env.ACQUISITION_DAILY_UNITS_PER_WORKSPACE ?? 10_000),
@@ -127,6 +131,12 @@ export function loadWebFetchConfig(): WebFetchConfig {
     directHttpMaxBytes: Number(process.env.ACQUISITION_DIRECT_HTTP_MAX_BYTES ?? 1_048_576),
     providerProfiles,
     workerPollMs: Number(process.env.ACQUISITION_WORKER_POLL_MS ?? 500),
+    usageUrl: (process.env.USAGE_URL ?? process.env.USAGE_SERVICE_URL ?? "http://127.0.0.1:3017").replace(
+      /\/$/,
+      "",
+    ),
+    usageInternalToken:
+      process.env.USAGE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? internalToken,
   };
 }
 

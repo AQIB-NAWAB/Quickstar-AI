@@ -84,15 +84,22 @@ export type IdentityStore = {
   revokeRefreshToken(id: string): Promise<void>;
   revokeSessionTokens(sessionId: string): Promise<void>;
 
-  createApiKey(record: {
-    id: string;
-    orgId: string;
-    name: string;
-    keyPrefix: string;
-    keyHash: string;
-    createdBy: string;
-  }): Promise<void>;
+  createApiKey(
+    record: {
+      id: string;
+      orgId: string;
+      name: string;
+      keyPrefix: string;
+      keyHash: string;
+      createdBy: string;
+    },
+    audit?: { requestId: string },
+  ): Promise<void>;
 
   listApiKeys(orgId: string): Promise<ApiKeyRecord[]>;
-  revokeApiKey(orgId: string, keyId: string): Promise<boolean>;
+  revokeApiKey(
+    orgId: string,
+    keyId: string,
+    audit?: { actorUserId: string; requestId: string },
+  ): Promise<boolean>;
 };

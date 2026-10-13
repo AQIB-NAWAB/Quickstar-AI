@@ -12,11 +12,15 @@ export function createPublishableKeysController(service: PublishableKeysService)
         allowed_origins?: string[];
         default_agent_id?: string | null;
       };
-      const created = await service.createKey(tenant, {
-        name: body.name ?? "",
-        allowed_origins: body.allowed_origins ?? [],
-        default_agent_id: body.default_agent_id,
-      });
+      const created = await service.createKey(
+        tenant,
+        {
+          name: body.name ?? "",
+          allowed_origins: body.allowed_origins ?? [],
+          default_agent_id: body.default_agent_id,
+        },
+        { requestId },
+      );
       sendPlatformJson(res, 201, { request_id: requestId, publishable_key: created });
     }) as RequestHandler,
 
@@ -44,7 +48,7 @@ export function createPublishableKeysController(service: PublishableKeysService)
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;
       const keyId = routeParam(req.params.keyId);
-      await service.revokeKey(tenant, keyId);
+      await service.revokeKey(tenant, keyId, { requestId });
       res.status(204);
       res.setHeader("x-request-id", requestId);
       res.end();

@@ -22,10 +22,14 @@ export function createSecretsController(secrets: SecretsService) {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;
       const body = req.body as { name?: string; value?: string };
-      const secret = await secrets.create(tenant.workspaceId, {
-        name: body.name ?? "",
-        value: body.value ?? "",
-      });
+      const secret = await secrets.create(
+        tenant.workspaceId,
+        {
+          name: body.name ?? "",
+          value: body.value ?? "",
+        },
+        { actorUserId: tenant.actorId, requestId },
+      );
       sendPlatformJson(res, 201, { request_id: requestId, secret });
     }) as RequestHandler,
 
@@ -44,6 +48,7 @@ export function createSecretsController(secrets: SecretsService) {
         // True rotation requires restarting with new ENCRYPTION_KEY env var then calling this endpoint.
         (secrets as unknown as { encryptionKey: string }).encryptionKey,
         (secrets as unknown as { keyVersion: number }).keyVersion,
+        { actorUserId: tenant.actorId, requestId },
       );
       sendPlatformJson(res, 200, { request_id: requestId, secret });
     }) as RequestHandler,
@@ -53,7 +58,10 @@ export function createSecretsController(secrets: SecretsService) {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;
       const name = routeParam(req.params.name);
-      await secrets.delete(tenant.workspaceId, name);
+      await secrets.delete(tenant.workspaceId, name, {
+        actorUserId: tenant.actorId,
+        requestId,
+      });
       sendPlatformJson(res, 200, { request_id: requestId, deleted: true });
     }) as RequestHandler,
   };

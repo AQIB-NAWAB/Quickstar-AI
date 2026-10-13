@@ -27,6 +27,9 @@ export type ModelGatewayConfig = {
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
   providerProfiles: ProviderProfileConfig[];
+  /** Fire-and-forget ledger ingest (Feature 26). Empty disables emit. */
+  usageUrl: string;
+  usageInternalToken: string;
 };
 
 function requireToken(): string {
@@ -121,10 +124,11 @@ export function loadModelGatewayConfig(): ModelGatewayConfig {
   const fromJson = loadProfilesFromJson();
   const providerProfiles = fromJson ?? defaultProfiles(openRouterApiKey);
 
+  const internalToken = requireToken();
   return {
     port: Number(process.env.PORT ?? process.env.MODEL_GATEWAY_PORT ?? 3005),
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
-    internalToken: requireToken(),
+    internalToken,
     modelMaxInflight: Number(process.env.MODEL_MAX_INFLIGHT ?? 500),
     completionTimeoutMs: Number(process.env.MODEL_COMPLETION_TIMEOUT_MS ?? 60_000),
     circuitFailureThreshold: Number(process.env.MODEL_CIRCUIT_FAILURE_THRESHOLD ?? 5),
@@ -136,5 +140,11 @@ export function loadModelGatewayConfig(): ModelGatewayConfig {
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
     providerProfiles,
+    usageUrl: (process.env.USAGE_URL ?? process.env.USAGE_SERVICE_URL ?? "http://127.0.0.1:3017").replace(
+      /\/$/,
+      "",
+    ),
+    usageInternalToken:
+      process.env.USAGE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? internalToken,
   };
 }

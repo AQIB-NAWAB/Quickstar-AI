@@ -1,5 +1,6 @@
 import type { DataSource } from "typeorm";
 import { IsNull } from "typeorm";
+import { insertAuditEntry } from "@quickstart/audit-writer";
 import { ApiKeyEntity } from "../entities/api-key.entity.js";
 import { OrgMembershipEntity } from "../entities/org-membership.entity.js";
 import { OrganizationEntity } from "../entities/organization.entity.js";
@@ -135,15 +136,31 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
       await dataSource.manager.update(RefreshTokenEntity, { sessionId }, { revokedAt: new Date() });
     },
 
-    async createApiKey(record) {
-      await dataSource.manager.save(ApiKeyEntity, {
-        id: record.id,
-        orgId: record.orgId,
-        name: record.name,
-        keyPrefix: record.keyPrefix,
-        keyHash: record.keyHash,
-        createdBy: record.createdBy,
-        revokedAt: null,
+    async createApiKey(record, audit) {
+      await dataSource.transaction(async (manager) => {
+        await manager.save(ApiKeyEntity, {
+          id: record.id,
+          orgId: record.orgId,
+          name: record.name,
+          keyPrefix: record.keyPrefix,
+          keyHash: record.keyHash,
+          createdBy: record.createdBy,
+          revokedAt: null,
+        });
+        if (audit?.requestId) {
+          await insertAuditEntry((sql, params) => manager.query(sql, params), {
+            orgId: record.orgId,
+            actorUserId: record.createdBy,
+            action: "api_key.created",
+            targetType: "api_key",
+            targetId: record.id,
+            requestId: audit.requestId,
+            metadata: {
+              name: record.name,
+              key_prefix: record.keyPrefix,
+            },
+          });
+        }
       });
     },
 
@@ -155,13 +172,27 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
       return entities.map(toApiKeyRecord);
     },
 
-    async revokeApiKey(orgId, keyId) {
-      const result = await dataSource.manager.update(
-        ApiKeyEntity,
-        { id: keyId, orgId, revokedAt: IsNull() },
-        { revokedAt: new Date() },
-      );
-      return (result.affected ?? 0) > 0;
+    async revokeApiKey(orgId, keyId, audit) {
+      return await dataSource.transaction(async (manager) => {
+        const result = await manager.update(
+          ApiKeyEntity,
+          { id: keyId, orgId, revokedAt: IsNull() },
+          { revokedAt: new Date() },
+        );
+        const ok = (result.affected ?? 0) > 0;
+        if (ok && audit?.requestId) {
+          await insertAuditEntry((sql, params) => manager.query(sql, params), {
+            orgId,
+            actorUserId: audit.actorUserId,
+            action: "api_key.revoked",
+            targetType: "api_key",
+            targetId: keyId,
+            requestId: audit.requestId,
+            metadata: {},
+          });
+        }
+        return ok;
+      });
     },
   };
 }

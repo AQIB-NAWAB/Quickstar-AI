@@ -114,7 +114,9 @@ export function createAgentsController(agents: AgentsService) {
       const body = req.body as { base_version?: number; version?: number };
       const baseVersion = body.base_version ?? body.version;
 
-      const result = await agents.publish(tenant, agentId, baseVersion as number);
+      const result = await agents.publish(tenant, agentId, baseVersion as number, {
+        requestId,
+      });
 
       sendPlatformJson(res, 201, {
         request_id: requestId,

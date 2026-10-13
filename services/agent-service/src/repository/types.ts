@@ -36,7 +36,12 @@ export interface AgentStore {
   getAgent(tenant: TenantContext, agentId: string): Promise<Agent | null>;
   updateAgent(tenant: TenantContext, agentId: string, input: UpdateAgentInput): Promise<Agent>;
   deleteAgent(tenant: TenantContext, agentId: string): Promise<boolean>;
-  publish(tenant: TenantContext, agentId: string, baseVersion: number): Promise<PublishResult>;
+  publish(
+    tenant: TenantContext,
+    agentId: string,
+    baseVersion: number,
+    audit?: { requestId: string },
+  ): Promise<PublishResult>;
   rollback(tenant: TenantContext, agentId: string, versionId: string): Promise<PublishResult>;
   listVersions(tenant: TenantContext, agentId: string, limit?: number): Promise<AgentVersion[]>;
   getVersion(tenant: TenantContext, agentId: string, versionId: string): Promise<AgentVersion | null>;

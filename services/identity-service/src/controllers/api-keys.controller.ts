@@ -12,7 +12,7 @@ export async function handleCreateApiKey(
   apiKeys: ApiKeysService,
 ): Promise<void> {
   const body = await readJsonBody<{ name?: string }>(req);
-  const key = await apiKeys.createApiKey(orgId, userId, body.name ?? "");
+  const key = await apiKeys.createApiKey(orgId, userId, body.name ?? "", { requestId });
   sendJson(res, 201, { request_id: requestId, ...key });
 }
 
@@ -33,7 +33,13 @@ export async function handleRevokeApiKey(
   userId: string,
   keyId: string,
   apiKeys: ApiKeysService,
+  requestId?: string,
 ): Promise<void> {
-  await apiKeys.revokeApiKey(orgId, userId, keyId);
+  await apiKeys.revokeApiKey(
+    orgId,
+    userId,
+    keyId,
+    requestId ? { requestId } : undefined,
+  );
   sendNoContent(res);
 }

@@ -5,6 +5,7 @@ import { CircuitBreaker } from "@quickstart/utilities";
 import type { ModelGatewayConfig } from "../config/environment.js";
 import { ProviderError } from "../domain/types.js";
 import type { ProviderCompletionInput } from "../domain/types.js";
+import type { UsageIngestClient } from "../clients/usage.client.js";
 import type { InflightCap } from "../lib/inflight-cap.js";
 import { logModelUsage } from "../lib/usage-logger.js";
 import type { ProviderRegistry } from "../providers/registry.js";
@@ -53,6 +54,7 @@ export class CompletionOrchestrator {
     private readonly registry: ProviderRegistry,
     private readonly inflight: InflightCap,
     private readonly logger: Logger,
+    private readonly usageIngest?: UsageIngestClient,
   ) {}
 
   async complete(body: CompletionRequestBody): Promise<CompletionResponseBody> {
@@ -85,15 +87,19 @@ export class CompletionOrchestrator {
         latency_ms: Date.now() - started,
       };
 
-      logModelUsage(this.logger, {
-        workspace_id: body.workspace_id,
-        request_id: body.request_id,
-        provider: result.provider.profileId,
-        model: primary.model_id,
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        latency_ms: response.latency_ms,
-      });
+      logModelUsage(
+        this.logger,
+        {
+          workspace_id: body.workspace_id,
+          request_id: body.request_id,
+          provider: result.provider.profileId,
+          model: primary.model_id,
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens,
+          latency_ms: response.latency_ms,
+        },
+        this.usageIngest,
+      );
 
       return response;
     } finally {
@@ -148,15 +154,19 @@ export class CompletionOrchestrator {
         latency_ms: Date.now() - started,
       };
 
-      logModelUsage(this.logger, {
-        workspace_id: body.workspace_id,
-        request_id: body.request_id,
-        provider: result.provider.profileId,
-        model: primary.model_id,
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        latency_ms: response.latency_ms,
-      });
+      logModelUsage(
+        this.logger,
+        {
+          workspace_id: body.workspace_id,
+          request_id: body.request_id,
+          provider: result.provider.profileId,
+          model: primary.model_id,
+          input_tokens: response.usage.input_tokens,
+          output_tokens: response.usage.output_tokens,
+          latency_ms: response.latency_ms,
+        },
+        this.usageIngest,
+      );
 
       return response;
     } finally {

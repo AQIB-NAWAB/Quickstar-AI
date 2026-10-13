@@ -34,6 +34,7 @@ export class MembersService {
     tenant: TenantContext,
     targetUserId: string,
     newRole: WorkspaceRole,
+    audit?: { requestId: string },
   ): Promise<WorkspaceMembership> {
     if (!WORKSPACE_ROLES.includes(newRole)) {
       throw new AppError({
@@ -42,7 +43,16 @@ export class MembersService {
       });
     }
 
-    const updated = await this.store.updateMemberRole(tenant, targetUserId, newRole, tenant.actorId);
+    const existing = await this.store.getMembership(tenant, targetUserId);
+    const updated = await this.store.updateMemberRole(
+      tenant,
+      targetUserId,
+      newRole,
+      tenant.actorId,
+      audit
+        ? { requestId: audit.requestId, previousRole: existing?.role }
+        : undefined,
+    );
     await this.cacheHooks?.onMembershipChanged(tenant.workspaceId, targetUserId);
     return updated;
   }

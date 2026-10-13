@@ -7,6 +7,11 @@ import {
   publishableKeyMaterial,
 } from "../utils/publishable-key-material.js";
 
+export type PublishableKeyAudit = {
+  actorUserId: string;
+  requestId: string;
+};
+
 export type PublishableKeysStorePort = {
   create(input: {
     id: string;
@@ -16,6 +21,7 @@ export type PublishableKeysStorePort = {
     keyHash: string;
     allowedOrigins: string[];
     defaultAgentId?: string | null;
+    audit?: PublishableKeyAudit;
   }): Promise<PublishableKeySummary>;
   listByWorkspace(workspaceId: string): Promise<PublishableKeySummary[]>;
   getById(workspaceId: string, keyId: string): Promise<PublishableKeySummary | null>;
@@ -34,7 +40,11 @@ export type PublishableKeysStorePort = {
     keyId: string,
     input: { name?: string; allowedOrigins?: string[]; defaultAgentId?: string | null },
   ): Promise<PublishableKeySummary | null>;
-  revoke(workspaceId: string, keyId: string): Promise<boolean>;
+  revoke(
+    workspaceId: string,
+    keyId: string,
+    audit?: PublishableKeyAudit,
+  ): Promise<boolean>;
 };
 
 function normalizeOrigins(origins: string[]): string[] {
@@ -66,6 +76,7 @@ export class PublishableKeysService {
   async createKey(
     tenant: TenantContext,
     input: { name: string; allowed_origins: string[]; default_agent_id?: string | null },
+    audit?: { requestId: string },
   ) {
     const name = input.name?.trim();
     if (!name) {
@@ -82,6 +93,9 @@ export class PublishableKeysService {
       keyHash: hashPublishableKey(raw),
       allowedOrigins,
       defaultAgentId: input.default_agent_id ?? null,
+      audit: audit
+        ? { actorUserId: tenant.actorId, requestId: audit.requestId }
+        : undefined,
     });
     return {
       ...toJson(summary),
@@ -118,8 +132,12 @@ export class PublishableKeysService {
     return toJson(updated);
   }
 
-  async revokeKey(tenant: TenantContext, keyId: string) {
-    const ok = await this.store.revoke(tenant.workspaceId, keyId);
+  async revokeKey(tenant: TenantContext, keyId: string, audit?: { requestId: string }) {
+    const ok = await this.store.revoke(
+      tenant.workspaceId,
+      keyId,
+      audit ? { actorUserId: tenant.actorId, requestId: audit.requestId } : undefined,
+    );
     if (!ok) {
       throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Publishable key not found" });
     }

@@ -76,6 +76,8 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  packages/audit-writer: {}
+
   packages/auth:
     dependencies:
       jose:
@@ -178,6 +180,9 @@ importers:
 
   services/agent-service:
     dependencies:
+      '@quickstart/audit-writer':
+        specifier: workspace:*
+        version: link:../../packages/audit-writer
       '@quickstart/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -214,6 +219,46 @@ importers:
       typeorm:
         specifier: ^1.1.1
         version: 1.1.1(pg@8.23.0)(redis@4.7.1)(supports-color@7.2.0)
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.15.5
+        version: 8.23.1
+
+  services/audit-service:
+    dependencies:
+      '@quickstart/audit-writer':
+        specifier: workspace:*
+        version: link:../../packages/audit-writer
+      '@quickstart/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quickstart/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@quickstart/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@quickstart/http-server':
+        specifier: workspace:*
+        version: link:../../packages/http-server
+      '@quickstart/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@quickstart/tracing':
+        specifier: workspace:*
+        version: link:../../packages/tracing
+      '@quickstart/utilities':
+        specifier: workspace:*
+        version: link:../../packages/utilities
+      '@quickstart/workspace-access':
+        specifier: workspace:*
+        version: link:../../packages/workspace-access
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+      redis:
+        specifier: ^4.7.1
+        version: 4.7.1
     devDependencies:
       '@types/pg':
         specifier: ^8.15.5
@@ -371,6 +416,9 @@ importers:
 
   services/identity-service:
     dependencies:
+      '@quickstart/audit-writer':
+        specifier: workspace:*
+        version: link:../../packages/audit-writer
       '@quickstart/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -619,6 +667,46 @@ importers:
 
   services/secrets-service:
     dependencies:
+      '@quickstart/audit-writer':
+        specifier: workspace:*
+        version: link:../../packages/audit-writer
+      '@quickstart/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quickstart/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@quickstart/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@quickstart/http-server':
+        specifier: workspace:*
+        version: link:../../packages/http-server
+      '@quickstart/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@quickstart/tracing':
+        specifier: workspace:*
+        version: link:../../packages/tracing
+      '@quickstart/utilities':
+        specifier: workspace:*
+        version: link:../../packages/utilities
+      '@quickstart/workspace-access':
+        specifier: workspace:*
+        version: link:../../packages/workspace-access
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+      redis:
+        specifier: ^4.7.1
+        version: 4.7.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.15.5
+        version: 8.23.1
+
+  services/usage-service:
+    dependencies:
       '@quickstart/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -764,6 +852,9 @@ importers:
 
   services/workspace-service:
     dependencies:
+      '@quickstart/audit-writer':
+        specifier: workspace:*
+        version: link:../../packages/audit-writer
       '@quickstart/auth':
         specifier: workspace:*
         version: link:../../packages/auth

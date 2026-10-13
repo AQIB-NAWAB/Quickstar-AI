@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
+import { insertAuditEntry } from "@quickstart/audit-writer";
 import type { TenantContext } from "@quickstart/auth";
 import { DEFAULT_AGENT_VOICE_SETTINGS } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
@@ -119,7 +120,12 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       return Boolean(result.affected && result.affected > 0);
     },
 
-    async publish(tenant: TenantContext, agentId: string, baseVersion: number) {
+    async publish(
+      tenant: TenantContext,
+      agentId: string,
+      baseVersion: number,
+      audit?: { requestId: string },
+    ) {
       return await dataSource.transaction(async (manager) => {
         const entity = await manager.findOne(AgentEntity, {
           where: { id: agentId, workspaceId: tenant.workspaceId },
@@ -164,6 +170,22 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
         entity.productionVersionId = versionId;
         entity.updatedAt = new Date();
         await manager.save(entity);
+
+        if (audit?.requestId) {
+          await insertAuditEntry((sql, params) => manager.query(sql, params), {
+            workspaceId: tenant.workspaceId,
+            actorUserId: tenant.actorId,
+            action: "agent.published",
+            targetType: "agent",
+            targetId: agentId,
+            requestId: audit.requestId,
+            metadata: {
+              agent_version_id: versionId,
+              release_number: releaseNumber,
+              base_version: baseVersion,
+            },
+          });
+        }
 
         return {
           version: toAgentVersion(versionEntity),

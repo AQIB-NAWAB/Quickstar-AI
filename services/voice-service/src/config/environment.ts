@@ -36,6 +36,9 @@ export type VoiceConfig = {
   twilioFromNumber?: string;
   voicePublicBaseUrl: string;
   requireRealTelephony: boolean;
+  /** Fire-and-forget ledger ingest (Feature 26). */
+  usageUrl: string;
+  usageInternalToken: string;
 };
 
 function parseSpeechProfile(raw: string | undefined): SpeechProfile {
@@ -112,5 +115,11 @@ export function loadVoiceConfig(): VoiceConfig {
     twilioFromNumber: process.env.TWILIO_FROM_NUMBER?.trim() || undefined,
     voicePublicBaseUrl,
     requireRealTelephony: process.env.TELEPHONY_REQUIRE_REAL === "1",
+    usageUrl: (process.env.USAGE_URL ?? process.env.USAGE_SERVICE_URL ?? "http://127.0.0.1:3017").replace(
+      /\/$/,
+      "",
+    ),
+    usageInternalToken:
+      process.env.USAGE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? internalToken,
   };
 }

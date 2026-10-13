@@ -1,4 +1,6 @@
 import type { Pool } from "pg";
+import { insertAuditEntry } from "@quickstart/audit-writer";
+import type { PublishableKeyAudit } from "../services/publishable-keys.service.js";
 
 export type PublishableKeyRow = {
   id: string;
@@ -39,23 +41,49 @@ export class PublishableKeysRepository {
     keyHash: string;
     allowedOrigins: string[];
     defaultAgentId?: string | null;
+    audit?: PublishableKeyAudit;
   }): Promise<PublishableKeySummary> {
-    const result = await this.pool.query<PublishableKeySummary>(
-      `INSERT INTO publishable_keys (
-        id, workspace_id, name, key_prefix, key_hash, allowed_origins, default_agent_id
-      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-      RETURNING ${SUMMARY_COLUMNS}`,
-      [
-        input.id,
-        input.workspaceId,
-        input.name,
-        input.keyPrefix,
-        input.keyHash,
-        JSON.stringify(input.allowedOrigins),
-        input.defaultAgentId ?? null,
-      ],
-    );
-    return result.rows[0]!;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<PublishableKeySummary>(
+        `INSERT INTO publishable_keys (
+          id, workspace_id, name, key_prefix, key_hash, allowed_origins, default_agent_id
+        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+        RETURNING ${SUMMARY_COLUMNS}`,
+        [
+          input.id,
+          input.workspaceId,
+          input.name,
+          input.keyPrefix,
+          input.keyHash,
+          JSON.stringify(input.allowedOrigins),
+          input.defaultAgentId ?? null,
+        ],
+      );
+      const row = result.rows[0]!;
+      if (input.audit) {
+        await insertAuditEntry((sql, params) => client.query(sql, params), {
+          workspaceId: input.workspaceId,
+          actorUserId: input.audit.actorUserId,
+          action: "publishable_key.created",
+          targetType: "publishable_key",
+          targetId: input.id,
+          requestId: input.audit.requestId,
+          metadata: {
+            name: input.name,
+            key_prefix: input.keyPrefix,
+          },
+        });
+      }
+      await client.query("COMMIT");
+      return row;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async listByWorkspace(workspaceId: string): Promise<PublishableKeySummary[]> {
@@ -115,13 +143,39 @@ export class PublishableKeysRepository {
     return result.rows[0] ?? null;
   }
 
-  async revoke(workspaceId: string, keyId: string): Promise<boolean> {
-    const result = await this.pool.query(
-      `UPDATE publishable_keys SET revoked_at = NOW(), updated_at = NOW()
-       WHERE workspace_id = $1 AND id = $2 AND revoked_at IS NULL`,
-      [workspaceId, keyId],
-    );
-    return (result.rowCount ?? 0) > 0;
+  async revoke(
+    workspaceId: string,
+    keyId: string,
+    audit?: PublishableKeyAudit,
+  ): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `UPDATE publishable_keys SET revoked_at = NOW(), updated_at = NOW()
+         WHERE workspace_id = $1 AND id = $2 AND revoked_at IS NULL`,
+        [workspaceId, keyId],
+      );
+      const ok = (result.rowCount ?? 0) > 0;
+      if (ok && audit) {
+        await insertAuditEntry((sql, params) => client.query(sql, params), {
+          workspaceId,
+          actorUserId: audit.actorUserId,
+          action: "publishable_key.revoked",
+          targetType: "publishable_key",
+          targetId: keyId,
+          requestId: audit.requestId,
+          metadata: {},
+        });
+      }
+      await client.query("COMMIT");
+      return ok;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 

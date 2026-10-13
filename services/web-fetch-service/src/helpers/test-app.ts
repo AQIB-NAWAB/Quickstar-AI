@@ -44,6 +44,8 @@ export function testWebFetchConfig(overrides: Partial<WebFetchConfig> = {}): Web
       },
     ],
     workerPollMs: 50,
+    usageUrl: "http://127.0.0.1:3017",
+    usageInternalToken: TEST_INTERNAL_TOKEN,
     ...overrides,
   };
 }
