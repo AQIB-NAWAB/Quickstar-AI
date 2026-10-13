@@ -16,10 +16,16 @@ export const createInternalRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
     internalAuth,
     asyncHandler(telephonyCtrl.sipBridgeEvent),
   );
+  /** Kept for internal tooling; public unsigned path is /voice/telephony/:providerId/status */
   router.post(
     "/internal/voice/telephony/:providerId/status",
     internalAuth,
     asyncHandler(telephonyCtrl.cpaasStatus),
+  );
+  router.post(
+    "/internal/v1/workspaces/:workspaceId/voice/dial",
+    internalAuth,
+    asyncHandler(telephonyCtrl.dial),
   );
 
   return router;

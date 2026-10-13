@@ -17,26 +17,28 @@ export class KnowledgeClient {
 
   async readyCount(workspaceId: string, requestId: string): Promise<number> {
     const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/knowledge/ready-count`;
-    const res = await fetchWithPolicy(
-      url,
-      {
-        method: "GET",
-        headers: {
-          authorization: `Bearer ${this.internalToken}`,
-          "x-request-id": requestId,
+    try {
+      const res = await fetchWithPolicy(
+        url,
+        {
+          method: "GET",
+          headers: {
+            authorization: `Bearer ${this.internalToken}`,
+            "x-request-id": requestId,
+          },
         },
-      },
-      { timeoutMs: this.timeoutMs, maxRetries: 0 },
-    );
-    if (!res.ok) {
-      throw new AppError({
-        code: ErrorCode.UPSTREAM_UNAVAILABLE,
-        message: "Knowledge service ready-count failed",
-        requestId,
-      });
+        { timeoutMs: this.timeoutMs, maxRetries: 0 },
+      );
+      if (!res.ok) {
+        // Treat unreachable/degraded knowledge as "no ready sources" so chat turns
+        // still complete (same fail-open shape as MemoryClient.listFacts).
+        return 0;
+      }
+      const body = (await res.json()) as { ready_count?: number };
+      return body.ready_count ?? 0;
+    } catch {
+      return 0;
     }
-    const body = (await res.json()) as { ready_count?: number };
-    return body.ready_count ?? 0;
   }
 
   async retrieve(

@@ -1,9 +1,22 @@
+export type AudioEncoding = "pcm16" | "mulaw" | "fake" | "mp3";
+
 export type AudioChunk = {
-  /** Raw audio bytes (PCM or μ-law depending on provider). */
+  /** Raw audio bytes (PCM, μ-law, mp3, or fake UTF-8 for tests). */
   bytes: Buffer;
-  encoding: "pcm16" | "mulaw" | "fake";
+  encoding: AudioEncoding;
   sampleRateHz: number;
 };
+
+export type SpeechUsageFact = {
+  type: "speech.usage";
+  provider: string;
+  unit: "stt" | "tts";
+  units: number;
+  call_id?: string;
+  workspace_id?: string;
+};
+
+export type SpeechUsageEmitter = (fact: SpeechUsageFact) => void;
 
 export type TranscriptResult = {
   text: string;

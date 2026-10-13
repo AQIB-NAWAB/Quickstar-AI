@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type {
+  LeadFieldDef,
   LeadRecord,
   LeadSentiment,
   LeadStatus,
@@ -13,6 +14,7 @@ import {
   sanitizeCapturedFields,
   sanitizeTags,
 } from "../utils/fields.js";
+import { normalizeLeadSchema, projectDenormFromAttributes } from "../utils/lead-schema.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,8 +27,8 @@ export class LeadsService {
 
   list(
     workspaceId: string,
-    filters?: { q?: string; status?: string; tag?: string },
-  ): Promise<{ leads: LeadRecord[]; availableTags: string[] }> {
+    filters?: { q?: string; status?: string; tag?: string; limit?: number },
+  ): Promise<{ leads: LeadRecord[]; availableTags: string[]; total: number }> {
     if (filters?.status && filters.status !== "all" && !isLeadStatus(filters.status)) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
@@ -42,6 +44,15 @@ export class LeadsService {
       throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Lead not found" });
     }
     return lead;
+  }
+
+  getSchema(workspaceId: string): Promise<LeadFieldDef[]> {
+    return this.repo.getLeadSchema(workspaceId);
+  }
+
+  async putSchema(workspaceId: string, raw: unknown): Promise<LeadFieldDef[]> {
+    const schema = normalizeLeadSchema(raw);
+    return this.repo.putLeadSchema(workspaceId, schema);
   }
 
   /**
@@ -94,10 +105,18 @@ export class LeadsService {
     const sentiment: LeadSentiment =
       body.sentiment && isLeadSentiment(body.sentiment) ? body.sentiment : "unknown";
 
-    const lead = await this.repo.create(workspaceId, {
-      name: body.name?.trim() || null,
-      email: body.email?.trim().toLowerCase() || null,
-      phone: body.phone?.trim() || null,
+    const capturedFields = sanitizeCapturedFields(body.capturedFields ?? {}, fieldLimits);
+    const schema = await this.repo.getLeadSchema(workspaceId);
+    const denorm = projectDenormFromAttributes(schema, capturedFields, {
+      name: body.name,
+      email: body.email,
+      phone: body.phone,
+    });
+
+    return this.repo.create(workspaceId, {
+      name: denorm.name,
+      email: denorm.email,
+      phone: denorm.phone,
       intent: body.intent?.trim() || null,
       qualificationScore:
         typeof body.qualificationScore === "number" ? body.qualificationScore : null,
@@ -107,15 +126,13 @@ export class LeadsService {
       status,
       tags: sanitizeTags(body.tags ?? []),
       source: (body.source?.trim() || "api").slice(0, 64),
-      capturedFields: sanitizeCapturedFields(body.capturedFields ?? {}, fieldLimits),
+      capturedFields,
       notes: body.notes?.trim() || null,
       conversationId,
       externalId,
       idempotencyKey,
       capturedAt: body.capturedAt ?? new Date(),
     });
-
-    return { lead, created: true };
   }
 
   async updateStatus(
@@ -168,10 +185,30 @@ export class LeadsService {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "invalid sentiment" });
     }
 
+    const mergedFields = body.capturedFields
+      ? mergeCapturedFields(existing.capturedFields, body.capturedFields, fieldLimits)
+      : undefined;
+
+    let name = body.name === undefined ? undefined : body.name?.trim() || null;
+    let email = body.email === undefined ? undefined : body.email?.trim().toLowerCase() || null;
+    let phone = body.phone === undefined ? undefined : body.phone?.trim() || null;
+
+    if (mergedFields) {
+      const schema = await this.repo.getLeadSchema(workspaceId);
+      const denorm = projectDenormFromAttributes(schema, mergedFields, {
+        name: name ?? existing.name,
+        email: email ?? existing.email,
+        phone: phone ?? existing.phone,
+      });
+      name = denorm.name;
+      email = denorm.email;
+      phone = denorm.phone;
+    }
+
     return this.repo.update(workspaceId, leadId, existing.version, {
-      name: body.name === undefined ? undefined : body.name?.trim() || null,
-      email: body.email === undefined ? undefined : body.email?.trim().toLowerCase() || null,
-      phone: body.phone === undefined ? undefined : body.phone?.trim() || null,
+      name,
+      email,
+      phone,
       intent: body.intent === undefined ? undefined : body.intent?.trim() || null,
       qualificationScore: body.qualificationScore,
       qualificationMax: body.qualificationMax,
@@ -179,9 +216,7 @@ export class LeadsService {
       status: body.status,
       tags: body.tags ? sanitizeTags(body.tags) : undefined,
       source: body.source?.trim(),
-      capturedFields: body.capturedFields
-        ? mergeCapturedFields(existing.capturedFields, body.capturedFields, fieldLimits)
-        : undefined,
+      capturedFields: mergedFields,
       notes: body.notes === undefined ? undefined : body.notes?.trim() || null,
       conversationId:
         body.conversationId === undefined ? undefined : body.conversationId?.trim() || null,
@@ -198,10 +233,30 @@ export class LeadsService {
       maxKeys: this.limits.maxCapturedFieldKeys,
       maxValueLength: this.limits.maxCapturedFieldValueLength,
     };
+    const mergedFields = body.capturedFields
+      ? mergeCapturedFields(existing.capturedFields, body.capturedFields, fieldLimits)
+      : undefined;
+
+    let name = body.name?.trim() || undefined;
+    let email = body.email?.trim().toLowerCase() || undefined;
+    let phone = body.phone?.trim() || undefined;
+
+    if (mergedFields) {
+      const schema = await this.repo.getLeadSchema(workspaceId);
+      const denorm = projectDenormFromAttributes(schema, mergedFields, {
+        name: name ?? existing.name,
+        email: email ?? existing.email,
+        phone: phone ?? existing.phone,
+      });
+      name = denorm.name ?? undefined;
+      email = denorm.email ?? undefined;
+      phone = denorm.phone ?? undefined;
+    }
+
     return this.repo.update(workspaceId, existing.id, existing.version, {
-      name: body.name?.trim() || undefined,
-      email: body.email?.trim().toLowerCase() || undefined,
-      phone: body.phone?.trim() || undefined,
+      name,
+      email,
+      phone,
       intent: body.intent?.trim() || undefined,
       qualificationScore: body.qualificationScore,
       qualificationMax: body.qualificationMax,
@@ -209,9 +264,7 @@ export class LeadsService {
       status: body.status && isLeadStatus(body.status) ? body.status : undefined,
       tags: body.tags ? sanitizeTags(body.tags) : undefined,
       source: body.source?.trim(),
-      capturedFields: body.capturedFields
-        ? mergeCapturedFields(existing.capturedFields, body.capturedFields, fieldLimits)
-        : undefined,
+      capturedFields: mergedFields,
       notes: body.notes?.trim() || undefined,
       conversationId: body.conversationId?.trim() || undefined,
     });

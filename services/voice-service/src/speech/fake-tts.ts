@@ -4,10 +4,30 @@ import type { AudioChunk, SpeechToSpeechFactory, SpeechToSpeechSession, SpeechTo
 export class FakeTextToSpeech implements TextToSpeech {
   readonly id = "fake-tts";
 
-  async synthesize(text: string, _voiceId: string, _signal?: AbortSignal): Promise<SynthesisResult> {
+  constructor(private readonly delayMs = 0) {}
+
+  async synthesize(text: string, _voiceId: string, signal?: AbortSignal): Promise<SynthesisResult> {
     void _voiceId;
-    void _signal;
     const started = Date.now();
+    if (signal?.aborted) {
+      const err = new Error("TTS aborted");
+      err.name = "AbortError";
+      throw err;
+    }
+    if (this.delayMs > 0) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, this.delayMs);
+        const onAbort = () => {
+          clearTimeout(timer);
+          const err = new Error("TTS aborted");
+          err.name = "AbortError";
+          reject(err);
+        };
+        if (signal) {
+          signal.addEventListener("abort", onAbort, { once: true });
+        }
+      });
+    }
     const audio: AudioChunk = {
       bytes: Buffer.from(`tts:${text}`, "utf8"),
       encoding: "fake",
@@ -62,10 +82,13 @@ export type SpeechBundle = {
   s2s: SpeechToSpeechFactory;
 };
 
-export function createFakeSpeechBundle(fixedUtterance?: string): SpeechBundle {
+export function createFakeSpeechBundle(
+  fixedUtterance?: string,
+  opts?: { sttDelayMs?: number; ttsDelayMs?: number },
+): SpeechBundle {
   return {
-    stt: new FakeSpeechToText(fixedUtterance),
-    tts: new FakeTextToSpeech(),
+    stt: new FakeSpeechToText(fixedUtterance, opts?.sttDelayMs ?? 0),
+    tts: new FakeTextToSpeech(opts?.ttsDelayMs ?? 0),
     s2s: new FakeSpeechToSpeechFactory(),
   };
 }

@@ -50,6 +50,8 @@ export const WORKSPACE_PERMISSIONS = {
   LEAD_READ: "workspace.lead.read",
   LEAD_CREATE: "workspace.lead.create",
   LEAD_EDIT: "workspace.lead.edit",
+  EVAL_READ: "workspace.eval.read",
+  EVAL_RUN: "workspace.eval.run",
 } as const;
 
 export type WorkspacePermission =
@@ -97,6 +99,8 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.LEAD_READ,
     WORKSPACE_PERMISSIONS.LEAD_CREATE,
     WORKSPACE_PERMISSIONS.LEAD_EDIT,
+    WORKSPACE_PERMISSIONS.EVAL_READ,
+    WORKSPACE_PERMISSIONS.EVAL_RUN,
   ],
   developer: [
     WORKSPACE_PERMISSIONS.LEADS_READ,
@@ -128,6 +132,8 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.LEAD_READ,
     WORKSPACE_PERMISSIONS.LEAD_CREATE,
     WORKSPACE_PERMISSIONS.LEAD_EDIT,
+    WORKSPACE_PERMISSIONS.EVAL_READ,
+    WORKSPACE_PERMISSIONS.EVAL_RUN,
   ],
   operator: [
     WORKSPACE_PERMISSIONS.LEADS_READ,
@@ -165,6 +171,7 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly WorkspacePermission[]> = 
     WORKSPACE_PERMISSIONS.VOICE_CALLS_READ,
     WORKSPACE_PERMISSIONS.VOICE_TRANSCRIPTS_READ,
     WORKSPACE_PERMISSIONS.LEAD_READ,
+    WORKSPACE_PERMISSIONS.EVAL_READ,
   ],
   human_agent: [
     WORKSPACE_PERMISSIONS.WORKSPACE_READ,

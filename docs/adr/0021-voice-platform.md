@@ -40,9 +40,11 @@ Every call has a Postgres `calls` row, conversation messages, and transcript seg
 
 - Global Redis caps: 5,000 inbound / 5,000 outbound.
 - Per-workspace inbound/outbound caps.
-- Redis down → **refuse new calls** (fail closed).
+- **Atomic leases:** acquire checks global + workspace limits in one Lua EVAL, then INCR both and SET `voice:cap:lease:{leaseId}`. Release is **idempotent** — DECR only if the lease key still exists (ownership token). Memory caps mirror the same lease API for tests.
+- Redis down → **refuse new calls** (fail closed). In-flight calls are not forcibly torn down by the cap store.
 - Barge-in cancels in-flight TTS without duplicate assistant messages.
 - Turn detection: pluggable VAD / end-of-turn (eager EOT policy).
+- Proof: `scripts/check-voice-reliability-proof.mjs` + `services/voice-service/src/tests/voice-reliability.test.ts`.
 
 ### Contracts
 
@@ -56,6 +58,17 @@ Shared types live in `@quickstart/contracts` (`voice.ts`): `VoiceMode`, `CallSta
 | STT/TTS timeout | One retry only if no billable audio committed; else fail turn |
 | Cap exceeded | Reject before opening media |
 | Redis unavailable | Reject **new** calls |
+
+### 21B Speech profiles
+
+- STT/TTS adapters live **only** in `services/voice-service` (`speech/` module). Runtime and gateway never import vendor SDKs.
+- **Profiles:** `SPEECH_PROFILE=fake` (default, local + Feature 21 simulate) or `openai` (Whisper STT + OpenAI TTS).
+- **Keys:** `SPEECH_OPENAI_API_KEY` or `OPENAI_API_KEY`. Never log Authorization or key material.
+- **Fail-closed:** `VOICE_REQUIRE_REAL_SPEECH=1` refuses process start when profile is `fake` or the OpenAI key is missing (production honesty).
+- **Retry:** one retry only when no billable STT/TTS output was committed; then fail the turn.
+- **Circuit breaker:** per speech profile id (same idea as model-gateway).
+- **Usage stubs:** structured `speech.usage` facts (`stt` / `tts` units) for Feature 26 — not a ledger on the call path.
+- Second vendors (Deepgram, ElevenLabs, Cartesia) and streaming WebSockets are deferred.
 
 ## Consequences
 

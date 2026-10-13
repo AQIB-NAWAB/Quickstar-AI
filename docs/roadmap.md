@@ -157,13 +157,15 @@ Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-12):
 | Feature | Status | Where | Note |
 | --- | --- | --- | --- |
 | Memory (14), tools (15), secrets (16) | Done | `memory-service`, agent tools, `secrets-service` | Gateway proxies memory, knowledge, secrets |
-| Website widget (17) | Partial | gateway public routes, publishable keys, `apps/web/public/quickstart-widget.js` | API turn, history, retry, and origin checks pass locally; rendered browser check remains |
+| Website widget (17) | Done (v1) | gateway public routes, publishable keys, `apps/web/public/quickstart-widget.js`, `scripts/check-widget-browser-proof.mjs` | Chat turn, refresh history, wrong-origin reject, and idempotent retry proven; SSE reconnect-by-seq is follow-up |
 | Inbox handoff (18) | Done | conversation `take`/`release`, runtime 409 | Staff UI is F4 |
 | Event platform (19) | Done (catalog v1) | conversation outbox + Kafka | `handed_off`, `released`, `message.appended` produced; consumer idempotency remains |
 | Workflows (20) | Done | `services/workflow-service` :3012 + staff UI | Definitions, Kafka consumer, runs/steps, side effects, dead letters |
+| Voice path (21) | Done (v1) | `voice-service` :3008, runtime internal voice turn, `scripts/check-voice-simulate-proof.mjs` | Fake-media simulate → real runtime messages + `voice_calls` timings |
+| Speech providers (21B) | Done (v1) | `speech/` OpenAI + fake profiles, `scripts/check-voice-speech-proof.mjs` | Env-gated OpenAI STT/TTS; fail-closed flag; usage stubs; 21C still open |
 | Staff web F1 + F4 | Done (core) | `apps/web` | Auth shell, inbox, transcript. Agents/settings still "Soon" |
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, gateway 3000, staff web **3015** locally when model-gateway holds 3005. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, campaign 3013, lead 3014, staff web **3015**, eval 3016, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 
@@ -223,15 +225,11 @@ Billing, security, ops (late):
 A product feature is finished only when the API and the staff screen both work. Section **6A** is the list. Catch-up features already have APIs; the owner still ships the screen as part of that same feature. New features start with the service and the screen in one slice.
 
 ```text
-Now (three people, three features):
-  Agents (07/08 + screen)
-  Knowledge and memory (11/14 + screen)
-  Workspace settings (05/16/keys + screen)
-
-Then, each as one feature:
-  Website widget (API already there + embed bundle + key screen if not done in settings)
-  Workflows (events 19b inside this feature, then service + builder screen)
-  Voice (21–21C + call log screen)
+Now (catch-up screens that were open are largely done; pick from 6A):
+  Website widget (17) — done for v1 JSON turns; SSE follow-up only
+  Voice path (21) — done for v1 fake-media simulate + runtime hop
+  Speech providers (21B) — done for v1 OpenAI profile + fake default
+  Next: 22 reliability → 21C telephony (+ F5 polish)
   Campaigns, leads, usage, evaluation, audit (each: API + screen)
   Platform labs P1–P8 and cloud deploy (no product screen)
 ```
@@ -269,11 +267,11 @@ Rules that do not change:
 
 Update these lines every day.
 
-- **Current focus:** section **6A** — close **Website widget (17)** browser proof if still open; next product feature is **Voice** (or Campaigns after voice)
-- **Next production deep topic:** voice path drain and per-call stage budgets (Feature 21)
-- **Product priority:** Widget browser proof, then voice track when scheduled
-- **Finished features:** backend **01–16**, **18–20**; **17** partial; staff web **F1–F4**, **F8**, **F10** core
-- **Board status:** synced to repo 2026-10-12; update this line when code and table disagree
+- **Current focus:** section **6A** — next is **26** Usage and billing; V1 voice load/drain can run beside
+- **Next production deep topic:** usage ledger idempotency and money facts (Feature 26)
+- **Product priority:** Voice **21–23** + leads **24** + eval harness **25** done for v1; keep widget SSE as follow-up only
+- **Finished features:** backend **01–25** + **21B** + **21C**; staff web **F1–F4**, **F8**, **F10** core
+- **Board status:** synced to repo 2026-10-13 (Feature 25 proof); update this line when code and table disagree
 
 | # | Feature | Needs | Track partner (can run the same days) | Status |
 | --- | --- | --- | --- | --- |
@@ -295,18 +293,18 @@ Update these lines every day.
 | 14 | Memory | 09, 12 | 13 | done |
 | 15 | Tools and MCP | 12 | 16 | done |
 | 16 | Secrets | — | 15 | done |
-| 17 | Website chat widget | 12 | 18 | partial |
+| 17 | Website chat widget | 12 | 18 | done |
 | 18 | Inbox and human handoff | 09 | 17, 21C | done |
 | 19 | Event platform | objects exist | 20 | done |
 | 20 | Workflow automation | 19 | 19 | done |
-| 21 | Voice path | 12, 09B | 21B | not_started |
-| 21B | Speech providers (STT/TTS) | 21 | 21C | not_started |
-| 22 | Voice reliability | 21 | 21C | not_started |
-| 21C | Telephony (CPaaS) | 21, 21B, 22 | 23 | not_started |
-| 23 | Campaigns | 21C, 22, 09 | 24 | not_started |
+| 21 | Voice path | 12, 09B | 21B | done |
+| 21B | Speech providers (STT/TTS) | 21 | 21C | done |
+| 22 | Voice reliability | 21 | 21C | done |
+| 21C | Telephony (CPaaS) | 21, 21B, 22 | 23 | done |
+| 23 | Campaigns | 21C, 22, 09 | 24 | done |
 | V1 | Voice load and drain proof | 22, P3 | P3 | not_started |
-| 24 | Leads | 19 | 23 | not_started |
-| 25 | Evaluation | 12 | 26 | not_started |
+| 24 | Leads | 19 | 23 | done |
+| 25 | Evaluation | 12 | 26 | done |
 | 26 | Usage and billing | 10, 12, 21B, 21C | 25 | not_started |
 | 27 | Audit and security | all writes | 28 | not_started |
 | 28 | Observability and alerts | traces exist | 27 | not_started |
@@ -364,8 +362,8 @@ Start the next row only after the **Needs** row is done. The person who takes it
 
 | Order | Feature | Needs | Ship together | Directories |
 | --- | --- | --- | --- | --- |
-| 1 | **Website widget** (17) | Runtime, publishable keys (settings feature if that screen is the key manager) | Embed bundle and host-page demo are implemented. Prove chat and refresh persistence in a running local stack. SSE is a follow-up, not a second feature. | `apps/web/public/quickstart-widget.js`, `fixtures/widget-demo.html`; key admin stays in settings. |
-| 2 | **Voice** (21, 21B, 22, 21C + screen F5) | Runtime, membership cache. Section **5C**. | Voice process on port 3008, one telephony vendor, and a staff call log. Do not merge the service with no log page. | `services/voice-service/`, `apps/web/src/features/voice/` |
+| 1 | **Website widget** (17) | Runtime, publishable keys | **Done (v1).** Embed bundle, demo page, and `scripts/check-widget-browser-proof.mjs` prove chat + refresh + origin + idempotency. SSE is follow-up. | `apps/web/public/quickstart-widget.js`, `fixtures/widget-demo.html`; key admin stays in settings. |
+| 2 | **Voice** (21 + 21B done v1; next 22 → 21C + F5) | Runtime, membership cache. Section **5C**. | **21/21B done:** simulate + OpenAI speech profile. Still ship reliability (22), one telephony vendor (21C). Staff call log API path already exists. | `services/voice-service/`, `apps/web/src/features/voice/` |
 | 3 | **Campaigns** (23 + screen F6) | Voice reliability and telephony | Queue, caps, and the campaign screen. | One service (decide in the ADR), `features/campaigns/` |
 | 4 | **Leads** (24 + screen F7) | Workflows or a single event you already emit | Lead rows and the lead list. | Lead service, `features/leads/` |
 | 5 | **Usage** (26 + screen F9) | Model and web-fetch facts already log; there is no ledger | Ledger consumer off the request path, and a staff totals page. | Usage consumer, `features/usage/` |
@@ -1978,7 +1976,7 @@ No full KMS integration until the cloud feature. Document the local master key a
 
 ## 20. Feature 17 — Website chat widget
 
-**Status:** `partial` — public widget HTTP API, publishable-key management, static browser bundle, and local host-page demo are implemented. Local API turn/history, idempotent retry, and allowed-origin checks pass; rendered browser check remains because no browser surface is available in this environment. SSE is follow-up work.
+**Status:** `done` — public widget HTTP API, publishable-key management, static browser bundle, host-page demo, and `scripts/check-widget-browser-proof.mjs` (create → turn → refresh history, wrong origin, idempotent retry) pass against a local stack. SSE reconnect-by-seq remains follow-up work.
 **Needs:** runtime chat turns
 **Can run beside:** Feature 18  
 **Deep topic:** horizontal scale of long connections
@@ -2225,15 +2223,15 @@ Email and agent-handoff actions record side-effect rows; they do not yet call SE
 
 ## 24. Feature 21 — Voice path
 
-**Status:** `not_started`  
+**Status:** `done` (v1) — fake-media simulate → runtime internal voice turn → `voice_calls` + timings; proven by `scripts/check-voice-simulate-proof.mjs`. Real STT/TTS is **21B**; PSTN is **21C**.  
 **Needs:** 12 (runtime), 09B (membership cache at scale)  
 **Can run beside:** 11 if directories differ  
 **Deep topic:** streaming, heartbeats, and a second channel that must not fork the agent engine  
-**Owns:** `services/voice-service` (local port **3008**), ADR **0012-voice-platform** (draft), `packages/contracts` voice/call types
+**Owns:** `services/voice-service` (local port **3008**), ADR **0021-voice-platform**, `packages/contracts` voice/call types
 
 ### Pre-context
 
-Chat can run a turn. Voice does not exist. Runtime exposes a **voice-turn** contract (Feature 12).
+Chat can run a turn. Voice edge exists on `:3008` with cascade fake media and an internal runtime voice-turn hop (same pattern as widget internal turns).
 
 ### What this is
 
@@ -2282,21 +2280,23 @@ This service needs stable outbound media and health checks. The cluster comes in
 
 One simulated call creates a conversation turn through the existing runtime and records the call row. Traces or structured logs include `call_id` and stage latency fields.
 
+**Met:** `node --env-file=.env scripts/check-voice-simulate-proof.mjs` (conversation messages + `call_id` + `stt_ms`/`runtime_ms`/`tts_ms`).
+
 ### Still unsafe
 
-No PSTN (21C). No production phone numbers. Recording/transcript storage optional stub only. Legal/compliance for call recording documented as deferred.
+No PSTN (21C). No production phone numbers. Default boot still uses fake STT/TTS (21B). Recording/transcript storage optional stub only. Legal/compliance for call recording documented as deferred. Dual-replica cap race / drain proof remains for V1.
 
 ---
 
 ## 25. Feature 22 — Voice reliability
 
-**Status:** `not_started`  
+**Status:** `done` (v1) — atomic Redis/memory leases; four LLD tests in `voice-reliability.test.ts`; proven by `scripts/check-voice-reliability-proof.mjs`.  
 **Needs:** 21  
 **Deep topic:** failure domains (one bad call must not stall the rest)
 
 ### Pre-context
 
-A simulated call can complete. Real calls drop, arrive twice, and overrun deadlines.
+A simulated call can complete through the real runtime (Feature 21). Real calls drop, arrive twice, and overrun deadlines.
 
 ### What this is
 
@@ -2332,25 +2332,25 @@ The cap remains in Redis (managed cache). More voice pods do not multiply the al
 
 ### Low-level design
 
-- Test: global or workspace cap reached returns a typed error before opening media
-- Test: simulated hang releases the worker in `finally`
-- Test: reconnect reuses the same `call_id` and conversation
-- Test: barge-in cancels in-flight TTS without starting a duplicate assistant message
-- ADR: Redis down → refuse **new** calls (fail closed)
+- Test: global or workspace cap reached returns a typed error before opening media — **done** (`RATE_LIMITED`, STT not called)
+- Test: simulated hang releases the worker in `finally` — **done** (lease count back to 0)
+- Test: reconnect reuses the same `call_id` and conversation — **done** (live reconnect skips second acquire)
+- Test: barge-in cancels in-flight TTS without starting a duplicate assistant message — **done**
+- ADR: Redis down → refuse **new** calls (fail closed) — **done**; caps are ownership leases (Lua / memory)
 
 ### Done when
 
-Those tests pass and the ADR says what happens when Redis is down.
+Those tests pass and the ADR says what happens when Redis is down. **Met** — unit suite + `scripts/check-voice-reliability-proof.mjs` green.
 
 ### Still unsafe
 
-No global anycast network. No legal call-recording program. Write the recording decision as "not in this feature."
+No global anycast network. No legal call-recording program. Write the recording decision as "not in this feature." Dual-replica Redis race / kill-pod drain proof remains **V1**.
 
 ---
 
 ## 25A. Feature 21B — Speech providers (STT/TTS)
 
-**Status:** `not_started`  
+**Status:** `done` (v1) — `SPEECH_PROFILE=fake|openai`; OpenAI Whisper STT + TTS adapters; fail-closed via `VOICE_REQUIRE_REAL_SPEECH`; proven by `scripts/check-voice-speech-proof.mjs` (fixture mode).  
 **Needs:** 21  
 **Can run beside:** 22 if files do not overlap in `voice-service`  
 **Deep topic:** timeouts, one retry, circuit breaker (same as model gateway)  
@@ -2368,22 +2368,33 @@ Provider interface: `transcribe(audio_chunk)`, `synthesize(text)` (and streaming
 
 If STT/TTS SDKs land in runtime or gateway, voice scale and billing diverge from model-gateway rules.
 
+### Low-level design
+
+- Files: `services/voice-service/src/speech/` — `types.ts`, `fake-*.ts`, `openai-stt.ts`, `openai-tts.ts`, `policy.ts` (retry + breaker + usage), `factory.ts`
+- Env: `SPEECH_PROFILE=fake|openai` (default `fake`); `SPEECH_OPENAI_API_KEY` / `OPENAI_API_KEY`; `VOICE_REQUIRE_REAL_SPEECH=1` fail-closed; optional `SPEECH_CIRCUIT_FAILURE_THRESHOLD`, `SPEECH_CIRCUIT_COOLDOWN_MS`, `SPEECH_HTTP_TIMEOUT_MS`
+- OpenAI STT: `POST /v1/audio/transcriptions` (whisper-1); TTS: `POST /v1/audio/speech`
+- Failure: timeout/5xx → one retry if no billable output; circuit open → fail turn; never log API keys
+- Usage stub log: `{ type: "speech.usage", provider, unit: "stt"|"tts", units: number, call_id?, workspace_id? }`
+- Proof: `scripts/check-voice-speech-proof.mjs` (fixture mode default); Feature 21 `check-voice-simulate-proof.mjs` stays on fake profile
+
 ### Done when
 
 Fake STT/TTS in tests; one real provider behind env flag optional; no API keys in logs; voice turn works end-to-end in simulation with real adapter code paths.
 
+**Met:** `node --env-file=.env scripts/check-voice-speech-proof.mjs` (fixture); Feature 21 simulate remains green on `SPEECH_PROFILE=fake`.
+
 ### Still unsafe
 
-No separate `speech-gateway` service unless traffic proves we need it. Start inside voice-service.
+No separate `speech-gateway` service unless traffic proves we need it. Start inside voice-service. Streaming STT/TTS and second vendors deferred.
 
 ---
 
 ## 25B. Feature 21C — Telephony (CPaaS)
 
-**Status:** `not_started`  
+**Status:** `done` (v1 adapter) — `TwilioCpaasProvider` + factory (`TELEPHONY_PROFILE=fake|twilio`); signed public inbound/status; internal dial; status idempotency; proven by `scripts/check-voice-telephony-proof.mjs` (fixture).  
 **Needs:** 21, 21B, 22  
 **Deep topic:** webhook idempotency and media stream security  
-**Owns:** telephony adapter in `services/voice-service`, ADR **0013-telephony** (primary: **Twilio** or **Telnyx** — pick one, second as fallback profile)
+**Owns:** telephony adapter in `services/voice-service`, ADR **0022-telephony-providers** (primary: **Twilio**; fallback profile: **Telnyx**)
 
 ### Pre-context
 
@@ -2405,13 +2416,22 @@ Hard-code Twilio in the gateway. Webhooks without signature check. Outbound dial
 
 All telephony HTTP routes on voice-service (or a dedicated telephony port on the same process), not on gateway :3000. Recordings point to object storage URLs when enabled. Emit telephony usage facts (call minute, direction) async.
 
+### Low-level design
+
+- Adapter factory registers Twilio (real or fake) + Telnyx stub + SIP + fake behind `TelephonyRouter` — **done**
+- Public `POST /voice/telephony/:providerId/inbound|status` with signature verify — **done**
+- Internal `POST .../voice/dial` → router → provider.dial → orchestrator turn + Feature 22 caps — **done**
+- Status idempotency by `(CallSid, event)` — **done**
+- ADR names Twilio primary + Telnyx fallback — **done** (0022)
+
 ### Done when
 
-One inbound and one outbound call through staging CPaaS complete one runtime turn each; caps from Feature 22 enforced; ADR names primary and fallback provider.
+One inbound and one outbound call through staging CPaaS complete one runtime turn each; caps from Feature 22 enforced; ADR names primary and fallback provider.  
+**Met (v1 adapter / fixture):** signed inbound + outbound dial each complete one orchestrator turn with caps; live PSTN Media Streams remain optional when `TWILIO_*` set.
 
 ### Still unsafe
 
-No AMD/voicemail/opt-out (campaign compliance) — document under Feature 23. No international regulatory bundle.
+No live Media Streams PSTN until staging secrets + WS path. No real Telnyx adapter. No AMD/voicemail/opt-out (campaign compliance) — document under Feature 23. No international regulatory bundle.
 
 ---
 
@@ -2437,7 +2457,7 @@ Not a substitute for Feature 30 full platform load test.
 
 ## 26. Feature 23 — Campaigns
 
-**Status:** `not_started`  
+**Status:** `done` (v1) — claim worker + `VoiceDialAdapter` (`CAMPAIGN_DIAL_MODE=voice`) → voice simulate; LLD claim/idempotency/pacing; proven by `scripts/check-campaign-voice-proof.mjs`.  
 **Needs:** 21C (telephony), 22 (caps), 09 (conversations)  
 **Can run beside:** Feature 24  
 **Deep topic:** backpressure (do not dial every lead in one request)
@@ -2480,23 +2500,25 @@ Workers scale out. The claim SQL stays correct with many workers.
 
 ### Low-level design
 
-- Tables: campaigns, targets, attempts
-- Test: two workers, each target attempted once
-- Test: retry of the create request does not create two campaigns (idempotency key)
+- Tables: campaigns, targets, attempts — **done** (`campaign-service`)
+- Test: two workers, each target attempted once — **done** (`claim-idempotency.test.ts`)
+- Test: retry of the create request does not create two campaigns (idempotency key) — **done**
+- Per-campaign `maxConcurrentCalls` claim pacing — **done** (light; Redis outbound coupling later)
+- `CAMPAIGN_DIAL_MODE=voice` → voice internal simulate — **done**
 
 ### Done when
 
-A campaign of a few fake targets runs through the voice test double once each.
+A campaign of a few fake targets runs through the voice test double once each. **Met** — proof script green.
 
 ### Still unsafe
 
-No production carrier beyond staging CPaaS. **AMD, voicemail, opt-out, and compliance copy** are not done — document before production outbound at scale.
+No production carrier beyond staging CPaaS. **AMD, voicemail, opt-out, and compliance copy** are not done — document before production outbound at scale. Legacy voice-service `/voice/campaigns` side-car still exists. Per-minute pacing + global Redis outbound lease coupling incomplete.
 
 ---
 
 ## 27. Feature 24 — Leads
 
-**Status:** `not_started`  
+**Status:** `done` (v1 flexible — schema-as-data)  
 **Needs:** events (a lead can also be created by API if events are late; do not block the table on a perfect bus)  
 **Can run beside:** Feature 23  
 **Deep topic:** tenant scope and duplicate leads
@@ -2509,29 +2531,31 @@ Chats and calls do not create a sales lead object.
 
 A lead is a workspace-scoped record: source, contact fields, status, link to a conversation if we have one. **Discovery and enrichment** (web search, scrape company URL) go through web acquisition (10B), not ad hoc HTTP from the lead worker. Creating the same lead twice (same idempotency key or same external id) returns the first row.
 
+Flexibility matches campaigns: workspace **`lead_schema`** + per-lead **`captured_fields` JSONB**. Thin indexed columns only; new customer fields never need `ALTER TABLE`.
+
 ### Why now
 
 Campaigns and inbox need somewhere to put "this person should be followed up" that is not a random JSON note.
 
 ### Junior shortcut
 
-The junior shortcut inserts on every event with no unique key. Replays create five leads. Contact fields from workspace A show up in workspace B's list because the list forgot the filter.
+The junior shortcut inserts on every event with no unique key. Replays create five leads. Contact fields from workspace A show up in workspace B's list because the list forgot the filter. Growing columns per CRM field is also rejected.
 
 ### Production shape
 
-Postgres with unique `(workspace_id, external_id)` when an external id exists. List APIs are paginated and indexed. Events may create leads. The consumer stores event ids.
+Postgres with unique `(workspace_id, external_id)` and `(workspace_id, idempotency_key)` when set. List APIs filter `workspace_id` + soft-delete and return an honest filtered `total`. Events may create leads later; outbox not required for v1 Done when.
 
 ### What breaks at scale
 
-A list without an index becomes a sequential scan at high lead counts. The write path is not 1,000 per second. The read path still needs the index because staff will refresh the inbox all day.
+A list without an index becomes a sequential scan at high lead counts. The write path is not 1,000 per second. The read path still needs the index because staff will refresh the inbox all day. Uniqueness + workspace filter is correctness — not more columns.
 
 ### Choice
 
-We take a relational lead and idempotent create.
+We take a relational lead and idempotent create, plus schema-as-data for extras.
 
-We reject a spreadsheet JSON blob per workspace.
+We reject a spreadsheet JSON blob per workspace as the only truth.
 
-Cost: we must choose a small set of columns. Extra fields can sit in JSON. Say which columns are real.
+Cost: we must choose a small set of columns. Extra fields sit in JSON. Schema labels drive the UI.
 
 ### Cloud later
 
@@ -2539,23 +2563,26 @@ Same Postgres. Exports, if any, are jobs, not requests that build a giant file i
 
 ### Low-level design
 
-- CRUD plus idempotent create
+- CRUD plus idempotent create / merge upsert
+- `GET/PUT .../leads/schema`
 - Test: replay does not duplicate
 - Test: cross-workspace list is empty of the other tenant
+- Test: conversation_id + custom attributes without migrations
+- Proof: `scripts/check-lead-store-proof.mjs`
 
 ### Done when
 
-Those tests pass and a conversation id can be stored on the lead.
+Those tests pass and a conversation id can be stored on the lead. **Met** for v1 flexible store.
 
 ### Still unsafe
 
-No CRM sync. No scoring model.
+No CRM sync. No scoring model. No `lead.*` outbox. No lead-gen auto-handoff.
 
 ---
 
 ## 28. Feature 25 — Evaluation
 
-**Status:** `not_started`  
+**Status:** `done` (v1 async harness)  
 **Needs:** runtime  
 **Can run beside:** Feature 26  
 **Deep topic:** do not run eval inside the user-facing request
@@ -2580,6 +2607,8 @@ The junior shortcut runs fifty model calls inside the publish HTTP request. Publ
 
 Publish stays fast. Eval is a job with its own worker, its own timeout per case, and a stored report. Cases are tenant scoped. The report records the agent version id so we know what was scored.
 
+**Shipped:** `services/eval-service` (:3016), claim worker, exact-match + fake scripted scoring, runtime internal version pin, caps, `scripts/check-eval-proof.mjs`.
+
 ### What breaks at scale
 
 Eval is a cost amplifier. A loop with no cap can spend a month of model budget overnight. Cap cases per run and runs per workspace per day.
@@ -2602,14 +2631,15 @@ Workers scale separately from the gateway. Spend caps still live in our table, n
 - Fake model gateway returns scripted answers
 - Test: cap rejects the extra case
 - Test: another workspace cannot read the report
+- Proof: `scripts/check-eval-proof.mjs`
 
 ### Done when
 
-A run finishes async and the report matches the scripted answers.
+A run finishes async and the report matches the scripted answers. **Met** for v1 harness.
 
 ### Still unsafe
 
-No human labeling UI. No automatic publish block.
+No human labeling UI. No automatic publish block. No tool-expectation scoring. No dataset revision snapshots.
 
 ---
 

@@ -2,11 +2,13 @@ import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Pool } from "pg";
 import type {
   CapturedFields,
+  LeadFieldDef,
   LeadRecord,
   LeadSentiment,
   LeadStatus,
   LeadUpsertInput,
 } from "../domain/types.js";
+import { defaultLeadSchema, normalizeLeadSchema } from "../utils/lead-schema.js";
 
 type LeadRow = {
   id: string;
@@ -80,8 +82,8 @@ export class LeadsRepository {
 
   async list(
     workspaceId: string,
-    filters?: { q?: string; status?: string; tag?: string },
-  ): Promise<{ leads: LeadRecord[]; availableTags: string[] }> {
+    filters?: { q?: string; status?: string; tag?: string; limit?: number },
+  ): Promise<{ leads: LeadRecord[]; availableTags: string[]; total: number }> {
     const params: unknown[] = [workspaceId];
     const clauses = ["workspace_id = $1", "deleted_at IS NULL"];
 
@@ -100,11 +102,20 @@ export class LeadsRepository {
       );
     }
 
+    const whereSql = clauses.join(" AND ");
+    const limit = Math.min(Math.max(filters?.limit ?? 200, 1), 200);
+
+    const countResult = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM leads WHERE ${whereSql}`,
+      params,
+    );
+    const total = Number(countResult.rows[0]?.count ?? 0);
+
     const result = await this.pool.query<LeadRow>(
       `SELECT * FROM leads
-       WHERE ${clauses.join(" AND ")}
+       WHERE ${whereSql}
        ORDER BY updated_at DESC
-       LIMIT 200`,
+       LIMIT ${limit}`,
       params,
     );
 
@@ -120,7 +131,31 @@ export class LeadsRepository {
     return {
       leads: result.rows.map(mapLead),
       availableTags: tagsResult.rows.map((r) => r.tag),
+      total,
     };
+  }
+
+  async getLeadSchema(workspaceId: string): Promise<LeadFieldDef[]> {
+    const result = await this.pool.query<{ lead_schema: unknown }>(
+      `SELECT lead_schema FROM workspace_lead_settings WHERE workspace_id = $1`,
+      [workspaceId],
+    );
+    if (!result.rows[0]) {
+      return defaultLeadSchema();
+    }
+    return normalizeLeadSchema(result.rows[0].lead_schema);
+  }
+
+  async putLeadSchema(workspaceId: string, schema: LeadFieldDef[]): Promise<LeadFieldDef[]> {
+    const normalized = normalizeLeadSchema(schema);
+    await this.pool.query(
+      `INSERT INTO workspace_lead_settings (workspace_id, lead_schema, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (workspace_id) DO UPDATE
+       SET lead_schema = EXCLUDED.lead_schema, updated_at = NOW()`,
+      [workspaceId, JSON.stringify(normalized)],
+    );
+    return normalized;
   }
 
   async get(workspaceId: string, leadId: string): Promise<LeadRecord | null> {
@@ -153,7 +188,10 @@ export class LeadsRepository {
     return result.rows[0] ? mapLead(result.rows[0]) : null;
   }
 
-  async create(workspaceId: string, input: Required<LeadUpsertInput>): Promise<LeadRecord> {
+  async create(
+    workspaceId: string,
+    input: Required<LeadUpsertInput>,
+  ): Promise<{ lead: LeadRecord; created: boolean }> {
     try {
       const result = await this.pool.query<LeadRow>(
         `INSERT INTO leads (
@@ -184,17 +222,17 @@ export class LeadsRepository {
           input.capturedAt,
         ],
       );
-      return mapLead(result.rows[0]);
+      return { lead: mapLead(result.rows[0]), created: true };
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
       if (code === "23505") {
         if (input.idempotencyKey) {
           const existing = await this.findByIdempotencyKey(workspaceId, input.idempotencyKey);
-          if (existing) return existing;
+          if (existing) return { lead: existing, created: false };
         }
         if (input.externalId) {
           const existing = await this.findByExternalId(workspaceId, input.externalId);
-          if (existing) return existing;
+          if (existing) return { lead: existing, created: false };
         }
       }
       throw err;

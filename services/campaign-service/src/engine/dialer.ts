@@ -1,5 +1,10 @@
 import type { Logger } from "@quickstart/logging";
-import type { CampaignAttempt, CampaignTarget, TargetStatus } from "../domain/types.js";
+import type {
+  CampaignAttempt,
+  CampaignRecord,
+  CampaignTarget,
+  TargetStatus,
+} from "../domain/types.js";
 import type { CampaignsRepository } from "../repository/campaigns.repository.js";
 
 export type DialResult = {
@@ -11,12 +16,13 @@ export type DialResult = {
 };
 
 export interface DialAdapter {
-  dial(target: CampaignTarget): Promise<DialResult>;
+  dial(target: CampaignTarget, campaign: CampaignRecord): Promise<DialResult>;
 }
 
-/** Stub dialer until voice-service (21C) owns real PSTN. */
+/** Stub dialer for unit tests / local without voice. */
 export class StubDialAdapter implements DialAdapter {
-  async dial(target: CampaignTarget): Promise<DialResult> {
+  async dial(target: CampaignTarget, _campaign: CampaignRecord): Promise<DialResult> {
+    void _campaign;
     const lastDigit = Number(target.dialNormalized.slice(-1)) || 0;
     if (lastDigit % 5 === 0) {
       return {
@@ -125,7 +131,7 @@ export class CampaignDialer {
 
     let result: DialResult;
     try {
-      result = await this.adapter.dial(target);
+      result = await this.adapter.dial(target, campaign);
     } catch (err) {
       result = {
         status: "failed",

@@ -389,6 +389,838 @@ Streaming turns with tools; Feature 16 secret refs in HTTP headers; full MCP SDK
 
 ---
 
+## Feature 17 — Website chat widget
+
+Roadmap entry: [§20 Feature 17 — Website chat widget](./roadmap.md#20-feature-17--website-chat-widget)  
+ADR: [0017-widget-and-publishable-keys](./adr/0017-widget-and-publishable-keys.md)  
+**Status when written:** `done` (API + bundle + demo + `scripts/check-widget-browser-proof.mjs` chat/refresh/origin/idempotency proof)  
+**Prerequisite features:** 12 runtime chat turns (done); publishable keys in workspace settings (done); 09 conversations (done).  
+**Deep topic:** horizontal scale of long connections.
+
+### Pre-context (extended)
+
+Staff can already complete a chat turn through the gateway with a JWT. Workspace settings can issue **publishable keys**. What is missing for a real customer site is an **untrusted browser channel**: no staff JWT, no membership, and a key that is safe to embed in JavaScript.
+
+Shipped surface:
+
+- `apps/web/public/quickstart-widget.js` — embeddable client
+- `fixtures/widget-demo.html` — host-page example (`http://127.0.0.1:8080`)
+- Gateway public routes under `/v1/public/widget/...`
+- Internal widget routes on conversation-service and runtime-service
+
+### What this is (extended)
+
+**Publishable key** — workspace-scoped credential with prefix `pk_live_`, hashed at rest (SHA-256), shown in full only once at creation. Bound to an **origin allow-list** (scheme + host + port).
+
+**Widget visitor subject** — `anon:{uuid}` created on first open, stored in widget `localStorage`, sent as `subject_key` on conversation create. This is the end-user identity for Memory (14), not a staff `actorId`.
+
+**Public widget route** — gateway path that authenticates with `X-Publishable-Key` + `Origin`, then proxies with `INTERNAL_TOKEN`. The browser never holds the internal token.
+
+Not the widget:
+
+- Staff inbox (Feature 18 / F4)
+- Voice / telephony (Feature 21+)
+- Org secret API keys (must never ship in JS)
+
+### Why now (extended)
+
+This is the first channel a real site can load. If the bundle contains a secret org key, that secret is public the moment the page loads. Inbox, memory, and later channels assume the same conversation + `subject_key` model; a wrong identity here becomes a rewrite.
+
+### Junior shortcut (extended)
+
+| Shortcut | Why it fails at scale |
+| --- | --- |
+| Put org/service API key in the JS bundle | Any site copies the key and burns the tenant’s model budget |
+| Allow any `Origin` | Key reuse from attacker pages |
+| Trust `workspace_id` from the browser body | Tenant spoof / IDOR |
+| New conversation on every refresh | Fragmented threads; staff inbox useless |
+| Sticky LB as the “reconnect design” | Breaks as soon as a second gateway replica exists |
+| Hold chat state only in gateway process memory | Lost on deploy; wrong under horizontal scale |
+
+### Production shape (extended)
+
+```text
+Browser (customer site)
+  → Gateway :3000  /v1/public/widget/...
+       (resolve pk_live_ + check Origin)
+  → Conversation / Runtime internal widget routes
+       (INTERNAL_TOKEN; workspace_id from key metadata)
+  → Model gateway (same path as staff turns)
+```
+
+- Transport **v1:** request/response JSON turns (non-stream).
+- Client stores `visitor` + `conversation_id` under `localStorage` key scoped by origin + publishable key.
+- Reload → `GET .../messages` for the stored conversation id (404 → create new).
+- SSE + replay by `seq` remains a **follow-up** on the same routes (not a second feature).
+- Tools on published agents are **rejected** for anonymous widget turns until tool policy for visitors is defined (ADR).
+
+### What breaks at scale (extended)
+
+**10,000+ concurrent chats** — if/when SSE lands, thousands of held connections become a **connection and memory** problem on the gateway edge, not a CPU problem. Idle load balancers kill quiet streams without heartbeats. A process restart drops streams; the client must reconnect with `seq` and continue — which only works if **conversation rows in Postgres** are already correct.
+
+**10,000 HTTP req/s sustained** — v1 resolves the publishable key over HTTP to workspace on every request (ADR). That hop will not hold at target without a short Redis cache of key → workspace + origins (invalidate on revoke). Do not confuse this with membership cache (09B); it is a separate key-resolve cache.
+
+**Tenant leak** — workspace id must come from resolved key metadata, never from an untrusted client body field alone. Internal routes still enforce `workspace_id` in the URL against stored rows.
+
+### Choice (extended)
+
+**Take:** publishable keys, origin allow-list, JSON turns, browser persistence for v1.
+
+**Reject:** secret in the bundle; sticky sessions as the design; SSE as a blocker for Done when.
+
+**Cost:** a second key type (hashed, shown once), origin list admin in settings, and later real reconnect-by-seq + key-resolve cache.
+
+### Cloud later (extended)
+
+- Load balancer must allow long SSE timeouts when streaming ships.
+- Sticky sessions stay a crutch; reconnect-by-seq must work across any gateway copy.
+- Key resolve → Redis (or equivalent) with revoke invalidation before treating the public widget path as scale-ready.
+- Same schema on Aurora; no disk state on the gateway process.
+
+### Low-level design (extended)
+
+**Public API (gateway :3000, no JWT):**
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `POST` | `/v1/public/widget/conversations` | `X-Publishable-Key` + allowed `Origin` |
+| `GET` | `/v1/public/widget/conversations/:conversationId/messages` | same |
+| `POST` | `/v1/public/widget/conversations/:conversationId/turns` | same + `Idempotency-Key` |
+
+**Staff API (JWT) for keys:**
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/v1/workspaces/:workspaceId/publishable-keys` | Returns raw key once; body includes `allowed_origins`, optional `default_agent_id` |
+| `GET` / `PATCH` / revoke | same resource family | Hashed at rest; never return full secret again |
+
+**Internal (service token):**
+
+| Path | Service |
+| --- | --- |
+| `POST /internal/publishable-keys/resolve` | workspace-service |
+| `/internal/workspaces/:workspaceId/widget/conversations...` | conversation-service |
+| `/internal/workspaces/:workspaceId/widget/conversations/:id/turns` | runtime-service |
+
+**Failure policy:**
+
+| Failure | Response |
+| --- | --- |
+| Missing/invalid publishable key | 401 / invalid key |
+| Origin not on allow-list | reject (forbidden origin) |
+| Conversation not in this workspace | 404 |
+| Duplicate turn `Idempotency-Key` | 200 with deduplicated turn (no second user message) |
+| Upstream timeout | 5xx / upstream unavailable — client may retry **with same** idempotency key |
+
+### Database design (extended)
+
+| Store | Owns | Notes |
+| --- | --- | --- |
+| workspace-service Postgres | publishable keys (hash, prefix, origins, default_agent_id, workspace_id) | Tenant column on every row |
+| conversation-service Postgres | conversations + messages | Same tables as staff chat; subject_key on create |
+| Browser localStorage | `visitor`, `conversation` ids only | Not platform truth; device/profile scoped |
+
+**Never only in gateway process memory:** conversation identity, message order, key → workspace mapping (cache OK with TTL + revoke invalidate).
+
+### Identity and trust boundaries (extended)
+
+| Actor | Who | Proof |
+| --- | --- | --- |
+| Tenant | `workspace_id` from resolved publishable key | Internal routes scoped to that id |
+| Staff | JWT member (settings: create/revoke keys) | Not used on `/v1/public/widget/...` |
+| End-user subject | `anon:{uuid}` in widget storage + create body | Align with Memory Feature 14 `subject_key` |
+
+**Rule:** gateway must call upstream with `Authorization: Bearer <INTERNAL_TOKEN>` and must **not** forward browser `Authorization` on widget routes (ADR 0017).
+
+Cross-link: [Memory identity table](#identity-and-trust-boundaries-extended) — widget row is the production source of anonymous `subject_key`.
+
+### Related features (extended)
+
+```text
+Runtime (12)          → same turn engine / published pointer
+Conversations (09)    → same message store + idempotency
+Memory (14)           → subject_key = anon:{uuid} from widget
+Inbox (18)            → staff sees the same conversation object
+Secrets (16)          → never embed in the widget bundle
+Membership cache (09B)→ staff hot path; widget uses key resolve (separate cache later)
+```
+
+### API, gateway, and permissions (extended)
+
+- No staff `packages/contracts` permission on the public widget path — trust is **key + origin**.
+- Staff key CRUD uses existing workspace permissions / settings UI.
+- Hot path later: Redis cache for key resolve (do not HTTP-resolve forever at 10k req/s).
+- Files to know: `services/gateway-service/src/http/routes/widget-public.routes.ts`, `middleware/require-publishable-key.ts`, `lib/widget-origin.ts`, `apps/web/public/quickstart-widget.js`.
+
+### Learn today
+
+Checklist (do in order; do **not** skip Deep learning):
+
+1. Read roadmap [§20 Feature 17](./roadmap.md#20-feature-17--website-chat-widget) headings 1–9 and 13–14.
+2. Read ADR [0017](./adr/0017-widget-and-publishable-keys.md).
+3. Read this file’s sections for headings 1–10 and 15–19 (skim).
+4. Spend **at least half of learn day** on [Deep learning (Feature 17)](#deep-learning-feature-17--website-chat-widget) below.
+5. Trace: `widget-public.routes.ts` → `require-publishable-key` → conversation/runtime internal widget routes → `quickstart-widget.js` + `fixtures/widget-demo.html`.
+6. Draw the trust boundary: browser → gateway → internal services. Label tenant, subject, and what never leaves the server.
+
+Short study questions (answers should be in your notes after Deep learning):
+
+1. Why is a publishable key safe to embed when an org API key is not?
+2. Who supplies `workspace_id` on a widget turn — the browser or the gateway?
+3. What survives page refresh vs cookie/localStorage clear vs a new device?
+4. Why are sticky sessions wrong for SSE reconnect at two gateway replicas?
+5. What must the client send on a retry so the user message is not duplicated?
+
+---
+
+## Deep learning (Feature 17 — Website chat widget)
+
+<a id="deep-learning-feature-17--website-chat-widget"></a>
+
+**Purpose:** Master the production deep topic — *horizontal scale of long connections* — so you do not ship a public chat edge that leaks tenants, burns model budget from stolen keys, or depends on sticky load balancers. This is **heading 11** in the learning structure. Neural-network “deep learning” is **not** what this means here.
+
+### DL-1. Mental model (say aloud)
+
+The widget is not “another chat app.” It is an **untrusted public edge** into the same runtime and conversation store. Auth is **key + origin**, identity is **`subject_key`**, durability is **Postgres**, reconnect is **client + seq** — never process memory on the gateway.
+
+At **10,000 organizations** and **10,000+ concurrent chats**, the only acceptable design is: short JSON turns (v1) or reconnectable streams (follow-up) against durable conversation rows, with workspace identity coming only from server-side key resolution.
+
+### DL-2. Connection budget vs request budget
+
+| Budget | Widget meaning | Failure if confused |
+| --- | --- | --- |
+| 10k HTTP req/s sustained (20k peak) | Short JSON turns through gateway; key resolve + proxy | Treating every open chat as one forever-open gateway socket *today* |
+| 10k+ concurrent chats | Open conversations that read/append in Postgres | Assuming one Node process holds all SSE streams |
+| 5k inbound + 5k outbound voice | Not this feature | Putting media sockets on gateway `:3000` |
+
+### DL-3. Classification table (exercise)
+
+Classify each design choice. Cover the middle column when studying, then check.
+
+| # | Choice | Your label | Answer |
+| --- | --- | --- | --- |
+| 1 | `pk_live_…` in the script tag | | **publishable** (allowed) |
+| 2 | Org API key in the script tag | | **secret leak** / reject |
+| 3 | Trust `workspace_id` from POST body | | **tenant spoof** / reject |
+| 4 | Workspace id from resolved key | | **correct** |
+| 5 | `anon:{uuid}` in localStorage | | **visitor subject** (device-scoped) |
+| 6 | Staff JWT `sub` as widget subject | | **wrong identity** |
+| 7 | New conversation every refresh | | **junior shortcut** |
+| 8 | Reload messages for stored conversation_id | | **v1 Done when** |
+| 9 | Sticky session for SSE | | **reject** (hides split brain) |
+| 10 | Reconnect with last `seq` | | **follow-up SSE design** |
+| 11 | Idempotency-Key on turn retry | | **required** |
+| 12 | Retry turn with a new Idempotency-Key | | **duplicate user message** |
+| 13 | Allow any Origin | | **budget theft** |
+| 14 | Origin allow-list on the key | | **correct** |
+| 15 | Tools enabled for anonymous widget | | **deferred / reject until policy** |
+| 16 | INTERNAL_TOKEN in the browser | | **severity / reject** |
+
+### DL-4. Threat scenarios (failure modes)
+
+| Threat | Mechanism | Mitigation |
+| --- | --- | --- |
+| Stolen publishable key on attacker site | Script copied with key | Origin allow-list on every non-preflight request |
+| Cross-workspace conversation id | Guessed UUID in URL | Internal IDOR: conversation must belong to resolved workspace |
+| Double charge / double user message | Client retries after timeout | Same `Idempotency-Key` → deduplicated turn |
+| Model budget drain | Unbounded public turns | Rate limit + key revoke; tools off for visitors |
+| Key resolve storm | Every turn hits workspace HTTP | Future Redis cache; v1 still correct but not scale-ready |
+
+### DL-5. Mechanism: one turn (step-by-step)
+
+1. Browser sends `X-Publishable-Key`, `Origin`, body `{ message }`, header `Idempotency-Key`.
+2. Gateway resolves key via workspace internal API → `workspace_id`, origins, optional `default_agent_id`.
+3. Gateway checks origin against allow-list; fail closed if missing/wrong.
+4. Gateway POSTs to runtime internal widget turn with `INTERNAL_TOKEN` (not browser auth).
+5. Runtime uses **published** agent pointer; writes messages with idempotency; calls model gateway.
+6. Client paints user + assistant bubbles; keeps `conversation_id` in localStorage for refresh.
+
+### DL-6. Decision tree — refresh / reconnect
+
+```text
+Page load / open launcher
+  → Have conversation_id in localStorage?
+       yes → GET messages
+              → 200: render history (refresh persistence)
+              → 404: clear id, create conversation
+       no  → POST create conversation with subject_key=anon:{visitor}
+  → User sends message
+       → POST turn with Idempotency-Key
+       → On network error: retry SAME key (do not mint a new key for the same text)
+  → (Future SSE drop)
+       → Reconnect with last seq; do not blindly replay the user POST
+```
+
+Cookie/localStorage clear → new `anon:{uuid}` (Memory must treat this as a new subject). New device → new subject. That is expected for v1 anonymous web.
+
+### DL-7. Proof tests (map to deep learning)
+
+| Claim | Proof |
+| --- | --- |
+| Wrong origin rejected | Gateway origin tests + proof script negative case |
+| Retry does not duplicate user message | Same Idempotency-Key twice → one user message |
+| Refresh keeps conversation | Create → turn → GET messages with same conversation_id (simulates reload) |
+| Workspace from key only | Create without trusting client workspace field |
+| Browser proof (Done when) | `node scripts/check-widget-browser-proof.mjs` against local stack; optional headed pass on `fixtures/widget-demo.html` |
+
+### DL-8. Verbal exam (explain to teammate in 3 minutes)
+
+1. Why sticky sessions are wrong once there are two gateway replicas.
+2. Why publishable ≠ secret API key.
+3. Why 10k concurrent chats is a **storage/connection** problem, not “buy a bigger gateway CPU.”
+4. What aligns between widget `anon:` subject and Memory (14).
+
+### Build today (extended checklist)
+
+- [x] Deep learning notes / this section present in `docs/ai-roadmap.md`
+- [x] `scripts/check-widget-browser-proof.mjs` proves create → turn → history reload + wrong origin + idempotent retry
+- [x] Local demo path documented (`fixtures/widget-demo.html` on `http://127.0.0.1:8080`)
+- [x] Update roadmap §20 / board Feature 17 status when Done when passes
+- [x] SSE / reconnect-by-seq explicitly left as follow-up (not started here)
+
+### Done when (extended)
+
+Same as roadmap §20: a local HTML page (or HTTP client simulating the widget) can chat through the gateway with a publishable key, “refresh,” and see the same conversation. Plus: wrong origin fails; idempotent retry does not double the user message.
+
+### Still unsafe (extended)
+
+Same as roadmap: no inbox polish here; no voice; no SSE reconnect-by-seq; key resolve uncached; tools disabled for anonymous widget turns; no Redis-backed visitor identity across devices.
+
+---
+
+## Feature 21 — Voice path
+
+Roadmap entry: [§24 Feature 21 — Voice path](./roadmap.md#24-feature-21--voice-path)  
+ADR: [0021-voice-platform](./adr/0021-voice-platform.md)  
+**Status when written:** `done` (v1 fake-media simulate → real runtime turn; `scripts/check-voice-simulate-proof.mjs`)  
+**Prerequisite features:** 12 runtime, 09B membership cache, 09 conversations.  
+**Deep topic:** voice path drain and per-call stage budgets.
+
+### Pre-context (extended)
+
+Chat turns already run through `runtime-service`. Voice must not fork a second agent engine. Audio is long-lived; gateway `:3000` must never hold media sockets. `services/voice-service` on **:3008** owns sessions, fake/real speech adapters, and call rows; it calls runtime for text turns.
+
+### What this is (extended)
+
+**Cascade (default):** audio → STT → runtime turn (`channel: voice`, shorter `deadline_ms`) → TTS → audio out. Same published agent version and conversation as chat.
+
+**Call row:** Postgres `voice_calls` (+ transcript segments + turn timings). Survives restart. Media socket may die on deploy.
+
+**Simulate:** `POST /internal/v1/workspaces/:workspaceId/voice/simulate` — fake utterance through cascade for local Done when.
+
+### Why now (extended)
+
+A second “voice brain” doubles every bug. Campaigns (23) and telephony (21C) assume one runtime and durable call state.
+
+### Junior shortcut (extended)
+
+| Shortcut | Failure |
+| --- | --- |
+| Separate prompt store for phone | Publish does not affect calls |
+| Forward `VOICE_INTERNAL_TOKEN` as staff JWT to `/v1/.../turns` | Runtime rejects; cascade “succeeds” with spoken fallback and no messages |
+| Call state only in process memory | Lost on deploy at 5k concurrent calls |
+| Media on gateway `:3000` | Exhausts HTTP workers; wrong budget |
+
+### Production shape (extended)
+
+```text
+Telephony / fake simulate
+  → voice-service :3008 (STT, session, caps)
+  → runtime internal voice turn (INTERNAL_TOKEN)
+  → conversation messages + model gateway
+  → voice-service TTS + voice_calls + timings
+```
+
+### What breaks at scale (extended)
+
+**5,000 inbound + 5,000 outbound** concurrent calls = up to 10,000 realtime sockets on the voice edge — not HTTP on the gateway. Caps live in Redis (Feature 22). Stage budgets (STT / runtime / TTS / time-to-first-audio) must be logged per `call_id` or you cannot tune.
+
+### Choice (extended)
+
+One runtime + separate voice edge. Reject second agent store. Cost: harder networking and longer drain than HTTP.
+
+### Feature 21 vs later
+
+| Slice | In scope for Feature 21 Done when |
+| --- | --- |
+| Fake STT/TTS + simulate → real runtime turn + call row + timings | **Yes** |
+| Real vendor STT/TTS keys (21B) | No |
+| PSTN / CPaaS (21C) | No |
+| Redis cap races / V1 load proof (22 / V1) | No (shape may exist) |
+
+### Learn today
+
+1. Read roadmap §24 Feature 21 and ADR 0021.
+2. Trace: `session/orchestrator.ts` → `pipelines/cascade.ts` → `clients/runtime.client.ts` → runtime internal voice turn.
+3. Deep learning below (half the learn day).
+
+### Deep learning (Feature 21 — Voice path)
+
+<a id="deep-learning-feature-21--voice-path"></a>
+
+**Purpose:** Master *drain and per-call stage budgets* so a failed runtime hop cannot fake success and so 5k calls remain tunable.
+
+#### DL-1. Mental model
+
+Voice is a **channel** into the same runtime. Auth between voice and runtime is a **service internal token**, not a staff JWT and not “reuse the simulate Authorization blindly.”
+
+#### DL-2. What dies vs what survives
+
+| State | On deploy / restart |
+| --- | --- |
+| Media socket | May die |
+| `voice_calls` + conversation messages | Must survive |
+| In-memory session map only | **Junior shortcut** — wrong |
+
+#### DL-3. Budgets (do not mix)
+
+| Budget | Owner |
+| --- | --- |
+| 10k HTTP req/s | Gateway |
+| 10k+ concurrent chats | Conversation Postgres |
+| 5k+5k voice sockets | Voice process + Redis caps |
+
+#### DL-4. Classification
+
+| # | Choice | Answer |
+| --- | --- | --- |
+| 1 | Internal voice turn with INTERNAL_TOKEN | **correct** |
+| 2 | Forward VOICE_INTERNAL_TOKEN to staff `/v1/.../turns` | **broken auth** |
+| 3 | Spoken fallback + `completed` with zero messages | **lies about Done when** |
+| 4 | Mark `failed` when runtime hop fails | **honest** |
+| 5 | Log `call_id`, `stt_ms`, `runtime_ms`, `tts_ms` | **required** |
+| 6 | Media through gateway :3000 | **reject** |
+
+#### DL-5. Proof tests
+
+`scripts/check-voice-simulate-proof.mjs`: simulate → conversation has user+assistant → response includes `call_id` + stage timings → state completed only when runtime succeeded.
+
+### Build today (extended checklist)
+
+- [x] Deep learning section in ai-roadmap
+- [x] Runtime `POST /internal/.../voice/.../turns`
+- [x] Voice client uses internal route + shared INTERNAL_TOKEN
+- [x] Runtime failure marks call failed (no fake completed)
+- [x] Proof script passes
+- [x] Roadmap Feature 21 → done (v1)
+
+### Done when (extended)
+
+Same as roadmap §24 plus proof script green.
+
+### Still unsafe (extended)
+
+No PSTN; Redis session TTL incomplete; cap lease races; tools on voice internal path limited like widget until wired. Real STT/TTS is Feature **21B**.
+
+---
+
+## Feature 21B — Speech providers (STT/TTS)
+
+Roadmap entry: [§25A Feature 21B](./roadmap.md#25a-feature-21b--speech-providers-stttts)  
+ADR: [0021-voice-platform](./adr/0021-voice-platform.md) (21B Speech profiles)  
+**Status when written:** `done` (v1 OpenAI profile + fake default; `scripts/check-voice-speech-proof.mjs`)  
+**Prerequisite:** Feature 21 voice path Done when  
+**Deep topic:** timeouts, one retry, circuit breaker (same discipline as model gateway)
+
+### Pre-context (extended)
+
+Feature 21 proves cascade with **fake** STT/TTS. Production calls need vendor adapters with keys, timeouts, and usage units — still inside `voice-service`, never in runtime or gateway.
+
+### What this is (extended)
+
+`SpeechToText.transcribe` / `TextToSpeech.synthesize` behind `SPEECH_PROFILE`. First real pair: **OpenAI** (Whisper + TTS). Fake remains default for local Feature 21 proofs.
+
+### Why now (extended)
+
+If STT/TTS SDKs land in runtime or gateway, billing and failure policy diverge from model-gateway rules and voice cannot share one edge budget.
+
+### Junior shortcut (extended)
+
+| Shortcut | Failure |
+| --- | --- |
+| Always fake in production | Looks healthy; no real speech |
+| Infinite STT retry after billable audio | Double charge + double transcript |
+| Log full Authorization header | Key leak |
+| Put OpenAI SDK in runtime | Wrong service boundary |
+
+### Production shape (extended)
+
+- Factory selects fake or openai at boot
+- Policy wrapper: circuit breaker per profile + one retry only if no billable output
+- Usage stub facts for Feature 26
+- `VOICE_REQUIRE_REAL_SPEECH=1` fail-closed
+
+### Deep learning (Feature 21B)
+
+<a id="deep-learning-feature-21b--speech-providers"></a>
+
+**Purpose:** Same timeout/retry/breaker discipline as model gateway, applied to billable speech units.
+
+#### DL-1. Billable vs retry
+
+| Event | Retry? |
+| --- | --- |
+| Network error before any transcript/audio returned | **Yes, once** |
+| 429/5xx before billable output | **Yes, once** |
+| Partial/full transcript or audio bytes already received | **No** |
+| Circuit open | **No** — fail turn |
+
+#### DL-2. Profiles
+
+| Profile | When |
+| --- | --- |
+| `fake` | Local default, unit tests, Feature 21 simulate |
+| `openai` | Staging/prod when keys set |
+| Require real + fake | **Refuse start** |
+
+#### DL-3. Proof tests
+
+- Fixture HTTP against OpenAI adapter classes (no live spend)
+- Fail-closed startup when `VOICE_REQUIRE_REAL_SPEECH=1` without key
+- Feature 21 simulate still green on `SPEECH_PROFILE=fake`
+- No API key substrings in structured logs
+
+### Build today (extended checklist)
+
+- [x] ai-roadmap + roadmap LLD + ADR 0021 speech profiles
+- [x] OpenAI STT/TTS + policy + factory + fail-closed
+- [x] Fixture tests + `scripts/check-voice-speech-proof.mjs`
+- [x] Roadmap 21B → done; focus → 22
+
+### Done when (extended)
+
+Same as roadmap §25A plus proof script green on fixture mode.
+
+### Still unsafe (extended)
+
+No Deepgram/ElevenLabs; no streaming sockets; S2S still fake; usage stubs are not a ledger.
+
+---
+
+## Feature 22 — Voice reliability
+
+Roadmap entry: [§25 Feature 22 — Voice reliability](./roadmap.md#25-feature-22--voice-reliability)  
+ADR: [0021-voice-platform](./adr/0021-voice-platform.md) (Reliability)  
+**Status when written:** `done` (v1) — atomic Redis leases, four LLD tests, `scripts/check-voice-reliability-proof.mjs`  
+**Prerequisite features:** 21 (simulate → runtime).  
+**Deep topic:** failure domains — one bad call must not stall the rest.
+
+### Pre-context (extended)
+
+Feature 21 can complete a simulated call through runtime. Real calls drop, reconnect, and overrun. Caps existed as separate Redis `INCR`s without ownership — unsafe at two replicas and 5,000 concurrent calls one direction.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Redis lease vs bare counter | Acquire returns an ownership token; release is idempotent and only DECR if the lease still exists |
+| Atomic global+workspace | One Lua EVAL checks both limits and increments together — no mid-acquire leak of the global slot |
+| Barge-in abort | AbortController cancels in-flight TTS; no second assistant transcript row |
+| Reconnect | Same `call_id` while `live` skips a second acquire |
+| Hang → `finally` | Cap lease always released when the turn ends or fails |
+
+### Scale notes
+
+**5,000 inbound + 5,000 outbound** platform-wide in Redis. Per-workspace caps so one tenant cannot consume the global pool. Two voice pods share the same keys. Redis down → refuse **new** calls (fail closed). A leaked lease of one worker per call takes the pool down in minutes.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Cap full | `RATE_LIMITED` before STT / media |
+| Redis error on acquire | `UPSTREAM_UNAVAILABLE` |
+| Double release / reconnect live | No negative counters; no second acquire |
+| Barge during TTS path | `barged_in`; no agent transcript row |
+| Abort mid-turn | Call `failed` or barged; lease released in `finally` |
+
+### Junior shortcut we will not ship
+
+Retry the model until hangup with no cap. Reconnect creates a second conversation. Memory-only caps that look green on one process. Bare `INCR`/`DECR` without a lease id.
+
+### Decision + spike
+
+**Decision:** Lua acquire (global + workspace together) + ownership lease release; keep fail-closed; prove four LLD cases in-process with memory caps + harness barge-in.
+
+**Spike (shipped):** `createRedisCallCaps` / `createMemoryCallCaps` return `CapLease`; orchestrator releases by lease id in outer `finally`; `scripts/check-voice-reliability-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 22 deep learning
+- [x] Atomic Redis + memory leases; orchestrator finally
+- [x] Four LLD tests + barge-in harness
+- [x] `scripts/check-voice-reliability-proof.mjs`
+- [x] Roadmap 22 → done; focus → 21C (then 21C shipped); ADR lease note
+
+### Done when (extended)
+
+Same as roadmap §25: four LLD tests pass; ADR says Redis down refuses new calls; proof script green.
+
+### Still unsafe (extended)
+
+No dual-replica Redis race proof (V1). No readiness wait for in-flight drain. Recording decision remains “not in this feature.” PSTN lives in Feature 21C.
+
+---
+
+## Feature 21C — Telephony (CPaaS)
+
+Roadmap entry: [§25B Feature 21C — Telephony](./roadmap.md#25b-feature-21c--telephony-cpaas)  
+ADR: [0022-telephony-providers](./adr/0022-telephony-providers.md)  
+**Status when written:** `done` (v1 adapter) — TwilioCpaasProvider + factory; signed webhooks; status idempotency; fixture proof  
+**Prerequisite features:** 21, 21B, 22.  
+**Deep topic:** webhook idempotency and media stream security.
+
+### Pre-context (extended)
+
+Simulate and speech profiles work. Caps are leased (Feature 22). Customers need inbound DIDs and outbound dial through a carrier without hard-coding one vendor in the gateway.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| TelephonyProvider adapter | Twilio / Telnyx / SIP / fake implement one interface; router picks healthy provider |
+| Twilio signature | HMAC over public URL + form params; reject spoofed webhooks |
+| Status idempotency | Duplicate `(CallSid, event)` is a no-op — carriers retry |
+| Media → orchestrator | Same cascade + caps as simulate; provider id on the call row |
+| Fail-closed | No healthy provider → reject dial/inbound |
+
+### Scale notes
+
+Webhooks and media stay on **voice-service**, not gateway `:3000`. At 5,000 concurrent calls, unsigned webhooks would burn Redis leases. Caps apply regardless of provider.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Bad signature | 401 |
+| Duplicate status | 200 accepted, no second state transition |
+| Preferred unhealthy | Failover to next (Telnyx / fake / sip) |
+| All unhealthy | `UPSTREAM_UNAVAILABLE` |
+| Cap full | `RATE_LIMITED` before media |
+
+### Junior shortcut we will not ship
+
+Hard-code Twilio in the gateway. Accept unsigned webhooks. Dial in the HTTP handler without caps. One monolithic module that cannot swap providers.
+
+### Decision + spike
+
+**Decision:** Adapter-first (`TelephonyProvider` + `TelephonyRouter` + env factory). Primary = Twilio when creds set; local default = fake behind the same ids. Telnyx remains fallback stub until a real adapter.
+
+**Spike (shipped):** `twilio-cpaas.ts`, `telephony/factory.ts`, public inbound/status + internal dial, `scripts/check-voice-telephony-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 21C
+- [x] Twilio adapter + factory + env
+- [x] Signed webhooks + status idempotency + dial
+- [x] Orchestrator turn path with caps
+- [x] Tests + proof script
+- [x] Roadmap 21C → done; focus → 23; ADR note
+
+### Done when (extended)
+
+Same as roadmap §25B for adapter v1: fixture inbound + outbound each complete one turn with caps; ADR names Twilio primary + Telnyx fallback. Live staging PSTN when `TWILIO_*` set is optional.
+
+### Still unsafe (extended)
+
+No live Media Streams PSTN until staging secrets. No real Telnyx adapter. No AMD/opt-out (23). No number inventory UI.
+
+---
+
+## Feature 23 — Campaigns
+
+Roadmap entry: [§26 Feature 23 — Campaigns](./roadmap.md#26-feature-23--campaigns)  
+ADR: [0023-campaigns](./adr/0023-campaigns.md)  
+**Status when written:** `done` (v1) — claim worker + `VoiceDialAdapter` → voice simulate; LLD claim/idempotency; proof script  
+**Prerequisite features:** 21C, 22, 09.  
+**Deep topic:** backpressure — do not dial every lead in one request.
+
+### Pre-context (extended)
+
+Single simulate calls work. Campaign-service already had SKIP LOCKED + stub dial, but `CAMPAIGN_DIAL_MODE=voice` was dead code — dials never entered the voice test double.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Claim-by-row | `FOR UPDATE SKIP LOCKED` so two workers never dial the same target |
+| Attempt idempotency | Unique `(campaign_id, target_id, attempt_number)` key |
+| Create idempotency | Same client key → one campaign row |
+| DialAdapter | Stub vs Voice — campaign-service never owns media sockets |
+| Pacing | Per-campaign `maxConcurrentCalls` before claim; Redis outbound caps stay Feature 22 |
+
+### Scale notes
+
+Without claim + pacing, one campaign thunders into the voice edge and can consume the global outbound 5,000. HTTP must only create/import/launch; the worker drains.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Two workers claim | Disjoint targets |
+| Create retry same key | One campaign |
+| Voice simulate down | Attempt `failed`; target retry/fail per policy |
+| At max concurrent | Claim skips until slots free |
+
+### Junior shortcut we will not ship
+
+Loop all targets in the launch HTTP handler. Client retries → double dials.
+
+### Decision + spike
+
+**Decision:** Keep campaign-service as queue owner; wire `VoiceDialAdapter` to voice internal simulate; enforce LLD tests + light concurrent pacing.
+
+**Spike (shipped):** `voice-dial-adapter.ts`, dial-mode wiring, claim/idempotency tests, `scripts/check-campaign-voice-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 23
+- [x] VoiceDialAdapter + CAMPAIGN_DIAL_MODE
+- [x] Claim + create idempotency tests; pacing
+- [x] Proof script
+- [x] Roadmap 23 → done; focus → 24; ADR note
+
+### Done when (extended)
+
+A campaign of a few fake targets runs through the voice test double once each — proven by proof script.
+
+### Still unsafe (extended)
+
+No AMD/voicemail/opt-out/compliance. No production carrier beyond staging. Legacy voice-service `/voice/campaigns` still exists. Per-minute pacing and Redis outbound coupling incomplete.
+
+---
+
+## Feature 24 — Flexible leads
+
+Roadmap entry: [§27 Feature 24 — Leads](./roadmap.md#27-feature-24--leads)  
+ADR: [0024-leads](./adr/0024-leads.md)  
+**Status when written:** `done` (v1 flexible) — workspace `lead_schema` + attributes JSONB; idempotent upsert; tenant isolation; proof script  
+**Prerequisite features:** events (19); campaigns (23) can feed later.  
+**Deep topic:** tenant scope and duplicate leads.
+
+### Pre-context (extended)
+
+Campaigns already use schema-as-data (`audience_schema` + `attributes`). Leads had a rigid contact table plus `captured_fields` bag, but no workspace schema driving labels/roles. Staff UI treated name/email/phone as the whole product model.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Schema-as-data | Workspace `lead_schema` defines keys/roles; new fields never need `ALTER TABLE` |
+| Thin columns | Indexed identity/lifecycle only; extras in `captured_fields` / attributes |
+| Idempotency | `(workspace_id, idempotency_key)` and `(workspace_id, external_id)` |
+| Tenant scope | Every list/get filters `workspace_id`; cross-workspace must be empty |
+| Conversation link | `conversation_id` on the lead for inbox follow-up |
+| Bot upsert | Internal bearer path merges enrichment without staff JWT |
+
+### Scale notes
+
+At high lead counts, missing indexes and forgotten workspace filters become sequential scans / leaks. Uniqueness stops replay storms. JSONB attributes stay capped (keys + value length).
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Replay same idempotency key | Same lead id |
+| List workspace B after create in A | Empty of A’s leads |
+| Custom attributes without migration | Stored + labeled via schema |
+| Invalid attribute keys | Rejected / sanitized |
+
+### Junior shortcut we will not ship
+
+Insert on every event with no unique key. Grow columns per CRM field. Spreadsheet JSON blob as the only truth with no indexes.
+
+### Decision + spike
+
+**Decision:** Campaign-grade flexibility — `lead_schema` + attributes; keep thin denorm columns; prove idempotency + tenant + conversation_id.
+
+**Spike (shipped):** migration `002_lead_schema.sql`, schema GET/PUT, hardened upsert/list, `scripts/check-lead-store-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 24
+- [x] lead_schema model + utils
+- [x] API harden + schema routes
+- [x] Tests + proof
+- [x] UI schema labels + BACKEND_DEPENDENCIES
+- [x] Roadmap 24 → done; focus → 25; ADR note
+
+### Done when (extended)
+
+LLD tests + conversation_id stored; flexible custom fields without migrations; proof green.
+
+### Still unsafe (extended)
+
+No CRM sync, no scoring, no outbox for `lead.*`, no lead-gen auto-handoff.
+
+---
+
+## Feature 25 — Evaluation (async harness)
+
+Roadmap entry: [§28 Feature 25 — Evaluation](./roadmap.md#28-feature-25--evaluation)  
+ADR: [0025-evaluation](./adr/0025-evaluation.md)  
+**Status when written:** `done` (v1 async harness) — cases/runs/results, claim worker, fake scripted match, caps, proof  
+**Prerequisite features:** runtime (12); model gateway fake profile.  
+**Deep topic:** do not run eval inside the user-facing request.
+
+### Pre-context (extended)
+
+We can run a turn. We do not score a fixed case set offline. Publish is sync Postgres-only and must stay fast. Runtime turns load `production_version_id` only — scoring a frozen published version needs an explicit pin.
+
+### Topics to learn
+
+| Topic | What it is |
+| --- | --- |
+| Offline vs request-path | Eval is a job; publish/widget must not wait on N model calls |
+| Version pin | Internal eval turn loads `agent_version_id`, not only production pointer |
+| Scripted scoring | Fake model returns `fake-reply:<user>`; exact-match for Done when |
+| Caps | Max cases/run and runs/workspace/day — cost amplifier otherwise |
+| Tenant isolation | Every list/get filters `workspace_id` |
+| Claim worker | `FOR UPDATE SKIP LOCKED` so two replicas do not double-run |
+
+### Scale notes
+
+At 10k orgs, uncapped eval burns a month of model budget overnight. Correctness is caps + workspace filters + durable claim — not a smarter rubric.
+
+### Failure scenarios
+
+| Scenario | Expected |
+| --- | --- |
+| Cases over cap on run create | Rejected |
+| Runs over daily cap | Rejected |
+| Cross-workspace get report | Empty / not found |
+| Fake replies vs expected | Report score matches scripted answers |
+| Publish HTTP | Unchanged — no eval gate |
+
+### Junior shortcut we will not ship
+
+Fifty model calls inside publish. Score success on partial completion. Eval only against live production with no version on the report.
+
+### Decision + spike
+
+**Decision:** New `eval-service` (:3016); async claim worker; exact-match + fake for Done when; runtime internal version pin; no publish gate.
+
+**Spike (shipped):** migration, cases/runs APIs, worker, `scripts/check-eval-proof.mjs`.
+
+### Build today (checklist)
+
+- [x] ai-roadmap Feature 25
+- [x] ADR 0025 + `workspace.eval.*`
+- [x] Runtime internal eval turn pin
+- [x] eval-service + gateway proxy
+- [x] Tests + proof
+- [x] Roadmap 25 → done; focus → 26
+
+### Done when (extended)
+
+A run finishes async and the report matches scripted answers; cap + tenant tests green.
+
+### Still unsafe (extended)
+
+No human labeling UI, no automatic publish block, no tool-expectation scoring, no dataset revision snapshots.
+
+---
+
 ## Future sections
 
-Add Feature **16 — Secrets** section here when that feature starts (mirror Feature 14/15 shape).
+- Features **16–25**, **21B**, and **21C** are documented above; keep status in sync with the progress board.
+- Next when scheduled: Feature **26** Usage and billing; V1 voice load/drain can run beside.

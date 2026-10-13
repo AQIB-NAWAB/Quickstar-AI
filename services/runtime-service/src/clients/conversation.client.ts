@@ -174,6 +174,31 @@ export class ConversationClient {
     return data.messages ?? [];
   }
 
+  async createConversationWidget(
+    workspaceId: string,
+    body: { agent_id?: string; subject_key?: string | null },
+    requestId: string,
+  ): Promise<ConversationInfo> {
+    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations`;
+    const res = await fetchWithPolicy(
+      url,
+      {
+        method: "POST",
+        headers: { ...this.widgetAuthHeaders(requestId), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: this.timeoutMs, maxRetries: 1 },
+    );
+    if (!res.ok) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Failed to create eval conversation: status ${res.status}`,
+      });
+    }
+    const data = (await res.json()) as { conversation: ConversationInfo };
+    return data.conversation;
+  }
+
   async getConversationWidget(
     workspaceId: string,
     conversationId: string,

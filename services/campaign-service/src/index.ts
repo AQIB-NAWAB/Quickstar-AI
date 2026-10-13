@@ -9,7 +9,8 @@ import {
 } from "@quickstart/workspace-access";
 import { createRedisClient } from "@quickstart/utilities";
 import { loadCampaignConfig } from "./config/environment.js";
-import { CampaignDialer, StubDialAdapter } from "./engine/dialer.js";
+import { CampaignDialer, StubDialAdapter, type DialAdapter } from "./engine/dialer.js";
+import { VoiceDialAdapter } from "./engine/voice-dial-adapter.js";
 import { createAuthMiddleware } from "./middleware/auth.middleware.js";
 import { createRequireInternalTokenMiddleware } from "./middleware/require-internal-token.js";
 import { requireTenantContext } from "./middleware/tenant.middleware.js";
@@ -64,7 +65,17 @@ export async function startCampaignServer(): Promise<{
     campaigns,
   });
 
-  const dialer = new CampaignDialer(repo, new StubDialAdapter(), logger, {
+  const dialAdapter: DialAdapter =
+    config.dialMode === "voice"
+      ? new VoiceDialAdapter({
+          voiceUrl: config.voiceUrl,
+          conversationUrl: config.conversationUrl,
+          internalToken: config.internalToken,
+          timeoutMs: config.httpRequestTimeoutMs,
+        })
+      : new StubDialAdapter();
+
+  const dialer = new CampaignDialer(repo, dialAdapter, logger, {
     workerId: config.dialerWorkerId,
     pollIntervalMs: config.dialerPollIntervalMs,
     batchSize: config.dialerBatchSize,
@@ -78,6 +89,7 @@ export async function startCampaignServer(): Promise<{
     port: config.port,
     service: SERVICE_NAME,
     dialMode: config.dialMode,
+    dialAdapter: config.dialMode === "voice" ? "voice-simulate" : "stub",
   });
 
   const shutdown = async () => {

@@ -4,6 +4,8 @@ export type CampaignConfig = {
   redisUrl: string;
   jwtAccessSecret: string;
   workspaceUrl: string;
+  voiceUrl: string;
+  conversationUrl: string;
   httpRequestTimeoutMs: number;
   membershipCacheTtlSec: number;
   membershipCacheNegativeTtlSec: number;
@@ -40,6 +42,8 @@ export function loadCampaignConfig(): CampaignConfig {
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     jwtAccessSecret,
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
+    voiceUrl: (process.env.VOICE_URL ?? "http://127.0.0.1:3008").replace(/\/$/, ""),
+    conversationUrl: (process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
     membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),

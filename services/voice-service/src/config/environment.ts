@@ -1,3 +1,6 @@
+import type { SpeechProfile } from "../speech/factory.js";
+import { resolveTelephonyProfile, type TelephonyProfile } from "../telephony/factory.js";
+
 export type VoiceConfig = {
   port: number;
   databaseUrl: string;
@@ -20,7 +23,27 @@ export type VoiceConfig = {
   recordingDir: string;
   sipBridgeSharedSecret: string;
   draining: boolean;
+  speechProfile: SpeechProfile;
+  speechOpenaiApiKey?: string;
+  speechOpenaiBaseUrl?: string;
+  requireRealSpeech: boolean;
+  speechCircuitFailureThreshold: number;
+  speechCircuitCooldownMs: number;
+  speechHttpTimeoutMs: number;
+  telephonyProfile: TelephonyProfile;
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioFromNumber?: string;
+  voicePublicBaseUrl: string;
+  requireRealTelephony: boolean;
 };
+
+function parseSpeechProfile(raw: string | undefined): SpeechProfile {
+  const value = (raw ?? "fake").trim().toLowerCase();
+  if (value === "openai") return "openai";
+  if (value === "fake" || value === "") return "fake";
+  throw new Error(`SPEECH_PROFILE must be fake|openai, got: ${raw}`);
+}
 
 export function loadVoiceConfig(): VoiceConfig {
   const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
@@ -32,6 +55,19 @@ export function loadVoiceConfig(): VoiceConfig {
   if (!internalToken || internalToken.length < 32) {
     throw new Error("VOICE_INTERNAL_TOKEN must be set and at least 32 characters");
   }
+
+  const speechOpenaiApiKey =
+    process.env.SPEECH_OPENAI_API_KEY?.trim() ||
+    process.env.OPENAI_API_KEY?.trim() ||
+    undefined;
+
+  const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || undefined;
+  const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN?.trim() || undefined;
+  const voicePublicBaseUrl = (
+    process.env.VOICE_PUBLIC_BASE_URL ??
+    process.env.VOICE_URL ??
+    "http://127.0.0.1:3008"
+  ).replace(/\/$/, "");
 
   return {
     port: Number(process.env.PORT ?? process.env.VOICE_PORT ?? 3008),
@@ -58,5 +94,23 @@ export function loadVoiceConfig(): VoiceConfig {
     sipBridgeSharedSecret:
       process.env.VOICE_SIP_BRIDGE_SECRET ?? internalToken.slice(0, 32).padEnd(32, "0"),
     draining: process.env.VOICE_DRAINING === "1",
+    speechProfile: parseSpeechProfile(process.env.SPEECH_PROFILE),
+    speechOpenaiApiKey,
+    speechOpenaiBaseUrl: process.env.SPEECH_OPENAI_BASE_URL?.replace(/\/$/, "") || undefined,
+    requireRealSpeech: process.env.VOICE_REQUIRE_REAL_SPEECH === "1",
+    speechCircuitFailureThreshold: Number(process.env.SPEECH_CIRCUIT_FAILURE_THRESHOLD ?? 5),
+    speechCircuitCooldownMs: Number(process.env.SPEECH_CIRCUIT_COOLDOWN_MS ?? 30_000),
+    speechHttpTimeoutMs: Number(
+      process.env.SPEECH_HTTP_TIMEOUT_MS ?? process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000,
+    ),
+    telephonyProfile: resolveTelephonyProfile(
+      process.env.TELEPHONY_PROFILE,
+      Boolean(twilioAccountSid && twilioAuthToken),
+    ),
+    twilioAccountSid,
+    twilioAuthToken,
+    twilioFromNumber: process.env.TWILIO_FROM_NUMBER?.trim() || undefined,
+    voicePublicBaseUrl,
+    requireRealTelephony: process.env.TELEPHONY_REQUIRE_REAL === "1",
   };
 }

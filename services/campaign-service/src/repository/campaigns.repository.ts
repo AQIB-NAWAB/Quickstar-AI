@@ -500,9 +500,22 @@ export class CampaignsRepository {
   }
 
   async claimTargets(workerId: string, batchSize: number): Promise<CampaignTarget[]> {
+    const claimed: CampaignTarget[] = [];
+    // Claim one row at a time so maxConcurrentCalls sees updated 'calling' counts
+    // within the same worker batch (light pacing).
+    for (let i = 0; i < batchSize; i += 1) {
+      const one = await this.claimOneTarget(workerId);
+      if (!one) break;
+      claimed.push(one);
+    }
+    return claimed;
+  }
+
+  private async claimOneTarget(workerId: string): Promise<CampaignTarget | null> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      // SKIP LOCKED + per-campaign maxConcurrentCalls (count of status=calling).
       const result = await client.query<TargetRow>(
         `WITH candidate AS (
            SELECT t.id
@@ -513,22 +526,28 @@ export class CampaignsRepository {
              AND t.status IN ('pending', 'retrying')
              AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= NOW())
              AND (t.claimed_at IS NULL OR t.claimed_at < NOW() - INTERVAL '5 minutes')
+             AND (
+               SELECT COUNT(*)::int
+               FROM campaign_targets active
+               WHERE active.campaign_id = t.campaign_id
+                 AND active.status = 'calling'
+             ) < COALESCE((c.pacing->>'maxConcurrentCalls')::int, 5)
            ORDER BY t.next_attempt_at NULLS FIRST, t.created_at ASC
            FOR UPDATE OF t SKIP LOCKED
-           LIMIT $1
+           LIMIT 1
          )
          UPDATE campaign_targets t
          SET status = 'calling',
              claimed_at = NOW(),
-             claimed_by = $2,
+             claimed_by = $1,
              updated_at = NOW()
          FROM candidate
          WHERE t.id = candidate.id
          RETURNING t.*`,
-        [batchSize, workerId],
+        [workerId],
       );
       await client.query("COMMIT");
-      return result.rows.map(mapTarget);
+      return result.rows[0] ? mapTarget(result.rows[0]) : null;
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
