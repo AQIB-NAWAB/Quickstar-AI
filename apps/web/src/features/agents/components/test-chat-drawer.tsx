@@ -72,33 +72,40 @@ export function TestChatDrawer({ isOpen, onClose, workspaceId, agent }: Props) {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = `a-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      {
+        id: assistantId,
+        sender: "assistant",
+        text: "",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await executeTestTurn(workspaceId, conversationId, text);
-      if (res.error) {
-        const errorText = `[Error: ${res.error.message}]`;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `err-${Date.now()}`,
-            sender: "assistant",
-            text: errorText,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a-${Date.now()}`,
-            sender: "assistant",
-            text: res.assistantText || "[No reply generated]",
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
+      const res = await executeTestTurn(workspaceId, conversationId, text, (delta) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId ? { ...msg, text: msg.text + delta } : msg,
+          ),
+        );
+      });
+      if (res.error && !res.assistantText) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId ? { ...msg, text: `[Error: ${res.error?.message}]` } : msg,
+          ),
+        );
+      } else if (!res.assistantText) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId ? { ...msg, text: "[No reply generated]" } : msg,
+          ),
+        );
       }
     } catch (err: unknown) {
       setMessages((prev) => [

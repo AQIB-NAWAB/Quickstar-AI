@@ -68,9 +68,30 @@ export async function proxyToUpstream(
       { timeoutMs: options.timeoutMs, maxRetries: 0 },
     );
 
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (contentType.includes("text/event-stream") && upstream.body) {
+      res.status(upstream.status);
+      res.setHeader("content-type", contentType);
+      res.setHeader("cache-control", "no-cache, no-transform");
+      res.setHeader("x-accel-buffering", "no");
+      res.setHeader("x-request-id", requestId);
+      res.flushHeaders?.();
+      res.socket?.setNoDelay?.(true);
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const ok = res.write(Buffer.from(value));
+        if (!ok) {
+          await new Promise<void>((resolve) => res.once("drain", resolve));
+        }
+      }
+      res.end();
+      return;
+    }
+
     const responseText = await upstream.text();
     res.status(upstream.status);
-    const contentType = upstream.headers.get("content-type");
     if (contentType) {
       res.setHeader("content-type", contentType);
     }

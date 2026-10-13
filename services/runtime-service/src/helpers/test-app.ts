@@ -277,6 +277,17 @@ export class MockModelGatewayClient implements Partial<ModelGatewayClient> {
       latency_ms: 15,
     };
   }
+
+  async stream(
+    body: CompletionRequestBody,
+    handlers: { onToken: (delta: string) => void },
+  ): Promise<CompletionResponseBody> {
+    const result = await this.complete(body);
+    if (result.content) {
+      handlers.onToken(result.content);
+    }
+    return result;
+  }
 }
 
 export async function withRuntimeServer(

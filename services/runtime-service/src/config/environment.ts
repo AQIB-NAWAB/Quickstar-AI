@@ -38,7 +38,10 @@ export function loadRuntimeConfig(): RuntimeConfig {
     agentServiceUrl: (process.env.AGENT_SERVICE_URL ?? process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
     conversationServiceUrl: (process.env.CONVERSATION_SERVICE_URL ?? process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     modelGatewayUrl: (process.env.MODEL_GATEWAY_URL ?? "http://127.0.0.1:3005").replace(/\/$/, ""),
-    modelGatewayInternalToken: process.env.MODEL_GATEWAY_INTERNAL_TOKEN ?? "local-dev-token-at-least-32-characters-long",
+    modelGatewayInternalToken:
+      process.env.MODEL_GATEWAY_INTERNAL_TOKEN ??
+      process.env.INTERNAL_TOKEN ??
+      "local-dev-token-at-least-32-characters-long",
     knowledgeServiceUrl: (process.env.KNOWLEDGE_SERVICE_URL ?? process.env.KNOWLEDGE_URL ?? "http://127.0.0.1:3009").replace(/\/$/, ""),
     knowledgeInternalToken:
       process.env.KNOWLEDGE_INTERNAL_TOKEN ??

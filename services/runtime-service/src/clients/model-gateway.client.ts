@@ -1,6 +1,7 @@
 import type { CompletionRequestBody, CompletionResponseBody } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { fetchWithPolicy } from "@quickstart/utilities";
+import { readModelGatewaySse, type ModelGatewayStreamHandlers } from "./model-gateway-sse.js";
 
 export class ModelGatewayClient {
   constructor(
@@ -51,5 +52,38 @@ export class ModelGatewayClient {
     }
 
     return (await res.json()) as CompletionResponseBody;
+  }
+
+  async stream(
+    body: CompletionRequestBody,
+    handlers: ModelGatewayStreamHandlers,
+  ): Promise<CompletionResponseBody> {
+    const url = `${this.baseUrl}/internal/stream`;
+    const res = await fetchWithPolicy(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.internalToken}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: this.timeoutMs, maxRetries: 0 },
+    ).catch((err: Error) => {
+      if (err.name === "AbortError" || err.message?.toLowerCase().includes("abort") || err.message?.toLowerCase().includes("timeout")) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_TIMEOUT,
+          message: "Model gateway request timed out",
+        });
+      }
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Failed to reach model gateway: ${err.message}`,
+      });
+    });
+
+    return readModelGatewaySse(res, handlers);
   }
 }

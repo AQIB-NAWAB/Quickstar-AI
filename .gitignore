@@ -40,6 +40,7 @@ walkthrough_videos/
 
 # Local seeder output (contains tokens / publishable key material)
 fixtures/*.live.json
+fixtures/widget-test/config.local.js
 
 # Local package store (not source)
 .pnpm-store/

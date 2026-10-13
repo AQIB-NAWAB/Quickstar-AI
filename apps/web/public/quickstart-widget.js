@@ -124,6 +124,60 @@
     bubble.textContent = text;
     messages.append(bubble);
     messages.scrollTop = messages.scrollHeight;
+    return bubble;
+  }
+
+  async function consumeTurnStream(response, onToken) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let turn = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+        let eventName = "message";
+        let dataLine = "";
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+        }
+        if (!dataLine) continue;
+        const data = JSON.parse(dataLine);
+        if (eventName === "token" && data.delta) onToken(data.delta);
+        else if (eventName === "done") turn = data.turn ?? null;
+        else if (eventName === "error") {
+          throw new Error(data.message || "Model completion failed");
+        }
+      }
+    }
+    return turn;
+  }
+
+  async function postTurnStream(path, options, onToken) {
+    const response = await fetch(`${gatewayUrl}/v1/public/widget${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        "X-Publishable-Key": publishableKey,
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const error = new Error(
+        body.error?.message || body.message || `Request failed (${response.status})`,
+      );
+      error.status = response.status;
+      throw error;
+    }
+    return consumeTurnStream(response, onToken);
   }
 
   async function request(path, options = {}) {
@@ -220,16 +274,25 @@
     busy = true;
     input.disabled = true;
     send.disabled = true;
-    status.textContent = "Sending…";
+    status.textContent = "";
+    addMessage("user", text);
+    const assistantBubble = addMessage("assistant", "");
     try {
-      const result = await request(`/conversations/${encodeURIComponent(conversationId)}/turns`, {
-        method: "POST",
-        headers: { "Idempotency-Key": pendingRequest.key },
-        body: JSON.stringify({ message: text }),
-      });
-      const turn = result.turn || {};
-      addMessage("user", turn.user_message?.text || text);
-      addMessage("assistant", turn.assistant_message?.text || "");
+      const turn = await postTurnStream(
+        `/conversations/${encodeURIComponent(conversationId)}/turns`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": pendingRequest.key },
+          body: JSON.stringify({ message: text }),
+        },
+        (delta) => {
+          assistantBubble.textContent += delta;
+          messages.scrollTop = messages.scrollHeight;
+        },
+      );
+      if (turn?.assistant_message?.text && !assistantBubble.textContent) {
+        assistantBubble.textContent = turn.assistant_message.text;
+      }
       input.value = "";
       pendingRequest = null;
       status.textContent = "";

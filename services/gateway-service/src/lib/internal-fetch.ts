@@ -52,3 +52,30 @@ export async function getInternalJson<T>(
   const json = (await res.json().catch(() => ({}))) as T;
   return { status: res.status, json };
 }
+
+/** POST and return the raw upstream response (for SSE proxying). */
+export async function postInternalRaw(
+  baseUrl: string,
+  path: string,
+  internalToken: string,
+  body: unknown,
+  requestId: string,
+  timeoutMs: number,
+  extraHeaders?: Record<string, string>,
+): Promise<Response> {
+  const url = `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  return fetchWithPolicy(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${internalToken}`,
+        "Content-Type": "application/json",
+        "x-request-id": requestId,
+        ...extraHeaders,
+      },
+      body: JSON.stringify(body),
+    },
+    { timeoutMs, maxRetries: 0 },
+  );
+}
