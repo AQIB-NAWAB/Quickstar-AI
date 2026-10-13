@@ -29,6 +29,8 @@ export interface TranscriptMessage {
 
 export interface LeadDetail extends LeadSummary {
   capturedFields: Record<string, string | number | boolean | null>;
+  /** Schema labels for captured_fields keys (key → display label). */
+  attributeLabels?: Record<string, string>;
   originatingConversationId: string | null;
   transcriptStatus: "ready" | "unavailable" | "empty" | "error";
   transcriptMessages: TranscriptMessage[];
@@ -52,6 +54,7 @@ export interface LeadsListResponse {
   leads: LeadSummary[];
   total?: number;
   availableTags: string[];
+  attributeLabels?: Record<string, string>;
 }
 
 export interface LeadsRepository {

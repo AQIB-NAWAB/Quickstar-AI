@@ -4,6 +4,7 @@ import type { CapturedFields, LeadRecord, LeadSentiment, LeadStatus } from "../d
 import type { LeadsService } from "../services/leads.service.js";
 import { routeParam } from "../utils/route-param.js";
 import { sanitizeCapturedFields } from "../utils/fields.js";
+import { attributeLabels, leadSchemaToApi } from "../utils/lead-schema.js";
 
 export const LEAD_READ = WORKSPACE_PERMISSIONS.LEAD_READ;
 export const LEAD_CREATE = WORKSPACE_PERMISSIONS.LEAD_CREATE;
@@ -95,10 +96,34 @@ export function createLeadsController(leads: LeadsService) {
       const status = typeof req.query.status === "string" ? req.query.status : undefined;
       const tag = typeof req.query.tag === "string" ? req.query.tag : undefined;
       const result = await leads.list(workspaceId, { q, status, tag });
+      const schema = await leads.getSchema(workspaceId);
       sendPlatformJson(res, 200, {
         leads: result.leads.map(toApiLead),
         available_tags: result.availableTags,
-        total: result.leads.length,
+        total: result.total,
+        limit: 200,
+        lead_schema: leadSchemaToApi(schema),
+        attribute_labels: attributeLabels(schema),
+      });
+    }) as RequestHandler,
+
+    getSchema: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const schema = await leads.getSchema(workspaceId);
+      sendPlatformJson(res, 200, {
+        lead_schema: leadSchemaToApi(schema),
+        attribute_labels: attributeLabels(schema),
+      });
+    }) as RequestHandler,
+
+    putSchema: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const raw = body.lead_schema ?? body.leadSchema ?? body.schema ?? [];
+      const schema = await leads.putSchema(workspaceId, raw);
+      sendPlatformJson(res, 200, {
+        lead_schema: leadSchemaToApi(schema),
+        attribute_labels: attributeLabels(schema),
       });
     }) as RequestHandler,
 
@@ -106,7 +131,12 @@ export function createLeadsController(leads: LeadsService) {
       const workspaceId = routeParam(req.params.workspaceId);
       const leadId = routeParam(req.params.leadId);
       const lead = await leads.get(workspaceId, leadId);
-      sendPlatformJson(res, 200, { lead: toApiLead(lead) });
+      const schema = await leads.getSchema(workspaceId);
+      sendPlatformJson(res, 200, {
+        lead: toApiLead(lead),
+        lead_schema: leadSchemaToApi(schema),
+        attribute_labels: attributeLabels(schema),
+      });
     }) as RequestHandler,
 
     create: (async (req, res) => {
@@ -145,7 +175,12 @@ export function createLeadsController(leads: LeadsService) {
             ? body.version
             : undefined;
       const lead = await leads.updateStatus(workspaceId, leadId, status, expectedVersion);
-      sendPlatformJson(res, 200, { lead: toApiLead(lead) });
+      const schema = await leads.getSchema(workspaceId);
+      sendPlatformJson(res, 200, {
+        lead: toApiLead(lead),
+        lead_schema: leadSchemaToApi(schema),
+        attribute_labels: attributeLabels(schema),
+      });
     }) as RequestHandler,
 
     /** Internal upsert for Moaz lead-gen bot (Bearer LEAD_INTERNAL_TOKEN). */

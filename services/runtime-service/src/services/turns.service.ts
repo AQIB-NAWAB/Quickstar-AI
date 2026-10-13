@@ -299,6 +299,27 @@ export class TurnsService {
     };
   }
 
+  /**
+   * Voice edge path — internal token auth (no staff JWT), same conversation store as chat.
+   * Uses widget internal conversation/agent hops; enforces voice deadline when set.
+   */
+  async executeVoiceTurn(input: {
+    workspaceId: string;
+    conversationId: string;
+    text?: string;
+    idempotencyKey: string;
+    actorId: string;
+    requestId: string;
+    callId?: string;
+    deadlineMs?: number;
+  }): Promise<TurnResult> {
+    return this.executeInternalChannelTurn({
+      ...input,
+      channel: "voice",
+      allowTools: false,
+    });
+  }
+
   /** Website widget path — uses internal service routes (no staff JWT). */
   async executeWidgetTurn(input: {
     workspaceId: string;
@@ -308,7 +329,78 @@ export class TurnsService {
     actorId: string;
     requestId: string;
   }): Promise<TurnResult> {
-    const { workspaceId, conversationId, text, idempotencyKey, actorId, requestId } = input;
+    return this.executeInternalChannelTurn({
+      ...input,
+      channel: "widget",
+      allowTools: false,
+    });
+  }
+
+  /**
+   * Eval harness path — pin a frozen published version (not production pointer).
+   * Creates an ephemeral conversation, runs one turn, returns assistant text.
+   */
+  async executeEvalTurn(input: {
+    workspaceId: string;
+    agentId: string;
+    agentVersionId: string;
+    text: string;
+    idempotencyKey: string;
+    requestId: string;
+    deadlineMs?: number;
+  }): Promise<TurnResult & { assistant_text: string }> {
+    const conversation = await this.conversationClient.createConversationWidget(
+      input.workspaceId,
+      { agent_id: input.agentId, subject_key: `eval:${input.agentVersionId}` },
+      input.requestId,
+    );
+
+    const result = await this.executeInternalChannelTurn({
+      workspaceId: input.workspaceId,
+      conversationId: conversation.id,
+      text: input.text,
+      idempotencyKey: input.idempotencyKey,
+      actorId: "eval-harness",
+      requestId: input.requestId,
+      channel: "widget",
+      allowTools: false,
+      agentVersionId: input.agentVersionId,
+      deadlineMs: input.deadlineMs,
+    });
+
+    return {
+      ...result,
+      assistant_text: result.assistant_message.text,
+    };
+  }
+
+  private async executeInternalChannelTurn(input: {
+    workspaceId: string;
+    conversationId: string;
+    text?: string;
+    idempotencyKey: string;
+    actorId: string;
+    requestId: string;
+    channel: "voice" | "widget";
+    callId?: string;
+    deadlineMs?: number;
+    allowTools: boolean;
+    /** When set, load this version instead of production_version_id (eval only). */
+    agentVersionId?: string;
+  }): Promise<TurnResult> {
+    const {
+      workspaceId,
+      conversationId,
+      text,
+      idempotencyKey,
+      actorId,
+      requestId,
+      channel,
+      callId,
+      deadlineMs,
+      allowTools,
+      agentVersionId: pinnedVersionId,
+    } = input;
 
     const conversation = await this.conversationClient.getConversationWidget(
       workspaceId,
@@ -331,26 +423,33 @@ export class TurnsService {
       });
     }
 
-    const agent = await this.agentClient.getAgentWidget(workspaceId, agentId, requestId);
-    if (!agent.production_version_id) {
-      throw new AppError({
-        code: ErrorCode.CONFLICT,
-        message: "Agent has no published version",
-      });
+    let versionId = pinnedVersionId;
+    if (!versionId) {
+      const agent = await this.agentClient.getAgentWidget(workspaceId, agentId, requestId);
+      if (!agent.production_version_id) {
+        throw new AppError({
+          code: ErrorCode.CONFLICT,
+          message: "Agent has no published version",
+        });
+      }
+      versionId = agent.production_version_id;
     }
 
     const version = await this.agentClient.getVersionWidget(
       workspaceId,
       agentId,
-      agent.production_version_id,
+      versionId,
       requestId,
     );
 
     const agentTools = version.snapshot.tools ?? [];
-    if (agentTools.length > 0) {
+    if (agentTools.length > 0 && !allowTools) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message: "Tools are not supported on widget turns yet",
+        message:
+          channel === "voice"
+            ? "Tools are not supported on internal voice turns yet"
+            : "Tools are not supported on widget turns yet",
       });
     }
 
@@ -363,6 +462,7 @@ export class TurnsService {
         idempotency_key: idempotencyKey,
         sender_type: "user",
         sender_id: actorId,
+        metadata: callId ? { channel, call_id: callId } : { channel },
       },
       requestId,
     );
@@ -452,13 +552,42 @@ export class TurnsService {
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
-    const completion = await this.modelGatewayClient.complete({
-      workspace_id: workspaceId,
-      request_id: requestId,
-      model: { profile, model_id: modelId },
-      messages: chatMessages,
-      temperature,
-    });
+    const runModel = async () =>
+      this.modelGatewayClient.complete({
+        workspace_id: workspaceId,
+        request_id: requestId,
+        model: { profile, model_id: modelId },
+        messages: chatMessages,
+        temperature,
+      });
+
+    let completion: Awaited<ReturnType<ModelGatewayClient["complete"]>>;
+    if (deadlineMs && deadlineMs > 0) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        completion = await Promise.race([
+          runModel(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(
+                new AppError({
+                  code: ErrorCode.UPSTREAM_TIMEOUT,
+                  message: "Voice turn deadline exceeded",
+                }),
+              );
+            }, deadlineMs);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    } else {
+      completion = await runModel();
+    }
+
+    const asstMetadata: Record<string, unknown> = { channel };
+    if (callId) asstMetadata.call_id = callId;
+    if (retrievedChunkIds.length > 0) asstMetadata.retrieved_chunk_ids = retrievedChunkIds;
 
     const asstMsgResult = await this.conversationClient.appendMessageWidget(
       workspaceId,
@@ -468,10 +597,7 @@ export class TurnsService {
         idempotency_key: asstIdempotencyKey,
         sender_type: "assistant",
         sender_id: version.id,
-        metadata:
-          retrievedChunkIds.length > 0
-            ? { retrieved_chunk_ids: retrievedChunkIds }
-            : undefined,
+        metadata: asstMetadata,
       },
       requestId,
     );

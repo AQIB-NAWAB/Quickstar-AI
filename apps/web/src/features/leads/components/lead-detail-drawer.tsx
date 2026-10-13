@@ -254,8 +254,8 @@ export function LeadDetailDrawer({
           )}
         </div>
 
-        {/* Section 5: Captured fields */}
-        <CapturedFields fields={lead.capturedFields} />
+        {/* Section 5: Captured fields (labels from workspace lead_schema) */}
+        <CapturedFields fields={lead.capturedFields} labels={lead.attributeLabels} />
 
         {/* Section 6: Originating conversation */}
         <LeadConversationTranscript

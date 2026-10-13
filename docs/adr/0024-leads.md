@@ -11,21 +11,22 @@ Feature 24 needs a workspace-scoped lead record for campaigns, inbox, workflows,
 ## Decision
 
 1. **`services/lead-service` (port 3014)** owns lead rows in Postgres.
-2. **First-class columns:** `name`, `email`, `phone`, `status`, `source`, `tags`, `intent`, `qualification_score`, `qualification_max`, `sentiment`, `conversation_id`, `external_id`, `idempotency_key`, `notes`.
-3. **Flexible enrichment:** all bot/research extras live in `captured_fields` JSONB (same idea as campaign `attributes`). No per-customer schema migrations.
-4. **Idempotent create/upsert:** unique `(workspace_id, idempotency_key)` when set; unique `(workspace_id, external_id)` when set. Replay returns the existing row.
+2. **Thin first-class columns (indexed / Done-when):** `workspace_id`, `status`, `source`, `tags`, denorm `name`/`email`/`phone`, `conversation_id`, `external_id`, `idempotency_key`, `notes`, `version`, soft delete. Keep `intent` / `qualification_*` / `sentiment` as optional denorm projected from attributes when the schema marks them — do **not** grow CRM columns (company, industry, etc.).
+3. **Flexibility path (schema-as-data):** workspace-level **`lead_schema`** in `workspace_lead_settings` (ordered field defs with roles `identity` | `contact_email` | `contact_phone` | `custom`) + per-lead **`captured_fields` JSONB**. New customer fields = schema + JSON, **never** `ALTER TABLE`. Staff UI uses `attribute_labels` from the schema.
+4. **Idempotent create/upsert:** unique `(workspace_id, idempotency_key)` when set; unique `(workspace_id, external_id)` when set. Replay returns the existing row; `merge_on_conflict` deep-merges attributes. Do **not** unique on email/phone alone.
 5. **Sources (catalog strings):** `web_research`, `lead_gen_bot`, `chat`, `voice`, `campaign`, `api`, `manual`.
 6. **Statuses:** `new` | `contacted` | `qualified` | `disqualified`.
 7. **Auth:** staff JWT via gateway; **internal bearer** (`LEAD_INTERNAL_TOKEN`) for the lead-gen bot to upsert without a user session.
-8. **Permissions:** `workspace.lead.read|edit|create`.
+8. **Permissions:** `workspace.lead.read|edit|create`. Schema PUT requires `workspace.lead.edit`.
 9. **Events (catalog):** `lead.created`, `lead.updated`, `lead.status_changed` — types land now; outbox emission can follow.
 
 ## Consequences
 
-- Gateway proxies `/v1/workspaces/:id/leads*` to lead-service.
-- Staff UI talks only through BFF → gateway.
+- Gateway proxies `/v1/workspaces/:id/leads*` to lead-service (including `/leads/schema`).
+- Staff UI talks only through BFF → gateway; list/detail include `lead_schema` + `attribute_labels`.
 - Moaz’s bot POSTs enrichment results here; it must not write its own lead table.
 - No CRM sync and no scoring model in this service.
+- Proof: `scripts/check-lead-store-proof.mjs`.
 
 ## Moaz lead-generation bot contract
 

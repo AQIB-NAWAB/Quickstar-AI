@@ -98,9 +98,10 @@ export class CallSessionOrchestrator {
       ? await this.calls.get(input.workspaceId, input.callId)
       : null;
 
-    const acquired = !call || call.state === "completed" || call.state === "failed";
-    if (acquired) {
-      await this.caps.tryAcquire(input.workspaceId, input.direction);
+    const needsAcquire = !call || call.state === "completed" || call.state === "failed";
+    let lease: Awaited<ReturnType<CallCaps["tryAcquire"]>> | null = null;
+    if (needsAcquire) {
+      lease = await this.caps.tryAcquire(input.workspaceId, input.direction);
     }
 
     try {
@@ -239,8 +240,8 @@ export class CallSessionOrchestrator {
         barged_in: bargedIn,
       };
     } finally {
-      if (acquired) {
-        await this.caps.release(input.workspaceId, input.direction);
+      if (lease) {
+        await this.caps.release(lease);
       }
     }
   }

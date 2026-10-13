@@ -1,7 +1,9 @@
 import type { Logger } from "@quickstart/logging";
 import { createPlatformApp, type Application } from "@quickstart/http-server";
 import { SERVICE_NAME, type ReadinessProbe } from "../controllers/health.controller.js";
+import { createEvalTurnsController } from "../controllers/eval-turns.controller.js";
 import { createTurnsController } from "../controllers/turns.controller.js";
+import { createVoiceTurnsController } from "../controllers/voice-turns.controller.js";
 import { createWidgetTurnsController } from "../controllers/widget-turns.controller.js";
 import { createAuthMiddleware } from "../middleware/auth.middleware.js";
 import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
@@ -38,6 +40,8 @@ export function createHttpServer(options: CreateRuntimeHttpServerOptions): Appli
     tenantMiddleware: [authGuard, tenantGuard],
     turnsCtrl: createTurnsController(turnsService),
     widgetTurnsCtrl: createWidgetTurnsController(turnsService),
+    voiceTurnsCtrl: createVoiceTurnsController(turnsService),
+    evalTurnsCtrl: createEvalTurnsController(turnsService),
     workspaceAccess,
   };
 

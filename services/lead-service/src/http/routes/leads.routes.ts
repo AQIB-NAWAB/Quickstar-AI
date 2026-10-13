@@ -16,6 +16,20 @@ export const createLeadsRoutes: RouteModule<LeadHttpContext> = (ctx) => {
   const create = requireWorkspacePermission(ctx.workspaceAccess, LEAD_CREATE);
   const edit = requireWorkspacePermission(ctx.workspaceAccess, LEAD_EDIT);
 
+  // Schema routes before :leadId so "schema" is not captured as an id.
+  router.get(
+    "/v1/workspaces/:workspaceId/leads/schema",
+    ...chain,
+    read,
+    asyncHandler(ctrl.getSchema),
+  );
+  router.put(
+    "/v1/workspaces/:workspaceId/leads/schema",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.putSchema),
+  );
+
   router.get("/v1/workspaces/:workspaceId/leads", ...chain, read, asyncHandler(ctrl.list));
   router.post("/v1/workspaces/:workspaceId/leads", ...chain, create, asyncHandler(ctrl.create));
   router.get(

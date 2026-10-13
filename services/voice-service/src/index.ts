@@ -15,14 +15,13 @@ import { requireTenantContext } from "./middleware/tenant.middleware.js";
 import { PgCallsRepository } from "./repository/calls.repository.js";
 import { PgCampaignsRepository } from "./repository/campaigns.repository.js";
 import { createLocalRecordingStore } from "./repository/recording.store.js";
-import { createFakeSpeechBundle } from "./speech/fake-tts.js";
+import { createSpeechBundle } from "./speech/factory.js";
 import { createHttpRuntimeClient } from "./clients/runtime.client.js";
 import { createRedisCallCaps } from "./caps/call-caps.js";
 import { CallSessionOrchestrator } from "./session/orchestrator.js";
 import { CampaignsService } from "./services/campaigns.service.js";
-import { TelephonyRouter } from "./telephony/router.js";
-import { FakeCpaasProvider } from "./telephony/fake-cpaas.js";
-import { SipBridgeProvider } from "./telephony/sip-provider.js";
+import { createTelephonyRouter } from "./telephony/factory.js";
+import { createRedisStatusIdempotencyStore } from "./telephony/status-idempotency.js";
 import { createCallsController } from "./controllers/calls.controller.js";
 import { createCampaignsController } from "./controllers/campaigns.controller.js";
 import { createTelephonyController } from "./controllers/telephony.controller.js";
@@ -41,8 +40,22 @@ export async function startVoiceServer(): Promise<{
   const callsRepo = new PgCallsRepository(pool);
   const campaignsRepo = new PgCampaignsRepository(pool);
   const recordings = createLocalRecordingStore(config.recordingDir);
-  const speech = createFakeSpeechBundle();
-  const runtime = createHttpRuntimeClient(config.runtimeUrl, config.httpRequestTimeoutMs);
+  const speech = createSpeechBundle({
+    profile: config.speechProfile,
+    openaiApiKey: config.speechOpenaiApiKey,
+    openaiBaseUrl: config.speechOpenaiBaseUrl,
+    requireRealSpeech: config.requireRealSpeech,
+    circuitFailureThreshold: config.speechCircuitFailureThreshold,
+    circuitCooldownMs: config.speechCircuitCooldownMs,
+    httpTimeoutMs: config.speechHttpTimeoutMs,
+    logger,
+  });
+  logger.info("speech.profile", { profile: config.speechProfile });
+  const runtime = createHttpRuntimeClient(
+    config.runtimeUrl,
+    config.httpRequestTimeoutMs,
+    config.internalToken,
+  );
 
   const redisClient = createRedisClient(config.redisUrl);
   await redisClient.connect();
@@ -66,14 +79,17 @@ export async function startVoiceServer(): Promise<{
   );
   orchestrator.setDraining(config.draining);
 
-  const telephony = new TelephonyRouter();
-  const twilio = new FakeCpaasProvider("twilio");
-  const telnyx = new FakeCpaasProvider("telnyx");
-  const sip = new SipBridgeProvider(config.sipBridgeSharedSecret);
-  telephony.register(twilio);
-  telephony.register(telnyx);
-  telephony.register(sip);
-  telephony.register(new FakeCpaasProvider("fake"));
+  const { router: telephony, sip } = createTelephonyRouter({
+    profile: config.telephonyProfile,
+    twilioAccountSid: config.twilioAccountSid,
+    twilioAuthToken: config.twilioAuthToken,
+    twilioFromNumber: config.twilioFromNumber,
+    publicBaseUrl: config.voicePublicBaseUrl,
+    sipBridgeSharedSecret: config.sipBridgeSharedSecret,
+    requireRealTelephony: config.requireRealTelephony,
+    logger,
+  });
+  const statusIdempotency = createRedisStatusIdempotencyStore(redisClient);
 
   const campaigns = new CampaignsService(campaignsRepo, orchestrator, telephony);
 
@@ -102,7 +118,12 @@ export async function startVoiceServer(): Promise<{
     workspaceAccess,
     callsCtrl: createCallsController(callsRepo, orchestrator, recordings),
     campaignsCtrl: createCampaignsController(campaigns),
-    telephonyCtrl: createTelephonyController(telephony, sip),
+    telephonyCtrl: createTelephonyController(telephony, {
+      sip,
+      orchestrator,
+      calls: callsRepo,
+      statusIdempotency,
+    }),
   });
 
   const server: Server = await new Promise((resolve) => {

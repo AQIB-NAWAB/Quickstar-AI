@@ -302,6 +302,43 @@ importers:
         specifier: ^8.15.5
         version: 8.23.1
 
+  services/eval-service:
+    dependencies:
+      '@quickstart/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quickstart/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@quickstart/errors':
+        specifier: workspace:*
+        version: link:../../packages/errors
+      '@quickstart/http-server':
+        specifier: workspace:*
+        version: link:../../packages/http-server
+      '@quickstart/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@quickstart/tracing':
+        specifier: workspace:*
+        version: link:../../packages/tracing
+      '@quickstart/utilities':
+        specifier: workspace:*
+        version: link:../../packages/utilities
+      '@quickstart/workspace-access':
+        specifier: workspace:*
+        version: link:../../packages/workspace-access
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+      redis:
+        specifier: ^4.7.1
+        version: 4.7.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.15.5
+        version: 8.23.1
+
   services/gateway-service:
     dependencies:
       '@quickstart/auth':

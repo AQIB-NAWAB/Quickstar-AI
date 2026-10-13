@@ -59,8 +59,11 @@ export class CascadePipeline {
       agentId = turn.agent_id;
       agentVersionId = turn.agent_version_id;
       runtimeMs = turn.latency_ms;
-    } catch {
-      assistantText = input.spokenFallback;
+    } catch (err) {
+      // Spoken fallback is for live UX only after a successful STT path is productized.
+      // Do not mark simulate/Done-when success when the runtime hop failed.
+      void input.spokenFallback;
+      throw err;
     }
 
     if (input.abortSignal?.aborted) {
@@ -81,25 +84,45 @@ export class CascadePipeline {
       };
     }
 
-    const ttsResult = await this.tts.synthesize(
-      assistantText,
-      input.voice.tts_voice_id,
-      input.abortSignal,
-    );
+    try {
+      const ttsResult = await this.tts.synthesize(
+        assistantText,
+        input.voice.tts_voice_id,
+        input.abortSignal,
+      );
 
-    return {
-      userText: sttResult.text,
-      assistantText,
-      ttsAudio: ttsResult.audio,
-      timings: {
-        stt_ms: sttResult.latencyMs,
-        runtime_ms: runtimeMs,
-        tts_ms: ttsResult.latencyMs,
-        total_ms: sttResult.latencyMs + runtimeMs + ttsResult.latencyMs,
-      },
-      agentId,
-      agentVersionId,
-      bargedIn,
-    };
+      return {
+        userText: sttResult.text,
+        assistantText,
+        ttsAudio: ttsResult.audio,
+        timings: {
+          stt_ms: sttResult.latencyMs,
+          runtime_ms: runtimeMs,
+          tts_ms: ttsResult.latencyMs,
+          total_ms: sttResult.latencyMs + runtimeMs + ttsResult.latencyMs,
+        },
+        agentId,
+        agentVersionId,
+        bargedIn,
+      };
+    } catch (err) {
+      if (input.abortSignal?.aborted) {
+        return {
+          userText: sttResult.text,
+          assistantText: "",
+          ttsAudio: { bytes: Buffer.alloc(0), encoding: "fake", sampleRateHz: 8000 },
+          timings: {
+            stt_ms: sttResult.latencyMs,
+            runtime_ms: runtimeMs,
+            tts_ms: 0,
+            total_ms: sttResult.latencyMs + runtimeMs,
+          },
+          agentId,
+          agentVersionId,
+          bargedIn: true,
+        };
+      }
+      throw err;
+    }
   }
 }

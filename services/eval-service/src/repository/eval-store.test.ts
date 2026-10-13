@@ -1,0 +1,204 @@
+/**
+ * Feature 25 LLD: caps, tenant isolation, async scripted match.
+ * Uses in-process PGlite (no Docker / pg native deps required).
+ */
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import test from "node:test";
+import { AppError } from "@quickstart/errors";
+import type { Pool } from "pg";
+import { EvalRepository } from "./eval.repository.js";
+import { EvalService } from "../services/eval.service.js";
+
+type SqlPool = {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>;
+  end: () => Promise<void>;
+  connect: () => Promise<{
+    query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }>;
+    release: () => void;
+  }>;
+};
+
+async function openPglitePool(): Promise<SqlPool> {
+  const href = pathToFileURL(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../../node_modules/.pnpm/@electric-sql+pglite@0.3.16/node_modules/@electric-sql/pglite/dist/index.js",
+    ),
+  ).href;
+  const { PGlite } = (await import(href)) as {
+    PGlite: new () => {
+      waitReady: Promise<unknown>;
+      query: <T>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
+      exec: (sql: string) => Promise<unknown>;
+      close: () => Promise<void>;
+    };
+  };
+  const db = new PGlite();
+  await db.waitReady;
+  const sql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../migrations/001_eval.sql"),
+    "utf8",
+  ).replace(/CREATE EXTENSION[^;]+;/gi, "");
+  await db.exec(sql);
+
+  return {
+    query: (text, params) => db.query(text, params ?? []),
+    connect: async () => ({
+      query: (text, params) => {
+        const upper = text.trim().toUpperCase();
+        if (upper === "BEGIN" || upper === "COMMIT" || upper === "ROLLBACK") {
+          return Promise.resolve({ rows: [] });
+        }
+        return db.query(text, params ?? []);
+      },
+      release: () => undefined,
+    }),
+    end: async () => db.close(),
+  };
+}
+
+async function withDb(run: (service: EvalService, repo: EvalRepository) => Promise<void>) {
+  const pool = await openPglitePool();
+  try {
+    const repo = new EvalRepository(pool as unknown as Pool);
+    const service = new EvalService(repo, null, {
+      maxCasesPerRun: 3,
+      maxRunsPerWorkspacePerDay: 2,
+      caseTimeoutMs: 5_000,
+    });
+    await run(service, repo);
+  } finally {
+    await pool.end();
+  }
+}
+
+test("cap rejects extra case on run create", async () => {
+  await withDb(async (service) => {
+    const workspaceId = randomUUID();
+    const agentId = randomUUID();
+    for (let i = 0; i < 4; i++) {
+      await service.createCase(workspaceId, agentId, {
+        input: `q${i}`,
+        expected_output: `fake-reply:q${i}`,
+      });
+    }
+    await assert.rejects(
+      () =>
+        service.createRun(workspaceId, agentId, {
+          agent_version_id: randomUUID(),
+        }),
+      (err: unknown) => err instanceof AppError && /Case cap exceeded/.test(err.message),
+    );
+  });
+});
+
+test("daily run cap rejects extra run", async () => {
+  await withDb(async (service) => {
+    const workspaceId = randomUUID();
+    const agentId = randomUUID();
+    await service.createCase(workspaceId, agentId, {
+      input: "hi",
+      expected_output: "fake-reply:hi",
+    });
+    const versionId = randomUUID();
+    await service.createRun(workspaceId, agentId, {
+      agent_version_id: versionId,
+      idempotency_key: `r1-${randomUUID()}`,
+    });
+    await service.createRun(workspaceId, agentId, {
+      agent_version_id: versionId,
+      idempotency_key: `r2-${randomUUID()}`,
+    });
+    await assert.rejects(
+      () =>
+        service.createRun(workspaceId, agentId, {
+          agent_version_id: versionId,
+          idempotency_key: `r3-${randomUUID()}`,
+        }),
+      (err: unknown) => err instanceof AppError && /Run cap exceeded/.test(err.message),
+    );
+  });
+});
+
+test("cross-workspace cannot read the report", async () => {
+  await withDb(async (service) => {
+    const wsA = randomUUID();
+    const wsB = randomUUID();
+    const agentId = randomUUID();
+    await service.createCase(wsA, agentId, {
+      input: "hello",
+      expected_output: "fake-reply:hello",
+    });
+    const { run } = await service.createRun(wsA, agentId, {
+      agent_version_id: randomUUID(),
+    });
+    await assert.rejects(
+      () => service.getRun(wsB, run.id),
+      (err: unknown) => err instanceof AppError && err.message.includes("not found"),
+    );
+  });
+});
+
+test("async processRun matches scripted fake-reply answers", async () => {
+  await withDb(async (service, repo) => {
+    const workspaceId = randomUUID();
+    const agentId = randomUUID();
+    const versionId = randomUUID();
+    await service.createCase(workspaceId, agentId, {
+      input: "ping",
+      expected_output: "fake-reply:ping",
+    });
+    await service.createCase(workspaceId, agentId, {
+      input: "pong",
+      expected_output: "fake-reply:pong",
+    });
+    const { run } = await service.createRun(workspaceId, agentId, {
+      agent_version_id: versionId,
+      idempotency_key: `async-${randomUUID()}`,
+    });
+    assert.equal(run.status, "queued");
+
+    const claimed = await repo.claimNextRun("test-worker");
+    assert.ok(claimed);
+    assert.equal(claimed!.id, run.id);
+    assert.equal(claimed!.status, "running");
+
+    const finished = await service.processRun(claimed!);
+    assert.equal(finished.status, "completed");
+    assert.equal(finished.score, 100);
+
+    const { results } = await service.getRun(workspaceId, run.id);
+    assert.equal(results.length, 2);
+    assert.ok(results.every((r) => r.passed));
+    const actuals = new Set(results.map((r) => r.actualOutput));
+    assert.ok(actuals.has("fake-reply:ping"));
+    assert.ok(actuals.has("fake-reply:pong"));
+  });
+});
+
+test("idempotent run create returns first row", async () => {
+  await withDb(async (service) => {
+    const workspaceId = randomUUID();
+    const agentId = randomUUID();
+    const key = `idem-${randomUUID()}`;
+    await service.createCase(workspaceId, agentId, {
+      input: "x",
+      expected_output: "fake-reply:x",
+    });
+    const first = await service.createRun(workspaceId, agentId, {
+      agent_version_id: randomUUID(),
+      idempotency_key: key,
+    });
+    assert.equal(first.created, true);
+    const second = await service.createRun(workspaceId, agentId, {
+      agent_version_id: randomUUID(),
+      idempotency_key: key,
+    });
+    assert.equal(second.created, false);
+    assert.equal(second.run.id, first.run.id);
+  });
+});

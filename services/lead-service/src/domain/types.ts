@@ -13,6 +13,15 @@ export type LeadSource =
 
 export type CapturedFields = Record<string, string | number | boolean | null>;
 
+export type LeadFieldRole = "identity" | "contact_email" | "contact_phone" | "custom";
+
+export type LeadFieldDef = {
+  key: string;
+  label: string;
+  role: LeadFieldRole;
+  required?: boolean;
+};
+
 export type LeadRecord = {
   id: string;
   workspaceId: string;

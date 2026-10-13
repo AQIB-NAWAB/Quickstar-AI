@@ -23,7 +23,11 @@ export type RuntimeClient = {
   }): Promise<VoiceTurnResult>;
 };
 
-export function createHttpRuntimeClient(baseUrl: string, timeoutMs: number): RuntimeClient {
+export function createHttpRuntimeClient(
+  baseUrl: string,
+  timeoutMs: number,
+  internalToken: string,
+): RuntimeClient {
   return {
     async executeVoiceTurn(input) {
       const started = Date.now();
@@ -32,21 +36,19 @@ export function createHttpRuntimeClient(baseUrl: string, timeoutMs: number): Run
       const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, deadlineMs + 1000));
       try {
         const res = await fetch(
-          `${baseUrl}/v1/workspaces/${input.workspaceId}/conversations/${input.conversationId}/turns`,
+          `${baseUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/voice/conversations/${encodeURIComponent(input.conversationId)}/turns`,
           {
             method: "POST",
             headers: {
               "content-type": "application/json",
-              ...input.authHeaders,
+              authorization: `Bearer ${internalToken}`,
               "idempotency-key": input.idempotencyKey,
               "x-request-id": input.requestId,
             },
             body: JSON.stringify({
               text: input.text,
-              channel: "voice",
               call_id: input.callId,
               deadline_ms: deadlineMs,
-              idempotency_key: input.idempotencyKey,
             }),
             signal: controller.signal,
           },
@@ -90,30 +92,19 @@ export function createHttpRuntimeClient(baseUrl: string, timeoutMs: number): Run
 
 /** Deterministic runtime for unit tests. */
 export function createFakeRuntimeClient(
-  reply = "hello from agent",
-): RuntimeClient & { calls: number } {
-  const client = {
-    calls: 0,
-    async executeVoiceTurn(input: {
-      workspaceId: string;
-      conversationId: string;
-      text: string;
-      callId: string;
-      idempotencyKey: string;
-      authHeaders: Record<string, string>;
-      deadlineMs?: number;
-      requestId: string;
-    }): Promise<VoiceTurnResult> {
-      client.calls += 1;
+  reply = "agent says hi",
+  latencyMs = 5,
+): RuntimeClient {
+  return {
+    async executeVoiceTurn(input) {
       return {
         assistant_text: reply,
-        agent_id: "00000000-0000-4000-8000-0000000000aa",
-        agent_version_id: "00000000-0000-4000-8000-0000000000bb",
+        agent_id: "agent-fake",
+        agent_version_id: "version-fake",
         conversation_id: input.conversationId,
-        latency_ms: 5,
+        latency_ms: latencyMs,
         deduplicated: false,
       };
     },
   };
-  return client;
 }

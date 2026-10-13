@@ -34,6 +34,15 @@ Provider ids (opaque strings): `twilio`, `telnyx`, `sip`, `fake` (tests).
 - They terminate PSTN/SIP to the carrier and stream media (typically Media Streams WebSocket, μ-law 8 kHz) to voice-service.
 - All CPaaS HTTP webhooks live on voice-service (not gateway `:3000`).
 
+### Shipped (Feature 21C v1)
+
+- **Primary:** `TwilioCpaasProvider` (`services/voice-service/src/telephony/twilio-cpaas.ts`) with Twilio request signature verify, REST dial/hangup (injectable fetch), `attachMedia` hook.
+- **Factory:** `TELEPHONY_PROFILE=fake|twilio` (+ auto-twilio when `TWILIO_*` present); `TELEPHONY_REQUIRE_REAL=1` fail-closed boot.
+- **Fallback profile:** Telnyx remains registered as FakeCpaas stub until a real Telnyx adapter; router failover still works.
+- **Routes:** public `/voice/telephony/:providerId/inbound|status`; internal `/internal/v1/workspaces/:workspaceId/voice/dial`.
+- **Idempotency:** Redis/memory store on `(providerCallSid, eventType)`.
+- **Proof:** `scripts/check-voice-telephony-proof.mjs` (fixture).
+
 ### SIP trunk / BYOC (P5b)
 
 - SIP signaling and RTP terminate on a **separate SBC edge** (not inside Node `voice-service`).

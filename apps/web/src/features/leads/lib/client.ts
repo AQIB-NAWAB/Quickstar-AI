@@ -83,13 +83,17 @@ function mapSummary(raw: Record<string, unknown>): LeadSummary {
   };
 }
 
-function mapDetail(raw: Record<string, unknown>): LeadDetail {
+function mapDetail(
+  raw: Record<string, unknown>,
+  attributeLabels?: Record<string, string>,
+): LeadDetail {
   return {
     ...mapSummary(raw),
     capturedFields:
       (raw.captured_fields as LeadDetail["capturedFields"]) ??
       (raw.capturedFields as LeadDetail["capturedFields"]) ??
       {},
+    attributeLabels,
     originatingConversationId:
       (raw.originating_conversation_id as string | null) ??
       (raw.conversation_id as string | null) ??
@@ -116,6 +120,7 @@ export async function listLeadsApi(
     leads: Record<string, unknown>[];
     available_tags?: string[];
     total?: number;
+    attribute_labels?: Record<string, string>;
   }>(`/api/workspaces/${encodeURIComponent(workspaceId)}/leads${qs ? `?${qs}` : ""}`, {
     signal,
   });
@@ -124,6 +129,7 @@ export async function listLeadsApi(
     leads: (data.leads ?? []).map(mapSummary),
     total: data.total,
     availableTags: data.available_tags ?? [],
+    attributeLabels: data.attribute_labels,
   });
 }
 
@@ -132,12 +138,15 @@ export async function getLeadApi(
   leadId: string,
   signal?: AbortSignal,
 ): Promise<RepositoryResult<LeadDetail>> {
-  const { status, data, error } = await bff<{ lead: Record<string, unknown> }>(
+  const { status, data, error } = await bff<{
+    lead: Record<string, unknown>;
+    attribute_labels?: Record<string, string>;
+  }>(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/leads/${encodeURIComponent(leadId)}`,
     { signal },
   );
   if (error || !data?.lead) return failResult(status, error);
-  return toResult(status, mapDetail(data.lead));
+  return toResult(status, mapDetail(data.lead, data.attribute_labels));
 }
 
 export async function updateLeadStatusApi(
@@ -146,7 +155,10 @@ export async function updateLeadStatusApi(
   nextStatus: LeadStatus,
   version?: number,
 ): Promise<RepositoryResult<LeadDetail>> {
-  const { status, data, error } = await bff<{ lead: Record<string, unknown> }>(
+  const { status, data, error } = await bff<{
+    lead: Record<string, unknown>;
+    attribute_labels?: Record<string, string>;
+  }>(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/leads/${encodeURIComponent(leadId)}/status`,
     {
       method: "POST",
@@ -154,5 +166,5 @@ export async function updateLeadStatusApi(
     },
   );
   if (error || !data?.lead) return failResult(status, error);
-  return toResult(status, mapDetail(data.lead));
+  return toResult(status, mapDetail(data.lead, data.attribute_labels));
 }

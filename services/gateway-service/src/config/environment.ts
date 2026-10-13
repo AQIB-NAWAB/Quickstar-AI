@@ -13,6 +13,7 @@ export type GatewayConfig = {
   campaignUrl: string;
   voiceUrl: string;
   leadUrl: string;
+  evalUrl: string;
   leadGenerationUrl?: string;
   jwtAccessSecret: string;
   redisUrl: string;
@@ -76,6 +77,11 @@ export function loadGatewayConfig(): GatewayConfig {
       process.env.LEAD_URL ??
       process.env.LEAD_SERVICE_URL ??
       "http://127.0.0.1:3014"
+    ).replace(/\/$/, ""),
+    evalUrl: (
+      process.env.EVAL_URL ??
+      process.env.EVAL_SERVICE_URL ??
+      "http://127.0.0.1:3016"
     ).replace(/\/$/, ""),
     leadGenerationUrl: (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(
       /\/$/,

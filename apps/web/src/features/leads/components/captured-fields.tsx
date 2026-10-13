@@ -1,9 +1,10 @@
-
 interface CapturedFieldsProps {
   fields: Record<string, string | number | boolean | null | undefined>;
+  /** Optional schema labels (key → display label). Falls back to the raw key. */
+  labels?: Record<string, string>;
 }
 
-export function CapturedFields({ fields }: CapturedFieldsProps) {
+export function CapturedFields({ fields, labels }: CapturedFieldsProps) {
   const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
 
   if (entries.length === 0) {
@@ -38,9 +39,13 @@ export function CapturedFields({ fields }: CapturedFieldsProps) {
             }
           }
 
+          const label = labels?.[key] ?? key;
+
           return (
             <div key={key} className="flex items-start text-xs">
-              <span className="text-neutral-400 w-28 shrink-0">{key}</span>
+              <span className="text-neutral-400 w-28 shrink-0" title={key}>
+                {label}
+              </span>
               {isComplex ? (
                 <details className="min-w-0 flex-1">
                   <summary className="cursor-pointer text-heat-100 font-mono text-[11px]">
