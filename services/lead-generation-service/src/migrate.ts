@@ -8,7 +8,7 @@ export async function migrate(pool: Pool) {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
-    await c.query("SELECT pg_advisory_xact_lock(3012)");
+    await c.query("SELECT pg_advisory_xact_lock(3019)");
     await c.query(
       "CREATE TABLE IF NOT EXISTS schema_migrations(version text PRIMARY KEY,applied_at timestamptz NOT NULL DEFAULT now())",
     );

@@ -165,7 +165,7 @@ Also in the repo (board detail is in section 6 and **6A**, synced 2026-10-12):
 | Speech providers (21B) | Done (v1) | `speech/` OpenAI + fake profiles, `scripts/check-voice-speech-proof.mjs` | Env-gated OpenAI STT/TTS; fail-closed flag; usage stubs; 21C still open |
 | Staff web F1 + F4 | Done (core) | `apps/web` | Auth shell, inbox, transcript. Agents/settings still "Soon" |
 
-Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, campaign 3013, lead 3014, staff web **3015**, eval 3016, usage 3017, audit 3018, gateway 3000. Postgres on the host is 5433.
+Local ports: identity 3001, workspace 3002, agent 3003, conversation 3004, model-gateway 3005, runtime 3006, web-fetch 3007, voice 3008, knowledge 3009, memory 3010, secrets 3011, workflow 3012, campaign 3013, lead 3014, staff web **3015**, eval 3016, usage 3017, audit 3018, lead-generation **3019**, gateway 3000. Postgres on the host is 5433.
 
 ### What is still unsafe in the code we already shipped
 

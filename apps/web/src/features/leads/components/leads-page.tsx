@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Download } from "lucide-react";
 import { usePathname,useRouter,useSearchParams } from "next/navigation";
 import { useEffect,useMemo,useState } from "react";
@@ -253,14 +254,22 @@ export function LeadsPage({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setExportOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors shrink-0 self-start sm:self-auto"
-        >
-          <Download className="w-3.5 h-3.5 text-neutral-600" />
-          <span>Export CSV</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+          <Link
+            href={`/workspaces/${workspaceId}/leads/schema`}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
+          >
+            Schema
+          </Link>
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-neutral-600" />
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {loading && <p role="status" className="text-xs text-neutral-500">Loading leads…</p>}

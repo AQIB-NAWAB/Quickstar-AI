@@ -2,17 +2,28 @@
 
 import { AlertCircle,Megaphone,Plus,Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect,useMemo,useState } from "react";
+import { Suspense, useCallback, useEffect,useMemo,useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FeatureDialog } from "@/features/knowledge/components/feature-dialog";
 import { formatNumber,formatPercent,formatScheduledUtc } from "../lib/format";
 import { getCampaignRepository } from "../lib/repository";
 import type { CampaignRepository,CampaignSummary,RepositoryResult } from "../lib/types";
 import { CampaignStatusBadge } from "./campaign-status-badge";
+import { CampaignWizard } from "./wizard/campaign-wizard";
 
 interface CampaignListProps {
   workspaceId: string;
   isPreview?: boolean;
   repository?: CampaignRepository;
   baseRoute?: string;
+}
+
+function CreateQueryOpener({ onOpen }: { onOpen: () => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("create") === "1") onOpen();
+  }, [searchParams, onOpen]);
+  return null;
 }
 
 export function CampaignList({
@@ -32,6 +43,21 @@ export function CampaignList({
   const [statusFilter, setStatusFilter] = useState("all");
   const [result, setResult] = useState<RepositoryResult<CampaignSummary[]> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const router = useRouter();
+  const openCreate = useCallback(() => setCreateOpen(true), []);
+
+  function closeCreate() {
+    setCreateOpen(false);
+    if (!isPreview && typeof window !== "undefined" && window.location.search.includes("create=1")) {
+      router.replace(basePath);
+    }
+  }
+
+  function handleSaved(campaignId: string) {
+    setCreateOpen(false);
+    router.push(`${basePath}/${campaignId}`);
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -84,13 +110,14 @@ export function CampaignList({
             Create outbound calling campaigns and follow their progress.
           </p>
         </div>
-        <Link
-          href={`${basePath}/new`}
+        <button
+          type="button"
+          onClick={openCreate}
           className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-heat-100 hover:bg-heat-200 text-white text-xs font-semibold rounded-10 shadow-xs transition-colors self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
           Create campaign
-        </Link>
+        </button>
       </div>
 
       {/* Toolbar: Search and Filter */}
@@ -172,13 +199,14 @@ export function CampaignList({
             Create a campaign to choose an audience, agent, and calling schedule.
           </p>
           <div className="pt-2">
-            <Link
-              href={`${basePath}/new`}
+            <button
+              type="button"
+              onClick={openCreate}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-heat-100 hover:bg-heat-200 text-white text-xs font-medium rounded-8 shadow-xs transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Create campaign
-            </Link>
+            </button>
           </div>
         </div>
       ) : (
@@ -277,6 +305,28 @@ export function CampaignList({
           </div>
         </div>
       )}
+      <Suspense fallback={null}>
+        <CreateQueryOpener onOpen={openCreate} />
+      </Suspense>
+      <FeatureDialog
+        open={createOpen}
+        onClose={closeCreate}
+        title="Create campaign"
+        description="Details, audience upload, schedule, retry, then review."
+        maxWidthClass="max-w-5xl"
+      >
+        {createOpen ? (
+          <CampaignWizard
+            workspaceId={workspaceId}
+            isPreview={isPreview}
+            repository={repository}
+            embedded
+            onCancel={closeCreate}
+            baseBackUrl={basePath}
+            onSaved={handleSaved}
+          />
+        ) : null}
+      </FeatureDialog>
     </div>
   );
 }

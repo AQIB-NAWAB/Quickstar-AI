@@ -86,7 +86,7 @@ export default async function WorkspaceAnalyticsPage({ params }: Props) {
 
   return (
     <div className="w-full">
-      <AnalyticsDashboard key={activeWorkspace.id} />
+      <AnalyticsDashboard key={activeWorkspace.id} workspaceId={activeWorkspace.id} />
     </div>
   );
 }

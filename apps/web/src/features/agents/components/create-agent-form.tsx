@@ -6,7 +6,12 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Bot, Check, MessageSquare, Mic, Sparkles } from "lucide-react";
 import { createAgent } from "../lib/client";
 
-type Props = { workspaceId: string; isPreview?: boolean };
+type Props = {
+  workspaceId: string;
+  isPreview?: boolean;
+  embedded?: boolean;
+  onCancel?: () => void;
+};
 type AgentDraft = {
   name: string;
   description: string;
@@ -20,7 +25,12 @@ type AgentDraft = {
 const DEFAULT_INSTRUCTIONS =
   "You are a helpful, professional customer assistant for our business. Answer questions accurately based on company information and guide the user with clear next steps.";
 
-export function CreateAgentForm({ workspaceId, isPreview = false }: Props) {
+export function CreateAgentForm({
+  workspaceId,
+  isPreview = false,
+  embedded = false,
+  onCancel,
+}: Props) {
   const router = useRouter();
   const draftKey = `quickstart:agent-draft:${workspaceId}`;
   const basePath = isPreview ? "/preview/agents" : `/workspaces/${workspaceId}/agents`;
@@ -115,15 +125,18 @@ export function CreateAgentForm({ workspaceId, isPreview = false }: Props) {
   const steps = ["Identity", "Instructions", "Channels"];
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
-      <Link
-        href={basePath}
-        className="inline-flex items-center gap-2 text-[13px] font-semibold text-neutral-500 transition-colors hover:text-accent-black"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to agents
-      </Link>
+    <div className={embedded ? "w-full space-y-4" : "mx-auto w-full max-w-3xl space-y-6"}>
+      {!embedded && (
+        <Link
+          href={basePath}
+          className="inline-flex items-center gap-2 text-[13px] font-semibold text-neutral-500 transition-colors hover:text-accent-black"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to agents
+        </Link>
+      )}
 
-      <section className="overflow-hidden rounded-20 border border-border-faint bg-white shadow-sm">
+      <section className={embedded ? "" : "overflow-hidden rounded-20 border border-border-faint bg-white shadow-sm"}>
+        {!embedded && (
         <header className="flex items-center gap-4 border-b border-border-faint px-5 py-5 sm:px-8">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-16 bg-heat-8 text-heat-100">
             <Bot className="h-6 w-6" />
@@ -144,6 +157,7 @@ export function CreateAgentForm({ workspaceId, isPreview = false }: Props) {
             {hasSavedDraft ? "Draft saved" : "Saving draft"}
           </span>
         </header>
+        )}
 
         <div className="border-b border-border-faint bg-neutral-50/70 px-5 py-4 sm:px-8">
           <ol aria-label="Agent setup progress" className="grid grid-cols-3 gap-2">
@@ -309,12 +323,22 @@ export function CreateAgentForm({ workspaceId, isPreview = false }: Props) {
 
           <footer className="mt-7 flex flex-col-reverse gap-3 border-t border-border-faint pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <Link
-                href={basePath}
-                className="rounded-10 px-4 py-2.5 text-[13px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-accent-black"
-              >
-                Cancel
-              </Link>
+              {embedded && onCancel ? (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="rounded-10 px-4 py-2.5 text-[13px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-accent-black"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <Link
+                  href={basePath}
+                  className="rounded-10 px-4 py-2.5 text-[13px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-accent-black"
+                >
+                  Cancel
+                </Link>
+              )}
               <span className="text-[11px] text-neutral-400 sm:hidden">
                 Draft saves on this device
               </span>

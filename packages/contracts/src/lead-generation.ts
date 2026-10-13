@@ -61,3 +61,60 @@ export type CampaignLeadDelivery = {
     outreach_eligible: false;
   };
 };
+
+/** Staff-facing shapes for lead-generation profile / runs (gateway responses). */
+export type LeadGenerationResearchStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "ready"
+  | "failed"
+  | string;
+
+export type LeadGenerationProfile = {
+  id?: string;
+  version?: number;
+  research_status?: LeadGenerationResearchStatus;
+  supplied?: BusinessInput;
+  researched?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
+export type LeadGenerationRunSummary = {
+  id: string;
+  status: string;
+  accepted?: number;
+  errors?: number;
+  rounds?: number;
+  stop_reason?: string | null;
+  brief?: LeadRunInput;
+  deadline_at?: string;
+  created_at?: string;
+  [key: string]: unknown;
+};
+
+export type LeadGenerationRunCreateResponse = {
+  run: LeadGenerationRunSummary;
+  deduplicated?: boolean;
+};
+
+export type LeadGenerationCandidateResult = {
+  id: string;
+  status: string;
+  assessment?: CampaignLeadDelivery["lead"] | null;
+  [key: string]: unknown;
+};
+
+export type LeadGenerationDeliveryTask = {
+  id: string;
+  state: string;
+  attempts?: number;
+  error_code?: string | null;
+  result?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
+export type LeadGenerationCursorPage<T> = {
+  items: T[];
+  next_cursor: string | null;
+};

@@ -33,7 +33,7 @@ export async function main() {
   const app = createServer(config, store, access, logger);
   const provider = config.live ? new GatewayResearchProvider(config, store) : new DemoProvider();
   const worker = config.workersEnabled
-    ? startWorker(store, new ResearchAgent(store, provider), config, logger)
+    ? startWorker(store, new ResearchAgent(store, provider, config), config, logger)
     : null;
   const server = app.listen(config.port, config.host, () =>
     logger.info("listening", { port: config.port, mode: config.live ? "live" : "demo" }),

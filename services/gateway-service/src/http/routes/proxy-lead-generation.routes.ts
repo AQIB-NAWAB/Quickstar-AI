@@ -6,7 +6,7 @@ export const createLeadGenerationProxyRoutes: RouteModule<GatewayHttpContext> = 
   const router = createServiceRouter();
   const chain = createProtectedWorkspaceProxyChain(
     ctx,
-    ctx.config.leadGenerationUrl ?? "http://127.0.0.1:3012",
+    ctx.config.leadGenerationUrl ?? "http://127.0.0.1:3019",
   );
   router.all("/v1/workspaces/:workspaceId/lead-generation", ...chain);
   router.all("/v1/workspaces/:workspaceId/lead-generation/*", ...chain);

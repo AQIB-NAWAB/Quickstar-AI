@@ -98,7 +98,7 @@ export class ToolExecutor {
         code: ErrorCode.UNAUTHORIZED,
         message: "Lead tools require the caller's access token",
       });
-    const base = (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(/\/$/, "");
+    const base = (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3019").replace(/\/$/, "");
     const root = `${base}/v1/workspaces/${encodeURIComponent(ctx.workspaceId)}/lead-generation/runs`;
     const id = String(args.run_id ?? "");
     if (tool.action !== "start" && !/^[0-9a-f-]{36}$/i.test(id))

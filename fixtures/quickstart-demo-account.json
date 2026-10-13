@@ -1,0 +1,146 @@
+{
+  "account": {
+    "email": "quickstart@gmail.com",
+    "password": "password",
+    "organization_name": "QuickStart Demo"
+  },
+  "workspace": {
+    "name": "Demo Workspace",
+    "slug": "demo"
+  },
+  "agent": {
+    "name": "Demo Support Agent",
+    "instructions": "You are QuickStart's demo support agent. Answer briefly and helpfully about the embeddable chatbot product.",
+    "model_settings": { "profile": "fake", "model_id": "fake" }
+  },
+  "secret": {
+    "name": "demo/openai",
+    "value": "sk-demo-not-a-real-key"
+  },
+  "publishable_key": {
+    "name": "Widget demo key",
+    "allowed_origins": ["http://127.0.0.1:8080", "http://localhost:3015"]
+  },
+  "knowledge_source": {
+    "name": "Demo product FAQ",
+    "type": "text",
+    "content": "QuickStart is an embeddable AI support platform. Pricing starts with a free workspace. Publishable keys are safe for browser embeds. Usage is billed from ledger facts, not on the request path."
+  },
+  "lead_generation_profile": {
+    "expected_version": 0,
+    "business": {
+      "name": "QuickStart AI",
+      "website": "https://example.com/",
+      "description": "Embeddable AI support and lead research for B2B SaaS teams.",
+      "offerings": ["website chat widget", "outbound voice campaigns", "lead research"],
+      "target_categories": ["clinics", "salons"],
+      "locations": ["Lahore"]
+    }
+  },
+  "lead_generation_run": {
+    "categories": ["clinics"],
+    "location": "Lahore",
+    "excluded_domains": ["example.com"],
+    "required_contact": "email",
+    "target_count": 3
+  },
+  "memory_facts": [
+    {
+      "subject_key": "demo-visitor",
+      "fact_key": "preferred_name",
+      "fact_text": "Prefers to be called Demo User"
+    },
+    {
+      "subject_key": "demo-visitor",
+      "fact_key": "product_interest",
+      "fact_text": "Interested in website widget and voice campaigns"
+    }
+  ],
+  "workflow": {
+    "name": "Demo payment mention handoff",
+    "description": "When a message mentions payment, tag the conversation for staff review.",
+    "trigger_event_type": "message.appended",
+    "condition_group": {
+      "id": "cg-demo-payment",
+      "logic": "and",
+      "rules": [
+        {
+          "id": "r-payment",
+          "field": "message.text",
+          "operator": "contains",
+          "value": "payment"
+        }
+      ]
+    },
+    "actions": [
+      {
+        "id": "tag-payment",
+        "kind": "update_tags",
+        "display_name": "Tag payment",
+        "config": { "tags": ["payment", "demo-seed"] }
+      }
+    ],
+    "status": "active"
+  },
+  "campaign": {
+    "name": "Demo outbound check-in",
+    "description": "Seed campaign for staff UI and dialer smoke tests (do not start unless voice stack is intentional).",
+    "pacing": { "max_concurrent_calls": 2, "max_call_starts_per_minute": 10 },
+    "retry_policy": { "max_retries": 0, "retry_interval_minutes": 30, "eligible_outcomes": [] },
+    "targets": [
+      { "name": "Demo Contact One", "phone": "+15552001", "email": "contact1@example.com" },
+      { "name": "Demo Contact Two", "phone": "+15552002", "email": "contact2@example.com" }
+    ]
+  },
+  "leads": [
+    {
+      "name": "Ada Lovelace",
+      "email": "ada@example.com",
+      "phone": "+15550101",
+      "status": "new",
+      "captured_fields": { "company": "Analytical Engines", "source": "demo-seed" }
+    },
+    {
+      "name": "Grace Hopper",
+      "email": "grace@example.com",
+      "status": "qualified",
+      "captured_fields": { "company": "US Navy", "source": "demo-seed" }
+    }
+  ],
+  "lead_schema": [
+    { "key": "name", "label": "Name", "role": "identity", "required": false },
+    { "key": "email", "label": "Email", "role": "contact_email", "required": false },
+    { "key": "phone", "label": "Phone", "role": "contact_phone", "required": false },
+    { "key": "company", "label": "Company", "role": "custom", "required": false },
+    { "key": "source", "label": "Source", "role": "custom", "required": false }
+  ],
+  "eval_cases": [
+    { "input": "hello", "expected_output": "fake-reply:hello" },
+    { "input": "pricing", "expected_output": "fake-reply:pricing" }
+  ],
+  "usage_facts": [
+    {
+      "kind": "model",
+      "units": 128,
+      "unit_label": "tokens",
+      "provider": "fake",
+      "model": "fake",
+      "detail": { "input_tokens": 80, "output_tokens": 48 }
+    },
+    {
+      "kind": "acquisition",
+      "units": 1,
+      "unit_label": "scrape",
+      "provider": "fake",
+      "price_micros": 0,
+      "detail": { "action": "scrape" }
+    },
+    {
+      "kind": "voice",
+      "units": 45,
+      "unit_label": "seconds",
+      "provider": "fake",
+      "detail": { "direction": "outbound", "call_id": "demo-seed-call" }
+    }
+  ]
+}

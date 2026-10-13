@@ -66,7 +66,7 @@ export function ReviewStep({
             </button>
           </div>
           <p className="text-neutral-700">
-            File: <span className="font-semibold">{draft.fileName || "demo-contacts.csv"}</span>
+            File: <span className="font-semibold">{draft.fileName || "No file uploaded"}</span>
           </p>
           <p className="text-emerald-700 font-medium">
             Eligible contacts: {draft.validCount} valid ({draft.invalidCount} invalid, {draft.duplicateCount} duplicates excluded)

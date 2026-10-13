@@ -51,6 +51,11 @@ export function useAnalyticsData(
           setStatus("unavailable");
           setMessage(result.message);
           setDescription(result.description);
+        } else if (result.status === "forbidden") {
+          setData(null);
+          setStatus("unavailable");
+          setMessage(result.message);
+          setDescription("Your role cannot read workspace usage.");
         } else {
           setData(null);
           setStatus("error");

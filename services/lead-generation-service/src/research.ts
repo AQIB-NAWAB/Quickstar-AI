@@ -7,6 +7,7 @@ import type {
 import { assertPublicUrl } from "@quickstart/utilities";
 import { object, text, strings, normalizeWebsite } from "./domain.js";
 import type { Config } from "./config.js";
+import { syncAcceptedLeadToCrm } from "./crm-sync.js";
 import type { Store, Task } from "./store.js";
 import { responseText, retryAfterSeconds } from "./responses.js";
 import { domain } from "./domain.js";
@@ -290,6 +291,7 @@ export class ResearchAgent {
   constructor(
     private readonly store: Store,
     private readonly provider: ResearchProvider,
+    private readonly config?: Config,
   ) {}
   async execute(t: Task) {
     if (t.kind === "delivery") {
@@ -371,7 +373,21 @@ export class ResearchAgent {
       String(t.payload.category),
       run.policy_snapshot.min_fit_score,
     );
-    await this.store.assessed(t, result.data, result.accepted);
+    const accepted = await this.store.assessed(t, result.data, result.accepted);
+    if (accepted.leadId && accepted.lead && this.config) {
+      // Best-effort CRM handoff after the research row is committed. Do not fail the
+      // candidate task if lead-service is down — staff can re-run or reconcile later.
+      try {
+        await syncAcceptedLeadToCrm(this.config, {
+          workspaceId: t.workspace_id,
+          requestId: t.request_id,
+          leadId: accepted.leadId,
+          lead: accepted.lead,
+        });
+      } catch {
+        /* CRM sync is non-blocking for research completion. */
+      }
+    }
   }
 }
 

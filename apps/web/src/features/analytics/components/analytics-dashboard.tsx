@@ -17,6 +17,7 @@ import { createUnavailableDataSource } from "../lib/data-source";
 import { resolveDateRangeFromSearchParams } from "../lib/date-range";
 import { formatCompactNumber,formatExactNumber,formatSeconds } from "../lib/format";
 import type { AnalyticsDataSource } from "../lib/types";
+import { createUsageLedgerDataSource } from "../lib/usage-data-source";
 import { AcquisitionUsage } from "./acquisition-usage";
 import { AnalyticsDateRange } from "./analytics-date-range";
 import { ConversationVolumeChart } from "./conversation-volume-chart";
@@ -27,11 +28,13 @@ import { ResponseLatencyChart } from "./response-latency-chart";
 import { TokenConsumptionChart } from "./token-consumption-chart";
 
 interface AnalyticsDashboardProps {
+  workspaceId?: string;
   dataSource?: AnalyticsDataSource;
   isSampleDataBadge?: boolean;
 }
 
 export function AnalyticsDashboard({
+  workspaceId,
   dataSource: propDataSource,
   isSampleDataBadge = false,
 }: AnalyticsDashboardProps) {
@@ -47,10 +50,12 @@ export function AnalyticsDashboard({
     return resolveDateRangeFromSearchParams(rangeParam, fromParam, toParam);
   }, [searchParams]);
 
-  // Default to honest unavailable source in production unless overridden
+  // Prefer usage ledger when workspace is known; charts that need rollups stay partial.
   const dataSource = useMemo(() => {
-    return propDataSource ?? createUnavailableDataSource();
-  }, [propDataSource]);
+    if (propDataSource) return propDataSource;
+    if (workspaceId) return createUsageLedgerDataSource(workspaceId);
+    return createUnavailableDataSource();
+  }, [propDataSource, workspaceId]);
 
   const { status, data, message, description, reload } = useAnalyticsData(
     dataSource,

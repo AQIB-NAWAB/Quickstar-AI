@@ -1,6 +1,6 @@
 # Lead generation API and integration contracts
 
-Service: `@quickstart/service-lead-generation`. Default port: `3012`.
+Service: `@quickstart/service-lead-generation`. Default port: `3019` (workflow owns `3012`).
 Architecture, operational semantics and validation are documented in the
 [service README](../services/lead-generation-service/README.md).
 
