@@ -11,7 +11,7 @@ import {
   takeConversation,
 } from "@/features/inbox/lib/client";
 import type { Conversation, ConversationState } from "@/features/inbox/lib/types";
-import { conversationTitle, senderLabel } from "@/features/inbox/lib/types";
+import { conversationRef, conversationTitle, senderLabel } from "@/features/inbox/lib/types";
 import { useMessages } from "@/features/inbox/hooks/use-messages";
 import { StateBadge } from "./state-badge";
 
@@ -131,7 +131,9 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
             <h2 className="text-sm font-bold text-accent-black truncate">
               {conversation ? conversationTitle(conversation) : "Conversation"}
             </h2>
-            <p className="text-[11px] font-medium font-mono text-neutral-500 truncate">{conversationId}</p>
+            <p className="text-[11px] font-medium text-neutral-500 truncate">
+              {conversation ? conversationRef(conversation) : "Conversation"}
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {conversation ? <StateBadge state={conversation.state} /> : null}
@@ -180,15 +182,9 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
                   }`}
                 >
                   <p className="text-[11px] font-semibold text-neutral-500 mb-1">
-                    {senderLabel(m.sender_type)} · seq {m.seq} ·{" "}
-                    {new Date(m.created_at).toLocaleTimeString()}
+                    {senderLabel(m.sender_type)} · {new Date(m.created_at).toLocaleTimeString()}
                   </p>
                   <p className="whitespace-pre-wrap break-words font-medium">{m.text}</p>
-                  {m.metadata && Object.keys(m.metadata).length > 0 ? (
-                    <pre className="mt-2 text-[10px] font-mono text-neutral-500 overflow-x-auto">
-                      {JSON.stringify(m.metadata, null, 2)}
-                    </pre>
-                  ) : null}
                 </div>
               </div>
             );
@@ -246,9 +242,10 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
         {conversation ? (
           <>
             <DetailRow label="State" value={conversation.state} />
-            <DetailRow label="Subject key" value={conversation.subject_key ?? "—"} />
-            <DetailRow label="Agent" value={conversation.agent_id ?? "—"} mono />
-            <DetailRow label="Assignee" value={conversation.assignee_user_id ?? "—"} mono />
+            <DetailRow label="Visitor" value={conversationTitle(conversation)} />
+            <DetailRow label="Reference" value={conversationRef(conversation)} />
+            <DetailRow label="Agent" value={conversation.agent_id ? "Published agent" : "—"} />
+            <DetailRow label="Assignee" value={conversation.assignee_user_id ? "Assigned" : "—"} />
             <DetailRow label="Last seq" value={String(conversation.last_seq)} />
             <DetailRow label="Started" value={new Date(conversation.created_at).toLocaleString()} />
             <DetailRow label="Updated" value={new Date(conversation.updated_at).toLocaleString()} />

@@ -53,9 +53,11 @@ export function createInternalController(
       const body = parseCompletionBody(req);
       res.status(200);
       res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders?.();
+      res.socket?.setNoDelay?.(true);
 
       let tokensStarted = false;
       const callbacks = {

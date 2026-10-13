@@ -209,29 +209,79 @@ export async function executeTestTurn(
   workspaceId: string,
   conversationId: string,
   message: string,
+  onToken?: (delta: string) => void,
 ): Promise<{ assistantText?: string; error?: ApiError }> {
   const res = await fetch(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/turns`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
       body: JSON.stringify({
         message,
         idempotency_key: `test-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       }),
     },
   );
-  const body = (await res.json().catch(() => ({}))) as {
-    assistant_message?: { text: string };
-    error?: ApiError;
-  };
-  if (!res.ok) {
-    return {
-      error: body.error ?? {
-        code: `HTTP_${res.status}`,
-        message: "Failed to run test turn",
-      },
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/event-stream") || !res.body) {
+    const body = (await res.json().catch(() => ({}))) as {
+      assistant_message?: { text: string };
+      error?: ApiError;
     };
+    if (!res.ok) {
+      return {
+        error: body.error ?? {
+          code: `HTTP_${res.status}`,
+          message: "Failed to run test turn",
+        },
+      };
+    }
+    return { assistantText: body.assistant_message?.text };
   }
-  return { assistantText: body.assistant_message?.text };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantText = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (!dataLine) continue;
+      const data = JSON.parse(dataLine) as {
+        delta?: string;
+        message?: string;
+        turn?: { assistant_message?: { text?: string } };
+      };
+      if (eventName === "token" && data.delta) {
+        assistantText += data.delta;
+        onToken?.(data.delta);
+      } else if (eventName === "done" && data.turn?.assistant_message?.text && !assistantText) {
+        assistantText = data.turn.assistant_message.text;
+      } else if (eventName === "error") {
+        return {
+          error: { code: "STREAM_ERROR", message: data.message || "Turn stream failed" },
+          assistantText,
+        };
+      }
+    }
+  }
+  if (!res.ok && !assistantText) {
+    return { error: { code: `HTTP_${res.status}`, message: "Failed to run test turn" } };
+  }
+  return { assistantText };
 }

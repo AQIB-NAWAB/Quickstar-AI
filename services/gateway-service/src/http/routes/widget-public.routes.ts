@@ -8,7 +8,7 @@ import {
   type RequestHandler,
   type RouteModule,
 } from "@quickstart/http-server";
-import { getInternalJson, postInternalJson } from "../../lib/internal-fetch.js";
+import { getInternalJson, postInternalJson, postInternalRaw } from "../../lib/internal-fetch.js";
 import type { WidgetContext } from "../../middleware/require-publishable-key.js";
 import type { GatewayHttpContext } from "../context.js";
 
@@ -19,6 +19,19 @@ function widgetContext(res: { locals: unknown }): WidgetContext {
 function routeParam(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val[0] ?? "";
   return val ?? "";
+}
+
+function applyWidgetCors(req: { headers: Record<string, string | string[] | undefined> }, res: { setHeader: (k: string, v: string) => void }): void {
+  const rawOrigin = req.headers.origin;
+  const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
+  if (!origin) return;
+  try {
+    const normalizedOrigin = new URL(origin).origin;
+    res.setHeader("Access-Control-Allow-Origin", normalizedOrigin);
+    res.setHeader("Vary", "Origin");
+  } catch {
+    /* Invalid Origin — omit CORS; browser will block cross-origin reads. */
+  }
 }
 
 export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) => {
@@ -44,7 +57,7 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, X-Publishable-Key, Idempotency-Key",
+      "Content-Type, X-Publishable-Key, Idempotency-Key, Accept",
     );
     res.setHeader("Access-Control-Max-Age", "600");
     res.status(204).end();
@@ -151,19 +164,66 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
       const rawHeaderKey = req.headers["idempotency-key"];
       const headerKey = Array.isArray(rawHeaderKey) ? rawHeaderKey[0] : rawHeaderKey;
       const idempotencyKey = headerKey || crypto.randomUUID();
+      const rawAccept = req.headers.accept;
+      const accept = Array.isArray(rawAccept) ? rawAccept.join(",") : rawAccept ?? "";
+      const wantsStream = accept.includes("text/event-stream");
+      const turnPath = `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/turns`;
+      const turnBody = {
+        message: body.message ?? "",
+        subject_key: body.subject_key,
+        actor_id: body.actor_id,
+      };
+
+      if (wantsStream) {
+        const upstream = await postInternalRaw(
+          config.runtimeUrl,
+          turnPath,
+          config.internalToken,
+          turnBody,
+          requestId,
+          config.httpRequestTimeoutMs,
+          {
+            Accept: "text/event-stream",
+            "idempotency-key": idempotencyKey,
+          },
+        );
+        applyWidgetCors(req, res);
+        res.status(upstream.status);
+        res.setHeader("x-request-id", requestId);
+        res.setHeader("cache-control", "no-cache, no-transform");
+        res.setHeader("x-accel-buffering", "no");
+        const contentType = upstream.headers.get("content-type");
+        if (contentType) {
+          res.setHeader("content-type", contentType);
+        }
+        if (!upstream.ok || !upstream.body) {
+          const text = await upstream.text();
+          res.send(text);
+          return;
+        }
+        res.flushHeaders?.();
+        res.socket?.setNoDelay?.(true);
+        const reader = upstream.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const ok = res.write(Buffer.from(value));
+          if (!ok) {
+            await new Promise<void>((resolve) => res.once("drain", resolve));
+          }
+        }
+        res.end();
+        return;
+      }
 
       const { status, json } = await postInternalJson<{
         turn?: unknown;
         error?: { message?: string; code?: string };
       }>(
         config.runtimeUrl,
-        `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/turns`,
+        turnPath,
         config.internalToken,
-        {
-          message: body.message ?? "",
-          subject_key: body.subject_key,
-          actor_id: body.actor_id,
-        },
+        turnBody,
         requestId,
         config.httpRequestTimeoutMs,
         { "idempotency-key": idempotencyKey },
@@ -191,6 +251,7 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
         });
       }
 
+      applyWidgetCors(req, res);
       res.status(status);
       res.setHeader("x-request-id", requestId);
       res.setHeader("content-type", "application/json");

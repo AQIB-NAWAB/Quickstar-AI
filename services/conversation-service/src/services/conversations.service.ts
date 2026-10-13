@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { UpsertToolCallBody, WorkspaceRole } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { ToolCall } from "../domain/tool-call.js";
@@ -56,7 +57,22 @@ export class ConversationsService {
         message: "assignee user id is required",
       });
     }
-    return this.store.takeHandoff(workspaceId, conversationId, assigneeUserId, requestId);
+    const conversation = await this.store.takeHandoff(
+      workspaceId,
+      conversationId,
+      assigneeUserId,
+      requestId,
+    );
+    await this.store.appendMessage({
+      workspaceId,
+      conversationId,
+      senderType: "system",
+      senderId: assigneeUserId,
+      text: "A teammate joined the chat.",
+      idempotencyKey: `handoff-join:${conversationId}:${randomUUID()}`,
+      metadata: { kind: "handoff_joined" },
+    });
+    return conversation;
   }
 
   async releaseHandoff(
@@ -71,7 +87,22 @@ export class ConversationsService {
         message: "actor user id is required",
       });
     }
-    return this.store.releaseHandoff(workspaceId, conversationId, actorUserId, actorRole);
+    const conversation = await this.store.releaseHandoff(
+      workspaceId,
+      conversationId,
+      actorUserId,
+      actorRole,
+    );
+    await this.store.appendMessage({
+      workspaceId,
+      conversationId,
+      senderType: "system",
+      senderId: actorUserId,
+      text: "The teammate left. The assistant will reply again.",
+      idempotencyKey: `handoff-leave:${conversationId}:${randomUUID()}`,
+      metadata: { kind: "handoff_released" },
+    });
+    return conversation;
   }
 
   async appendMessage(input: {

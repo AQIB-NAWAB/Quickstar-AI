@@ -19,6 +19,8 @@ export type ExecuteTurnInput = {
   channel?: "chat" | "voice" | "widget";
   deadlineMs?: number;
   callId?: string;
+  /** When set, tokens are forwarded as the model gateway streams them. */
+  onToken?: (delta: string) => void;
 };
 
 export type TurnResult = {
@@ -28,11 +30,44 @@ export type TurnResult = {
   agent_version_id: string;
   user_message: MessageInfo;
   assistant_message: MessageInfo;
+  /** Visitor message was stored for a human teammate. No model reply. */
+  handoff?: boolean;
   usage?: TokenUsage;
 };
 
 const MAX_RETRIEVAL_CHARS = 4000;
 const MAX_MEMORY_INJECT_CHARS = 2000;
+const WIDGET_MAX_OUTPUT_TOKENS = 160;
+const WIDGET_REPLY_STYLE = [
+  "Website chat reply style:",
+  "Keep the answer short and structured.",
+  "Start with one sentence that answers the question.",
+  "Then at most 3 bullets. Each bullet is a single line: a **bold label**, then a few words.",
+  "Do not write a paragraph under a bullet, extra sections, or a closing offer.",
+].join("\n");
+
+/** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
+function resolveChatModel(modelSettings: Record<string, unknown>): { profile: string; modelId: string } {
+  const profile = typeof modelSettings.profile === "string" ? modelSettings.profile.trim() : "";
+  const modelId =
+    (typeof modelSettings.model_id === "string" ? modelSettings.model_id.trim() : "") ||
+    (typeof modelSettings.model === "string" ? modelSettings.model.trim() : "");
+
+  if (profile && modelId) {
+    return { profile, modelId };
+  }
+  if (modelId) {
+    const fromEnv = process.env.DEFAULT_CHAT_MODEL_PROFILE?.trim();
+    const inferred =
+      fromEnv ||
+      (modelId.startsWith("gpt-") ? "openai" : "") ||
+      (modelId.startsWith("claude-") ? "anthropic" : "") ||
+      (/llama|mixtral|gemma/i.test(modelId) ? "groq" : "") ||
+      "openai";
+    return { profile: inferred, modelId };
+  }
+  return { profile: "fake", modelId: "fake" };
+}
 
 export class TurnsService {
   constructor(
@@ -54,6 +89,7 @@ export class TurnsService {
       authHeaders,
       requestId,
       deadlineMs,
+      onToken,
     } = input;
 
     // 1. Fetch conversation (fails with 404 NOT_FOUND if wrong workspace)
@@ -210,8 +246,7 @@ export class TurnsService {
 
     // 7. Invoke Model Gateway
     const modelSettings = version.snapshot.model_settings ?? {};
-    const profile = (modelSettings.profile as string) || "fake";
-    const modelId = (modelSettings.model_id as string) || "fake";
+    const { profile, modelId } = resolveChatModel(modelSettings);
     const temperature =
       typeof modelSettings.temperature === "number"
         ? modelSettings.temperature
@@ -235,6 +270,19 @@ export class TurnsService {
           chatMessages,
         });
         assistantText = loopResult.content;
+      } else if (onToken) {
+        const completion = await this.modelGatewayClient.stream(
+          {
+            workspace_id: workspaceId,
+            request_id: requestId,
+            model: { profile, model_id: modelId },
+            messages: chatMessages,
+            temperature,
+          },
+          { onToken },
+        );
+        assistantText = completion.content;
+        usage = completion.usage;
       } else {
         const completion = await this.modelGatewayClient.complete({
           workspace_id: workspaceId,
@@ -328,11 +376,13 @@ export class TurnsService {
     idempotencyKey: string;
     actorId: string;
     requestId: string;
+    onToken?: (delta: string) => void;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "widget",
       allowTools: false,
+      compactReply: true,
     });
   }
 
@@ -387,6 +437,9 @@ export class TurnsService {
     allowTools: boolean;
     /** When set, load this version instead of production_version_id (eval only). */
     agentVersionId?: string;
+    onToken?: (delta: string) => void;
+    /** Website widget only: short structured replies. Eval turns stay on the agent instructions. */
+    compactReply?: boolean;
   }): Promise<TurnResult> {
     const {
       workspaceId,
@@ -400,6 +453,8 @@ export class TurnsService {
       deadlineMs,
       allowTools,
       agentVersionId: pinnedVersionId,
+      onToken,
+      compactReply,
     } = input;
 
     const conversation = await this.conversationClient.getConversationWidget(
@@ -407,6 +462,30 @@ export class TurnsService {
       conversationId,
       requestId,
     );
+
+    if (conversation.state === "human" && channel === "widget") {
+      const userMsgResult = await this.conversationClient.appendMessageWidget(
+        workspaceId,
+        conversationId,
+        {
+          text: text ?? "",
+          idempotency_key: idempotencyKey,
+          sender_type: "user",
+          sender_id: actorId,
+          metadata: { channel },
+        },
+        requestId,
+      );
+      return {
+        deduplicated: Boolean(userMsgResult.deduplicated),
+        conversation_id: conversationId,
+        agent_id: conversation.agent_id ?? "",
+        agent_version_id: "",
+        user_message: userMsgResult.message,
+        assistant_message: userMsgResult.message,
+        handoff: true,
+      };
+    }
 
     if (conversation.state === "human") {
       throw new AppError({
@@ -536,6 +615,10 @@ export class TurnsService {
       }
     }
 
+    if (compactReply) {
+      systemParts.push(WIDGET_REPLY_STYLE);
+    }
+
     if (systemParts.length > 0) {
       chatMessages.push({ role: "system", content: systemParts.join("\n\n") });
     }
@@ -547,19 +630,33 @@ export class TurnsService {
     }
 
     const modelSettings = version.snapshot.model_settings ?? {};
-    const profile = (modelSettings.profile as string) || "fake";
-    const modelId = (modelSettings.model_id as string) || "fake";
+    const { profile, modelId } = resolveChatModel(modelSettings);
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
-    const runModel = async () =>
-      this.modelGatewayClient.complete({
-        workspace_id: workspaceId,
-        request_id: requestId,
-        model: { profile, model_id: modelId },
-        messages: chatMessages,
-        temperature,
-      });
+    const configuredMax =
+      typeof modelSettings.max_tokens === "number" && modelSettings.max_tokens > 0
+        ? modelSettings.max_tokens
+        : undefined;
+    const maxTokens = compactReply
+      ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
+      : configuredMax;
+
+    const completionRequest = {
+      workspace_id: workspaceId,
+      request_id: requestId,
+      model: { profile, model_id: modelId },
+      messages: chatMessages,
+      temperature,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+    };
+
+    const runModel = async () => {
+      if (onToken) {
+        return this.modelGatewayClient.stream(completionRequest, { onToken });
+      }
+      return this.modelGatewayClient.complete(completionRequest);
+    };
 
     let completion: Awaited<ReturnType<ModelGatewayClient["complete"]>>;
     if (deadlineMs && deadlineMs > 0) {

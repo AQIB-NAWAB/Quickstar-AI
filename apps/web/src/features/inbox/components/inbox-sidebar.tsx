@@ -8,7 +8,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { listConversations } from "@/features/inbox/lib/client";
 import {
+  conversationRef,
   conversationTitle,
+  formatConversationTime,
   INBOX_STATE_FILTERS,
   type Conversation,
   type ConversationState,
@@ -71,7 +73,7 @@ export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
     }
     return conversations.filter((c) => {
       const title = conversationTitle(c).toLowerCase();
-      return title.includes(q) || c.id.toLowerCase().includes(q);
+      return title.includes(q) || conversationRef(c).toLowerCase().includes(q);
     });
   }, [conversations, search]);
 
@@ -87,7 +89,7 @@ export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search subject or id…"
+            placeholder="Search visitors…"
             className="pl-9 text-xs"
           />
         </div>
@@ -135,9 +137,8 @@ export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
                     <p className="text-[13px] font-semibold text-accent-black truncate">{conversationTitle(c)}</p>
                     <StateBadge state={c.state} />
                   </div>
-                  <p className="text-[11px] font-medium text-neutral-500 mt-1.5 font-mono truncate">{c.id}</p>
-                  <p className="text-[11px] font-medium text-neutral-500 mt-1">
-                    Updated {new Date(c.updated_at).toLocaleString()}
+                  <p className="text-[11px] font-medium text-neutral-500 mt-1.5">
+                    {conversationRef(c)} · {formatConversationTime(c.updated_at)}
                   </p>
                 </Link>
               </li>
