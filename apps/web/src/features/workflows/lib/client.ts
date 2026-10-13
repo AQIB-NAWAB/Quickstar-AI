@@ -117,7 +117,7 @@ function mapRun(raw: Record<string, unknown>): WorkflowRun {
   };
 }
 
-function toResult<T>(status: number, data: T | undefined, error?: ApiError): RepositoryResult<T> {
+function failResult<T>(status: number, error?: ApiError): RepositoryResult<T> {
   if (status === 404) return { status: "not_found", message: error?.message ?? "Not found" };
   if (status === 403) return { status: "forbidden", message: error?.message ?? "Forbidden" };
   if (status === 0 || status >= 500) {
@@ -126,8 +126,12 @@ function toResult<T>(status: number, data: T | undefined, error?: ApiError): Rep
       message: error?.message ?? "Workflow automation is not available yet.",
     };
   }
+  return { status: "error", message: error?.message ?? "Request failed" };
+}
+
+function toResult<T>(status: number, data: T | undefined, error?: ApiError): RepositoryResult<T> {
   if (error || data === undefined) {
-    return { status: "error", message: error?.message ?? "Request failed" };
+    return failResult<T>(status, error);
   }
   return { status: "ready", data };
 }
@@ -140,7 +144,7 @@ export async function listWorkflowsApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows`,
     { signal },
   );
-  if (error || !data) return toResult(status, undefined, error);
+  if (error || !data) return failResult(status, error);
   return toResult(status, (data.workflows ?? []).map(mapListItem));
 }
 
@@ -153,7 +157,7 @@ export async function getWorkflowApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
     { signal },
   );
-  if (error || !data?.workflow) return toResult(status, undefined, error);
+  if (error || !data?.workflow) return failResult(status, error);
   return toResult(status, mapDefinition(data.workflow));
 }
 
@@ -188,7 +192,7 @@ export async function saveWorkflowApi(
       body: JSON.stringify(payload),
     },
   );
-  if (error || !data?.workflow) return toResult(status, undefined, error);
+  if (error || !data?.workflow) return failResult(status, error);
   return toResult(status, mapDefinition(data.workflow));
 }
 
@@ -200,7 +204,7 @@ export async function deleteWorkflowApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
     { method: "DELETE" },
   );
-  if (error) return toResult(status, undefined, error);
+  if (error) return failResult(status, error);
   return toResult(status, Boolean(data?.deleted));
 }
 
@@ -213,7 +217,7 @@ export async function listRunsApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/runs`,
     { signal },
   );
-  if (error || !data) return toResult(status, undefined, error);
+  if (error || !data) return failResult(status, error);
   return toResult(status, (data.runs ?? []).map(mapRun));
 }
 
@@ -227,6 +231,6 @@ export async function getRunApi(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}`,
     { signal },
   );
-  if (error || !data?.run) return toResult(status, undefined, error);
+  if (error || !data?.run) return failResult(status, error);
   return toResult(status, mapRun(data.run));
 }

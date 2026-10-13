@@ -15,9 +15,7 @@ import {
   Menu,
   MessageSquare,
   Megaphone,
-  PhoneIncoming,
-  PhoneOutgoing,
-  Radio,
+  Phone,
   Send,
   Settings,
   Search,
@@ -94,22 +92,10 @@ export function AppShell({
           match: "/lead-generation",
         },
         {
-          name: "Inbound calls",
+          name: "Calls",
           href: route("voice/inbound"),
-          icon: PhoneIncoming,
-          match: "/voice/inbound",
-        },
-        {
-          name: "Live calls",
-          href: route("voice/inbound/live"),
-          icon: Radio,
-          exact: true,
-        },
-        {
-          name: "Outbound calls",
-          href: route("voice/outbound"),
-          icon: PhoneOutgoing,
-          match: "/voice/outbound",
+          icon: Phone,
+          match: "/voice",
         },
         { name: "Campaigns", href: route("campaigns"), icon: Megaphone, match: "/campaigns" },
       ],
@@ -142,9 +128,8 @@ export function AppShell({
     if (item.exact) return activePath === href;
     if (item.name === "Agents" && activePath.includes("/agents/new")) return true;
     if (item.name === "Campaigns" && activePath.includes("/campaigns/new")) return true;
-    if (item.name === "Inbound calls" && activePath.startsWith(`${base}/voice/inbound/live`))
-      return false;
-    if (item.name === "Leads" && activePath.startsWith(`${base}/leads/schema`)) return true;
+    if (item.name === "Calls" && activePath.includes("/voice")) return true;
+    if (item.name === "Leads" && activePath.includes("/leads")) return true;
     if (item.name === "Lead generation" && activePath.includes("/lead-generation")) return true;
     return activePath.startsWith(item.match ? `${base}${item.match}` : href);
   };

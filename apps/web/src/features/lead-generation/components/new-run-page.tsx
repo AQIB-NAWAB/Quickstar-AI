@@ -149,79 +149,104 @@ export function LeadGenerationNewRunPage({
       >
         {step === 1 && (
           <>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Categories (comma-separated)</span>
-          <input
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={categories}
-            onChange={(e) => setCategories(e.target.value)}
-            required
-          />
-        </label>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Location</span>
-          <input
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
-        </label>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Target count</span>
-          <input
-            type="number"
-            min={1}
-            max={policy?.max_target_count ?? 50}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={targetCount}
-            onChange={(e) => setTargetCount(Number(e.target.value))}
-            required
-          />
-        </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">What do you want to find? (Target industries / niches)</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Enter target niches or business types separated by commas (e.g. Dental clinics, B2B SaaS, Real estate brokers).
+              </p>
+              <input
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={categories}
+                onChange={(e) => setCategories(e.target.value)}
+                placeholder="e.g. Dental clinics, Cosmetic surgery"
+                required
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">Location / Geographic market</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Optional city, state, or country (e.g. Austin, TX or United States).
+              </p>
+              <input
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Austin, TX or Worldwide"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">Target prospect count</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Number of verified leads the research agent should attempt to collect.
+              </p>
+              <input
+                type="number"
+                min={1}
+                max={policy?.max_target_count ?? 50}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={targetCount}
+                onChange={(e) => setTargetCount(Number(e.target.value))}
+                required
+              />
+            </label>
           </>
         )}
         {step === 2 && (
           <>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Required contact</span>
-          <select
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={requiredContact}
-            onChange={(e) =>
-              setRequiredContact(e.target.value as LeadRunInput["required_contact"])
-            }
-          >
-            <option value="none">None</option>
-            <option value="email">Email</option>
-            <option value="phone">Phone</option>
-          </select>
-        </label>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Excluded domains (comma-separated)</span>
-          <input
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={excluded}
-            onChange={(e) => setExcluded(e.target.value)}
-          />
-        </label>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Campaign ID (optional delivery target)</span>
-          <input
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            value={campaignId}
-            onChange={(e) => setCampaignId(e.target.value)}
-            placeholder="UUID of an existing campaign"
-          />
-        </label>
-        <label className="block space-y-1 text-sm font-medium">
-          <span>Extra instructions</span>
-          <textarea
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
-            rows={3}
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-          />
-        </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">Mandatory contact requirement</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Only accept candidates where the agent can verify this contact channel.
+              </p>
+              <select
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={requiredContact}
+                onChange={(e) =>
+                  setRequiredContact(e.target.value as LeadRunInput["required_contact"])
+                }
+              >
+                <option value="email">Email address (Mandatory)</option>
+                <option value="phone">Phone number (Mandatory)</option>
+                <option value="none">No mandatory contact check</option>
+              </select>
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">What specific data & insights should the agent discover?</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                The agent will dynamically discover and populate these attributes at runtime (e.g. owner name, company size, software used, social links).
+              </p>
+              <textarea
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                rows={3}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="e.g. Discover decision maker names, whether they offer online booking, and specific qualification criteria."
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">Excluded domains / competitors</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Comma-separated list of domains to ignore (e.g. yelp.com, yellowpages.com).
+              </p>
+              <input
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={excluded}
+                onChange={(e) => setExcluded(e.target.value)}
+                placeholder="e.g. example.com, aggregator.org"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">
+              <span className="text-neutral-900 font-semibold">Campaign delivery ID (optional)</span>
+              <p className="text-xs text-neutral-500 font-normal">
+                Automatically ingest accepted prospects into an existing dialer campaign.
+              </p>
+              <input
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium"
+                value={campaignId}
+                onChange={(e) => setCampaignId(e.target.value)}
+                placeholder="UUID of an existing campaign"
+              />
+            </label>
           </>
         )}
         {step === 3 && (

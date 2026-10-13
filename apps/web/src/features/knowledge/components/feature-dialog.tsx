@@ -69,7 +69,7 @@ export function FeatureDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-accent-black/40 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 !m-0 !mt-0 z-50 flex items-center justify-center p-4 bg-accent-black/40 backdrop-blur-sm transition-opacity duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSubmitting) {
           onClose();

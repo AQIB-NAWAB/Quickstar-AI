@@ -266,6 +266,14 @@ export function qualify(
       accepted && !!supported("contact_role", r.contact_role) && checks.contact_role_match === true;
   if (brief.required_contact === "email") accepted = accepted && !!validEmail;
   if (brief.required_contact === "phone") accepted = accepted && !!validPhone;
+  const discoveredFields: Record<string, string> = {};
+  if (r.discovered_fields && typeof r.discovered_fields === "object" && !Array.isArray(r.discovered_fields)) {
+    for (const [k, v] of Object.entries(r.discovered_fields as Record<string, unknown>)) {
+      if (typeof k === "string" && k.trim() && typeof v === "string" && v.trim()) {
+        discoveredFields[k.trim().slice(0, 100)] = v.trim().slice(0, 500);
+      }
+    }
+  }
   return {
     accepted,
     data: {
@@ -280,6 +288,7 @@ export function qualify(
       summary: typeof r.summary === "string" ? r.summary.slice(0, 2000) : "",
       fit_score: score,
       fit_reasons: reasons,
+      discovered_fields: discoveredFields,
       evidence,
       checked_at: new Date().toISOString(),
       outreach_eligible: false,
@@ -356,7 +365,7 @@ export class ResearchAgent {
     }
     const raw = await this.provider.json(
       t,
-      "Return {company_name,category,location,company_size,contact_role,email,phone,summary,fit_score:integer 0..100,fit_reasons:string[],target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field,value,source_url,quote}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. Reasons and summary are labelled AI assessments, not verified buying intent.",
+      "Return {company_name,category,location,company_size,contact_role,email,phone,summary,fit_score:integer 0..100,fit_reasons:string[],discovered_fields:object with string key-values based on brief instructions or discovered attributes,target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field,value,source_url,quote}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. Reasons and summary are labelled AI assessments, not verified buying intent.",
       {
         business,
         business_research: profile.researched,
@@ -405,7 +414,7 @@ export class DemoProvider implements ResearchProvider {
     };
   }
   async json(_t: Task, instruction: string, data: unknown) {
-    const input = data as { pages: Page[] };
+    const input = data as { pages: Page[]; target?: { instructions?: string } };
     const page = input.pages[0];
     const evidence = (field: string, value: string) => ({
       field,
@@ -420,6 +429,14 @@ export class DemoProvider implements ResearchProvider {
         conflicts: [],
         evidence: [evidence("offering", "Software")],
       };
+    const demoDiscovered: Record<string, string> = {
+      "Practitioner": "Dr. Sarah Ahmed",
+      "Services Offered": "General Dental Care, Orthodontics",
+      "Booking System": "Online Appointments",
+    };
+    if (input.target?.instructions) {
+      demoDiscovered["Instructions Match"] = String(input.target.instructions).slice(0, 100);
+    }
     return {
       company_name: "Example Clinic",
       category: "clinic",
@@ -431,6 +448,7 @@ export class DemoProvider implements ResearchProvider {
       summary: "DEMO prospect",
       fit_score: 80,
       fit_reasons: ["DEMO category match"],
+      discovered_fields: demoDiscovered,
       target_checks: {
         category_match: true,
         location_match: true,

@@ -48,6 +48,7 @@ export async function syncAcceptedLeadToCrm(
           location: input.lead.location ?? "",
           fit_score: String(input.lead.fit_score),
           data_origin: input.lead.data_origin ?? "",
+          ...(input.lead.discovered_fields ?? {}),
         },
         tags: ["lead-generation", input.lead.category].filter(Boolean),
       }),
