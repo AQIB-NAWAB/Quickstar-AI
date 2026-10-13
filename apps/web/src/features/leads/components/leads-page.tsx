@@ -80,23 +80,30 @@ export function LeadsPage({
     const abortController = new AbortController();
 
     async function loadData() {
-      setLoading(true);
-      const res = await repository.listLeads(workspaceId, {}, abortController.signal);
+      try {
+        setLoading(true);
+        const res = await repository.listLeads(workspaceId, {}, abortController.signal);
 
-      if (!active) return;
+        if (!active) return;
 
-      if (res.status === "unavailable") {
-        setIsUnavailable(true);
+        if (res.status === "unavailable") {
+          setIsUnavailable(true);
+          setLoading(false);
+          return;
+        }
+
+        if (res.status === "ready") {
+          setAllLeads(res.data.leads);
+          setAvailableTags(res.data.availableTags);
+          setIsUnavailable(false);
+        }
         setLoading(false);
-        return;
+      } catch (err: unknown) {
+        if (!active || (err instanceof Error && err.name === "AbortError")) {
+          return;
+        }
+        setLoading(false);
       }
-
-      if (res.status === "ready") {
-        setAllLeads(res.data.leads);
-        setAvailableTags(res.data.availableTags);
-        setIsUnavailable(false);
-      }
-      setLoading(false);
     }
 
     loadData();
@@ -118,13 +125,19 @@ export function LeadsPage({
         return;
       }
 
-      const res = await repository.getLead(workspaceId, selectedLeadId, abortController.signal);
-      if (!active) return;
+      try {
+        const res = await repository.getLead(workspaceId, selectedLeadId, abortController.signal);
+        if (!active) return;
 
-      if (res.status === "ready") {
-        setSelectedLeadDetail(res.data);
-      } else {
-        setSelectedLeadDetail(null);
+        if (res.status === "ready") {
+          setSelectedLeadDetail(res.data);
+        } else {
+          setSelectedLeadDetail(null);
+        }
+      } catch (err: unknown) {
+        if (!active || (err instanceof Error && err.name === "AbortError")) {
+          return;
+        }
       }
     }
 
@@ -255,12 +268,6 @@ export function LeadsPage({
         </div>
 
         <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-          <Link
-            href={`/workspaces/${workspaceId}/leads/schema`}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
-          >
-            Schema
-          </Link>
           <button
             type="button"
             onClick={() => setExportOpen(true)}
@@ -288,32 +295,27 @@ export function LeadsPage({
         onClearFilters={handleClearFilters}
       />
 
-      {/* Main Content Area: Table + Optional Detail Drawer */}
-      <div className="flex flex-col lg:flex-row items-start gap-4">
-        {/* Table Column */}
-        <div className="flex-1 min-w-0 w-full">
-          <LeadTable
-            leads={filteredLeads}
-            selectedLeadId={selectedLeadId}
-            isSampleData={isSampleData}
-            onSelectLead={handleSelectLead}
-          />
-        </div>
-
-        {/* Detail Drawer Column */}
-        {selectedLeadDetail && (
-          <div className="w-full lg:w-auto shrink-0 sticky top-4">
-            <LeadDetailDrawer
-              lead={selectedLeadDetail}
-              workspaceId={workspaceId}
-              isPreview={isSampleData}
-              isOutsideFilter={isSelectedOutsideFilter}
-              onClose={handleCloseDrawer}
-              onUpdateStatus={handleUpdateStatus}
-            />
-          </div>
-        )}
+      {/* Main Content Area: Full-width Table */}
+      <div className="w-full">
+        <LeadTable
+          leads={filteredLeads}
+          selectedLeadId={selectedLeadId}
+          isSampleData={isSampleData}
+          onSelectLead={handleSelectLead}
+        />
       </div>
+
+      {/* Slide-over Detail Drawer / Sidebar (Off-canvas Overlay) */}
+      {selectedLeadDetail && (
+        <LeadDetailDrawer
+          lead={selectedLeadDetail}
+          workspaceId={workspaceId}
+          isPreview={isSampleData}
+          isOutsideFilter={isSelectedOutsideFilter}
+          onClose={handleCloseDrawer}
+          onUpdateStatus={handleUpdateStatus}
+        />
+      )}
 
       {/* CSV Export Dialog */}
       <CsvExportDialog

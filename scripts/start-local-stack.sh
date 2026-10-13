@@ -91,9 +91,10 @@ bold "1) Data plane"
 docker compose up -d --wait
 
 bold "2) Migrations (shared Postgres)"
+export DATABASE_URL="${DATABASE_URL:-postgresql://quickstart:quickstart@localhost:5433/quickstart}"
 make identity-migrate workspace-migrate agent-migrate conversation-migrate \
   web-fetch-migrate knowledge-migrate memory-migrate secrets-migrate \
-  workflow-migrate campaign-migrate lead-migrate lead-generation-migrate \
+  workflow-migrate campaign-migrate lead-migrate \
   eval-migrate usage-migrate audit-migrate \
   || true
 

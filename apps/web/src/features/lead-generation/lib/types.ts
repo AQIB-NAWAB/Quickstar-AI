@@ -76,6 +76,7 @@ export type LeadAssessment = {
   summary: string;
   fit_score: number;
   fit_reasons: string[];
+  discovered_fields?: Record<string, string>;
   evidence?: LeadEvidence[];
   checked_at?: string;
 };

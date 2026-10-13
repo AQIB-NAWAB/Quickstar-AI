@@ -33,7 +33,16 @@ async function bff<T>(
     }
     return { status: res.status, data: body as unknown as T };
   } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    const isAbort =
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError") ||
+      (typeof err === "object" && err !== null && "name" in err && (err as { name: string }).name === "AbortError");
+    if (isAbort) {
+      return {
+        status: 0,
+        error: { code: "ABORTED", message: "Request aborted" },
+      };
+    }
     return {
       status: 0,
       error: {
@@ -45,6 +54,7 @@ async function bff<T>(
 }
 
 function failResult<T>(status: number, error?: ApiError): RepositoryResult<T> {
+  if (error?.code === "ABORTED") return { status: "unavailable", message: "Request aborted" };
   if (status === 0) return { status: "unavailable", message: error?.message || "Service unavailable" };
   if (status === 403) return { status: "forbidden", message: error?.message || "Forbidden" };
   if (status === 404) return { status: "not_found", message: error?.message || "Not found" };

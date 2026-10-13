@@ -37,7 +37,16 @@ async function bff<T>(
     }
     return { status: res.status, data: body as unknown as T };
   } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    const isAbort =
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError") ||
+      (typeof err === "object" && err !== null && "name" in err && (err as { name: string }).name === "AbortError");
+    if (isAbort) {
+      return {
+        status: 0,
+        error: { code: "ABORTED", message: "Request aborted" },
+      };
+    }
     return {
       status: 0,
       error: {

@@ -1,9 +1,9 @@
 "use client";
 
-import { Check,ChevronDown,Mail,Phone,X } from "lucide-react";
-import { useState } from "react";
-import { formatFullUtcCaptured,getInitials,isValidEmail,isValidPhone } from "../lib/format";
-import type { LeadDetail,LeadStatus } from "../lib/types";
+import { Check, ChevronDown, Mail, Phone, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatFullUtcCaptured, getInitials, isValidEmail, isValidPhone } from "../lib/format";
+import type { LeadDetail, LeadStatus } from "../lib/types";
 import { CapturedFields } from "./captured-fields";
 import { LeadConversationTranscript } from "./lead-conversation-transcript";
 import { QualificationIndicator } from "./qualification-indicator";
@@ -31,6 +31,23 @@ export function LeadDetailDrawer({
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  function handleClose() {
+    if (closing) return;
+    setClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 240);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") handleClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   async function handleSelectStatus(status: LeadStatus) {
     setStatusMenuOpen(false);
@@ -57,22 +74,35 @@ export function LeadDetailDrawer({
   const displayName = lead.name || lead.email || lead.phone || "Unnamed lead";
 
   return (
-    <aside
-      className="w-full lg:w-[360px] 2xl:w-[400px] bg-white border-l border-border-faint flex flex-col h-full shadow-xs shrink-0"
-      aria-label="Lead details panel"
-    >
-      {/* Drawer Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border-faint">
-        <h3 className="text-sm font-bold text-accent-black tracking-tight">
-          Lead details
-        </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 text-neutral-400 hover:text-neutral-700 rounded-6 hover:bg-neutral-100 transition-colors"
-          title="Close details"
-          aria-label="Close details"
-        >
+    <>
+      {/* Backdrop overlay covering the screen */}
+      <div
+        className={`fixed inset-0 !m-0 !mt-0 z-40 bg-black/30 backdrop-blur-[2px] ${
+          closing ? "animate-backdrop-out" : "animate-backdrop-in"
+        }`}
+        onClick={handleClose}
+        aria-hidden="true"
+      />
+
+      {/* Slide-over Sheet / Sidebar from the screen edge */}
+      <aside
+        className={`fixed inset-y-0 right-0 !m-0 !mt-0 z-50 flex w-full max-w-full sm:w-[440px] md:w-[480px] lg:w-[500px] flex-col border-l border-neutral-200 bg-white shadow-2xl ${
+          closing ? "animate-drawer-out" : "animate-drawer-in"
+        }`}
+        aria-label="Lead details panel"
+      >
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50/70 shrink-0">
+          <h3 className="text-base font-bold text-accent-black tracking-tight">
+            Lead details
+          </h3>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-200/60 transition-colors"
+            title="Close details"
+            aria-label="Close details"
+          >
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -271,5 +301,6 @@ export function LeadDetailDrawer({
         </div>
       </div>
     </aside>
-  );
+  </>
+);
 }
