@@ -14,7 +14,9 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "integrity": "python3 scripts/check-repository-integrity.py",
-    "check": "pnpm run integrity && pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test"
+    "check": "pnpm run integrity && pnpm run lint && pnpm run build && pnpm run typecheck && pnpm run test",
+    "seed:demo": "node --env-file=.env scripts/seed-demo-account.mjs",
+    "stack:up": "bash scripts/start-local-stack.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

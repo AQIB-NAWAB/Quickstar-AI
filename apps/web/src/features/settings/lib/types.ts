@@ -7,6 +7,7 @@ export type WorkspaceRole =
   | "human_agent";
 
 export type SettingsTab =
+  | "account"
   | "general"
   | "members"
   | "api-keys"

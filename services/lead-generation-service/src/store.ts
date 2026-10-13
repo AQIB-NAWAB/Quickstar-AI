@@ -690,8 +690,14 @@ export class Store {
     });
     await this.finalizeRuns();
   }
-  async assessed(t: Task, data: CampaignLeadDelivery["lead"], accepted: boolean) {
+  async assessed(
+    t: Task,
+    data: CampaignLeadDelivery["lead"],
+    accepted: boolean,
+  ): Promise<{ leadId: string | null; lead: CampaignLeadDelivery["lead"] | null }> {
     data = { ...data, data_origin: this.mode };
+    let leadId: string | null = null;
+    let leadOut: CampaignLeadDelivery["lead"] | null = null;
     await this.tx(async (c) => {
       await this.global(c);
       await this.live(c, t);
@@ -723,6 +729,8 @@ export class Store {
         );
         if (inserted.rowCount) {
           added = true;
+          leadId = String(lead.id);
+          leadOut = data;
           await c.query("UPDATE lg_runs SET accepted=accepted+1 WHERE id=$1", [run.id]);
           if (run.brief.campaign_id) {
             const delivery: CampaignLeadDelivery = {
@@ -771,6 +779,7 @@ export class Store {
       }
     });
     await this.finalizeRuns();
+    return { leadId, lead: leadOut };
   }
   async delivered(t: Task, result: unknown) {
     await this.tx(async (c) => {

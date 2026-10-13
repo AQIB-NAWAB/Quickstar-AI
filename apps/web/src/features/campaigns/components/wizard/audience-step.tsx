@@ -256,7 +256,7 @@ export function AudienceStep({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-faint text-neutral-700 font-mono">
-                  {draft.parsedRowsPreview.slice(0, 2).map((row, idx) => (
+                  {draft.parsedRowsPreview.slice(0, 5).map((row, idx) => (
                     <tr key={idx}>
                       {(previewHeaders.length > 0 ? previewHeaders : ["phone"]).map((h) => {
                         const mapping = draft.columnMappings.find((m) => m.sourceColumn === h);
@@ -287,13 +287,19 @@ export function AudienceStep({
         </div>
       )}
 
-      <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-8 flex items-center gap-2 text-xs text-emerald-800">
-        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-        <span className="font-medium">
-          {draft.validCount} valid &middot; {draft.invalidCount} invalid &middot;{" "}
-          {draft.duplicateCount} duplicates
-        </span>
-      </div>
+      {draft.rowCount ? (
+        <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-8 flex items-center gap-2 text-xs text-emerald-800">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="font-medium">
+            Dial column: {draft.mappedColumns.phone || "not mapped"} · {draft.validCount} valid ·{" "}
+            {draft.invalidCount} invalid · {draft.duplicateCount} duplicates
+          </span>
+        </div>
+      ) : (
+        <p className="text-xs text-neutral-500">
+          Choose a CSV. Map one column to Dial (phone) and review the parsed rows before continuing.
+        </p>
+      )}
 
       <div className="flex items-center justify-between pt-3 border-t border-border-faint">
         <button

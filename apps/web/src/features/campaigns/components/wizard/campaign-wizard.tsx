@@ -15,72 +15,23 @@ import { WizardStepper } from "./wizard-stepper";
 
 export function createDefaultDraft(): WizardDraft {
   return {
-    name: "Product demo follow-up",
-    description: "Outbound follow-up for contacts who requested a product demo.",
-    agentId: "00000000-0000-4000-8000-000000000001",
-    agentName: "Sales assistant",
+    name: "",
+    description: "",
+    agentId: "",
+    agentName: "",
     audienceSource: "csv",
-    fileName: "demo-contacts.csv",
-    rowCount: 1200,
-    csvHeaders: ["phone_number", "full_name", "email", "company", "title"],
-    parsedRows: [
-      {
-        phone_number: "+12025550104",
-        full_name: "Alex Morgan",
-        email: "alex@example.com",
-        company: "Acme Labs",
-        title: "VP Sales",
-      },
-      {
-        phone_number: "+12025550118",
-        full_name: "Jordan Lee",
-        email: "jordan@example.com",
-        company: "Brightfield",
-        title: "Founder",
-      },
-    ],
-    columnMappings: [
-      { sourceColumn: "phone_number", key: "phone", role: "dial" },
-      { sourceColumn: "full_name", key: "name", role: "identity" },
-      { sourceColumn: "email", key: "email", role: "contact_email" },
-      { sourceColumn: "company", key: "company", role: "custom" },
-      { sourceColumn: "title", key: "title", role: "custom" },
-    ],
+    fileName: "",
+    rowCount: 0,
+    csvHeaders: [],
+    parsedRows: [],
+    columnMappings: [],
     mappedColumns: {
-      phone: "phone_number",
-      name: "full_name",
-      email: "email",
-      customFields: { company: "company", title: "title" },
+      phone: "",
+      customFields: {},
     },
-    parsedRowsPreview: [
-      {
-        name: "Alex Morgan",
-        phone: "+12025550104",
-        email: "alex@example.com",
-        customFields: { company: "Acme Labs", title: "VP Sales" },
-      },
-      {
-        name: "Jordan Lee",
-        phone: "+12025550118",
-        email: "jordan@example.com",
-        customFields: { company: "Brightfield", title: "Founder" },
-      },
-    ],
-    preparedTargets: [
-      {
-        phone: "+12025550104",
-        name: "Alex Morgan",
-        email: "alex@example.com",
-        attributes: { company: "Acme Labs", title: "VP Sales" },
-      },
-      {
-        phone: "+12025550118",
-        name: "Jordan Lee",
-        email: "jordan@example.com",
-        attributes: { company: "Brightfield", title: "Founder" },
-      },
-    ],
-    validCount: 2,
+    parsedRowsPreview: [],
+    preparedTargets: [],
+    validCount: 0,
     invalidCount: 0,
     duplicateCount: 0,
     schedule: {
@@ -107,6 +58,8 @@ interface CampaignWizardProps {
   isPreview?: boolean;
   repository?: CampaignRepository;
   onSaved?: (campaignId: string) => void;
+  onCancel?: () => void;
+  embedded?: boolean;
   baseBackUrl?: string;
 }
 
@@ -115,6 +68,8 @@ export function CampaignWizard({
   isPreview = false,
   repository,
   onSaved,
+  onCancel,
+  embedded = false,
   baseBackUrl,
 }: CampaignWizardProps) {
   const router = useRouter();
@@ -140,7 +95,7 @@ export function CampaignWizard({
       const saved = window.localStorage.getItem(localDraftKey);
       if (saved) {
         const parsed = JSON.parse(saved) as { draft?: WizardDraft; step?: number };
-        if (parsed.draft) {
+        if (parsed.draft && parsed.draft.fileName !== "demo-contacts.csv") {
           setDraft(parsed.draft);
           setStep(Math.min(5, Math.max(1, parsed.step ?? 1)));
           setLocalDraftSaved(true);
@@ -208,22 +163,34 @@ export function CampaignWizard({
   }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto pb-12">
-      {/* Top back navigation and header */}
+    <div className={embedded ? "space-y-4" : "space-y-4 max-w-4xl mx-auto pb-12"}>
       <div className="flex flex-col gap-4">
-        <div>
-          <Link
-            href={backUrl}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-accent-black transition-colors mb-2"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            All campaigns
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-accent-black">Create campaign</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Set up an outbound calling campaign with custom audience, schedule, and retry rules.
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <Link
+              href={backUrl}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-accent-black transition-colors mb-2"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              All campaigns
+            </Link>
+            <h1 className="text-2xl font-bold tracking-tight text-accent-black">Create campaign</h1>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Set up an outbound calling campaign with custom audience, schedule, and retry rules.
+            </p>
+          </div>
+        )}
+        {embedded && onCancel && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs font-semibold text-neutral-500 hover:text-accent-black"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Stepper on top right / center */}
         <div className="bg-white border border-border-faint rounded-16 px-4 py-2 shadow-sm">

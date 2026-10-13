@@ -424,6 +424,60 @@ export class CampaignsRepository {
     return result.rows[0] ? mapTarget(result.rows[0]) : null;
   }
 
+  async getTargetBySourceRef(
+    workspaceId: string,
+    campaignId: string,
+    sourceRef: string,
+  ): Promise<CampaignTarget | null> {
+    const result = await this.pool.query<TargetRow>(
+      `SELECT * FROM campaign_targets
+       WHERE workspace_id = $1 AND campaign_id = $2 AND source_ref = $3
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [workspaceId, campaignId, sourceRef],
+    );
+    return result.rows[0] ? mapTarget(result.rows[0]) : null;
+  }
+
+  async insertTargetReturning(
+    workspaceId: string,
+    campaignId: string,
+    target: {
+      dialAddress: string;
+      dialNormalized: string;
+      displayName: string | null;
+      email: string | null;
+      attributes: Record<string, string>;
+      sourceKind: "csv" | "lead" | "api";
+      sourceRef: string | null;
+    },
+  ): Promise<CampaignTarget> {
+    const result = await this.pool.query<TargetRow>(
+      `INSERT INTO campaign_targets (
+         workspace_id, campaign_id, dial_address, dial_normalized, display_name, email,
+         attributes, source_kind, source_ref
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
+       ON CONFLICT (campaign_id, dial_normalized) DO UPDATE
+         SET source_ref = COALESCE(campaign_targets.source_ref, EXCLUDED.source_ref),
+             email = COALESCE(EXCLUDED.email, campaign_targets.email),
+             display_name = COALESCE(EXCLUDED.display_name, campaign_targets.display_name),
+             attributes = campaign_targets.attributes || EXCLUDED.attributes
+       RETURNING *`,
+      [
+        workspaceId,
+        campaignId,
+        target.dialAddress,
+        target.dialNormalized,
+        target.displayName,
+        target.email,
+        JSON.stringify(target.attributes),
+        target.sourceKind,
+        target.sourceRef,
+      ],
+    );
+    return mapTarget(result.rows[0]);
+  }
+
   async listAttempts(workspaceId: string, campaignId: string): Promise<CampaignAttempt[]> {
     const result = await this.pool.query<AttemptRow>(
       `SELECT * FROM campaign_attempts

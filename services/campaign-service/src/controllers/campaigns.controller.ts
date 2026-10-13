@@ -1,4 +1,4 @@
-import { WORKSPACE_PERMISSIONS } from "@quickstart/contracts";
+import { WORKSPACE_PERMISSIONS, type CampaignLeadDelivery } from "@quickstart/contracts";
 import { sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
 import type {
   CampaignAttempt,
@@ -223,6 +223,13 @@ export function createCampaignsController(campaigns: CampaignsService) {
         parseIncomingTargets(body.targets),
       );
       sendPlatformJson(res, 200, result);
+    }) as RequestHandler,
+
+    /** Internal: lead-generation CampaignLeadDelivery ingest (Bearer CAMPAIGN_INTERNAL_TOKEN). */
+    ingestLeadDelivery: (async (req, res) => {
+      const body = (req.body ?? {}) as CampaignLeadDelivery;
+      const receipt = await campaigns.ingestLeadDelivery(body);
+      sendPlatformJson(res, 200, receipt);
     }) as RequestHandler,
 
     launch: (async (req, res) => {

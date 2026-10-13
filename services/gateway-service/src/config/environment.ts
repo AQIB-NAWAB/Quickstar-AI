@@ -95,7 +95,7 @@ export function loadGatewayConfig(): GatewayConfig {
       process.env.AUDIT_SERVICE_URL ??
       "http://127.0.0.1:3018"
     ).replace(/\/$/, ""),
-    leadGenerationUrl: (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3012").replace(
+    leadGenerationUrl: (process.env.LEAD_GENERATION_URL ?? "http://127.0.0.1:3019").replace(
       /\/$/,
       "",
     ),

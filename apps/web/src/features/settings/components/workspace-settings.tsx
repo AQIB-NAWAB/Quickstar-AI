@@ -32,6 +32,7 @@ interface WorkspaceSettingsProps {
 }
 
 const VALID_TABS: SettingsTab[] = [
+  "account",
   "general",
   "members",
   "api-keys",
@@ -58,7 +59,7 @@ export function WorkspaceSettings({
     if (raw && VALID_TABS.includes(raw)) {
       return raw;
     }
-    return "general";
+    return "account";
   }, [searchParams]);
 
   function switchTab(tab: SettingsTab) {
@@ -99,10 +100,30 @@ export function WorkspaceSettings({
       </div>
 
       {/* Tabs navigation */}
-      <SettingsTabs activeTab={activeTab} onSelectTab={handleSelectTab} />
+      <div className="flex flex-col gap-6 pt-2 md:flex-row md:items-start">
+        <SettingsTabs activeTab={activeTab} onSelectTab={handleSelectTab} />
+        <div className="min-w-0 flex-1">
+        {activeTab === "account" && (
+          <section className="rounded-16 border border-border-faint bg-white p-6 shadow-xs">
+            <h2 className="text-lg font-bold tracking-tight text-accent-black">Profile</h2>
+            <p className="mt-1 text-[13px] font-medium text-neutral-500">
+              The email on this staff account.
+            </p>
+            <dl className="mt-5 space-y-4 text-[13px]">
+              <div>
+                <dt className="font-semibold text-neutral-500">Email</dt>
+                <dd className="mt-1 font-medium text-accent-black">{currentUser.email}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-neutral-500">Workspace role</dt>
+                <dd className="mt-1 font-medium capitalize text-accent-black">
+                  {currentUser.role.replaceAll("_", " ")}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        )}
 
-      {/* Tab Panels */}
-      <div className="pt-2">
         {activeTab === "general" && (
           <GeneralSettings
             workspaceId={workspace.id}
@@ -151,6 +172,7 @@ export function WorkspaceSettings({
             canDeleteWorkspace={permissions.canDeleteWorkspace}
           />
         )}
+        </div>
       </div>
 
       {/* Unsaved changes confirmation dialog */}

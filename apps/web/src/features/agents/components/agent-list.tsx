@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bot,
   CheckCircle2,
@@ -14,18 +15,38 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { FeatureDialog } from "@/features/knowledge/components/feature-dialog";
 import type { Agent } from "../lib/types";
 import { deleteAgent } from "../lib/client";
+import { CreateAgentForm } from "./create-agent-form";
 
 type Props = {
   workspaceId: string;
   initialAgents: Agent[];
 };
 
+function CreateQueryOpener({ onOpen }: { onOpen: () => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("create") === "1") onOpen();
+  }, [searchParams, onOpen]);
+  return null;
+}
+
 export function AgentList({ workspaceId, initialAgents }: Props) {
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
   const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const openCreate = useCallback(() => setCreateOpen(true), []);
+
+  function closeCreate() {
+    setCreateOpen(false);
+    if (typeof window !== "undefined" && window.location.search.includes("create=1")) {
+      router.replace(`/workspaces/${workspaceId}/agents`);
+    }
+  }
 
   const filtered = agents.filter((a) => {
     const q = query.toLowerCase();
@@ -65,13 +86,14 @@ export function AgentList({ workspaceId, initialAgents }: Props) {
           </p>
         </div>
 
-        <Link
-          href={`/workspaces/${workspaceId}/agents/new`}
+        <button
+          type="button"
+          onClick={openCreate}
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-8 bg-heat-100 text-white text-xs font-semibold hover:bg-heat-100/90 transition-colors shadow-sm self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           Create Agent
-        </Link>
+        </button>
       </div>
 
       {/* Filter / Search Bar */}
@@ -102,13 +124,14 @@ export function AgentList({ workspaceId, initialAgents }: Props) {
             retrieval for your business.
           </p>
           <div className="mt-6">
-            <Link
-              href={`/workspaces/${workspaceId}/agents/new`}
+            <button
+              type="button"
+              onClick={openCreate}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-8 bg-heat-100 text-white text-xs font-semibold hover:bg-heat-100/90 transition-colors shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Create your first agent
-            </Link>
+            </button>
           </div>
         </div>
       ) : filtered.length === 0 ? (
@@ -208,6 +231,18 @@ export function AgentList({ workspaceId, initialAgents }: Props) {
           })}
         </div>
       )}
+      <Suspense fallback={null}>
+        <CreateQueryOpener onOpen={openCreate} />
+      </Suspense>
+      <FeatureDialog
+        open={createOpen}
+        onClose={closeCreate}
+        title="Create agent"
+        description="Identity, instructions, then channels."
+        maxWidthClass="max-w-3xl"
+      >
+        <CreateAgentForm workspaceId={workspaceId} embedded onCancel={closeCreate} />
+      </FeatureDialog>
     </div>
   );
 }

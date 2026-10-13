@@ -95,6 +95,13 @@ export type {
   LeadPolicy,
   LeadEvidence,
   CampaignLeadDelivery,
+  LeadGenerationResearchStatus,
+  LeadGenerationProfile,
+  LeadGenerationRunSummary,
+  LeadGenerationRunCreateResponse,
+  LeadGenerationCandidateResult,
+  LeadGenerationDeliveryTask,
+  LeadGenerationCursorPage,
 } from "./lead-generation.js";
 
 export {

@@ -79,6 +79,7 @@ export interface AnalyticsData {
 export type AnalyticsResult =
   | { status: "ready"; data: AnalyticsData }
   | { status: "unavailable"; message: string; description?: string }
+  | { status: "forbidden"; message: string }
   | { status: "error"; message: string };
 
 export interface AnalyticsDataSource {

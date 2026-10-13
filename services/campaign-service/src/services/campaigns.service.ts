@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
+import type { CampaignLeadDelivery } from "@quickstart/contracts";
 import type {
   AudienceFieldDef,
   CampaignAttempt,
@@ -17,7 +19,9 @@ import {
   assertAudienceSchemaHasDial,
   normalizeAudienceSchema,
   normalizeIncomingTargets,
+  sanitizeAttributes,
 } from "../utils/audience.js";
+import { isValidE164, normalizePhone } from "../utils/phone.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -142,6 +146,93 @@ export class CampaignsService {
     }
 
     return this.getDetail(workspaceId, campaign.id);
+  }
+
+  /**
+   * Internal ingest for lead-generation `CampaignLeadDelivery`.
+   * Idempotent on `idempotency_key` via `source_ref`.
+   */
+  async ingestLeadDelivery(payload: CampaignLeadDelivery): Promise<{
+    workspace_id: string;
+    idempotency_key: string;
+    campaign_lead_id: string;
+  }> {
+    if (payload.schema_version !== 1) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "schema_version must be 1",
+      });
+    }
+    if (!UUID_RE.test(payload.workspace_id) || !UUID_RE.test(payload.campaign_id)) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "workspace_id and campaign_id must be UUIDs",
+      });
+    }
+    if (!payload.idempotency_key?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "idempotency_key is required",
+      });
+    }
+
+    const campaign = await this.requireCampaign(payload.workspace_id, payload.campaign_id);
+    if (campaign.status === "completed" || campaign.status === "failed") {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Cannot ingest leads into a finished campaign",
+      });
+    }
+
+    const existing = await this.repo.getTargetBySourceRef(
+      payload.workspace_id,
+      payload.campaign_id,
+      payload.idempotency_key,
+    );
+    if (existing) {
+      return {
+        workspace_id: payload.workspace_id,
+        idempotency_key: payload.idempotency_key,
+        campaign_lead_id: existing.id,
+      };
+    }
+
+    const phone = normalizePhone(payload.lead.phone ?? "");
+    const dialNormalized = isValidE164(phone)
+      ? phone
+      : syntheticDialFromLeadId(payload.lead_id);
+    const target = await this.repo.insertTargetReturning(
+      payload.workspace_id,
+      payload.campaign_id,
+      {
+        dialAddress: dialNormalized,
+        dialNormalized,
+        displayName: payload.lead.company_name || null,
+        email: payload.lead.email,
+        attributes: sanitizeAttributes(
+          {
+            website: payload.lead.website,
+            category: payload.lead.category,
+            location: payload.lead.location ?? "",
+            fit_score: String(payload.lead.fit_score),
+            lg_lead_id: payload.lead_id,
+            lg_run_id: payload.run_id,
+          },
+          {
+            maxKeys: this.limits.maxAttributeKeys,
+            maxValueLength: this.limits.maxAttributeValueLength,
+          },
+        ),
+        sourceKind: "lead",
+        sourceRef: payload.idempotency_key,
+      },
+    );
+
+    return {
+      workspace_id: payload.workspace_id,
+      idempotency_key: payload.idempotency_key,
+      campaign_lead_id: target.id,
+    };
   }
 
   async importTargets(
@@ -298,6 +389,13 @@ function parseScheduledStart(schedule: CampaignSchedule): Date | null {
   const iso = `${schedule.startDate}T${schedule.startTime}:00Z`;
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Deterministic E.164 in the +1555 reserved test range when the prospect has no phone. */
+function syntheticDialFromLeadId(leadId: string): string {
+  const digits = createHash("sha256").update(leadId).digest("hex").replace(/\D/g, "");
+  const seven = (digits + "0000000").slice(0, 7);
+  return `+1555${seven}`;
 }
 
 function toDetail(

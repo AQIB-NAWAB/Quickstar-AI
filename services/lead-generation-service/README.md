@@ -76,7 +76,7 @@ pnpm --filter @quickstart/service-lead-generation exec node --env-file=../../.en
 pnpm --filter @quickstart/service-lead-generation exec node --env-file=../../.env --env-file=../../.env.leads dist/index.js
 ```
 
-Default service port: **3012**. `GET /healthz` reports execution mode; `GET /readyz`
+Default service port: **3019** (do not collide with workflow on **3012**). `GET /healthz` reports execution mode; `GET /readyz`
 checks database connectivity. Local binding defaults to `127.0.0.1`; private-network
 container deployments can explicitly set `LEAD_GENERATION_HOST=0.0.0.0`.
 

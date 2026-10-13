@@ -38,6 +38,12 @@ index.html
 # Walkthrough and demo media files
 walkthrough_videos/
 
+# Local seeder output (contains tokens / publishable key material)
+fixtures/*.live.json
+
+# Local package store (not source)
+.pnpm-store/
+
 
 
 design/

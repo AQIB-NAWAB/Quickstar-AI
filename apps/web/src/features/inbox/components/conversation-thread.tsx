@@ -131,7 +131,7 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
             <h2 className="text-sm font-bold text-accent-black truncate">
               {conversation ? conversationTitle(conversation) : "Conversation"}
             </h2>
-            <p className="text-[10px] font-mono text-neutral-500 truncate">{conversationId}</p>
+            <p className="text-[11px] font-medium font-mono text-neutral-500 truncate">{conversationId}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {conversation ? <StateBadge state={conversation.state} /> : null}
@@ -179,11 +179,11 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
                         : "bg-neutral-50 border-border-faint text-accent-black"
                   }`}
                 >
-                  <p className="text-[10px] font-semibold text-neutral-500 mb-1">
+                  <p className="text-[11px] font-semibold text-neutral-500 mb-1">
                     {senderLabel(m.sender_type)} · seq {m.seq} ·{" "}
                     {new Date(m.created_at).toLocaleTimeString()}
                   </p>
-                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                  <p className="whitespace-pre-wrap break-words font-medium">{m.text}</p>
                   {m.metadata && Object.keys(m.metadata).length > 0 ? (
                     <pre className="mt-2 text-[10px] font-mono text-neutral-500 overflow-x-auto">
                       {JSON.stringify(m.metadata, null, 2)}
