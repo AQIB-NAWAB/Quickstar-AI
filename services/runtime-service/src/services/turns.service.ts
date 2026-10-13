@@ -30,11 +30,21 @@ export type TurnResult = {
   agent_version_id: string;
   user_message: MessageInfo;
   assistant_message: MessageInfo;
+  /** Visitor message was stored for a human teammate. No model reply. */
+  handoff?: boolean;
   usage?: TokenUsage;
 };
 
 const MAX_RETRIEVAL_CHARS = 4000;
 const MAX_MEMORY_INJECT_CHARS = 2000;
+const WIDGET_MAX_OUTPUT_TOKENS = 160;
+const WIDGET_REPLY_STYLE = [
+  "Website chat reply style:",
+  "Keep the answer short and structured.",
+  "Start with one sentence that answers the question.",
+  "Then at most 3 bullets. Each bullet is a single line: a **bold label**, then a few words.",
+  "Do not write a paragraph under a bullet, extra sections, or a closing offer.",
+].join("\n");
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
 function resolveChatModel(modelSettings: Record<string, unknown>): { profile: string; modelId: string } {
@@ -372,6 +382,7 @@ export class TurnsService {
       ...input,
       channel: "widget",
       allowTools: false,
+      compactReply: true,
     });
   }
 
@@ -427,6 +438,8 @@ export class TurnsService {
     /** When set, load this version instead of production_version_id (eval only). */
     agentVersionId?: string;
     onToken?: (delta: string) => void;
+    /** Website widget only: short structured replies. Eval turns stay on the agent instructions. */
+    compactReply?: boolean;
   }): Promise<TurnResult> {
     const {
       workspaceId,
@@ -441,6 +454,7 @@ export class TurnsService {
       allowTools,
       agentVersionId: pinnedVersionId,
       onToken,
+      compactReply,
     } = input;
 
     const conversation = await this.conversationClient.getConversationWidget(
@@ -448,6 +462,30 @@ export class TurnsService {
       conversationId,
       requestId,
     );
+
+    if (conversation.state === "human" && channel === "widget") {
+      const userMsgResult = await this.conversationClient.appendMessageWidget(
+        workspaceId,
+        conversationId,
+        {
+          text: text ?? "",
+          idempotency_key: idempotencyKey,
+          sender_type: "user",
+          sender_id: actorId,
+          metadata: { channel },
+        },
+        requestId,
+      );
+      return {
+        deduplicated: Boolean(userMsgResult.deduplicated),
+        conversation_id: conversationId,
+        agent_id: conversation.agent_id ?? "",
+        agent_version_id: "",
+        user_message: userMsgResult.message,
+        assistant_message: userMsgResult.message,
+        handoff: true,
+      };
+    }
 
     if (conversation.state === "human") {
       throw new AppError({
@@ -577,6 +615,10 @@ export class TurnsService {
       }
     }
 
+    if (compactReply) {
+      systemParts.push(WIDGET_REPLY_STYLE);
+    }
+
     if (systemParts.length > 0) {
       chatMessages.push({ role: "system", content: systemParts.join("\n\n") });
     }
@@ -592,12 +634,21 @@ export class TurnsService {
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
+    const configuredMax =
+      typeof modelSettings.max_tokens === "number" && modelSettings.max_tokens > 0
+        ? modelSettings.max_tokens
+        : undefined;
+    const maxTokens = compactReply
+      ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
+      : configuredMax;
+
     const completionRequest = {
       workspace_id: workspaceId,
       request_id: requestId,
       model: { profile, model_id: modelId },
       messages: chatMessages,
       temperature,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
 
     const runModel = async () => {

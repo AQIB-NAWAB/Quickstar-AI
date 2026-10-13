@@ -80,6 +80,16 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
           res.write(`data: ${JSON.stringify({ delta })}\n\n`);
         });
         openSse();
+        if (result.handoff) {
+          res.write(`event: handoff\n`);
+          res.write(
+            `data: ${JSON.stringify({ message: "A teammate is in this chat and will reply here." })}\n\n`,
+          );
+          res.write(`event: done\n`);
+          res.write(`data: ${JSON.stringify({ turn: result })}\n\n`);
+          res.end();
+          return;
+        }
         if (result.deduplicated && result.assistant_message.text && !tokensStarted) {
           res.write(`event: token\n`);
           res.write(
