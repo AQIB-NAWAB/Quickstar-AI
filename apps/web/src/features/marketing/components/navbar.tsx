@@ -225,8 +225,8 @@ export function Navbar() {
               Get started
             </span>
 
-            {/* Compartment 2: Near-black arrow box (exactly 44px wide) */}
-            <span className="w-[44px] h-full bg-[#262626] flex items-center justify-center shrink-0">
+            {/* Compartment 2: Deeper orange arrow box (exactly 44px wide) */}
+            <span className="w-[44px] h-full bg-[#E04810] group-hover:bg-[#C93F0E] flex items-center justify-center shrink-0 border-l border-white/15 transition-colors duration-150 motion-reduce:transition-none">
               <ArrowRight
                 className="w-4 h-4 text-white stroke-[2.2] transition-transform duration-150 motion-reduce:transform-none group-hover:translate-x-0.5"
                 aria-hidden="true"
@@ -317,7 +317,7 @@ export function Navbar() {
                 <span className="h-full px-4 sm:px-5 bg-[#FF571A] group-hover:bg-[#E04810] text-white text-[14.5px] sm:text-[15px] font-semibold flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none">
                   Get started
                 </span>
-                <span className="w-[44px] h-full bg-[#262626] flex items-center justify-center shrink-0">
+                <span className="w-[44px] h-full bg-[#E04810] group-hover:bg-[#C93F0E] flex items-center justify-center shrink-0 border-l border-white/15 transition-colors duration-150 motion-reduce:transition-none">
                   <ArrowRight
                     className="w-4 h-4 text-white stroke-[2.2] transition-transform duration-150 motion-reduce:transform-none group-hover:translate-x-0.5"
                     aria-hidden="true"

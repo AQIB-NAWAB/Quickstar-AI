@@ -7,9 +7,13 @@ import {
   parseCsvText,
   validateAudienceWithMappings,
 } from "../../lib/csv";
+import { resolveTelephonyMode } from "../../lib/telephony-mode";
 import type { AudienceFieldRole, ColumnMapping, WizardDraft } from "../../lib/types";
+import { LeadRunAudience } from "./lead-run-audience";
 
 interface AudienceStepProps {
+  workspaceId: string;
+  isPreview?: boolean;
   draft: WizardDraft;
   onUpdate: (updated: Partial<WizardDraft>) => void;
   onBack: () => void;
@@ -25,6 +29,8 @@ const ROLE_OPTIONS: { value: AudienceFieldRole | "skip"; label: string }[] = [
 ];
 
 export function AudienceStep({
+  workspaceId,
+  isPreview = false,
   draft,
   onUpdate,
   onBack,
@@ -44,7 +50,9 @@ export function AudienceStep({
     fileMeta?: { fileName: string; rowCount: number; csvHeaders?: string[] },
   ) {
     const active = mappings.filter(Boolean);
-    const validation = validateAudienceWithMappings(parsedRows, active);
+    const validation = validateAudienceWithMappings(parsedRows, active, {
+      telephonyMode: resolveTelephonyMode(draft),
+    });
     const dial = active.find((m) => m.role === "dial");
     const identity = active.find((m) => m.role === "identity");
     const email = active.find((m) => m.role === "contact_email");
@@ -153,13 +161,55 @@ export function AudienceStep({
     return draft.columnMappings.find((m) => m.sourceColumn === header)?.role ?? "skip";
   }
 
+  function setSource(source: WizardDraft["audienceSource"]) {
+    if (source === draft.audienceSource) return;
+    onUpdate({
+      audienceSource: source,
+      leadRunId: source === "lead_run" ? draft.leadRunId : undefined,
+      selectedLeadIds: source === "lead_run" ? draft.selectedLeadIds : [],
+      fileName: "",
+      rowCount: 0,
+      csvHeaders: [],
+      parsedRows: [],
+      columnMappings: [],
+      mappedColumns: { phone: "", customFields: {} },
+      parsedRowsPreview: [],
+      preparedTargets: [],
+      validCount: 0,
+      invalidCount: 0,
+      duplicateCount: 0,
+    });
+    setError(null);
+  }
+
+  const telephonyRequired = resolveTelephonyMode(draft) === "required";
+
   function handleContinue() {
-    if (!draft.columnMappings.some((m) => m.role === "dial")) {
-      setError("Map one CSV column to Dial (phone) before continuing.");
+    if (telephonyRequired && !draft.columnMappings.some((m) => m.role === "dial")) {
+      setError(
+        draft.audienceSource === "lead_run"
+          ? "Select a lead generation run with at least one phone number."
+          : "Map one CSV column to Dial (phone) before continuing.",
+      );
+      return;
+    }
+    if (
+      !telephonyRequired &&
+      !draft.columnMappings.some((m) => m.role === "identity" || m.role === "contact_email")
+    ) {
+      setError("Map a name or email column for audience-only campaigns.");
       return;
     }
     if (draft.validCount === 0) {
-      setError("At least one valid phone contact is required to continue.");
+      setError(
+        draft.audienceSource === "lead_run"
+          ? telephonyRequired
+            ? "Select at least one accepted lead with a phone number that includes a country code."
+            : "Select at least one accepted lead with a company name or email."
+          : telephonyRequired
+            ? "At least one valid phone contact is required to continue."
+            : "At least one contact with a name or email is required to continue.",
+      );
       return;
     }
     setError(null);
@@ -170,12 +220,39 @@ export function AudienceStep({
     <div className="bg-white border border-border-faint rounded-12 p-6 shadow-xs max-w-2xl mx-auto space-y-5">
       <div>
         <h3 className="text-base font-bold text-accent-black tracking-tight">
-          Step 2 &middot; Audience &amp; column mapping
+          Step 2 &middot; Audience
         </h3>
         <p className="text-xs text-neutral-500 mt-0.5">
-          Upload any CSV. Map one column to dial (phone); every other header can become a custom
-          attribute — there is no fixed company / name schema.
+          Upload a CSV, or choose accepted leads from a lead generation run.
+          {telephonyRequired
+            ? " Outbound calls need a phone number with a country code."
+            : " Audience-only campaigns need a name or email per contact."}
         </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setSource("csv")}
+          className={`px-3 py-2 rounded-8 text-xs font-semibold border ${
+            draft.audienceSource !== "lead_run"
+              ? "border-heat-100 bg-orange-50 text-accent-black"
+              : "border-border-faint bg-white text-neutral-600"
+          }`}
+        >
+          Upload CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => setSource("lead_run")}
+          className={`px-3 py-2 rounded-8 text-xs font-semibold border ${
+            draft.audienceSource === "lead_run"
+              ? "border-heat-100 bg-orange-50 text-accent-black"
+              : "border-border-faint bg-white text-neutral-600"
+          }`}
+        >
+          Accepted leads from a run
+        </button>
       </div>
 
       {error && (
@@ -184,6 +261,23 @@ export function AudienceStep({
         </div>
       )}
 
+      {draft.audienceSource === "lead_run" ? (
+        isPreview ? (
+          <p className="text-xs text-neutral-500">
+            Accepted leads from a run can be selected when you create the campaign inside a workspace.
+          </p>
+        ) : (
+          <LeadRunAudience
+            workspaceId={workspaceId}
+            draft={draft}
+            telephonyMode={resolveTelephonyMode(draft)}
+            onUpdate={onUpdate}
+          />
+        )
+      ) : null}
+
+      {draft.audienceSource !== "lead_run" && (
+      <>
       <div className="border border-border-faint rounded-10 p-4 bg-neutral-50/50 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-orange-100 text-heat-100 flex items-center justify-center shrink-0">
@@ -299,6 +393,8 @@ export function AudienceStep({
         <p className="text-xs text-neutral-500">
           Choose a CSV. Map one column to Dial (phone) and review the parsed rows before continuing.
         </p>
+      )}
+      </>
       )}
 
       <div className="flex items-center justify-between pt-3 border-t border-border-faint">

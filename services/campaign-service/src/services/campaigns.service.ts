@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { CampaignLeadDelivery } from "@quickstart/contracts";
 import type {
@@ -17,9 +16,12 @@ import type {
 import type { CampaignsRepository } from "../repository/campaigns.repository.js";
 import {
   assertAudienceSchemaHasDial,
+  assertAudienceSchemaHasReachableContact,
   normalizeAudienceSchema,
   normalizeIncomingTargets,
   sanitizeAttributes,
+  schemaUsesTelephony,
+  syntheticDialFromKey,
 } from "../utils/audience.js";
 import { isValidE164, normalizePhone } from "../utils/phone.js";
 
@@ -112,7 +114,9 @@ export class CampaignsService {
         { key: "email", label: "Email", role: "contact_email" },
       ];
     }
-    assertAudienceSchemaHasDial(audienceSchema);
+    const telephonyRequired = schemaUsesTelephony(audienceSchema);
+    if (telephonyRequired) assertAudienceSchemaHasDial(audienceSchema);
+    else assertAudienceSchemaHasReachableContact(audienceSchema);
 
     const schedule = { ...defaultSchedule(), ...(body.schedule ?? {}) };
     const pacing: CampaignPacing = {
@@ -142,7 +146,9 @@ export class CampaignsService {
     });
 
     if (body.targets?.length) {
-      await this.importTargets(workspaceId, campaign.id, body.targets, audienceSchema);
+      await this.importTargets(workspaceId, campaign.id, body.targets, audienceSchema, {
+        telephonyRequired,
+      });
     }
 
     return this.getDetail(workspaceId, campaign.id);
@@ -200,7 +206,7 @@ export class CampaignsService {
     const phone = normalizePhone(payload.lead.phone ?? "");
     const dialNormalized = isValidE164(phone)
       ? phone
-      : syntheticDialFromLeadId(payload.lead_id);
+      : syntheticDialFromKey(payload.lead_id);
     const target = await this.repo.insertTargetReturning(
       payload.workspace_id,
       payload.campaign_id,
@@ -240,6 +246,7 @@ export class CampaignsService {
     campaignId: string,
     targets: IncomingTarget[],
     schema?: AudienceFieldDef[],
+    options?: { telephonyRequired?: boolean },
   ): Promise<{ inserted: number; invalidCount: number; duplicateCount: number }> {
     const campaign = await this.requireCampaign(workspaceId, campaignId);
     if (campaign.status === "completed" || campaign.status === "failed") {
@@ -255,14 +262,21 @@ export class CampaignsService {
       });
     }
 
+    const telephonyRequired =
+      options?.telephonyRequired ?? (schema?.length ? schemaUsesTelephony(schema) : true);
     if (schema?.length) {
-      assertAudienceSchemaHasDial(schema);
+      if (telephonyRequired) assertAudienceSchemaHasDial(schema);
+      else assertAudienceSchemaHasReachableContact(schema);
     }
 
-    const normalized = normalizeIncomingTargets(targets, {
-      maxKeys: this.limits.maxAttributeKeys,
-      maxValueLength: this.limits.maxAttributeValueLength,
-    });
+    const normalized = normalizeIncomingTargets(
+      targets,
+      {
+        maxKeys: this.limits.maxAttributeKeys,
+        maxValueLength: this.limits.maxAttributeValueLength,
+      },
+      { telephonyRequired },
+    );
     const inserted = await this.repo.insertTargets(workspaceId, campaignId, normalized.valid);
     return {
       inserted,
@@ -391,12 +405,6 @@ function parseScheduledStart(schedule: CampaignSchedule): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Deterministic E.164 in the +1555 reserved test range when the prospect has no phone. */
-function syntheticDialFromLeadId(leadId: string): string {
-  const digits = createHash("sha256").update(leadId).digest("hex").replace(/\D/g, "");
-  const seven = (digits + "0000000").slice(0, 7);
-  return `+1555${seven}`;
-}
 
 function toDetail(
   campaign: CampaignRecord,

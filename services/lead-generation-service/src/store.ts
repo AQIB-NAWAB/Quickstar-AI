@@ -286,6 +286,14 @@ export class Store {
       )
     ).rows[0];
   }
+  async reviseBrief(t: Task, brief: LeadRunInput) {
+    if (!t.run_id) return;
+    await this.pool.query("UPDATE lg_runs SET brief=$2 WHERE id=$1 AND workspace_id=$3", [
+      t.run_id,
+      brief,
+      t.workspace_id,
+    ]);
+  }
   async createRun(i: Identity, brief: LeadRunInput, idempotency: string) {
     return this.tx(async (c) => {
       await this.global(c);

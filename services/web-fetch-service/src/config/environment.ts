@@ -116,11 +116,50 @@ function defaultProfiles(olostepKey?: string, firecrawlKey?: string): Acquisitio
   return profiles;
 }
 
+/** A custom profile JSON must not drop Firecrawl or Olostep when those keys are set. */
+function mergeKeyedProviders(
+  profiles: AcquisitionProviderProfileConfig[],
+  olostepKey?: string,
+  firecrawlKey?: string,
+): AcquisitionProviderProfileConfig[] {
+  const out = [...profiles];
+  const has = (driver: string) => out.some((p) => p.driver === driver && p.enabled !== false);
+  if (firecrawlKey && !has("firecrawl")) {
+    out.push({
+      id: "firecrawl",
+      driver: "firecrawl",
+      enabled: true,
+      priority: 15,
+      unitCostMicrosScrape: 500,
+      unitCostMicrosSearch: 800,
+      apiKey: firecrawlKey,
+      baseUrl: process.env.FIRECRAWL_BASE_URL ?? "https://api.firecrawl.dev",
+    });
+  }
+  if (olostepKey && !has("olostep")) {
+    out.push({
+      id: "olostep",
+      driver: "olostep",
+      enabled: true,
+      priority: 20,
+      unitCostMicrosScrape: 500,
+      unitCostMicrosSearch: 800,
+      apiKey: olostepKey,
+      baseUrl: process.env.OLOSTEP_BASE_URL ?? "https://api.olostep.com",
+    });
+  }
+  return out;
+}
+
 export function loadWebFetchConfig(): WebFetchConfig {
   const olostepApiKey = process.env.OLOSTEP_API_KEY;
   const firecrawlApiKey = process.env.FIRECRAWL_API_KEY;
   const fromJson = loadProfilesFromJson();
-  const providerProfiles = fromJson ?? defaultProfiles(olostepApiKey, firecrawlApiKey);
+  const providerProfiles = mergeKeyedProviders(
+    fromJson ?? defaultProfiles(olostepApiKey, firecrawlApiKey),
+    olostepApiKey,
+    firecrawlApiKey,
+  );
   const internalToken = requireToken();
 
   return {

@@ -312,7 +312,7 @@ export function CampaignList({
         open={createOpen}
         onClose={closeCreate}
         title="Create campaign"
-        description="Details, audience upload, schedule, retry, then review."
+        description="Details, audience from a CSV or an accepted lead-generation run, schedule, retry, then review."
         maxWidthClass="max-w-5xl"
       >
         {createOpen ? (

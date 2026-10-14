@@ -1,3 +1,4 @@
+import { resolveTelephonyMode } from "./telephony-mode";
 import type {
   AudienceFieldDef,
   AudienceFieldRole,
@@ -195,24 +196,26 @@ function mapAttempt(raw: Record<string, unknown>): ContactAttempt {
 }
 
 function buildAudienceSchema(draft: WizardDraft): AudienceFieldDef[] {
+  const telephonyMode = resolveTelephonyMode(draft);
   if (draft.columnMappings.length > 0) {
     return draft.columnMappings.map((m) => ({
       key: m.key,
       label: m.sourceColumn,
       role: m.role,
       sourceColumn: m.sourceColumn,
-      required: m.role === "dial",
+      required: m.role === "dial" && telephonyMode === "required",
     }));
   }
-  const schema: AudienceFieldDef[] = [
-    {
+  const schema: AudienceFieldDef[] = [];
+  if (telephonyMode === "required") {
+    schema.push({
       key: "phone",
       label: draft.mappedColumns.phone || "phone",
       role: "dial",
       sourceColumn: draft.mappedColumns.phone,
       required: true,
-    },
-  ];
+    });
+  }
   if (draft.mappedColumns.name) {
     schema.push({
       key: "name",
@@ -319,6 +322,7 @@ export async function saveDraftApi(
   workspaceId: string,
   draft: WizardDraft,
 ): Promise<RepositoryResult<CampaignSummary>> {
+  const telephonyMode = resolveTelephonyMode(draft);
   const audienceSchema = buildAudienceSchema(draft);
   const targets = (draft.preparedTargets.length > 0
     ? draft.preparedTargets
@@ -333,7 +337,8 @@ export async function saveDraftApi(
     name: t.name ?? null,
     email: t.email ?? null,
     attributes: t.attributes ?? {},
-    source_kind: "csv" as const,
+    source_kind: (draft.audienceSource === "lead_run" ? "lead" : "csv") as "lead" | "csv",
+    source_ref: "sourceRef" in t ? (t.sourceRef ?? null) : null,
   }));
 
   const body = {
@@ -365,7 +370,7 @@ export async function saveDraftApi(
       eligible_outcomes: draft.retryPolicy.eligibleOutcomes,
     },
     targets,
-    status: "draft",
+    status: telephonyMode === "none" ? "scheduled" : "draft",
   };
 
   const { status, data, error } = await bff<{ campaign: Record<string, unknown> }>(

@@ -111,6 +111,29 @@ export async function getRunResults(workspaceId: string, runId: string, signal?:
   );
 }
 
+/** Pages through a run until every candidate row is loaded. */
+export async function listAllRunResults(
+  workspaceId: string,
+  runId: string,
+  signal?: AbortSignal,
+) {
+  const items: LeadGenerationCandidateResult[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < 20; page += 1) {
+    const params = new URLSearchParams({ limit: "100" });
+    if (after) params.set("after", after);
+    const res = await bff<LeadGenerationCursorPage<LeadGenerationCandidateResult>>(
+      `${base(workspaceId)}/runs/${encodeURIComponent(runId)}/results?${params.toString()}`,
+      { signal },
+    );
+    if (res.error || !res.data) return res;
+    items.push(...res.data.items);
+    after = res.data.next_cursor;
+    if (!after) break;
+  }
+  return { status: 200, data: { items, next_cursor: null as string | null } };
+}
+
 export async function getRunDeliveries(workspaceId: string, runId: string, signal?: AbortSignal) {
   return bff<{ items: LeadGenerationDeliveryTask[] }>(
     `${base(workspaceId)}/runs/${encodeURIComponent(runId)}/deliveries`,

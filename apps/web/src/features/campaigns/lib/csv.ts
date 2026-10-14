@@ -237,10 +237,20 @@ export type PreparedAudienceRow = {
   raw: Record<string, string>;
 };
 
+export type AudienceValidationOptions = {
+  telephonyMode?: "required" | "none";
+};
+
+function isLooseEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 export function validateAudienceWithMappings(
   rows: Record<string, string>[],
   mappings: ColumnMapping[],
+  options?: AudienceValidationOptions,
 ): ValidationSummary & { prepared: PreparedAudienceRow[] } {
+  const telephonyRequired = options?.telephonyMode !== "none";
   const dial = mappings.find((m) => m.role === "dial");
   const identity = mappings.find((m) => m.role === "identity");
   const emailMap = mappings.find((m) => m.role === "contact_email");
@@ -249,9 +259,9 @@ export function validateAudienceWithMappings(
   const prepared: PreparedAudienceRow[] = [];
   const invalidRows: { rowNumber: number; reason: string; raw: Record<string, string> }[] = [];
   const duplicateRows: { rowNumber: number; phone: string; raw: Record<string, string> }[] = [];
-  const seenPhones = new Set<string>();
+  const seenKeys = new Set<string>();
 
-  if (!dial) {
+  if (telephonyRequired && !dial) {
     return {
       validRows: [],
       invalidRows: rows.map((raw, idx) => ({
@@ -267,33 +277,68 @@ export function validateAudienceWithMappings(
     };
   }
 
+  if (!telephonyRequired && !identity && !emailMap) {
+    return {
+      validRows: [],
+      invalidRows: rows.map((raw, idx) => ({
+        rowNumber: idx + 2,
+        reason: "Map a name or email column for audience-only campaigns",
+        raw,
+      })),
+      duplicateRows: [],
+      validCount: 0,
+      invalidCount: rows.length,
+      duplicateCount: 0,
+      prepared: [],
+    };
+  }
+
   rows.forEach((row, idx) => {
     const rowNum = idx + 2;
-    const rawPhone = row[dial.sourceColumn]?.trim() || "";
+    const rawPhone = dial ? row[dial.sourceColumn]?.trim() || "" : "";
+    const name = identity ? row[identity.sourceColumn]?.trim() || "" : "";
+    const email = emailMap ? row[emailMap.sourceColumn]?.trim() || "" : "";
 
-    if (!rawPhone) {
+    let normalized = "";
+    if (rawPhone) {
+      normalized = normalizePhone(rawPhone);
+      const isValidE164 = /^\+[1-9]\d{6,14}$/.test(normalized);
+      if (!isValidE164) {
+        if (telephonyRequired) {
+          invalidRows.push({
+            rowNumber: rowNum,
+            reason: `Invalid international phone format: "${rawPhone}". Must include country code starting with +`,
+            raw: row,
+          });
+          return;
+        }
+        normalized = "";
+      }
+    } else if (telephonyRequired) {
       invalidRows.push({ rowNumber: rowNum, reason: "Missing phone number", raw: row });
       return;
     }
 
-    const normalized = normalizePhone(rawPhone);
-    const isValidE164 = /^\+[1-9]\d{6,14}$/.test(normalized);
-
-    if (!isValidE164) {
+    if (!telephonyRequired && !normalized && !name && !isLooseEmail(email)) {
       invalidRows.push({
         rowNumber: rowNum,
-        reason: `Invalid international phone format: "${rawPhone}". Must include country code starting with +`,
+        reason: "Each row needs a name or email when telephony is off",
         raw: row,
       });
       return;
     }
 
-    if (seenPhones.has(normalized)) {
-      duplicateRows.push({ rowNumber: rowNum, phone: normalized, raw: row });
+    const dedupeKey = normalized || email.toLowerCase() || name.toLowerCase();
+    if (seenKeys.has(dedupeKey)) {
+      duplicateRows.push({
+        rowNumber: rowNum,
+        phone: normalized || dedupeKey,
+        raw: row,
+      });
       return;
     }
 
-    seenPhones.add(normalized);
+    seenKeys.add(dedupeKey);
     validRows.push(row);
 
     const attributes: Record<string, string> = {};
@@ -302,11 +347,14 @@ export function validateAudienceWithMappings(
       const value = row[m.sourceColumn]?.trim() ?? "";
       if (value) attributes[m.key] = value;
     }
+    if (!telephonyRequired && !normalized) {
+      attributes.telephony_mode = "none";
+    }
 
     prepared.push({
       phone: normalized,
-      name: identity ? row[identity.sourceColumn]?.trim() || null : null,
-      email: emailMap ? row[emailMap.sourceColumn]?.trim() || null : null,
+      name: name || null,
+      email: email || null,
       attributes,
       raw: row,
     });

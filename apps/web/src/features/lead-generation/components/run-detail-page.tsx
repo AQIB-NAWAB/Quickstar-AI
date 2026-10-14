@@ -31,7 +31,10 @@ import {
 import { LeadDetailDrawer } from "./lead-detail-drawer";
 
 function candidateWebsite(candidate: LeadGenerationCandidateResult): string {
-  return candidate.assessment?.website || (typeof candidate.domain === "string" ? candidate.domain : "");
+  if (candidate.assessment?.website) return candidate.assessment.website;
+  if (typeof candidate.url === "string" && candidate.url) return candidate.url;
+  if (typeof candidate.domain === "string") return candidate.domain;
+  return "";
 }
 
 function candidateDomain(candidate: LeadGenerationCandidateResult): string {
@@ -571,8 +574,13 @@ export function LeadGenerationRunDetailPage({
                           </div>
                           <div className="min-w-0 space-y-0.5">
                             <p className="font-semibold text-neutral-900 leading-tight truncate">
-                              {companyName || domain || "Unnamed candidate"}
+                              {companyName || domain || "Looking up this site"}
                             </p>
+                            {item.status === "rejected" && item.assessment?.reject_reasons?.length ? (
+                              <p className="text-[11px] text-neutral-500 truncate">
+                                {item.assessment.reject_reasons[0]}
+                              </p>
+                            ) : null}
                             <div className="flex items-center gap-1.5 text-[12px] text-neutral-500 truncate">
                               {category && <span>{category} ·</span>}
                               {domain ? (

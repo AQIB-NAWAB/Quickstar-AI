@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getCampaignRepository } from "../../lib/repository";
+import { mergeWizardDraft, resolveTelephonyMode } from "../../lib/telephony-mode";
 import type { CampaignRepository, WizardDraft } from "../../lib/types";
 import { AudienceStep } from "./audience-step";
 import { DetailsStep } from "./details-step";
@@ -19,6 +20,7 @@ export function createDefaultDraft(): WizardDraft {
     description: "",
     agentId: "",
     agentName: "",
+    telephonyMode: "required",
     audienceSource: "csv",
     fileName: "",
     rowCount: 0,
@@ -96,7 +98,7 @@ export function CampaignWizard({
       if (saved) {
         const parsed = JSON.parse(saved) as { draft?: WizardDraft; step?: number };
         if (parsed.draft && parsed.draft.fileName !== "demo-contacts.csv") {
-          setDraft(parsed.draft);
+          setDraft(mergeWizardDraft(parsed.draft));
           setStep(Math.min(5, Math.max(1, parsed.step ?? 1)));
           setLocalDraftSaved(true);
         }
@@ -133,9 +135,19 @@ export function CampaignWizard({
     setIsDirty(true);
   }
 
+  const agentIdPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
   async function handleSaveDraft() {
     setSaveStatus("saving");
     setErrorMessage(null);
+
+    if (!isPreview && !agentIdPattern.test(draft.agentId)) {
+      setSaveStatus("error");
+      setErrorMessage("Select a workspace agent in step 1 (demo agent IDs cannot be saved).");
+      setStep(1);
+      return;
+    }
 
     const res = await repo.saveDraft(workspaceId, draft);
     if (res.status === "ready") {
@@ -228,9 +240,12 @@ export function CampaignWizard({
       <div>
         {step === 1 && (
           <DetailsStep
+            workspaceId={workspaceId}
+            isPreview={isPreview}
             name={draft.name}
             description={draft.description}
             agentId={draft.agentId}
+            telephonyMode={resolveTelephonyMode(draft)}
             onUpdate={(data) => updateDraft(data)}
             onContinue={() => setStep(2)}
           />
@@ -238,6 +253,8 @@ export function CampaignWizard({
 
         {step === 2 && (
           <AudienceStep
+            workspaceId={workspaceId}
+            isPreview={isPreview}
             draft={draft}
             onUpdate={(patch) => updateDraft(patch)}
             onBack={() => setStep(1)}

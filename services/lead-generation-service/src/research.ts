@@ -293,6 +293,70 @@ export function validatedEvidence(value: unknown, pages: Page[]): LeadEvidence[]
     }
   });
 }
+/** Lower the bar when a run has looked at several sites and still accepted none. */
+export function adaptiveMinScore(base: number, accepted: number, evaluated: number): number {
+  if (accepted > 0 || evaluated < 4) return base;
+  return Math.max(50, base - 15);
+}
+
+function pageHas(pages: Page[], needle: string): boolean {
+  const n = needle.trim().toLowerCase();
+  if (n.length < 3) return false;
+  return pages.some((p) => p.text.toLowerCase().includes(n));
+}
+
+/** Split "Gulberg, Lahore, Pakistan" into ordered place segments. */
+export function locationParts(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[,/|;]+/)
+    .map((part) => part.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim())
+    .filter((part) => part.length > 1);
+}
+
+function placeContains(haystack: string, part: string): boolean {
+  const tokens = part.split(" ").filter((word) => word.length > 2);
+  if (tokens.length === 0) return false;
+  return tokens.every((token) => haystack.includes(token));
+}
+
+/**
+ * A found address matches the target when the target place sits inside it.
+ * "Gulberg, Lahore, Pakistan" matches "Lahore, Pakistan": Gulberg is a
+ * neighborhood of Lahore, not a different city. A found address that only
+ * names the city still matches. A different city, or the same city in a
+ * different trailing region, does not.
+ */
+export function locationsCompatible(target: string, found: string): boolean {
+  const targetParts = locationParts(target);
+  const foundParts = locationParts(found);
+  if (targetParts.length === 0 || foundParts.length === 0) return false;
+  const foundHas = (part: string) => foundParts.some((candidate) => placeContains(candidate, part));
+  if (targetParts.every(foundHas)) return true;
+  const primary = targetParts[0]!;
+  const primaryIndex = foundParts.findIndex((part) => placeContains(part, primary));
+  if (primaryIndex === -1) return false;
+  const targetAfter = targetParts.slice(1);
+  for (const segment of foundParts.slice(primaryIndex + 1)) {
+    const aligns = targetAfter.some(
+      (part) => placeContains(segment, part) || placeContains(part, segment),
+    );
+    if (!aligns && targetAfter.length > 0) return false;
+  }
+  return true;
+}
+
+function pageSupportsLocation(target: string, pages: Page[]): boolean {
+  const parts = locationParts(target);
+  return (
+    parts.length > 0 &&
+    parts.every((part) => {
+      const tokens = part.split(" ").filter((word) => word.length > 2);
+      return tokens.length > 0 && tokens.every((token) => pageHas(pages, token));
+    })
+  );
+}
+
 export function qualify(
   raw: unknown,
   pages: Page[],
@@ -300,6 +364,7 @@ export function qualify(
   url: string,
   category: string,
   minScore: number,
+  progress?: { accepted: number; evaluated: number },
 ): { data: CampaignLeadDelivery["lead"]; accepted: boolean } {
   const r = object(raw),
     evidence = validatedEvidence(r.evidence, pages);
@@ -418,20 +483,56 @@ export function qualify(
       ? Math.max(0, Math.min(100, Math.round(r.fit_score)))
       : 0;
   const reasons = strings(r.fit_reasons ?? [], "fit_reasons", 10);
-  let accepted =
-    !!name &&
-    checks.category_match === true &&
-    score >= minScore &&
-    reasons.length > 0;
-  if (brief.location) accepted = accepted && !!location && checks.location_match === true;
-  if (brief.company_size)
-    accepted =
-      accepted && !!supported("company_size", r.company_size) && checks.company_size_match === true;
-  if (brief.contact_role)
-    accepted =
-      accepted && !!supported("contact_role", r.contact_role) && checks.contact_role_match === true;
-  if (brief.required_contact === "email") accepted = accepted && !!validEmail;
-  if (brief.required_contact === "phone") accepted = accepted && !!validPhone;
+  const floor = adaptiveMinScore(minScore, progress?.accepted ?? 0, progress?.evaluated ?? 0);
+  const categoryWords = `${category} ${brief.categories.join(" ")}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 3);
+  const categorySupported =
+    checks.category_match === true ||
+    (score >= floor &&
+      categoryWords.some(
+        (w) => pageHas(pages, w) || (foundCategory ?? "").toLowerCase().includes(w),
+      ));
+  const statedLocation =
+    (typeof r.location === "string" && r.location.trim() ? r.location.trim() : null) ?? location;
+  let locationSupported = !brief.location;
+  if (brief.location) {
+    if (statedLocation && locationsCompatible(brief.location, statedLocation)) {
+      locationSupported = true;
+      location = statedLocation;
+    } else if (statedLocation) {
+      locationSupported = false;
+    } else if (pageSupportsLocation(brief.location, pages) || checks.location_match === true) {
+      locationSupported = true;
+      if (!location) location = brief.location.trim();
+    }
+  }
+  const rejectReasons: string[] = [];
+  if (!name) rejectReasons.push("Company name was not found on the page");
+  if (!categorySupported) rejectReasons.push("Category did not match the target");
+  if (score < floor) rejectReasons.push(`Fit score ${score} is below the adaptive bar ${floor}`);
+  if (!reasons.length) rejectReasons.push("No fit reasons were returned");
+  if (brief.location && !locationSupported) rejectReasons.push("Location was not supported by the page");
+  let accepted = rejectReasons.length === 0;
+  if (brief.company_size) {
+    const sizeOk = !!supported("company_size", r.company_size) && checks.company_size_match === true;
+    if (!sizeOk) rejectReasons.push("Company size was not supported");
+    accepted = accepted && sizeOk;
+  }
+  if (brief.contact_role) {
+    const roleOk = !!supported("contact_role", r.contact_role) && checks.contact_role_match === true;
+    if (!roleOk) rejectReasons.push("Contact role was not supported");
+    accepted = accepted && roleOk;
+  }
+  if (brief.required_contact === "email") {
+    if (!validEmail) rejectReasons.push("A verified email was required and not found");
+    accepted = accepted && !!validEmail;
+  }
+  if (brief.required_contact === "phone") {
+    if (!validPhone) rejectReasons.push("A verified phone was required and not found");
+    accepted = accepted && !!validPhone;
+  }
   const discoveredFields: Record<string, string> = {};
   if (r.discovered_fields && typeof r.discovered_fields === "object" && !Array.isArray(r.discovered_fields)) {
     for (const [k, v] of Object.entries(r.discovered_fields as Record<string, unknown>)) {
@@ -454,6 +555,7 @@ export function qualify(
       summary: typeof r.summary === "string" ? r.summary.slice(0, 2000) : "",
       fit_score: score,
       fit_reasons: reasons,
+      reject_reasons: accepted ? [] : rejectReasons,
       discovered_fields: discoveredFields,
       evidence,
       checked_at: new Date().toISOString(),
@@ -468,6 +570,36 @@ export class ResearchAgent {
     private readonly provider: ResearchProvider,
     private readonly config?: Config,
   ) {}
+  private async normalizeBrief(t: Task, business: BusinessInput, brief: LeadRunInput): Promise<LeadRunInput> {
+    try {
+      const raw = object(
+        await this.provider.json(
+          t,
+          "Correct spelling and wording only. Return {categories:string[], location:string|null, instructions:string|null, notes:string[]}. Keep the user's intent. Do not invent a different industry or city. categories must stay close to the supplied list.",
+          { business, brief },
+        ),
+      );
+      const categories = strings(raw.categories ?? brief.categories, "categories", 8);
+      const next: LeadRunInput = {
+        ...brief,
+        categories: categories.length ? categories : brief.categories,
+        location:
+          typeof raw.location === "string" && raw.location.trim()
+            ? raw.location.trim().slice(0, 120)
+            : brief.location,
+        instructions:
+          typeof raw.instructions === "string" && raw.instructions.trim()
+            ? raw.instructions.trim().slice(0, 2000)
+            : brief.instructions,
+      };
+      await this.store.reviseBrief(t, next);
+      return next;
+    } catch (error) {
+      if (error instanceof ResearchError && error.retryable) throw error;
+      return brief;
+    }
+  }
+
   async execute(t: Task) {
     if (t.kind === "delivery") {
       await this.store.delivered(
@@ -502,16 +634,27 @@ export class ResearchAgent {
     }
     if (!run) throw new ResearchError("RUN_MISSING");
     if (t.kind === "search") {
+      let brief = run.brief;
+      if (Number(t.payload.round) === 0) {
+        brief = await this.normalizeBrief(t, business, brief);
+      }
       const suffix = [
-        "official website services contact",
-        "company services contact email phone",
-        "headquarters services office",
+        "official website contact",
+        "company email phone address",
+        "services headquarters",
       ][Number(t.payload.round) % 3];
-      const query = `${String(t.payload.category)} ${run.brief.location ?? ""} ${suffix}`.trim();
-      const urls = await this.provider.search(t, query);
+      const category = String(t.payload.category);
+      const queries = [
+        `${category} ${brief.location ?? ""} ${suffix}`.trim(),
+        `${category} ${brief.location ?? ""} directory contact`.trim(),
+      ];
+      const found = new Set<string>();
+      for (const query of queries) {
+        for (const url of await this.provider.search(t, query)) found.add(url);
+      }
       await this.store.discovered(
         t,
-        urls.map((url) => ({ url, category: String(t.payload.category) })),
+        [...found].map((url) => ({ url, category })),
       );
       return;
     }
@@ -577,7 +720,7 @@ export class ResearchAgent {
     }));
     const raw = await this.provider.json(
       t,
-      "Return {company_name,category,location,company_size,contact_role,email,phone,summary,fit_score:integer 0..100,fit_reasons:string[],discovered_fields:object with string key-values based on brief instructions or discovered attributes,target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field,value,source_url,quote}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. Reasons and summary are labelled AI assessments, not verified buying intent. For each verified field (especially company_name, location, email, phone), provide an evidence item with field set to that exact name and verbatim quote.",
+      "Return {company_name,category,location,company_size,contact_role,email,phone,summary,fit_score:integer 0..100,fit_reasons:string[],discovered_fields:object with string key-values based on brief instructions or discovered attributes,target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field,value,source_url,quote}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. location_match is true when the found address is the target place or a more specific neighborhood, district, or area inside it: Gulberg, Lahore, Pakistan matches Lahore, Pakistan. A different city does not match, even in the same country. Reasons and summary are labelled AI assessments, not verified buying intent. For each verified field (especially company_name, location, email, phone), provide an evidence item with field set to that exact name and verbatim quote.",
       {
         business,
         business_research: profile.researched,
@@ -594,6 +737,7 @@ export class ResearchAgent {
       url,
       String(t.payload.category),
       run.policy_snapshot.min_fit_score,
+      { accepted: run.accepted, evaluated: run.rounds * 4 },
     );
     const accepted = await this.store.assessed(t, result.data, result.accepted);
     if (accepted.leadId && accepted.lead && this.config) {
