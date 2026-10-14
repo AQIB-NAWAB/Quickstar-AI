@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
-import { usePathname,useRouter,useSearchParams } from "next/navigation";
-import { useEffect,useMemo,useState } from "react";
+import { ArrowRight, Download } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { filterLeads } from "../lib/filters";
 import { getLeadsRepository } from "../lib/repository";
-import type { LeadDetail,LeadStatus,LeadSummary } from "../lib/types";
+import type { LeadDetail, LeadStatus, LeadSummary } from "../lib/types";
 import { CsvExportDialog } from "./csv-export-dialog";
 import { LeadDetailDrawer } from "./lead-detail-drawer";
-import { LeadFilters } from "./lead-filters";
+import { LeadFilters, type VisibleColumns } from "./lead-filters";
 import { LeadTable } from "./lead-table";
 
 interface LeadsPageProps {
@@ -48,8 +48,29 @@ export function LeadsPage({
   const [loading, setLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
 
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({
+    contact: true,
+    intent: false,
+    qualification: true,
+    sentiment: false,
+    status: true,
+    tags: true,
+    captured: true,
+  });
+
+  function handleToggleColumn(key: keyof VisibleColumns) {
+    if (key === "contact") return; // Contact is always visible
+    setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   // Sync URL query state when filters or lead selection change
-  function updateUrl(newParams: { q?: string; status?: string; tag?: string; lead?: string | null }) {
+  function updateUrl(newParams: {
+    q?: string;
+    status?: string;
+    tag?: string;
+    lead?: string | null;
+  }) {
     if (!searchParams) return;
     const params = new URLSearchParams(searchParams.toString());
 
@@ -154,6 +175,17 @@ export function LeadsPage({
     return filterLeads(allLeads, { q, status, tag });
   }, [allLeads, q, status, tag]);
 
+  // Dynamic counts for status tabs from unfiltered dataset
+  const statusCounts = useMemo(() => {
+    return {
+      all: allLeads.length,
+      new: allLeads.filter((l) => l.status === "new").length,
+      qualified: allLeads.filter((l) => l.status === "qualified").length,
+      contacted: allLeads.filter((l) => l.status === "contacted").length,
+      disqualified: allLeads.filter((l) => l.status === "disqualified").length,
+    };
+  }, [allLeads]);
+
   // Check if selected lead is outside currently filtered leads
   const isSelectedOutsideFilter = useMemo(() => {
     if (!selectedLeadId) return false;
@@ -218,9 +250,7 @@ export function LeadsPage({
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-faint">
           <div>
-            <h1 className="text-2xl font-bold text-accent-black tracking-tight">
-              Leads
-            </h1>
+            <h1 className="text-2xl font-bold text-accent-black tracking-tight">Leads</h1>
             <p className="text-xs text-neutral-500 mt-1">
               Review captured contacts, intent, and qualification.
             </p>
@@ -235,7 +265,8 @@ export function LeadsPage({
             Lead management is not available yet.
           </h2>
           <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
-            This workspace’s lead service is not connected. Lead capture, qualification scoring, and CRM export APIs are pending backend implementation.
+            This workspace’s lead service is not connected. Lead capture, qualification scoring, and
+            CRM export APIs are pending backend implementation.
           </p>
           <div className="pt-2">
             <p className="text-[11px] font-mono text-neutral-400">
@@ -248,64 +279,74 @@ export function LeadsPage({
   }
 
   return (
-    <div className="space-y-5">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-faint">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-accent-black tracking-tight">
-              Leads
-            </h1>
-            {isSampleData && (
-              <span className="border border-orange-200 bg-orange-50/50 text-heat-100 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                Sample data
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-neutral-500 mt-1">
-            Review captured contacts, intent, and qualification.
-          </p>
+    <div className="lead-console lead-list space-y-5">
+      {/* Page Header (Exact reproduction of 1.png) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">Leads</h1>
+          <span className="text-base font-normal text-neutral-400 tabular-nums">
+            {allLeads.length}
+          </span>
+          {isSampleData && (
+            <span className="border border-orange-200 bg-orange-50/50 text-heat-100 text-[10px] font-semibold px-2 py-0.5 rounded-full ml-1">
+              Sample data
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+        <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => setExportOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-8 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 shadow-xs transition-colors"
           >
             <Download className="w-3.5 h-3.5 text-neutral-600" />
             <span>Export CSV</span>
           </button>
+
+          <Link
+            href={`/workspaces/${workspaceId}/lead-generation/runs`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-heat-100 hover:text-orange-600 transition-colors py-2"
+          >
+            <span>Lead generation</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
 
-      {loading && <p role="status" className="text-xs text-neutral-500">Loading leads…</p>}
+      {loading && (
+        <p role="status" className="text-xs text-neutral-500">
+          Loading leads…
+        </p>
+      )}
 
-      {/* Toolbar: Search & Filters */}
+      {/* Status Strip & Toolbar (Search, Tags, Columns) */}
       <LeadFilters
         search={q}
         status={status}
         tag={tag}
         availableTags={availableTags}
-        totalLoaded={filteredLeads.length}
-        isSampleData={isSampleData}
+        statusCounts={statusCounts}
+        visibleColumns={visibleColumns}
+        onToggleColumn={handleToggleColumn}
         onSearchChange={handleSearchChange}
         onStatusChange={handleStatusChange}
         onTagChange={handleTagChange}
         onClearFilters={handleClearFilters}
       />
 
-      {/* Main Content Area: Full-width Table */}
+      {/* Main Table */}
       <div className="w-full">
         <LeadTable
           leads={filteredLeads}
           selectedLeadId={selectedLeadId}
+          visibleColumns={visibleColumns}
           isSampleData={isSampleData}
           onSelectLead={handleSelectLead}
         />
       </div>
 
-      {/* Slide-over Detail Drawer / Sidebar (Off-canvas Overlay) */}
+      {/* Slide-over Detail Drawer */}
       {selectedLeadDetail && (
         <LeadDetailDrawer
           lead={selectedLeadDetail}

@@ -1,24 +1,19 @@
 "use client";
 
 import {
-  AlertCircle,
-  ArrowRight,
+  AlertTriangle,
   Building2,
-  CheckCircle2,
-  Compass,
-  Layers,
-  MapPin,
+  ChevronRight,
   Plus,
   RefreshCw,
   Search,
-  Sparkles,
-  Target,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FeatureDialog } from "@/features/knowledge/components/feature-dialog";
 import { listRuns } from "../lib/client";
+import { formatResearchTarget } from "../lib/format";
 import type { LeadGenerationRunSummary } from "../lib/types";
 import { LeadGenerationNewRunPage } from "./new-run-page";
 
@@ -30,19 +25,81 @@ function CreateQueryOpener({ onOpen }: { onOpen: () => void }) {
   return null;
 }
 
-function formatDate(iso?: string) {
-  if (!iso) return "—";
+function formatRunCreatedDate(iso?: string) {
+  if (!iso) return { date: "—", time: "" };
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("en-US", {
+    if (isNaN(d.getTime())) return { date: iso, time: "" };
+
+    const date = d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
+      year: "numeric",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
       minute: "2-digit",
     });
+    return { date, time };
   } catch {
-    return iso;
+    return { date: iso, time: "" };
   }
+}
+
+function renderRunStatusBadge(status: string) {
+  const norm = (status || "").toLowerCase();
+
+  if (norm === "completed_with_errors") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200/80">
+        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+        <span>Completed with errors</span>
+      </span>
+    );
+  }
+
+  if (norm === "completed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+        <span>Completed</span>
+      </span>
+    );
+  }
+
+  if (norm === "running") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-900 border border-blue-200/80">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
+        <span>Running</span>
+      </span>
+    );
+  }
+
+  if (norm === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-900 border border-red-200/80">
+        <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+        <span>Failed</span>
+      </span>
+    );
+  }
+
+  if (norm === "cancelled") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200/80">
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 shrink-0" />
+        <span>Cancelled</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200/80 capitalize">
+      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 shrink-0" />
+      <span>{norm === "queued" ? "Queued" : norm.replace(/_/g, " ")}</span>
+    </span>
+  );
 }
 
 export function LeadGenerationRunsListPage({ workspaceId }: { workspaceId: string }) {
@@ -50,8 +107,10 @@ export function LeadGenerationRunsListPage({ workspaceId }: { workspaceId: strin
   const [runs, setRuns] = useState<LeadGenerationRunSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [tabFilter, setTabFilter] = useState<"all" | "active" | "completed" | "errors">("all");
+  const [statusDropdown, setStatusDropdown] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
 
   const openCreate = useCallback(() => setCreateOpen(true), []);
@@ -63,343 +122,385 @@ export function LeadGenerationRunsListPage({ workspaceId }: { workspaceId: strin
     }
   }
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const res = await listRuns(workspaceId);
-    if (res.error || !res.data) {
-      setError(res.error?.message ?? "Failed to load runs");
-    } else {
-      setRuns(res.data.items ?? []);
-    }
-    setLoading(false);
-  }, [workspaceId]);
+  const loadData = useCallback(
+    async (isManualRefresh = false) => {
+      if (isManualRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      const res = await listRuns(workspaceId);
+      if (res.error || !res.data) {
+        setError(res.error?.message ?? "Failed to load runs");
+      } else {
+        setRuns(res.data.items ?? []);
+      }
+      setLoading(false);
+      setRefreshing(false);
+    },
+    [workspaceId]
+  );
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  // Aggregate Metrics (styled identically to analytics MetricCard)
+  // Dynamic summary metrics adhering strictly to Section 8 specifications
   const metrics = useMemo(() => {
     const total = runs.length;
-    const completed = runs.filter((r) => r.status === "completed").length;
-    const totalAccepted = runs.reduce((sum, r) => sum + Number(r.accepted ?? 0), 0);
-    const totalTarget = runs.reduce((sum, r) => sum + Number(r.brief?.target_count ?? 0), 0);
-    const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, totalAccepted, successRate };
+    const acceptedLeads = runs.reduce((sum, r) => sum + Number(r.accepted ?? 0), 0);
+    const activeRuns = runs.filter((r) => r.status === "queued" || r.status === "running").length;
+    const runsWithErrors = runs.filter(
+      (r) => r.status === "completed_with_errors" || r.status === "failed"
+    ).length;
+    const completedClean = runs.filter((r) => r.status === "completed").length;
+    return { total, acceptedLeads, activeRuns, runsWithErrors, completedClean };
   }, [runs]);
+
+  // Tab counts
+  const tabCounts = useMemo(() => {
+    return {
+      all: runs.length,
+      active: metrics.activeRuns,
+      completed: metrics.completedClean,
+      errors: metrics.runsWithErrors,
+    };
+  }, [runs, metrics]);
 
   // Filtered runs
   const filteredRuns = useMemo(() => {
     const q = search.trim().toLowerCase();
     return runs.filter((run) => {
-      if (statusFilter !== "all" && run.status !== statusFilter) return false;
+      // Tab filter
+      if (tabFilter === "active" && run.status !== "queued" && run.status !== "running") {
+        return false;
+      }
+      if (tabFilter === "completed" && run.status !== "completed") {
+        return false;
+      }
+      if (
+        tabFilter === "errors" &&
+        run.status !== "completed_with_errors" &&
+        run.status !== "failed"
+      ) {
+        return false;
+      }
+
+      // Dropdown status filter
+      if (statusDropdown !== "all" && run.status !== statusDropdown) {
+        return false;
+      }
+
+      // Search query
       if (!q) return true;
       const categories = (run.brief?.categories ?? []).join(" ").toLowerCase();
       const location = (run.brief?.location ?? "").toLowerCase();
       const id = run.id.toLowerCase();
       return categories.includes(q) || location.includes(q) || id.includes(q);
     });
-  }, [runs, search, statusFilter]);
+  }, [runs, tabFilter, statusDropdown, search]);
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-faint">
+    <div className="lead-console lead-runs space-y-5">
+      <Suspense fallback={null}><CreateQueryOpener onOpen={openCreate} /></Suspense>
+
+      {/* Header matching 3.png */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent-black tracking-tight">
-            Lead generation
-          </h1>
-          <p className="text-xs text-neutral-500 mt-1">
-            Manage research runs to discover and qualify prospective leads.
-          </p>
+          <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">Lead generation</h1>
         </div>
 
-        {/* Action Buttons: Clean & Aligned */}
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        {/* Action Buttons: Business profile (outlined) + New run (orange) */}
+        <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
           <Link
             href={`/workspaces/${workspaceId}/lead-generation/profile`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-8 text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-8 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 shadow-xs transition-colors"
           >
-            <Building2 className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Profile</span>
+            <Building2 className="w-4 h-4 text-neutral-600" />
+            <span>Business profile</span>
           </Link>
+
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-8 text-xs font-semibold bg-heat-100 hover:bg-heat-200 text-white shadow-xs transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-8 text-xs font-semibold bg-heat-100 hover:bg-orange-600 text-white shadow-xs transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>New run</span>
           </button>
         </div>
       </div>
 
-      {/* Metric Summary Cards (Matches Analytics Style) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="bg-white border border-border-faint rounded-12 p-4 min-h-[104px] flex flex-col justify-between hover:border-neutral-300 transition-colors">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-medium text-neutral-500">Total runs</span>
-            <Layers className="w-4 h-4 text-neutral-400 shrink-0" />
-          </div>
-          <div className="my-1">
-            <span className="text-2xl font-bold tracking-tight text-accent-black tabular-nums block">
-              {metrics.total}
-            </span>
-          </div>
-          <div className="text-[11px] text-neutral-500 truncate">Recorded batches</div>
-        </div>
-
-        <div className="bg-white border border-border-faint rounded-12 p-4 min-h-[104px] flex flex-col justify-between hover:border-neutral-300 transition-colors">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-medium text-neutral-500">Accepted leads</span>
-            <Sparkles className="w-4 h-4 text-neutral-400 shrink-0" />
-          </div>
-          <div className="my-1">
-            <span className="text-2xl font-bold tracking-tight text-heat-100 tabular-nums block">
-              {metrics.totalAccepted}
-            </span>
-          </div>
-          <div className="text-[11px] text-neutral-500 truncate">Qualified candidates</div>
-        </div>
-
-        <div className="bg-white border border-border-faint rounded-12 p-4 min-h-[104px] flex flex-col justify-between hover:border-neutral-300 transition-colors">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-medium text-neutral-500">Completed</span>
-            <CheckCircle2 className="w-4 h-4 text-neutral-400 shrink-0" />
-          </div>
-          <div className="my-1">
-            <span className="text-2xl font-bold tracking-tight text-accent-black tabular-nums block">
-              {metrics.completed}
-            </span>
-          </div>
-          <div className="text-[11px] text-neutral-500 truncate">Finished runs</div>
-        </div>
-
-        <div className="bg-white border border-border-faint rounded-12 p-4 min-h-[104px] flex flex-col justify-between hover:border-neutral-300 transition-colors">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] sm:text-xs font-medium text-neutral-500">Completion rate</span>
-            <Target className="w-4 h-4 text-neutral-400 shrink-0" />
-          </div>
-          <div className="my-1">
-            <span className="text-2xl font-bold tracking-tight text-accent-black tabular-nums block">
-              {metrics.successRate}%
-            </span>
-          </div>
-          <div className="text-[11px] text-neutral-500 truncate">Completed ratio</div>
-        </div>
-      </div>
-
-      {/* Toolbar: Search and Filter (Matches Leads and Campaigns) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 border border-border-faint rounded-12 shadow-xs">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Search category, location, or ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-neutral-50 border border-neutral-200 rounded-8 text-accent-black placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-heat-100 focus:border-heat-100 transition-colors"
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label htmlFor="runs-status-filter" className="text-xs text-neutral-500 shrink-0 font-medium">
-              Status:
-            </label>
-            <select
-              id="runs-status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs bg-neutral-50 border border-neutral-200 rounded-8 px-2.5 py-1.5 text-accent-black focus:outline-none focus:ring-1 focus:ring-heat-100"
-            >
-              <option value="all">All statuses</option>
-              <option value="completed">Completed</option>
-              <option value="running">Running</option>
-              <option value="queued">Queued</option>
-              <option value="failed">Failed</option>
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={loadData}
-            title="Refresh runs"
-            className="p-1.5 rounded-8 border border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100 hover:text-accent-black transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Error Callout */}
       {error && (
-        <div className="flex items-center gap-2 rounded-8 border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-          <span>{error}</span>
+        <div className="rounded-8 border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+          {error}
         </div>
       )}
 
-      {/* Table Content Area */}
-      {loading ? (
-        <div className="bg-white border border-border-faint rounded-12 p-8 shadow-xs space-y-3">
-          <div className="h-4 bg-neutral-100 rounded w-1/4 animate-pulse" />
-          <div className="h-10 bg-neutral-50 rounded-8 w-full animate-pulse" />
-          <div className="h-10 bg-neutral-50 rounded-8 w-full animate-pulse" />
-        </div>
-      ) : filteredRuns.length === 0 ? (
-        <div className="bg-white border border-border-faint rounded-12 p-12 text-center shadow-xs space-y-3">
-          <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center mx-auto text-neutral-500">
-            <Compass className="w-5 h-5" />
+      {/* Summary Band: Unframed horizontal strip, thin top/bottom rules, 4 columns with subtle vertical separators */}
+      <div className="border-y border-neutral-200 bg-white py-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200">
+          {/* 1. Total runs */}
+          <div className="px-5 py-2 sm:py-0">
+            <span className="text-xs font-medium text-neutral-500 block">Total runs</span>
+            <div className="text-3xl font-bold text-neutral-900 tracking-tight mt-1.5 tabular-nums">
+              {metrics.total}
+            </div>
           </div>
-          <h2 className="text-sm font-bold text-accent-black">
-            {runs.length === 0 ? "No research runs yet" : "No runs match your filter"}
-          </h2>
-          <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-            {runs.length === 0
-              ? "Start a run to discover prospects matching your business profile."
-              : "Try adjusting your search query or status filter."}
-          </p>
-          <div className="pt-2">
-            {runs.length === 0 ? (
-              <button
-                type="button"
-                onClick={openCreate}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-heat-100 hover:bg-heat-200 text-white text-xs font-semibold rounded-8 shadow-xs transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Create run</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("all");
-                }}
-                className="px-3 py-1.5 text-xs text-neutral-600 border border-neutral-200 bg-neutral-50 rounded-8 hover:bg-neutral-100 transition-colors"
-              >
-                Clear filters
-              </button>
-            )}
+
+          {/* 2. Accepted leads */}
+          <div className="px-5 py-2 sm:py-0">
+            <span className="text-xs font-medium text-neutral-500 block">Accepted leads</span>
+            <div className="flex items-center gap-2 text-3xl font-bold text-neutral-900 tracking-tight mt-1.5 tabular-nums">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>{metrics.acceptedLeads}</span>
+            </div>
+          </div>
+
+          {/* 3. Active runs */}
+          <div className="px-5 py-2 sm:py-0">
+            <span className="text-xs font-medium text-neutral-500 block">Active runs</span>
+            <div className="text-3xl font-bold text-neutral-900 tracking-tight mt-1.5 tabular-nums">
+              {metrics.activeRuns}
+            </div>
+          </div>
+
+          {/* 4. Runs with errors */}
+          <div className="px-5 py-2 sm:py-0">
+            <span className="text-xs font-medium text-neutral-500 block">Runs with errors</span>
+            <div className="flex items-center gap-2 text-3xl font-bold text-neutral-900 tracking-tight mt-1.5 tabular-nums">
+              {metrics.runsWithErrors > 0 && (
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              )}
+              <span>{metrics.runsWithErrors}</span>
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="bg-white border border-border-faint rounded-12 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border-faint bg-neutral-50/60 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Run</th>
-                  <th className="py-2.5 px-3">Target categories</th>
-                  <th className="py-2.5 px-3">Location</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3">Accepted</th>
-                  <th className="py-2.5 px-3">Created</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
+      </div>
+
+      {/* Filter Tabs matching 3.png */}
+      <div className="flex items-center gap-6 border-b border-neutral-200 overflow-x-auto text-xs no-scrollbar">
+        {(
+          [
+            { id: "all", label: "All runs", count: tabCounts.all },
+            { id: "active", label: "Active", count: tabCounts.active },
+            { id: "completed", label: "Completed", count: tabCounts.completed },
+            { id: "errors", label: "With errors", count: tabCounts.errors },
+          ] as const
+        ).map((tab) => {
+          const isActive = tabFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setTabFilter(tab.id)}
+              className={`pb-3 inline-flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 font-medium ${
+                isActive
+                  ? "border-heat-100 text-heat-100 font-semibold -mb-[1px]"
+                  : "border-transparent text-neutral-600 hover:text-neutral-900"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`tabular-nums text-[11px] ${
+                  isActive ? "text-heat-100 font-bold" : "text-neutral-400 font-normal"
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Toolbar: Search input, Status dropdown, Refresh icon on far right */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+          {/* Search Input: ~360-420px */}
+          <div className="relative w-full sm:max-w-[420px]">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search categories, location, or run ID..."
+              className="w-full h-11 pl-10 pr-3 border border-neutral-300 rounded-8 bg-white focus:outline-none focus:border-heat-100 focus:ring-1 focus:ring-heat-100 text-neutral-800 placeholder:text-neutral-400 transition-colors"
+            />
+          </div>
+
+          {/* Status Dropdown */}
+          <div className="flex items-center">
+            <select
+              value={statusDropdown}
+              onChange={(e) => setStatusDropdown(e.target.value)}
+              className="h-11 px-3 border border-neutral-300 rounded-8 bg-white text-neutral-700 focus:outline-none focus:border-heat-100 focus:ring-1 focus:ring-heat-100 transition-colors font-medium cursor-pointer"
+              aria-label="Filter by status"
+            >
+              <option value="all">Status</option>
+              <option value="queued">Queued</option>
+              <option value="running">Running</option>
+              <option value="completed">Completed</option>
+              <option value="completed_with_errors">Completed with errors</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Refresh button at far right */}
+        <button
+          type="button"
+          onClick={() => void loadData(true)}
+          disabled={loading || refreshing}
+          className="h-11 w-11 inline-flex items-center justify-center rounded-8 border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-600 transition-colors shadow-xs shrink-0 self-end sm:self-auto"
+          aria-label="Refresh runs"
+          title="Refresh runs"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-heat-100" : ""}`} />
+        </button>
+      </div>
+
+      {loading && !refreshing && (
+        <p role="status" className="text-xs text-neutral-500">
+          Loading runs…
+        </p>
+      )}
+
+      {/* Table matching 3.png */}
+      <div className="lead-data-table bg-white border border-neutral-200 rounded-8 overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-neutral-200 bg-neutral-50/80 text-neutral-600 font-semibold">
+                <th className="py-3 px-4 font-semibold min-w-[220px]">Research target</th>
+                <th className="py-3 px-4 font-semibold min-w-[130px]">Location</th>
+                <th className="py-3 px-4 font-semibold min-w-[180px]">Status</th>
+                <th className="py-3 px-4 font-semibold min-w-[150px]">Accepted / target</th>
+                <th className="py-3 px-4 font-semibold min-w-[130px]">Created</th>
+                <th className="py-3 px-3 w-[44px] text-right font-normal" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100 text-neutral-700">
+              {filteredRuns.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-neutral-400 italic">
+                    No research runs found.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-border-faint text-xs">
-                {filteredRuns.map((run) => {
-                  const targetCount = Number(run.brief?.target_count ?? 1);
+              ) : (
+                filteredRuns.map((run) => {
+                  const categories = run.brief?.categories ?? [];
+                  const primaryTarget = formatResearchTarget(categories);
+                  const secondaryCategories =
+                    categories.length > 2 ? categories.slice(2).join(", ") : null;
+                  const shortId = `#${run.id.slice(0, 8)}`;
+                  const location = run.brief?.location || "—";
                   const accepted = Number(run.accepted ?? 0);
-                  const isCompleted = run.status === "completed";
-                  const isRunning = run.status === "running";
+                  const target = Number(run.brief?.target_count ?? 0);
+                  const attainmentRatio = target > 0 ? Math.min(100, (accepted / target) * 100) : 0;
+                  const created = formatRunCreatedDate(run.created_at);
 
                   return (
                     <tr
                       key={run.id}
-                      className="hover:bg-neutral-50/70 transition-colors"
+                      onClick={() =>
+                        router.push(`/workspaces/${workspaceId}/lead-generation/runs/${run.id}`)
+                      }
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/workspaces/${workspaceId}/lead-generation/runs/${run.id}`);
+                        }
+                      }}
+                      className="hover:bg-neutral-50/80 transition-colors cursor-pointer select-none outline-none"
                     >
-                      {/* Run ID */}
-                      <td className="py-3 px-4 font-mono text-[11px] text-neutral-700 font-medium">
-                        #{run.id.slice(0, 8)}
+                      {/* 1. Research target */}
+                      <td className="py-3.5 px-4">
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-neutral-900 leading-tight">
+                            {primaryTarget}
+                          </p>
+                          <p className="text-[12px] text-neutral-500 font-sans">
+                            {secondaryCategories ? `${secondaryCategories} · ` : ""}
+                            <span className="font-mono text-neutral-400">{shortId}</span>
+                          </p>
+                        </div>
                       </td>
 
-                      {/* Categories */}
-                      <td className="py-3 px-3 text-neutral-800">
-                        {(run.brief?.categories ?? []).join(", ") || "—"}
+                      {/* 2. Location */}
+                      <td className="py-3.5 px-4 text-neutral-700 font-medium">
+                        {location}
                       </td>
 
-                      {/* Location */}
-                      <td className="py-3 px-3 text-neutral-600">
-                        {run.brief?.location || "Any location"}
+                      {/* 3. Status */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {renderRunStatusBadge(run.status)}
                       </td>
 
-                      {/* Status */}
-                      <td className="py-3 px-3">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium border ${
-                            isCompleted
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : isRunning
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : run.status === "failed"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-neutral-100 text-neutral-700 border-neutral-200"
-                          }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              isCompleted
-                                ? "bg-emerald-500"
-                                : isRunning
-                                ? "bg-amber-500 animate-pulse"
-                                : run.status === "failed"
-                                ? "bg-red-500"
-                                : "bg-neutral-400"
-                            }`}
-                          />
-                          <span className="capitalize">{run.status}</span>
-                        </span>
+                      {/* 4. Accepted / target with orange attainment bar */}
+                      <td className="py-3.5 px-4">
+                        <div className="space-y-1.5 w-32">
+                          <div className="text-xs font-semibold text-neutral-900 tabular-nums">
+                            <span>{accepted}</span>
+                            <span className="text-neutral-400 font-normal"> / {target > 0 ? target : "—"}</span>
+                          </div>
+                          <div
+                            className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden"
+                            role="progressbar"
+                            aria-valuenow={accepted}
+                            aria-valuemin={0}
+                            aria-valuemax={target}
+                            aria-label={`Accepted ${accepted} of ${target}`}
+                          >
+                            <div
+                              className="h-full bg-heat-100 rounded-full transition-all duration-300"
+                              style={{ width: `${attainmentRatio}%` }}
+                            />
+                          </div>
+                        </div>
                       </td>
 
-                      {/* Accepted */}
-                      <td className="py-3 px-3 font-medium text-neutral-900 tabular-nums">
-                        {accepted} <span className="text-neutral-400 font-normal">/ {targetCount}</span>
+                      {/* 5. Created (date above time) */}
+                      <td className="py-3.5 px-4 text-neutral-600 font-sans text-xs whitespace-nowrap">
+                        <div className="space-y-0.5 leading-tight">
+                          <p className="text-neutral-700 font-medium">{created.date}</p>
+                          <p className="text-[11px] text-neutral-400">{created.time}</p>
+                        </div>
                       </td>
 
-                      {/* Created */}
-                      <td className="py-3 px-3 text-neutral-500 text-[11px]">
-                        {formatDate(run.created_at)}
-                      </td>
-
-                      {/* Action */}
-                      <td className="py-3 px-4 text-right">
-                        <Link
-                          href={`/workspaces/${workspaceId}/lead-generation/runs/${run.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-heat-100 hover:text-heat-200 transition-colors"
-                        >
-                          <span>View</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
+                      {/* 6. Chevron right */}
+                      <td className="py-3.5 px-3 text-right">
+                        <ChevronRight className="w-4 h-4 text-neutral-400 inline-block" />
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
 
-      {/* Query Param Opener */}
-      <Suspense fallback={null}>
-        <CreateQueryOpener onOpen={openCreate} />
-      </Suspense>
+        {/* Table Footer */}
+        <div className="px-4 py-3 bg-white border-t border-neutral-200 text-xs text-neutral-500">
+          {runs.length} {runs.length === 1 ? "run" : "runs"}
+        </div>
+      </div>
 
-      {/* Modal Dialog */}
+      {/* New Research Run Modal (FeatureDialog) */}
       <FeatureDialog
         open={createOpen}
         onClose={closeCreate}
         title="New research run"
-        description="Configure target category and constraints."
-        maxWidthClass="max-w-2xl"
+        maxWidthClass="max-w-[850px]"
+        roundedClass="rounded-8"
+        backdropClass="bg-black/25"
+        layout="lead-wizard"
       >
-        {createOpen ? (
-          <LeadGenerationNewRunPage workspaceId={workspaceId} embedded onCancel={closeCreate} />
-        ) : null}
+        <LeadGenerationNewRunPage
+          workspaceId={workspaceId}
+          embedded
+          onCancel={closeCreate}
+        />
       </FeatureDialog>
     </div>
   );

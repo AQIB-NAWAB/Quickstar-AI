@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./leads-console.css";
 
 export const metadata: Metadata = {
   title: "QuickStart AI — Production-Scale Multi-Tenant AI Agent Platform",

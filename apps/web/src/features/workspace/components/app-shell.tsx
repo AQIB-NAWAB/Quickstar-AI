@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Code2,
   ClipboardList,
+  Compass,
   Cable,
   LogOut,
   Menu,
@@ -88,7 +89,7 @@ export function AppShell({
         {
           name: "Lead generation",
           href: route("lead-generation/runs"),
-          icon: Search,
+          icon: Compass,
           match: "/lead-generation",
         },
         {
@@ -268,9 +269,28 @@ export function AppShell({
                   </div>
                 )}
               </div>
-              <h1 className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-accent-black">
-                {activeItem.name}
-              </h1>
+              <div className="hidden sm:block w-[1px] h-5 bg-neutral-200 mx-1 shrink-0" />
+              <div className="flex items-center gap-2 text-xs min-w-0 flex-1 truncate">
+                <span className="text-neutral-400 font-normal hidden sm:inline">
+                  {activePath.includes("/lead-generation/profile")
+                    ? "Lead generation"
+                    : activePath.includes("/lead-generation/runs/") && activePath.split("/lead-generation/runs/")[1]
+                    ? "Lead generation"
+                    : "Workspace"}
+                </span>
+                <span className="text-neutral-300 font-normal hidden sm:inline">/</span>
+                <h1 className="font-bold text-neutral-900 truncate text-xs sm:text-[13px]">
+                  {activePath.includes("/lead-generation/profile")
+                    ? "Business profile"
+                    : activePath.includes("/lead-generation/runs/") && activePath.split("/lead-generation/runs/")[1]
+                    ? "Research run"
+                    : activePath.includes("/lead-generation")
+                    ? "Lead generation"
+                    : activePath.includes("/leads")
+                    ? "Leads"
+                    : activeItem.name}
+                </h1>
+              </div>
               <NotificationBell workspaceId={workspaceId} isPreview={isPreview} />
             </div>
           </header>

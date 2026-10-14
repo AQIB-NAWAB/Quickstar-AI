@@ -43,6 +43,14 @@ export function createHttpWorkspaceAccessClient(
           });
         }
 
+        if (response.status === 401) {
+          throw new AppError({
+            code: ErrorCode.UNAUTHORIZED,
+            message: "Invalid or expired access token",
+            requestId,
+          });
+        }
+
         if (!response.ok) {
           throw new AppError({
             code: ErrorCode.UPSTREAM_UNAVAILABLE,

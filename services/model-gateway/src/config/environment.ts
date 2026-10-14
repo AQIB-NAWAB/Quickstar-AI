@@ -93,6 +93,26 @@ function defaultProfiles(openRouterKey?: string): ProviderProfileConfig[] {
     });
   }
 
+  const bluemindsKey = process.env.BLUEMINDS_API_KEY ?? process.env.BLUESMINDS_API_KEY;
+  if (bluemindsKey) {
+    const bluemindsBase =
+      process.env.BLUEMINDS_BASE_URL ??
+      process.env.BLUESMINDS_BASE_URL ??
+      "https://api.bluesminds.com/v1";
+    profiles.push({
+      id: "blueminds",
+      driver: "openai_compatible",
+      baseUrl: bluemindsBase,
+      apiKey: bluemindsKey,
+    });
+    profiles.push({
+      id: "bluesminds",
+      driver: "openai_compatible",
+      baseUrl: bluemindsBase,
+      apiKey: bluemindsKey,
+    });
+  }
+
   if (openRouterKey) {
     profiles.push({
       id: "openrouter",

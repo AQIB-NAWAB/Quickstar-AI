@@ -10,7 +10,10 @@ interface FeatureDialogProps {
   description?: string;
   children: React.ReactNode;
   maxWidthClass?: string;
+  roundedClass?: string;
+  backdropClass?: string;
   isSubmitting?: boolean;
+  layout?: "default" | "lead-wizard";
 }
 
 export function FeatureDialog({
@@ -20,7 +23,10 @@ export function FeatureDialog({
   description,
   children,
   maxWidthClass = "max-w-[520px]",
+  roundedClass = "rounded-16",
+  backdropClass = "bg-accent-black/40 backdrop-blur-sm",
   isSubmitting = false,
+  layout = "default",
 }: FeatureDialogProps) {
   const titleId = useId();
   const descId = useId();
@@ -37,9 +43,12 @@ export function FeatureDialog({
     triggerRef.current = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const elements = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
-    ) ?? []).filter(element => element.getClientRects().length > 0);
+    const elements = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+        ) ?? []
+      ).filter((element) => element.getClientRects().length > 0);
     const frame = requestAnimationFrame(() => (elements()[0] ?? dialogRef.current)?.focus());
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -48,12 +57,25 @@ export function FeatureDialog({
       }
       if (event.key !== "Tab") return;
       const controls = elements();
-      const first = controls[0], last = controls[controls.length - 1];
-      if (!first) { event.preventDefault(); dialogRef.current?.focus(); return; }
-      if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
-        event.preventDefault(); last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
-        event.preventDefault(); first.focus();
+      const first = controls[0],
+        last = controls[controls.length - 1];
+      if (!first) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener("keydown", handleKeyDown);
@@ -69,7 +91,7 @@ export function FeatureDialog({
 
   return (
     <div
-      className="fixed inset-0 !m-0 !mt-0 z-50 flex items-center justify-center p-4 bg-accent-black/40 backdrop-blur-sm transition-opacity duration-150"
+      className={`fixed inset-0 !m-0 !mt-0 z-50 flex items-center justify-center p-4 transition-opacity duration-150 ${backdropClass}`}
       onClick={(e) => {
         if (e.target === e.currentTarget && !isSubmitting) {
           onClose();
@@ -83,7 +105,7 @@ export function FeatureDialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`w-full ${maxWidthClass} console-feature bg-white rounded-16 border border-border-faint shadow-sm flex flex-col max-h-[calc(100dvh-32px)] overflow-hidden focus:outline-none`}
+        className={`w-full ${maxWidthClass} console-feature ${layout === "lead-wizard" ? "lead-console lead-wizard-dialog" : ""} bg-white ${roundedClass} border border-border-faint shadow-sm flex flex-col max-h-[calc(100dvh-32px)] overflow-hidden focus:outline-none`}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-border-faint flex items-center justify-between shrink-0">
@@ -109,7 +131,7 @@ export function FeatureDialog({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto min-h-0">{children}</div>
+        <div className={layout === "lead-wizard" ? "lead-wizard-host flex min-h-0 flex-col" : "px-6 py-5 overflow-y-auto min-h-0"}>{children}</div>
       </div>
     </div>
   );

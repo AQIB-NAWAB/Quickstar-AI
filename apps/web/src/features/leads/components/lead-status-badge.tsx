@@ -6,24 +6,15 @@ interface LeadStatusBadgeProps {
 }
 
 export function LeadStatusBadge({ status, className = "" }: LeadStatusBadgeProps) {
-  const norm = status.toLowerCase();
+  const norm = (status || "").toLowerCase();
 
   if (norm === "qualified") {
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-heat-100 border border-orange-200/80 tracking-tight ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/70 tracking-tight ${className}`}
       >
-        Qualified
-      </span>
-    );
-  }
-
-  if (norm === "disqualified") {
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200/80 tracking-tight ${className}`}
-      >
-        Disqualified
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+        <span>Qualified</span>
       </span>
     );
   }
@@ -31,28 +22,32 @@ export function LeadStatusBadge({ status, className = "" }: LeadStatusBadgeProps
   if (norm === "contacted") {
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200/80 tracking-tight ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/70 tracking-tight ${className}`}
       >
-        Contacted
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+        <span>Contacted</span>
       </span>
     );
   }
 
-  if (norm === "new") {
+  if (norm === "disqualified") {
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200/80 tracking-tight ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500 border border-neutral-200/70 tracking-tight ${className}`}
       >
-        New
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 shrink-0" />
+        <span>Disqualified</span>
       </span>
     );
   }
 
+  // Default / "new" status
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-500 border border-neutral-200/80 tracking-tight capitalize ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-600 border border-neutral-200/70 tracking-tight capitalize ${className}`}
     >
-      {status}
+      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 shrink-0" />
+      <span>{norm === "new" ? "New" : status}</span>
     </span>
   );
 }

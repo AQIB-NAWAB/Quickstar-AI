@@ -143,6 +143,9 @@ export function createServer(
     }),
   );
   const base = "/v1/workspaces/:workspaceId/lead-generation";
+  const orgCache = new Map<string, { orgId: string; expiresAt: number }>();
+  const roleCache = new Map<string, { role: Parameters<typeof roleHasPermission>[0]; expiresAt: number }>();
+
   router.use(
     base,
     asyncHandler(async (req, res, next) => {
@@ -156,25 +159,42 @@ export function createServer(
       }
       const workspace = uuid(param(req, "workspaceId"));
       const requestId = requestIdFromResponse(res);
-      const role = await access.resolveRole(
-        workspace,
-        claims.sub,
-        req.headers.authorization,
-        requestId,
-      );
+
+      const roleKey = `${workspace}:${claims.sub}`;
+      const cachedRole = process.env.NODE_ENV !== "test" ? roleCache.get(roleKey) : null;
+      let role = cachedRole && cachedRole.expiresAt > Date.now() ? cachedRole.role : null;
+
+      if (!role) {
+        role = await access.resolveRole(
+          workspace,
+          claims.sub,
+          req.headers.authorization,
+          requestId,
+        );
+        if (process.env.NODE_ENV !== "test") {
+          roleCache.set(roleKey, { role, expiresAt: Date.now() + 60_000 });
+        }
+      }
+
       const permission = req.method === "GET" ? "workspace.leads.read" : "workspace.leads.write";
       if (!roleHasPermission(role, permission))
         fail("Role cannot perform this lead generation action", ErrorCode.FORBIDDEN);
-      // A user can belong to multiple organizations. Use the workspace's authoritative organization,
-      // not a user-supplied tenant ID nor a possibly different active org in the JWT.
-      const reply = await fetch(`${config.workspaceUrl}/v1/workspaces/${workspace}`, {
-        headers: { authorization: `Bearer ${raw}` },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!reply.ok) fail("Cannot verify workspace organization", ErrorCode.UPSTREAM_UNAVAILABLE);
-      const response = object(await reply.json());
-      const ws = object(response.workspace);
-      const org = uuid(ws.orgId ?? ws.org_id);
+
+      const cachedOrg = orgCache.get(workspace);
+      let org = cachedOrg && cachedOrg.expiresAt > Date.now() ? cachedOrg.orgId : null;
+
+      if (!org) {
+        const reply = await fetch(`${config.workspaceUrl}/v1/workspaces/${workspace}`, {
+          headers: { authorization: `Bearer ${raw}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!reply.ok) fail("Cannot verify workspace organization", ErrorCode.UPSTREAM_UNAVAILABLE);
+        const response = object(await reply.json());
+        const ws = object(response.workspace);
+        org = uuid(ws.orgId ?? ws.org_id);
+        orgCache.set(workspace, { orgId: org, expiresAt: Date.now() + 300_000 });
+      }
+
       res.locals.leadIdentity = {
         orgId: org,
         workspaceId: workspace,

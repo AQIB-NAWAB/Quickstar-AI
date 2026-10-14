@@ -14,6 +14,8 @@ type OpenAiChatResponse = {
   choices?: Array<{
     message?: {
       content?: string | null;
+      reasoning_content?: string | null;
+      reasoning?: string | null;
       tool_calls?: OpenAiToolCall[];
     };
     finish_reason?: string;
@@ -93,8 +95,13 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       toolCalls?.length && choice?.finish_reason !== "tool_calls"
         ? "tool_calls"
         : (choice?.finish_reason ?? "stop");
+    const messageContent =
+      choice?.message?.content ||
+      choice?.message?.reasoning_content ||
+      choice?.message?.reasoning ||
+      "";
     return {
-      content: choice?.message?.content ?? "",
+      content: messageContent,
       finishReason,
       ...(toolCalls ? { toolCalls } : {}),
       usage: {
@@ -204,8 +211,9 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     }
 
     if (!response.ok) {
+      const errText = await response.text();
       const retryable = response.status === 429 || response.status >= 500;
-      throw new ProviderError(`upstream ${response.status}`, {
+      throw new ProviderError(`upstream ${response.status}: ${errText}`, {
         retryable,
         httpStatus: response.status,
       });

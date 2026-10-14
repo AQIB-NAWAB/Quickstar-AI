@@ -30,7 +30,11 @@ start_svc() {
   if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     echo "  ${name} process alive (pid $(cat "$pidfile")) — waiting for healthz"
   else
-    nohup node --env-file=.env "$entry" >>"$logfile" 2>&1 &
+    local env_args=(--env-file=.env)
+    if [[ -f "$ROOT/.env.leads" ]]; then
+      env_args+=(--env-file=.env.leads)
+    fi
+    node "${env_args[@]}" "$entry" >>"$logfile" 2>&1 &
     echo $! >"$pidfile"
     echo "  started ${name} (pid $!) → ${logfile}"
   fi
@@ -68,7 +72,7 @@ start_lead_generation() {
   if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     echo "  ${name} process alive (pid $(cat "$pidfile")) — waiting for healthz"
   else
-    nohup node "${env_args[@]}" "$entry" >>"$logfile" 2>&1 &
+    node "${env_args[@]}" "$entry" >>"$logfile" 2>&1 &
     echo $! >"$pidfile"
     echo "  started ${name} (pid $!) → ${logfile}"
   fi
@@ -88,11 +92,13 @@ docker compose up -d --wait postgres valkey
 
 bold "2) Migrations (Postgres)"
 export DATABASE_URL="${DATABASE_URL:-postgresql://quickstart:quickstart@localhost:5433/quickstart}"
-make identity-migrate workspace-migrate lead-migrate lead-generation-migrate || true
+make identity-migrate workspace-migrate web-fetch-migrate lead-migrate lead-generation-migrate || true
 
 bold "3) Core Lead Generation Services"
 start_svc identity services/identity-service "${IDENTITY_PORT:-3001}"
 start_svc workspace services/workspace-service "${WORKSPACE_PORT:-3002}"
+start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
+start_svc web-fetch services/web-fetch-service "${WEB_FETCH_PORT:-3007}"
 start_svc lead services/lead-service "${LEAD_PORT:-3014}"
 start_lead_generation
 start_svc gateway services/gateway-service "${GATEWAY_PORT:-3000}"
@@ -101,7 +107,7 @@ bold "4) Staff Web UI"
 if curl -sf "http://127.0.0.1:3015" >/dev/null 2>&1 || curl -sf "http://127.0.0.1:3015/login" >/dev/null 2>&1; then
   echo "  web already up on :3015"
 else
-  nohup env PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 >>"$LOG_DIR/web.log" 2>&1 &
+  env PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 >>"$LOG_DIR/web.log" 2>&1 &
   echo $! >"$LOG_DIR/web.pid"
   echo "  started web (pid $!) → $LOG_DIR/web.log"
 fi
@@ -112,3 +118,6 @@ echo "Lead Generation:  http://127.0.0.1:3019/healthz"
 echo "Staff UI:         http://127.0.0.1:3015"
 echo "Demo Login:       http://127.0.0.1:3015/login (quickstart@gmail.com / password)"
 echo "Logs:             $LOG_DIR"
+
+bold "Services are active. Keeping process alive..."
+wait

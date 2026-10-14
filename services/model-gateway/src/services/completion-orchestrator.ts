@@ -200,15 +200,28 @@ export class CompletionOrchestrator {
       }
 
       try {
-        const output = await breaker.execute(() =>
-          this.withTimeout(provider, toProviderInput(body, model, attempt), options),
+        const output = await breaker.execute(
+          () => this.withTimeout(provider, toProviderInput(body, model, attempt), options),
+          (err) => !(err instanceof ProviderError && err.httpStatus === 429),
         );
         return { provider, output };
       } catch (error) {
+        this.logger.warn("model.call_failed", {
+          profile: model.profile,
+          model: model.model_id,
+          attempt,
+          error: error instanceof Error ? error.message : String(error),
+        });
         if (error instanceof Error && error.message === "CIRCUIT_OPEN") {
           throw new AppError({
             code: ErrorCode.UPSTREAM_UNAVAILABLE,
             message: "Provider circuit open",
+          });
+        }
+        if (error instanceof ProviderError && error.httpStatus === 429) {
+          throw new AppError({
+            code: ErrorCode.RATE_LIMITED,
+            message: error.message || "Model provider rate limit exceeded",
           });
         }
         const retryable = this.isRetryable(error);

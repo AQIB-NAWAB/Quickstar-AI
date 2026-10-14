@@ -9,14 +9,14 @@ export const DEFAULT_POLICY: LeadPolicy = {
   max_queued_runs: 10,
   max_active_tasks: 2,
   daily_runs: 50,
-  daily_units: 500,
-  daily_tokens: 500_000,
+  daily_units: 2000,
+  daily_tokens: 3_000_000,
   scheduling_weight: 1,
   max_rounds: 3,
   max_candidates: 100,
   max_target_count: 100,
   run_deadline_seconds: 1800,
-  request_rate_per_minute: 60,
+  request_rate_per_minute: 600,
   min_fit_score: 70,
 };
 export function fail(message: string, code: ErrorCode = ErrorCode.VALIDATION_FAILED): never {
@@ -113,7 +113,7 @@ export function policyInput(value: unknown): LeadPolicy {
         p[key],
         key,
         key === "min_fit_score" ? 0 : 1,
-        key === "min_fit_score" ? 100 : key === "scheduling_weight" ? 10 : 1_000_000,
+        key === "min_fit_score" ? 100 : key === "scheduling_weight" ? 10 : key === "daily_tokens" ? 10_000_000 : 1_000_000,
       );
   }
   if (

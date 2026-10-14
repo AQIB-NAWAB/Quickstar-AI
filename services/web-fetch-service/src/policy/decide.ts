@@ -20,7 +20,7 @@ export function decideAcquisitionProviders(input: PolicyInput): PolicyDecision {
 
   if (input.action === "search") {
     const searchCapable = enabled.filter(
-      (p) => p.driver === "olostep" || p.driver === "fake",
+      (p) => p.driver === "olostep" || p.driver === "firecrawl" || p.driver === "fake",
     );
     const ordered = orderProfiles(searchCapable, input.preferProfileIds);
     if (ordered.length === 0) {
@@ -30,28 +30,25 @@ export function decideAcquisitionProviders(input: PolicyInput): PolicyDecision {
   }
 
   if (input.renderJs) {
-    const js = enabled.filter((p) => p.driver === "olostep" || p.driver === "fake");
+    const js = enabled.filter(
+      (p) => p.driver === "olostep" || p.driver === "firecrawl" || p.driver === "fake",
+    );
     const ordered = orderProfiles(js, input.preferProfileIds);
     if (ordered.length === 0) {
-      return { allow: false, reason: "render_js_requires_olostep" };
+      return { allow: false, reason: "render_js_requires_browser_provider" };
     }
     return { allow: true, profileIds: ordered.map((p) => p.id), reason: "render_js" };
   }
 
-  const directFirst = enabled.filter((p) => p.driver === "direct_http" || p.driver === "fake");
-  const fallback = enabled.filter((p) => p.driver === "olostep" || p.driver === "fake");
-  const chain = [
-    ...orderProfiles(directFirst, input.preferProfileIds),
-    ...orderProfiles(
-      fallback.filter((p) => !directFirst.some((d) => d.id === p.id)),
-      input.preferProfileIds,
-    ),
-  ];
+  const allScrapeCapable = enabled.filter(
+    (p) => p.driver === "direct_http" || p.driver === "olostep" || p.driver === "firecrawl" || p.driver === "fake",
+  );
+  const chain = orderProfiles(allScrapeCapable, input.preferProfileIds);
   const unique = dedupeById(chain);
   if (unique.length === 0) {
     return { allow: false, reason: "no_scrape_provider" };
   }
-  return { allow: true, profileIds: unique.map((p) => p.id), reason: "scrape_direct_then_fallback" };
+  return { allow: true, profileIds: unique.map((p) => p.id), reason: "scrape_by_priority" };
 }
 
 function orderProfiles(
