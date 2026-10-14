@@ -25,6 +25,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
         text?: string;
         actor_id?: string;
         subject_key?: string;
+        modality?: "text" | "voice";
       };
       const text = body.message ?? body.text ?? "";
       const rawHeaderKey = req.headers["idempotency-key"];
@@ -45,6 +46,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
           actorId,
           requestId,
           onToken,
+          modality: body.modality,
         });
 
       if (!stream) {

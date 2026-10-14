@@ -75,6 +75,22 @@ export class ConversationsService {
     return conversation;
   }
 
+  async requestVoiceAttention(workspaceId: string, conversationId: string): Promise<Conversation> {
+    const existing = await this.getConversation(workspaceId, conversationId);
+    if (existing.state !== "bot") return existing;
+    const updated = await this.store.markVoiceWaiting(workspaceId, conversationId);
+    await this.store.appendMessage({
+      workspaceId,
+      conversationId,
+      senderType: "system",
+      senderId: "voice",
+      text: "A visitor is waiting for a teammate on a live call.",
+      idempotencyKey: `voice-attention:${conversationId}`,
+      metadata: { kind: "voice_attention" },
+    });
+    return updated ?? existing;
+  }
+
   async releaseHandoff(
     workspaceId: string,
     conversationId: string,

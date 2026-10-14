@@ -128,6 +128,26 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
       });
     },
 
+    async markVoiceWaiting(workspaceId: string, conversationId: string): Promise<Conversation | null> {
+      const rows = await dataSource.query(
+        `UPDATE conversations
+         SET state = 'waiting', updated_at = NOW()
+         WHERE id = $1 AND workspace_id = $2 AND state = 'bot'
+         RETURNING id`,
+        [conversationId, workspaceId],
+      );
+      if (!rows.length) {
+        const existing = await dataSource.manager.findOne(ConversationEntity, {
+          where: { id: conversationId, workspaceId },
+        });
+        return existing ? toConversation(existing) : null;
+      }
+      const updated = await dataSource.manager.findOne(ConversationEntity, {
+        where: { id: conversationId, workspaceId },
+      });
+      return updated ? toConversation(updated) : null;
+    },
+
     async releaseHandoff(
       workspaceId: string,
       conversationId: string,

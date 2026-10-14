@@ -3,7 +3,26 @@ import type { VoiceHttpContext } from "../context.js";
 
 export const createInternalRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
   const router = createServiceRouter();
-  const { internalAuth, callsCtrl, telephonyCtrl } = ctx;
+  const { internalAuth, callsCtrl, telephonyCtrl, widgetVoiceCtrl, widgetVoiceLiveCtrl } = ctx;
+
+  router.post(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/voice-turn",
+    internalAuth,
+    asyncHandler(widgetVoiceCtrl.executeTurn),
+  );
+
+  router.post(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/voice-live/start",
+    internalAuth,
+    asyncHandler(widgetVoiceLiveCtrl.start),
+  );
+  router.get(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/voice-live/stream",
+    internalAuth,
+    asyncHandler(widgetVoiceLiveCtrl.stream),
+  );
+  router.post("/internal/widget/voice-live/audio", internalAuth, asyncHandler(widgetVoiceLiveCtrl.audio));
+  router.post("/internal/widget/voice-live/stop", internalAuth, asyncHandler(widgetVoiceLiveCtrl.stop));
 
   router.post(
     "/internal/v1/workspaces/:workspaceId/voice/simulate",

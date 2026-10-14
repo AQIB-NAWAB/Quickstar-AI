@@ -156,6 +156,20 @@ export function createConversationsController(conversations: ConversationsServic
       });
     }) as RequestHandler,
 
+    requestVoiceAttention: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const conversationId = routeParam(req.params.conversationId);
+      const conversation = await conversations.requestVoiceAttention(
+        tenant.workspaceId,
+        conversationId,
+      );
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        conversation: toConversationJson(conversation),
+      });
+    }) as RequestHandler,
+
     releaseHandoff: (async (req, res) => {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;

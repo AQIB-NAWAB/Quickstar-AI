@@ -109,6 +109,15 @@ export class MemoryConversationStore implements ConversationStore {
     return conv;
   }
 
+  async markVoiceWaiting(workspaceId: string, conversationId: string): Promise<Conversation | null> {
+    const conv = await this.getConversation(workspaceId, conversationId);
+    if (!conv) return null;
+    if (conv.state !== "bot") return conv;
+    conv.state = "waiting";
+    conv.updatedAt = new Date();
+    return conv;
+  }
+
   async releaseHandoff(
     workspaceId: string,
     conversationId: string,

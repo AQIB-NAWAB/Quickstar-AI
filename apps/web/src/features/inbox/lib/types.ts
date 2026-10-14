@@ -36,7 +36,20 @@ function isGeneratedSubject(subject: string): boolean {
   return /^(anon|widget|eval):/i.test(subject) || /^[0-9a-f-]{36}$/i.test(subject);
 }
 
+/** Widget sessions store the visitor as `Name <email>`. */
+export function visitorIdentity(c: Conversation): { name: string; email: string } | null {
+  const subject = c.subject_key?.trim() ?? "";
+  const match = /^(.*)\s<([^<>\s]+@[^<>\s]+)>$/.exec(subject);
+  if (!match) return null;
+  const name = match[1].trim();
+  const email = match[2].trim();
+  if (!name || !email) return null;
+  return { name, email };
+}
+
 export function conversationTitle(c: Conversation): string {
+  const identity = visitorIdentity(c);
+  if (identity) return identity.name;
   const subject = c.subject_key?.trim() ?? "";
   if (!subject || isGeneratedSubject(subject)) {
     return "Website visitor";

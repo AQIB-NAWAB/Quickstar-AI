@@ -2,11 +2,19 @@ import { AppError, ErrorCode } from "@quickstart/errors";
 import { requestIdFromResponse, sendPlatformError, type RequestHandler } from "@quickstart/http-server";
 import type { RedisClientType } from "redis";
 
+export type RedisRateLimitBucket = {
+  name: string;
+  max: number;
+  test: (path: string) => boolean;
+};
+
 export type RedisRateLimitOptions = {
   windowMs: number;
   max: number;
   skipPaths?: string[];
   keyPrefix?: string;
+  /** Separate ceilings so a noisy route cannot exhaust sign-in or the rest of the API. */
+  buckets?: RedisRateLimitBucket[];
 };
 
 function clientIp(req: { ip?: string; headers: Record<string, string | string[] | undefined> }): string {
@@ -32,15 +40,19 @@ export function createRedisRateLimitMiddleware(
     }
 
     const requestId = requestIdFromResponse(res);
-    const bucket = Math.floor(Date.now() / options.windowMs);
-    const key = `${prefix}:${clientIp(req)}:${bucket}`;
+    const path = req.path ?? "";
+    const matched = options.buckets?.find((bucket) => bucket.test(path));
+    const limit = matched?.max ?? options.max;
+    const bucketName = matched?.name ?? "api";
+    const windowId = Math.floor(Date.now() / options.windowMs);
+    const key = `${prefix}:${bucketName}:${clientIp(req)}:${windowId}`;
 
     try {
       const count = await redis.incr(key);
       if (count === 1) {
         await redis.expire(key, windowSec);
       }
-      if (count > options.max) {
+      if (count > limit) {
         return sendPlatformError(
           res,
           new AppError({

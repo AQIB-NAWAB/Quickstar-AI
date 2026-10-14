@@ -69,15 +69,20 @@ export function TranscriptView({ workspaceId, conversationId }: Props) {
 
         {error ? <p className="text-sm text-accent-crimson">{error}</p> : null}
 
-        <ol className="space-y-4 border-t border-border-faint pt-6">
-          {messages.map((m) => (
-            <li key={m.id} className="text-sm">
-              <p className="text-[11px] font-semibold text-neutral-500">
-                [{new Date(m.created_at).toISOString()}] {senderLabel(m.sender_type)} (seq {m.seq})
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-accent-black">{m.text}</p>
-            </li>
-          ))}
+        <ol className="space-y-3 border-t border-border-faint pt-6">
+          {messages.map((m) => {
+            const fromUs = m.sender_type === "assistant" || m.sender_type === "human";
+            return (
+              <li key={m.id} className={`flex text-sm ${fromUs ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-12 border px-3 py-2 ${fromUs ? "bg-heat-12 border-heat-24" : "bg-white border-border-faint"}`}>
+                  <p className={`text-[11px] font-semibold ${fromUs ? "text-heat-100 text-right" : "text-neutral-500"}`}>
+                    {senderLabel(m.sender_type)} · {new Date(m.created_at).toLocaleTimeString()}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-accent-black">{m.text}</p>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </div>
     </article>

@@ -75,6 +75,7 @@ export function useMessages(workspaceId: string, conversationId: string) {
     let cancelled = false;
 
     async function poll() {
+      if (document.hidden) return;
       const after = maxSeqRef.current;
       const { messages: batch, error: err } = await listMessages(workspaceId, conversationId, {
         afterSeq: after,
@@ -88,7 +89,7 @@ export function useMessages(workspaceId: string, conversationId: string) {
         maxSeqRef.current = next.length ? next[next.length - 1]!.seq : after;
         return next;
       });
-      void refreshMeta();
+      setLastSeq((current) => Math.max(current, maxSeqRef.current));
     }
 
     const id = window.setInterval(() => void poll(), POLL_MS);
@@ -96,7 +97,7 @@ export function useMessages(workspaceId: string, conversationId: string) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [workspaceId, conversationId, loading, refreshMeta]);
+  }, [workspaceId, conversationId, loading]);
 
   const loadEarlier = useCallback(async () => {
     if (windowStartSeq <= 0 || loadingEarlier) {
