@@ -2,6 +2,7 @@ import { AppError, ErrorCode } from "@quickstart/errors";
 import type { WebFetchConfig } from "../config/environment.js";
 import { DirectHttpAcquisitionProvider } from "./direct-http.provider.js";
 import { FakeAcquisitionProvider } from "./fake.provider.js";
+import { FirecrawlAcquisitionProvider } from "./firecrawl.provider.js";
 import { OlostepAcquisitionProvider } from "./olostep.provider.js";
 import type { AcquisitionProvider } from "./types.js";
 
@@ -34,6 +35,9 @@ export function createProviderRegistry(config: WebFetchConfig): ProviderRegistry
         break;
       case "olostep":
         provider = new OlostepAcquisitionProvider(profile, config.scrapeTimeoutMs);
+        break;
+      case "firecrawl":
+        provider = new FirecrawlAcquisitionProvider(profile, config.scrapeTimeoutMs);
         break;
       default:
         throw new Error(`Unknown driver ${profile.driver as string} for profile ${profile.id}`);

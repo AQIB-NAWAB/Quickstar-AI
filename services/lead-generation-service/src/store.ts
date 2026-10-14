@@ -198,7 +198,8 @@ export class Store {
       if (write && !p.enabled) fail("Lead generation is disabled", ErrorCode.FORBIDDEN);
       const row = (await c.query("SELECT date_trunc('minute',now()) AS minute")).rows[0];
       const count = t.api_minute?.getTime() === row.minute.getTime() ? t.api_count : 0;
-      if (count >= p.request_rate_per_minute)
+      const limit = write ? p.request_rate_per_minute : Math.max(1200, p.request_rate_per_minute * 10);
+      if (count >= limit)
         fail("Tenant API rate exceeded", ErrorCode.RATE_LIMITED);
       await c.query("UPDATE lg_tenants SET api_minute=$2,api_count=$3 WHERE org_id=$1", [
         org,

@@ -1,4 +1,4 @@
-export type AcquisitionDriverKind = "fake" | "direct_http" | "olostep";
+export type AcquisitionDriverKind = "fake" | "direct_http" | "olostep" | "firecrawl";
 
 export type AcquisitionProviderProfileConfig = {
   id: string;
@@ -30,6 +30,7 @@ export type WebFetchConfig = {
   httpRateLimitMax: number;
   olostepApiKey?: string;
   olostepBaseUrl: string;
+  firecrawlApiKey?: string;
   directHttpMaxBytes: number;
   providerProfiles: AcquisitionProviderProfileConfig[];
   workerPollMs: number;
@@ -65,7 +66,8 @@ function loadProfilesFromJson(): AcquisitionProviderProfileConfig[] | null {
   }));
 }
 
-function defaultProfiles(olostepKey?: string): AcquisitionProviderProfileConfig[] {
+function defaultProfiles(olostepKey?: string, firecrawlKey?: string): AcquisitionProviderProfileConfig[] {
+  const hasBrowserKey = Boolean(olostepKey || firecrawlKey);
   const profiles: AcquisitionProviderProfileConfig[] = [
     {
       id: "fake",
@@ -79,11 +81,24 @@ function defaultProfiles(olostepKey?: string): AcquisitionProviderProfileConfig[
       id: "direct_http",
       driver: "direct_http",
       enabled: true,
-      priority: 10,
+      priority: hasBrowserKey ? 50 : 10,
       unitCostMicrosScrape: 10,
       unitCostMicrosSearch: 0,
     },
   ];
+
+  if (firecrawlKey) {
+    profiles.push({
+      id: "firecrawl",
+      driver: "firecrawl",
+      enabled: true,
+      priority: 10,
+      unitCostMicrosScrape: 500,
+      unitCostMicrosSearch: 800,
+      apiKey: firecrawlKey,
+      baseUrl: process.env.FIRECRAWL_BASE_URL ?? "https://api.firecrawl.dev",
+    });
+  }
 
   if (olostepKey) {
     profiles.push({
@@ -103,8 +118,9 @@ function defaultProfiles(olostepKey?: string): AcquisitionProviderProfileConfig[
 
 export function loadWebFetchConfig(): WebFetchConfig {
   const olostepApiKey = process.env.OLOSTEP_API_KEY;
+  const firecrawlApiKey = process.env.FIRECRAWL_API_KEY;
   const fromJson = loadProfilesFromJson();
-  const providerProfiles = fromJson ?? defaultProfiles(olostepApiKey);
+  const providerProfiles = fromJson ?? defaultProfiles(olostepApiKey, firecrawlApiKey);
   const internalToken = requireToken();
 
   return {
@@ -128,6 +144,7 @@ export function loadWebFetchConfig(): WebFetchConfig {
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
     olostepApiKey,
     olostepBaseUrl: process.env.OLOSTEP_BASE_URL ?? "https://api.olostep.com",
+    firecrawlApiKey,
     directHttpMaxBytes: Number(process.env.ACQUISITION_DIRECT_HTTP_MAX_BYTES ?? 1_048_576),
     providerProfiles,
     workerPollMs: Number(process.env.ACQUISITION_WORKER_POLL_MS ?? 500),

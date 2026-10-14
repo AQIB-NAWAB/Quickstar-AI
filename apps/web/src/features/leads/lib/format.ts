@@ -13,6 +13,28 @@ const MONTH_NAMES = [
   "Dec",
 ];
 
+export function formatLeadTag(value: string): string {
+  const label = value.replace(/[-_]+/g, " ").trim();
+  return label ? label[0].toUpperCase() + label.slice(1) : value;
+}
+
+export function formatCapturedDateTime(dateStr: string | null | undefined): { date: string; time: string } | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+
+  const month = MONTH_NAMES[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const hours = String(d.getUTCHours()).padStart(2, "0");
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+
+  return {
+    date: `${month} ${day}, ${year}`,
+    time: `${hours}:${minutes}`,
+  };
+}
+
 export function formatUtcCaptured(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -27,9 +49,9 @@ export function formatUtcCaptured(dateStr: string | null | undefined): string {
 }
 
 export function formatFullUtcCaptured(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "Not recorded";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
+  if (isNaN(d.getTime())) return "Not recorded";
 
   const month = MONTH_NAMES[d.getUTCMonth()];
   const day = d.getUTCDate();
@@ -37,7 +59,7 @@ export function formatFullUtcCaptured(dateStr: string | null | undefined): strin
   const hours = String(d.getUTCHours()).padStart(2, "0");
   const minutes = String(d.getUTCMinutes()).padStart(2, "0");
 
-  return `Captured ${month} ${day}, ${year} · ${hours}:${minutes} UTC`;
+  return `Captured ${month} ${day}, ${year} at ${hours}:${minutes} UTC`;
 }
 
 export function getInitials(name: string | null | undefined): string {

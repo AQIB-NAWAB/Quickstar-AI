@@ -33,7 +33,8 @@ export async function processTask(store: Store, agent: ResearchAgent, t: Task, l
         : e instanceof AppError
           ? e.code
           : "TASK_ERROR";
-    await store.failed(t, code, known ? e.retryable : false, known ? e.retryAfter : 0);
+    const delay = known && e.retryAfter ? e.retryAfter : code === "PROVIDER_HTTP_429" ? 10 : 0;
+    await store.failed(t, code, known ? e.retryable : false, delay);
     logger.warn("lead.task.failed", {
       task_id: t.id,
       run_id: t.run_id,
@@ -52,8 +53,8 @@ export function startWorker(store: Store, agent: ResearchAgent, config: Config, 
     ticking = true;
     try {
       await store.finalizeRuns();
-      // Local process ceiling; authoritative global and org caps are enforced in SQL.
-      while (!stopped && active.size < 4) {
+      // Local process ceiling; limit concurrent tasks to avoid bursting rate limits
+      while (!stopped && active.size < 2) {
         const task = await store.claim(config.leaseSeconds);
         if (!task) break;
         const heartbeat = setInterval(() => {
