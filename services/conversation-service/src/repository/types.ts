@@ -52,6 +52,8 @@ export interface ConversationStore {
     assigneeUserId: string,
     requestId?: string | null,
   ): Promise<Conversation>;
+  /** Move a bot conversation to waiting so the inbox can show the live call. */
+  markVoiceWaiting(workspaceId: string, conversationId: string): Promise<Conversation | null>;
   releaseHandoff(
     workspaceId: string,
     conversationId: string,

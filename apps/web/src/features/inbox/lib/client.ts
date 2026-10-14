@@ -93,6 +93,77 @@ export async function releaseConversation(
   return error ? { error } : { conversation: data!.conversation };
 }
 
+export async function summarizeConversation(
+  workspaceId: string,
+  conversationId: string,
+): Promise<{ summary?: string | null; ready?: boolean; error?: ApiError["error"] }> {
+  const { data, error } = await bff<{ summary: string | null; ready: boolean }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/summary`,
+    { method: "POST" },
+  );
+  return error ? { error } : { summary: data!.summary, ready: data!.ready };
+}
+
+export type WidgetLiveCall = {
+  conversation_id: string;
+  needs_human: boolean;
+  mode: "model" | "holding" | "human";
+  human_name: string | null;
+};
+
+export async function listWidgetLiveCalls(
+  workspaceId: string,
+): Promise<{ calls?: WidgetLiveCall[]; error?: ApiError["error"] }> {
+  const { data, error } = await bff<{ calls: WidgetLiveCall[] }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/widget-live`,
+  );
+  return error ? { error } : { calls: data!.calls };
+}
+
+export async function getWidgetLiveCall(
+  workspaceId: string,
+  conversationId: string,
+): Promise<{ live?: boolean; call?: WidgetLiveCall | null; error?: ApiError["error"] }> {
+  const { data, error } = await bff<{ live: boolean; call: WidgetLiveCall | null }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/widget-live/${encodeURIComponent(conversationId)}`,
+  );
+  return error ? { error } : { live: data!.live, call: data!.call };
+}
+
+export async function joinWidgetCall(
+  workspaceId: string,
+  conversationId: string,
+  displayName: string,
+): Promise<{ error?: ApiError["error"] }> {
+  const { error } = await bff(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/widget-live/${encodeURIComponent(conversationId)}/join`,
+    { method: "POST", body: JSON.stringify({ display_name: displayName }) },
+  );
+  return { error };
+}
+
+export async function leaveWidgetCall(
+  workspaceId: string,
+  conversationId: string,
+): Promise<{ error?: ApiError["error"] }> {
+  const { error } = await bff(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/widget-live/${encodeURIComponent(conversationId)}/leave`,
+    { method: "POST" },
+  );
+  return { error };
+}
+
+export async function sendWidgetCallAudio(
+  workspaceId: string,
+  conversationId: string,
+  pcmB64: string,
+): Promise<void> {
+  await bff(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/widget-live/${encodeURIComponent(conversationId)}/audio`,
+    { method: "POST", body: JSON.stringify({ pcm_b64: pcmB64 }) },
+  );
+}
+
 export async function sendHumanMessage(
   workspaceId: string,
   conversationId: string,

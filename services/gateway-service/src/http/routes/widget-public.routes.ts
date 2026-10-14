@@ -8,7 +8,12 @@ import {
   type RequestHandler,
   type RouteModule,
 } from "@quickstart/http-server";
-import { getInternalJson, postInternalJson, postInternalRaw } from "../../lib/internal-fetch.js";
+import {
+  getInternalJson,
+  getInternalRaw,
+  postInternalJson,
+  postInternalRaw,
+} from "../../lib/internal-fetch.js";
 import type { WidgetContext } from "../../middleware/require-publishable-key.js";
 import type { GatewayHttpContext } from "../context.js";
 
@@ -66,6 +71,11 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
   router.options("/v1/public/widget/conversations", widgetPreflight);
   router.options("/v1/public/widget/conversations/:conversationId/messages", widgetPreflight);
   router.options("/v1/public/widget/conversations/:conversationId/turns", widgetPreflight);
+  router.options("/v1/public/widget/conversations/:conversationId/voice-turn", widgetPreflight);
+  router.options("/v1/public/widget/conversations/:conversationId/voice-live/start", widgetPreflight);
+  router.options("/v1/public/widget/conversations/:conversationId/voice-live/stream", widgetPreflight);
+  router.options("/v1/public/widget/voice-live/audio", widgetPreflight);
+  router.options("/v1/public/widget/voice-live/stop", widgetPreflight);
 
   router.post(
     "/v1/public/widget/conversations",
@@ -256,6 +266,189 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
       res.setHeader("x-request-id", requestId);
       res.setHeader("content-type", "application/json");
       res.send(JSON.stringify({ request_id: requestId, turn: json.turn }));
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/conversations/:conversationId/voice-turn",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as {
+        audio_b64?: string;
+        encoding?: string;
+        actor_id?: string;
+        subject_key?: string;
+      };
+      const rawHeaderKey = req.headers["idempotency-key"];
+      const headerKey = Array.isArray(rawHeaderKey) ? rawHeaderKey[0] : rawHeaderKey;
+      const idempotencyKey = headerKey || crypto.randomUUID();
+      const voiceTimeoutMs = Math.max(config.httpRequestTimeoutMs, 120_000);
+      const voicePath = `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/voice-turn`;
+
+      const { status, json } = await postInternalJson<{
+        user_text?: string;
+        assistant_text?: string;
+        audio_b64?: string;
+        audio_mime?: string;
+        turn?: unknown;
+        error?: { message?: string; code?: string };
+      }>(
+        config.voiceUrl,
+        voicePath,
+        config.internalToken,
+        {
+          audio_b64: body.audio_b64,
+          encoding: body.encoding ?? "webm",
+          actor_id: body.actor_id,
+          subject_key: body.subject_key,
+        },
+        requestId,
+        voiceTimeoutMs,
+        { "idempotency-key": idempotencyKey },
+      );
+
+      if (status === 404) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+          requestId,
+        });
+      }
+      if (status >= 400 && status < 500 && json.error?.code) {
+        throw new AppError({
+          code: json.error.code as ErrorCode,
+          message: json.error.message ?? "Widget voice turn rejected",
+          requestId,
+        });
+      }
+      if (status !== 200 && status !== 201) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: json.error?.message ?? "Widget voice turn failed",
+          requestId,
+        });
+      }
+
+      applyWidgetCors(req, res);
+      res.status(status);
+      res.setHeader("x-request-id", requestId);
+      res.setHeader("content-type", "application/json");
+      res.send(JSON.stringify({ request_id: requestId, ...json }));
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/conversations/:conversationId/voice-live/start",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as { actor_id?: string };
+      const path = `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/voice-live/start`;
+      const { status, json } = await postInternalJson<{ session_id?: string; error?: { message?: string } }>(
+        config.voiceUrl,
+        path,
+        config.internalToken,
+        { actor_id: body.actor_id },
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      if (status !== 201) {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: json.error?.message ?? "Failed to start live voice",
+          requestId,
+        });
+      }
+      applyWidgetCors(req, res);
+      sendPlatformJson(res, 201, { request_id: requestId, session_id: json.session_id });
+    }),
+  );
+
+  router.get(
+    "/v1/public/widget/conversations/:conversationId/voice-live/stream",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const conversationId = routeParam(req.params.conversationId);
+      const sessionId = typeof req.query.session_id === "string" ? req.query.session_id : "";
+      const streamPath = `/internal/workspaces/${encodeURIComponent(widget.workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/voice-live/stream?session_id=${encodeURIComponent(sessionId)}`;
+      const upstream = await getInternalRaw(
+        config.voiceUrl,
+        streamPath,
+        config.internalToken,
+        requestId,
+        Math.max(config.httpRequestTimeoutMs, 600_000),
+        { Accept: "text/event-stream" },
+      );
+      applyWidgetCors(req, res);
+      res.status(upstream.status);
+      res.setHeader("x-request-id", requestId);
+      res.setHeader("cache-control", "no-cache, no-transform");
+      res.setHeader("x-accel-buffering", "no");
+      const contentType = upstream.headers.get("content-type");
+      if (contentType) res.setHeader("content-type", contentType);
+      if (!upstream.ok || !upstream.body) {
+        res.send(await upstream.text());
+        return;
+      }
+      res.flushHeaders?.();
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+        (res as { flush?: () => void }).flush?.();
+      }
+      res.end();
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/voice-live/audio",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const body = req.body as { session_id?: string; pcm_b64?: string };
+      const upstream = await postInternalRaw(
+        config.voiceUrl,
+        "/internal/widget/voice-live/audio",
+        config.internalToken,
+        body,
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      applyWidgetCors(req, res);
+      res.status(upstream.status);
+      if (!upstream.ok) {
+        res.send(await upstream.text());
+        return;
+      }
+      res.end();
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/voice-live/stop",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const body = req.body as { session_id?: string };
+      await postInternalJson(
+        config.voiceUrl,
+        "/internal/widget/voice-live/stop",
+        config.internalToken,
+        body,
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      applyWidgetCors(req, res);
+      res.status(204).end();
     }),
   );
 

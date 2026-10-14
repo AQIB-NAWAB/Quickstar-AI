@@ -29,6 +29,18 @@ export function createGatewayServer(options: CreateGatewayServerOptions): Applic
       windowMs: config.httpRateLimitWindowMs,
       max: config.httpRateLimitMax,
       skipPaths: ["/healthz", "/health"],
+      buckets: [
+        {
+          name: "auth",
+          max: 60,
+          test: (path) => path === "/v1/login" || path === "/v1/register" || path === "/v1/refresh",
+        },
+        {
+          name: "voice-audio",
+          max: Math.max(config.httpRateLimitMax, 6_000),
+          test: (path) => path.includes("/voice-live/audio"),
+        },
+      ],
     }),
     requireAccessToken: createRequireAccessTokenMiddleware(config.jwtAccessSecret),
     requireWorkspaceMembership: createRequireWorkspaceMembershipMiddleware(workspaceAccess),

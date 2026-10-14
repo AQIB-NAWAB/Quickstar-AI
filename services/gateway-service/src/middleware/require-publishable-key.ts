@@ -19,6 +19,21 @@ type ResolveResponse = {
   error?: { code: string; message: string };
 };
 
+const RESOLVE_CACHE_TTL_MS = 60_000;
+const resolveCache = new Map<string, { widget: WidgetContext; expiresAt: number }>();
+
+function attachWidgetContext(
+  res: Parameters<RequestHandler>[1],
+  origin: string | null | undefined,
+  widget: WidgetContext,
+): void {
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+  (res.locals as { widget?: WidgetContext }).widget = widget;
+}
+
 export function createRequirePublishableKeyMiddleware(config: GatewayConfig): RequestHandler {
   return async (req, res, next) => {
     const requestId = requestIdFromResponse(res);
@@ -34,12 +49,33 @@ export function createRequirePublishableKeyMiddleware(config: GatewayConfig): Re
       );
     }
 
+    const trimmedKey = key.trim();
+    const origin = requestOrigin(
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+      typeof req.headers.referer === "string" ? req.headers.referer : undefined,
+    );
+
+    const cached = resolveCache.get(trimmedKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (!isOriginAllowed(origin, cached.widget.allowedOrigins)) {
+        return next(
+          new AppError({
+            code: ErrorCode.FORBIDDEN,
+            message: "Origin is not allowed for this publishable key",
+            requestId,
+          }),
+        );
+      }
+      attachWidgetContext(res, origin, cached.widget);
+      return next();
+    }
+
     try {
       const { status, json } = await postInternalJson<ResolveResponse>(
         config.workspaceUrl,
         "/internal/publishable-keys/resolve",
         config.internalToken,
-        { key: key.trim() },
+        { key: trimmedKey },
         requestId,
         config.httpRequestTimeoutMs,
       );
@@ -62,10 +98,6 @@ export function createRequirePublishableKeyMiddleware(config: GatewayConfig): Re
         );
       }
 
-      const origin = requestOrigin(
-        typeof req.headers.origin === "string" ? req.headers.origin : undefined,
-        typeof req.headers.referer === "string" ? req.headers.referer : undefined,
-      );
       if (!isOriginAllowed(origin, json.allowed_origins ?? [])) {
         return next(
           new AppError({
@@ -76,19 +108,14 @@ export function createRequirePublishableKeyMiddleware(config: GatewayConfig): Re
         );
       }
 
-      // Browser clients need this header on the actual response as well as on
-      // preflight. Reflect only the origin that has passed the key allow-list.
-      if (origin) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-        res.setHeader("Vary", "Origin");
-      }
-
-      (res.locals as { widget?: WidgetContext }).widget = {
+      const widget: WidgetContext = {
         workspaceId: json.workspace_id,
         keyId: json.key_id,
         defaultAgentId: json.default_agent_id,
         allowedOrigins: json.allowed_origins ?? [],
       };
+      resolveCache.set(trimmedKey, { widget, expiresAt: Date.now() + RESOLVE_CACHE_TTL_MS });
+      attachWidgetContext(res, origin, widget);
       return next();
     } catch (error) {
       return next(error);

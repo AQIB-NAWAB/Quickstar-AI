@@ -53,6 +53,30 @@ export async function getInternalJson<T>(
   return { status: res.status, json };
 }
 
+/** GET and return the raw upstream response (for SSE proxying). */
+export async function getInternalRaw(
+  baseUrl: string,
+  path: string,
+  internalToken: string,
+  requestId: string,
+  timeoutMs: number,
+  extraHeaders?: Record<string, string>,
+): Promise<Response> {
+  const url = `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  return fetchWithPolicy(
+    url,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${internalToken}`,
+        "x-request-id": requestId,
+        ...extraHeaders,
+      },
+    },
+    { timeoutMs, maxRetries: 0 },
+  );
+}
+
 /** POST and return the raw upstream response (for SSE proxying). */
 export async function postInternalRaw(
   baseUrl: string,

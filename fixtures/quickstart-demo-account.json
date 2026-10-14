@@ -10,7 +10,7 @@
   },
   "agent": {
     "name": "Demo Support Agent",
-    "instructions": "You are QuickStart's demo support agent. Answer briefly and helpfully about the embeddable chatbot product.",
+    "instructions": "You are QuickStart's demo support agent for the website widget. Answer briefly in friendly conversational sentences (not bullet lists). Help with the embeddable chatbot product, pricing, and security.",
     "model_settings": { "profile": "fake", "model_id": "fake" }
   },
   "secret": {
@@ -19,7 +19,12 @@
   },
   "publishable_key": {
     "name": "Widget demo key",
-    "allowed_origins": ["http://127.0.0.1:8080", "http://localhost:3015"]
+    "allowed_origins": [
+      "http://127.0.0.1:8080",
+      "http://localhost:8080",
+      "http://127.0.0.1:3015",
+      "http://localhost:3015"
+    ]
   },
   "knowledge_source": {
     "name": "Demo product FAQ",

@@ -43,17 +43,15 @@ function countingStt(counter: { n: number }): SpeechToText {
 }
 
 function delayedRuntime(delayMs: number, reply = "agent says hi"): RuntimeClient {
+  const fake = createFakeRuntimeClient(reply, delayMs);
   return {
+    async executeWidgetTurn(input) {
+      await sleep(delayMs);
+      return fake.executeWidgetTurn(input);
+    },
     async executeVoiceTurn(input) {
       await sleep(delayMs);
-      return {
-        assistant_text: reply,
-        agent_id: "agent-fake",
-        agent_version_id: "version-fake",
-        conversation_id: input.conversationId,
-        latency_ms: delayMs,
-        deduplicated: false,
-      };
+      return fake.executeVoiceTurn(input);
     },
   };
 }

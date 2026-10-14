@@ -352,6 +352,7 @@ export function FrontendPreview({ view }: { view: string[] }) {
                       workspaceId={workspace.id}
                       conversationId={view[1]}
                       userId="preview-owner"
+                      agentName="Preview agent"
                     />
                   )}
                 </>

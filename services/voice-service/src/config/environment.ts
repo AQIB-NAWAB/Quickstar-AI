@@ -10,6 +10,7 @@ export type VoiceConfig = {
   runtimeUrl: string;
   conversationUrl: string;
   agentUrl: string;
+  knowledgeUrl: string;
   httpRequestTimeoutMs: number;
   membershipCacheTtlSec: number;
   membershipCacheNegativeTtlSec: number;
@@ -26,6 +27,13 @@ export type VoiceConfig = {
   speechProfile: SpeechProfile;
   speechOpenaiApiKey?: string;
   speechOpenaiBaseUrl?: string;
+  deepgramApiKey?: string;
+  deepgramModel?: string;
+  fishAudioApiKey?: string;
+  fishAudioModel?: string;
+  fishAudioReferenceId?: string;
+  geminiApiKey?: string;
+  geminiLiveModel?: string;
   requireRealSpeech: boolean;
   speechCircuitFailureThreshold: number;
   speechCircuitCooldownMs: number;
@@ -44,8 +52,9 @@ export type VoiceConfig = {
 function parseSpeechProfile(raw: string | undefined): SpeechProfile {
   const value = (raw ?? "fake").trim().toLowerCase();
   if (value === "openai") return "openai";
+  if (value === "deepgram-fish" || value === "deepgram_fish") return "deepgram-fish";
   if (value === "fake" || value === "") return "fake";
-  throw new Error(`SPEECH_PROFILE must be fake|openai, got: ${raw}`);
+  throw new Error(`SPEECH_PROFILE must be fake|openai|deepgram-fish, got: ${raw}`);
 }
 
 export function loadVoiceConfig(): VoiceConfig {
@@ -82,6 +91,7 @@ export function loadVoiceConfig(): VoiceConfig {
     runtimeUrl: (process.env.RUNTIME_URL ?? "http://127.0.0.1:3006").replace(/\/$/, ""),
     conversationUrl: (process.env.CONVERSATION_URL ?? "http://127.0.0.1:3004").replace(/\/$/, ""),
     agentUrl: (process.env.AGENT_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
+    knowledgeUrl: (process.env.KNOWLEDGE_URL ?? "http://127.0.0.1:3009").replace(/\/$/, ""),
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
     membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),
@@ -100,6 +110,16 @@ export function loadVoiceConfig(): VoiceConfig {
     speechProfile: parseSpeechProfile(process.env.SPEECH_PROFILE),
     speechOpenaiApiKey,
     speechOpenaiBaseUrl: process.env.SPEECH_OPENAI_BASE_URL?.replace(/\/$/, "") || undefined,
+    deepgramApiKey: process.env.DEEPGRAM_API_KEY?.trim() || undefined,
+    deepgramModel: process.env.DEEPGRAM_MODEL?.trim() || undefined,
+    fishAudioApiKey: process.env.FISH_AUDIO_API_KEY?.trim() || undefined,
+    fishAudioModel: process.env.FISH_AUDIO_MODEL?.trim() || undefined,
+    fishAudioReferenceId: process.env.FISH_AUDIO_REFERENCE_ID?.trim() || undefined,
+    geminiApiKey:
+      process.env.GEMINI_API_KEY?.trim() ||
+      process.env.GOOGLE_API_KEY?.trim() ||
+      undefined,
+    geminiLiveModel: process.env.GEMINI_LIVE_MODEL?.trim() || undefined,
     requireRealSpeech: process.env.VOICE_REQUIRE_REAL_SPEECH === "1",
     speechCircuitFailureThreshold: Number(process.env.SPEECH_CIRCUIT_FAILURE_THRESHOLD ?? 5),
     speechCircuitCooldownMs: Number(process.env.SPEECH_CIRCUIT_COOLDOWN_MS ?? 30_000),

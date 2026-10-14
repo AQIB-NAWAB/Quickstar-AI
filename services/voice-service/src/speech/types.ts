@@ -1,10 +1,12 @@
-export type AudioEncoding = "pcm16" | "mulaw" | "fake" | "mp3";
+export type AudioEncoding = "pcm16" | "mulaw" | "fake" | "mp3" | "webm";
 
 export type AudioChunk = {
   /** Raw audio bytes (PCM, μ-law, mp3, or fake UTF-8 for tests). */
   bytes: Buffer;
   encoding: AudioEncoding;
   sampleRateHz: number;
+  /** HTTP Content-Type for containerized audio (e.g. audio/wav, audio/webm;codecs=opus). */
+  mimeType?: string;
 };
 
 export type SpeechUsageFact = {

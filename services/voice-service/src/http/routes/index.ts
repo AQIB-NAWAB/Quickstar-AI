@@ -5,6 +5,7 @@ import { createCallsRoutes } from "./calls.routes.js";
 import { createInternalRoutes } from "./internal.routes.js";
 import { createCampaignsRoutes } from "./campaigns.routes.js";
 import { createTelephonyPublicRoutes } from "./telephony.routes.js";
+import { createWidgetLiveStaffRoutes } from "./widget-live-staff.routes.js";
 
 const voiceRouteModules = [
   createHealthRoutes,
@@ -12,6 +13,7 @@ const voiceRouteModules = [
   createCampaignsRoutes,
   createInternalRoutes,
   createTelephonyPublicRoutes,
+  createWidgetLiveStaffRoutes,
 ] as const;
 
 export function createVoiceApiRouter(ctx: VoiceHttpContext): Router {

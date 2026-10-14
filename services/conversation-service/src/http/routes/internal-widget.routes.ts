@@ -26,6 +26,12 @@ export const createInternalWidgetRoutes: RouteModule<ConversationHttpContext> = 
     asyncHandler(conversationsCtrl.listMessages),
   );
   router.post(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/voice-attention",
+    internalAuth,
+    tenant,
+    asyncHandler(conversationsCtrl.requestVoiceAttention),
+  );
+  router.post(
     "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/messages",
     internalAuth,
     tenant,

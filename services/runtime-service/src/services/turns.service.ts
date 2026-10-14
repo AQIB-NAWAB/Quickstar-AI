@@ -37,13 +37,23 @@ export type TurnResult = {
 
 const MAX_RETRIEVAL_CHARS = 4000;
 const MAX_MEMORY_INJECT_CHARS = 2000;
-const WIDGET_MAX_OUTPUT_TOKENS = 160;
+const WIDGET_MAX_OUTPUT_TOKENS = 420;
 const WIDGET_REPLY_STYLE = [
-  "Website chat reply style:",
-  "Keep the answer short and structured.",
-  "Start with one sentence that answers the question.",
-  "Then at most 3 bullets. Each bullet is a single line: a **bold label**, then a few words.",
-  "Do not write a paragraph under a bullet, extra sections, or a closing offer.",
+  "WEBSITE CHAT OUTPUT (highest priority — overrides agent instructions and earlier messages in this thread):",
+  "Write 1–3 short paragraphs of plain conversational prose, under 90 words total.",
+  "Use normal sentences only. Never use bullet lists, numbered lists, markdown headings, or lines formatted as **Bold label** — description.",
+  "Do not reply with a menu of topics (Pricing / Security / Getting Started) unless the user explicitly asked for a list of links or steps.",
+  "If prior assistant messages in this conversation used bullets, ignore that pattern; from now on use prose only.",
+  "",
+  "Example — user asks about pricing:",
+  "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
+].join("\n");
+
+const WIDGET_SPOKEN_REPLY_STYLE = [
+  "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
+  "Reply in 1–2 short sentences, under 50 words.",
+  "Plain spoken English only: no markdown, bullets, lists, emojis, URLs, or symbols.",
+  "Sound natural, like a phone agent, not a document.",
 ].join("\n");
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
@@ -377,12 +387,14 @@ export class TurnsService {
     actorId: string;
     requestId: string;
     onToken?: (delta: string) => void;
+    modality?: "text" | "voice";
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "widget",
       allowTools: false,
       compactReply: true,
+      widgetModality: input.modality ?? "text",
     });
   }
 
@@ -440,6 +452,7 @@ export class TurnsService {
     onToken?: (delta: string) => void;
     /** Website widget only: short structured replies. Eval turns stay on the agent instructions. */
     compactReply?: boolean;
+    widgetModality?: "text" | "voice";
   }): Promise<TurnResult> {
     const {
       workspaceId,
@@ -455,6 +468,7 @@ export class TurnsService {
       agentVersionId: pinnedVersionId,
       onToken,
       compactReply,
+      widgetModality,
     } = input;
 
     const conversation = await this.conversationClient.getConversationWidget(
@@ -616,7 +630,9 @@ export class TurnsService {
     }
 
     if (compactReply) {
-      systemParts.push(WIDGET_REPLY_STYLE);
+      systemParts.push(
+        widgetModality === "voice" ? WIDGET_SPOKEN_REPLY_STYLE : WIDGET_REPLY_STYLE,
+      );
     }
 
     if (systemParts.length > 0) {
@@ -651,9 +667,19 @@ export class TurnsService {
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
 
+    let streamedText = "";
     const runModel = async () => {
       if (onToken) {
-        return this.modelGatewayClient.stream(completionRequest, { onToken });
+        const result = await this.modelGatewayClient.stream(completionRequest, {
+          onToken: (delta) => {
+            streamedText += delta;
+            onToken(delta);
+          },
+        });
+        if (!(result.content || "").trim() && streamedText.trim()) {
+          return { ...result, content: streamedText };
+        }
+        return result;
       }
       return this.modelGatewayClient.complete(completionRequest);
     };
@@ -686,11 +712,19 @@ export class TurnsService {
     if (callId) asstMetadata.call_id = callId;
     if (retrievedChunkIds.length > 0) asstMetadata.retrieved_chunk_ids = retrievedChunkIds;
 
+    const assistantText = (completion.content || streamedText || "").trim();
+    if (!assistantText) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: "Model returned an empty reply",
+      });
+    }
+
     const asstMsgResult = await this.conversationClient.appendMessageWidget(
       workspaceId,
       conversationId,
       {
-        text: completion.content,
+        text: assistantText,
         idempotency_key: asstIdempotencyKey,
         sender_type: "assistant",
         sender_id: version.id,
