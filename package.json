@@ -21,7 +21,8 @@
     "widget:test:serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory fixtures/widget-test",
     "widget:real-llm": "node --env-file=.env scripts/configure-demo-agent-real-llm.mjs",
     "start:agent-inbox": "bash scripts/start-agent-inbox.sh",
-    "stop:agent-inbox": "bash scripts/stop-agent-inbox.sh"
+    "stop:agent-inbox": "bash scripts/stop-agent-inbox.sh",
+    "start:workspaces": "bash scripts/start-workspaces.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
