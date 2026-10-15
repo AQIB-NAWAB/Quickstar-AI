@@ -1,8 +1,15 @@
 /** Agent tool definitions (Feature 15) — frozen in published version snapshot. */
 
+export type ToolParameterProperty = {
+  type: string;
+  description?: string;
+  items?: { type: string };
+  enum?: Array<string | number | boolean>;
+};
+
 export type ToolParameterSchema = {
   type: "object";
-  properties?: Record<string, { type: string; description?: string; items?: { type: string } }>;
+  properties?: Record<string, ToolParameterProperty>;
   required?: string[];
 };
 
@@ -16,12 +23,21 @@ export type AgentToolDefinitionBase = {
   idempotent?: boolean;
 };
 
+export type AgentHttpToolAuth = {
+  type: "bearer_secret";
+  /** Name of a workspace secret (secrets vault). Resolved by the runtime at execution time. */
+  secret_name: string;
+};
+
 export type AgentHttpToolDefinition = AgentToolDefinitionBase & {
   type: "http";
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   base_url: string;
   allowed_hosts: string[];
   path_template?: string;
+  /** Static headers sent with every call. `authorization`/`x-api-key` are rejected — use `auth`. */
+  headers?: Record<string, string>;
+  auth?: AgentHttpToolAuth;
 };
 
 export type AgentBuiltinWebToolDefinition = AgentToolDefinitionBase & {

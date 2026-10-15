@@ -79,6 +79,11 @@ conversation id in that browser's local storage and reloads the thread when the
 visitor returns. The browser sends only the publishable key; never put a secret
 API key in the script.
 
+Workspace settings also host the **Custom tools** tab: define HTTP APIs and MCP
+servers once, then attach them to agents on the agent editor's Tools tab.
+Agents call those tools in staff chat, the widget, and voice; HTTP tool
+credentials are injected at call time from the workspace secrets vault.
+
 For a local end-to-end demo, start the gateway and services, run the web app on
 port 3015 (port 3005 is used by the model gateway), configure the fixture with
 a publishable key and published agent, then serve the repo root from

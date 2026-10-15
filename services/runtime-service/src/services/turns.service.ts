@@ -6,7 +6,11 @@ import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { ToolLoop } from "./tool-loop.js";
-import { visitorWantsTeammate, VOICE_TRANSFER_TOOL, VOICE_TRANSFER_TOOL_NAME } from "./voice-tools.js";
+import {
+  visitorWantsTeammate,
+  VOICE_TRANSFER_TOOL,
+  VOICE_TRANSFER_TOOL_NAME,
+} from "./voice-tools.js";
 
 export type ExecuteTurnInput = {
   workspaceId: string;
@@ -45,9 +49,16 @@ const WIDGET_REPLY_STYLE = [
   "Use normal sentences only. Never use bullet lists, numbered lists, markdown headings, or lines formatted as **Bold label** — description.",
   "Do not reply with a menu of topics (Pricing / Security / Getting Started) unless the user explicitly asked for a list of links or steps.",
   "If prior assistant messages in this conversation used bullets, ignore that pattern; from now on use prose only.",
+  "Answer the visitor's newest message. Never repeat your previous reply or re-run an earlier task unless the visitor explicitly asks again.",
   "",
   "Example — user asks about pricing:",
   "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
+].join("\n");
+
+const TOOL_ARGUMENT_GUIDANCE = [
+  "TOOL CALLS (only when this agent has tools attached):",
+  "If a tool needs a detail the visitor has not provided (an id, name, number, etc.), ask the visitor for it first. Never guess, invent, or reuse a value from an earlier turn.",
+  "Never call the same tool twice with the same arguments in one reply. Once a tool returns its result, answer the visitor from that result.",
 ].join("\n");
 
 function spokenReplyStyle(
@@ -79,6 +90,9 @@ function spokenReplyStyle(
       "When one of these functions can answer, call it instead of guessing. Do not read the function name aloud. The caller hears a short checking line while it runs.",
     );
     lines.push(
+      "If a function needs a detail the caller has not given (like an id or name), ask for it first. Never guess values, and never call the same function twice with the same arguments.",
+    );
+    lines.push(
       options.tools
         .slice(0, 8)
         .map((tool) => `${tool.name}: ${tool.description.slice(0, 140)}`)
@@ -89,7 +103,10 @@ function spokenReplyStyle(
 }
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
-function resolveChatModel(modelSettings: Record<string, unknown>): { profile: string; modelId: string } {
+function resolveChatModel(modelSettings: Record<string, unknown>): {
+  profile: string;
+  modelId: string;
+} {
   const profile = typeof modelSettings.profile === "string" ? modelSettings.profile.trim() : "";
   const modelId =
     (typeof modelSettings.model_id === "string" ? modelSettings.model_id.trim() : "") ||
@@ -195,9 +212,7 @@ export class TurnsService {
         authHeaders,
         20,
       );
-      const existingAsst = recentMessages.find(
-        (m) => m.idempotency_key === asstIdempotencyKey,
-      );
+      const existingAsst = recentMessages.find((m) => m.idempotency_key === asstIdempotencyKey);
       if (existingAsst) {
         return {
           deduplicated: true,
@@ -246,12 +261,7 @@ export class TurnsService {
 
     const subjectKey = conversation.subject_key?.trim();
     if (this.memoryClient && subjectKey) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        20,
-      );
+      const memoryFacts = await this.memoryClient.listFacts(workspaceId, subjectKey, requestId, 20);
       if (memoryFacts.length > 0) {
         const memoryBlock = memoryFacts
           .map((f) => `- ${f.fact_text}`)
@@ -279,9 +289,7 @@ export class TurnsService {
     }
 
     // If history didn't include the newly appended user message yet, ensure it is present
-    const hasCurrent = chatMessages.some(
-      (m) => m.role === "user" && m.content === (text ?? ""),
-    );
+    const hasCurrent = chatMessages.some((m) => m.role === "user" && m.content === (text ?? ""));
     if (!hasCurrent && text) {
       chatMessages.push({ role: "user", content: text });
     }
@@ -290,11 +298,16 @@ export class TurnsService {
     const modelSettings = version.snapshot.model_settings ?? {};
     const { profile, modelId } = resolveChatModel(modelSettings);
     const temperature =
-      typeof modelSettings.temperature === "number"
-        ? modelSettings.temperature
-        : undefined;
+      typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
     const agentTools = version.snapshot.tools ?? [];
+    if (agentTools.length > 0) {
+      const firstSystem = chatMessages.findIndex((m) => m.role === "system");
+      chatMessages.splice(Math.max(0, firstSystem + 1), 0, {
+        role: "system",
+        content: TOOL_ARGUMENT_GUIDANCE,
+      });
+    }
     let assistantText = "";
     let usage: TokenUsage | undefined;
 
@@ -371,9 +384,7 @@ export class TurnsService {
         sender_type: "assistant",
         sender_id: version.id,
         metadata:
-          retrievedChunkIds.length > 0
-            ? { retrieved_chunk_ids: retrievedChunkIds }
-            : undefined,
+          retrievedChunkIds.length > 0 ? { retrieved_chunk_ids: retrievedChunkIds } : undefined,
       },
       authHeaders,
     );
@@ -426,7 +437,7 @@ export class TurnsService {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "widget",
-      allowTools: input.modality === "voice",
+      allowTools: true,
       compactReply: true,
       widgetModality: input.modality ?? "text",
       replyLanguage: input.replyLanguage,
@@ -583,7 +594,7 @@ export class TurnsService {
     if (agentTools.length > 0 && !allowTools) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message: "Tools are not supported on widget text turns yet",
+        message: "Tools are not supported on this turn path",
       });
     }
     if (modelTools.length > 0 && allowTools && !this.toolLoop) {
@@ -662,12 +673,7 @@ export class TurnsService {
 
     const subjectKey = conversation.subject_key?.trim();
     if (this.memoryClient && subjectKey && !voiceTurn) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        20,
-      );
+      const memoryFacts = await this.memoryClient.listFacts(workspaceId, subjectKey, requestId, 20);
       if (memoryFacts.length > 0) {
         const memoryBlock = memoryFacts
           .map((f) => `- ${f.fact_text}`)
@@ -686,6 +692,10 @@ export class TurnsService {
             })
           : WIDGET_REPLY_STYLE,
       );
+    }
+
+    if (agentTools.length > 0) {
+      systemParts.push(TOOL_ARGUMENT_GUIDANCE);
     }
 
     if (systemParts.length > 0) {

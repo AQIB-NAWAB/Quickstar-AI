@@ -9,30 +9,21 @@ import {
   Bot,
   Check,
   CheckCircle2,
-  Clock,
-  Code,
   Cpu,
   FileText,
   GitCommit,
   GitCompare,
-  Layers,
-  MessageSquare,
   Play,
   RotateCcw,
   Save,
-  Send,
-  Sliders,
   Sparkles,
   Wrench,
 } from "lucide-react";
 import type { Agent, AgentToolDefinition, AgentVersion } from "../lib/types";
-import {
-  getAgent,
-  listVersions,
-  publishAgent,
-  rollbackAgent,
-  updateAgent,
-} from "../lib/client";
+import { getAgent, listVersions, publishAgent, rollbackAgent, updateAgent } from "../lib/client";
+import { BUILTIN_TOOLS, customToolToAgentTool } from "../lib/tools";
+import { listCustomTools } from "@/features/settings/lib/client";
+import type { CustomToolItem } from "@/features/settings/lib/types";
 import { ConflictBanner } from "./conflict-banner";
 import { PublishModal } from "./publish-modal";
 import { DiffModal } from "./diff-modal";
@@ -46,34 +37,23 @@ type Props = {
 
 type TabKey = "identity" | "instructions" | "model" | "tools" | "versions";
 
-const AVAILABLE_TOOLS: AgentToolDefinition[] = [
-  {
-    name: "knowledge_search",
-    description: "Search indexed company documents, guides, and policies",
-    parameters: { type: "object", properties: { query: { type: "string" } } },
-  },
-  {
-    name: "order_lookup",
-    description: "Look up real-time customer order details and shipment tracking",
-    parameters: { type: "object", properties: { order_id: { type: "string" } } },
-  },
-  {
-    name: "process_refund",
-    description: "Initiate return and refund authorization for eligible purchases",
-    parameters: { type: "object", properties: { order_id: { type: "string" } } },
-  },
-  {
-    name: "send_followup_email",
-    description: "Send automated email summary and reference tickets to customer",
-    parameters: { type: "object", properties: { email: { type: "string" } } },
-  },
-];
-
 const AVAILABLE_MODELS = [
-  { id: "gpt-4o-mini", label: "OpenAI gpt-4o-mini", desc: "Fast, cost-efficient, everyday queries" },
+  {
+    id: "gpt-4o-mini",
+    label: "OpenAI gpt-4o-mini",
+    desc: "Fast, cost-efficient, everyday queries",
+  },
   { id: "gpt-4o", label: "OpenAI gpt-4o", desc: "Advanced reasoning and complex tool calls" },
-  { id: "claude-3-5-sonnet", label: "Anthropic Claude 3.5 Sonnet", desc: "Superior nuanced writing & instruction following" },
-  { id: "claude-3-haiku", label: "Anthropic Claude 3 Haiku", desc: "Sub-second fast streaming response" },
+  {
+    id: "claude-3-5-sonnet",
+    label: "Anthropic Claude 3.5 Sonnet",
+    desc: "Superior nuanced writing & instruction following",
+  },
+  {
+    id: "claude-3-haiku",
+    label: "Anthropic Claude 3 Haiku",
+    desc: "Sub-second fast streaming response",
+  },
 ];
 
 export function AgentEditor({ workspaceId, initialAgent }: Props) {
@@ -88,7 +68,9 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
   const [environment, setEnvironment] = useState(initialAgent.environment);
   const [chatEnabled, setChatEnabled] = useState(initialAgent.channels.chat);
   const [voiceEnabled, setVoiceEnabled] = useState(initialAgent.channels.voice);
-  const [ttsVoiceId, setTtsVoiceId] = useState(initialAgent.voice?.tts_voice_id || "uplift:v_8eelc901");
+  const [ttsVoiceId, setTtsVoiceId] = useState(
+    initialAgent.voice?.tts_voice_id || "uplift:v_8eelc901",
+  );
   const [voiceLanguage, setVoiceLanguage] = useState(initialAgent.voice?.language || "ur-PK");
 
   const modelSettings = initialAgent.model_settings || {};
@@ -103,6 +85,9 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
   const [attachedTools, setAttachedTools] = useState<AgentToolDefinition[]>(
     initialAgent.tools || [],
   );
+  const [customTools, setCustomTools] = useState<CustomToolItem[]>([]);
+  const [customToolsLoading, setCustomToolsLoading] = useState(false);
+  const [customToolsError, setCustomToolsError] = useState<string | null>(null);
 
   // Status & Conflict Handling
   const [isSaving, setIsSaving] = useState(false);
@@ -163,6 +148,26 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
       });
     }
   }, [activeTab, workspaceId, agent.id]);
+
+  // Fetch workspace custom tools when the tools tab opens
+  useEffect(() => {
+    if (activeTab !== "tools") return;
+    let cancelled = false;
+    setCustomToolsLoading(true);
+    setCustomToolsError(null);
+    listCustomTools(workspaceId).then((res) => {
+      if (cancelled) return;
+      setCustomToolsLoading(false);
+      if (res.tools) {
+        setCustomTools(res.tools);
+      } else {
+        setCustomToolsError(res.error?.message || "Failed to load custom tools.");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, workspaceId]);
 
   // Save handler with Optimistic Concurrency Control
   async function handleSave() {
@@ -371,10 +376,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
 
       {/* 409 Conflict Banner if triggered */}
       {isConflict && (
-        <ConflictBanner
-          currentVersion={agent.version}
-          onReload={handleReloadServerVersion}
-        />
+        <ConflictBanner currentVersion={agent.version} onReload={handleReloadServerVersion} />
       )}
 
       {/* General Save Error */}
@@ -446,9 +448,10 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
           />
 
           <div className="p-3 rounded-10 bg-neutral-50 border border-border-faint text-[11px] text-neutral-600 leading-relaxed">
-            <span className="font-semibold text-accent-black">Prompt Engineering Tip:</span> Be explicit
-            about boundary conditions (e.g. &ldquo;If the user asks for a refund over $100, instruct them to
-            wait for a human manager.&rdquo;). The model uses this prompt on every conversation turn.
+            <span className="font-semibold text-accent-black">Prompt Engineering Tip:</span> Be
+            explicit about boundary conditions (e.g. &ldquo;If the user asks for a refund over $100,
+            instruct them to wait for a human manager.&rdquo;). The model uses this prompt on every
+            conversation turn.
           </div>
         </div>
       )}
@@ -546,57 +549,146 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
           <div>
             <h3 className="text-sm font-bold text-accent-black">Agent Tools & Actions</h3>
             <p className="text-xs text-neutral-500">
-              Attach callable tools that this agent can execute during conversational turns.
+              Attach callable tools that this agent can execute during conversational turns — in
+              staff chat, the website widget, and voice.
             </p>
           </div>
 
-          <div className="space-y-3">
-            {AVAILABLE_TOOLS.map((tool) => {
-              const isAttached = attachedTools.some((t) => t.name === tool.name);
-              return (
-                <div
-                  key={tool.name}
-                  className={`p-4 rounded-12 border transition-all flex items-start justify-between gap-4 ${
-                    isAttached
-                      ? "border-neutral-400 bg-neutral-50/50"
-                      : "border-border-faint bg-white"
-                  }`}
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-neutral-600 uppercase tracking-wide">
+                  Workspace custom tools
+                </h4>
+                <Link
+                  href={`/workspaces/${workspaceId}/settings?tab=custom-tools`}
+                  className="text-[11px] font-semibold text-heat-100 hover:underline"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-accent-black">
-                        {tool.name}
-                      </span>
-                      {isAttached && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-neutral-600">{tool.description}</p>
-                  </div>
+                  Manage in settings →
+                </Link>
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={() => toggleTool(tool)}
-                    className={`px-3 py-1.5 rounded-8 text-xs font-semibold transition-colors shrink-0 ${
+              {customToolsLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-14 bg-neutral-100 rounded-12" />
+                  <div className="h-14 bg-neutral-100 rounded-12" />
+                </div>
+              ) : customToolsError ? (
+                <div className="p-4 rounded-12 bg-red-50 border border-red-200 text-xs text-red-600">
+                  {customToolsError}
+                </div>
+              ) : customTools.length === 0 ? (
+                <div className="p-6 rounded-12 border border-dashed border-border-faint text-center space-y-2">
+                  <p className="text-xs text-neutral-500">No custom tools in this workspace yet.</p>
+                  <Link
+                    href={`/workspaces/${workspaceId}/settings?tab=custom-tools`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-8 bg-neutral-100 hover:bg-neutral-200 text-accent-black text-xs font-semibold transition-colors"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Define a custom tool</span>
+                  </Link>
+                </div>
+              ) : (
+                customTools.map((custom) => {
+                  const tool = customToolToAgentTool(custom);
+                  const isAttached = attachedTools.some((t) => t.name === tool.name);
+                  return (
+                    <div
+                      key={custom.id}
+                      className={`p-4 rounded-12 border transition-all flex items-start justify-between gap-4 ${
+                        isAttached
+                          ? "border-neutral-400 bg-neutral-50/50"
+                          : "border-border-faint bg-white"
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-accent-black">
+                            {tool.name}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-heat-12/40 text-heat-100 border border-heat-100/30">
+                            {custom.kind === "http" ? "HTTP" : "MCP"}
+                          </span>
+                          {isAttached && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-600">{tool.description}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleTool(tool)}
+                        className={`px-3 py-1.5 rounded-8 text-xs font-semibold transition-colors shrink-0 ${
+                          isAttached
+                            ? "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
+                            : "bg-heat-100 text-white hover:bg-heat-100/90 shadow-xs"
+                        }`}
+                      >
+                        {isAttached ? "Remove Tool" : "Attach Tool"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-neutral-600 uppercase tracking-wide">
+                Platform built-ins
+              </h4>
+              {BUILTIN_TOOLS.map((tool) => {
+                const isAttached = attachedTools.some((t) => t.name === tool.name);
+                return (
+                  <div
+                    key={tool.name}
+                    className={`p-4 rounded-12 border transition-all flex items-start justify-between gap-4 ${
                       isAttached
-                        ? "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
-                        : "bg-heat-100 text-white hover:bg-heat-100/90 shadow-xs"
+                        ? "border-neutral-400 bg-neutral-50/50"
+                        : "border-border-faint bg-white"
                     }`}
                   >
-                    {isAttached ? "Remove Tool" : "Attach Tool"}
-                  </button>
-                </div>
-              );
-            })}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-accent-black">
+                          {tool.name}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600 border border-border-faint">
+                          {tool.type === "builtin_web" ? "WEB" : "LEADS"}
+                        </span>
+                        {isAttached && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-600">{tool.description}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleTool(tool)}
+                      className={`px-3 py-1.5 rounded-8 text-xs font-semibold transition-colors shrink-0 ${
+                        isAttached
+                          ? "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
+                          : "bg-heat-100 text-white hover:bg-heat-100/90 shadow-xs"
+                      }`}
+                    >
+                      {isAttached ? "Remove Tool" : "Attach Tool"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="p-3.5 rounded-10 bg-neutral-50 border border-border-faint text-xs text-neutral-600 flex items-center gap-2">
             <Wrench className="w-4 h-4 text-neutral-400 shrink-0" />
             <span>
-              Tools are executed securely within the agent runtime loop. Secret keys stay hidden in
-              the secrets vault.
+              Tools execute inside the runtime loop with per-call idempotency auditing. Custom tool
+              credentials are injected at call time from the secrets vault.
             </span>
           </div>
         </div>
@@ -614,7 +706,10 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
 
           <div className="space-y-4 max-w-lg">
             <div>
-              <label htmlFor="agent-name-edit" className="block text-xs font-bold text-accent-black mb-1">
+              <label
+                htmlFor="agent-name-edit"
+                className="block text-xs font-bold text-accent-black mb-1"
+              >
                 Agent Name
               </label>
               <input
@@ -627,7 +722,10 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
             </div>
 
             <div>
-              <label htmlFor="agent-desc-edit" className="block text-xs font-bold text-accent-black mb-1">
+              <label
+                htmlFor="agent-desc-edit"
+                className="block text-xs font-bold text-accent-black mb-1"
+              >
                 Description
               </label>
               <input
@@ -640,7 +738,10 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
             </div>
 
             <div>
-              <label htmlFor="agent-env-edit" className="block text-xs font-bold text-accent-black mb-1">
+              <label
+                htmlFor="agent-env-edit"
+                className="block text-xs font-bold text-accent-black mb-1"
+              >
                 Environment
               </label>
               <select
@@ -714,7 +815,9 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
           </div>
 
           {versionsLoading ? (
-            <div className="py-12 text-center text-xs text-neutral-400">Loading version history...</div>
+            <div className="py-12 text-center text-xs text-neutral-400">
+              Loading version history...
+            </div>
           ) : versions.length === 0 ? (
             <div className="p-8 text-center bg-neutral-50 rounded-12 border border-border-faint text-xs text-neutral-500">
               No releases published yet. Click &ldquo;Publish&rdquo; in the top bar to create your
@@ -761,8 +864,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
                             type="button"
                             onClick={() => {
                               // Compare with current live release or previous
-                              const otherVersion =
-                                versions.find((other) => other.id !== v.id) || v;
+                              const otherVersion = versions.find((other) => other.id !== v.id) || v;
                               setDiffModalState({
                                 isOpen: true,
                                 leftId: v.id,

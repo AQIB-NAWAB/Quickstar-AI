@@ -223,16 +223,23 @@ export class WidgetVoiceLiveSession {
     const clean = textForSpeech(sentence);
     if (!clean) return;
     const voiceId = this.resolvedVoiceId;
-    this.speakChain = this.speakChain.then(async () => {
-      if (this.closed || signal?.aborted) return;
-      const tts = await this.input.tts.synthesize(clean, voiceId, signal);
-      if (this.closed || signal?.aborted) return;
-      this.emit({
-        type: "audio",
-        mime: "audio/mpeg",
-        data: tts.audio.bytes.toString("base64"),
+    this.speakChain = this.speakChain
+      .then(async () => {
+        if (this.closed || signal?.aborted) return;
+        const tts = await this.input.tts.synthesize(clean, voiceId, signal);
+        if (this.closed || signal?.aborted) return;
+        this.emit({
+          type: "audio",
+          mime: "audio/mpeg",
+          data: tts.audio.bytes.toString("base64"),
+        });
+      })
+      .catch((err) => {
+        if (this.closed || signal?.aborted) return;
+        this.input.logger.warn("widget.voice.tts_failed", {
+          message: err instanceof Error ? err.message : "TTS failed",
+        });
       });
-    });
   }
 
   pushPcm(int16: Buffer): void {

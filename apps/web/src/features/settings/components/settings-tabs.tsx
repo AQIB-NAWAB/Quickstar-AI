@@ -7,9 +7,7 @@ interface SettingsTabsProps {
   onSelectTab: (tab: SettingsTab) => void;
 }
 
-const ACCOUNT: { id: SettingsTab; label: string }[] = [
-  { id: "account", label: "Profile" },
-];
+const ACCOUNT: { id: SettingsTab; label: string }[] = [{ id: "account", label: "Profile" }];
 
 const WORKSPACE: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
@@ -17,6 +15,7 @@ const WORKSPACE: { id: SettingsTab; label: string }[] = [
   { id: "api-keys", label: "API keys" },
   { id: "secrets", label: "Secrets" },
   { id: "publishable-keys", label: "Publishable keys" },
+  { id: "custom-tools", label: "Custom tools" },
   { id: "danger", label: "Danger" },
 ];
 
@@ -24,7 +23,12 @@ export function SettingsTabs({ activeTab, onSelectTab }: SettingsTabsProps) {
   return (
     <nav aria-label="Settings sections" className="w-full md:w-52 shrink-0 space-y-5">
       <Section label="Account" items={ACCOUNT} activeTab={activeTab} onSelectTab={onSelectTab} />
-      <Section label="Workspace" items={WORKSPACE} activeTab={activeTab} onSelectTab={onSelectTab} />
+      <Section
+        label="Workspace"
+        items={WORKSPACE}
+        activeTab={activeTab}
+        onSelectTab={onSelectTab}
+      />
     </nav>
   );
 }

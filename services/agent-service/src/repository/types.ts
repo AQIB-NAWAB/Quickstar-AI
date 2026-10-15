@@ -1,11 +1,12 @@
 import type { TenantContext } from "@quickstart/auth";
-import type { AgentToolDefinition, AgentVoiceSettings } from "@quickstart/contracts";
 import type {
-  Agent,
-  AgentVersion,
-  AgentVersionDiff,
-  PublishResult,
-} from "../domain/types.js";
+  AgentToolDefinition,
+  AgentVoiceSettings,
+  CustomTool,
+  CustomToolInput,
+  CustomToolUpdate,
+} from "@quickstart/contracts";
+import type { Agent, AgentVersion, AgentVersionDiff, PublishResult } from "../domain/types.js";
 
 export type CreateAgentInput = {
   name: string;
@@ -44,11 +45,28 @@ export interface AgentStore {
   ): Promise<PublishResult>;
   rollback(tenant: TenantContext, agentId: string, versionId: string): Promise<PublishResult>;
   listVersions(tenant: TenantContext, agentId: string, limit?: number): Promise<AgentVersion[]>;
-  getVersion(tenant: TenantContext, agentId: string, versionId: string): Promise<AgentVersion | null>;
+  getVersion(
+    tenant: TenantContext,
+    agentId: string,
+    versionId: string,
+  ): Promise<AgentVersion | null>;
   diffVersions(
     tenant: TenantContext,
     agentId: string,
     leftId: string,
     rightId: string,
   ): Promise<AgentVersionDiff>;
+}
+
+export interface CustomToolStore {
+  createCustomTool(tenant: TenantContext, input: CustomToolInput): Promise<CustomTool>;
+  listCustomTools(tenant: TenantContext): Promise<CustomTool[]>;
+  getCustomTool(tenant: TenantContext, toolId: string): Promise<CustomTool | null>;
+  updateCustomTool(
+    tenant: TenantContext,
+    toolId: string,
+    input: CustomToolUpdate,
+  ): Promise<CustomTool>;
+  deleteCustomTool(tenant: TenantContext, toolId: string): Promise<boolean>;
+  countCustomTools(tenant: TenantContext): Promise<number>;
 }

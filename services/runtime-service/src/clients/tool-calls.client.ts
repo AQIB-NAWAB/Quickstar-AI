@@ -5,7 +5,36 @@ export class ToolCallsClient {
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number = 10_000,
+    private readonly internalToken?: string,
   ) {}
+
+  /**
+   * Staff turns pass the caller's JWT and use the workspace route. Widget turns
+   * have no staff JWT, so the internal widget route (guarded by the runtime's
+   * internal token) records the same audit rows.
+   */
+  private resolve(
+    workspaceId: string,
+    conversationId: string,
+    authHeaders: Record<string, string>,
+  ) {
+    const staff = Boolean(authHeaders.authorization);
+    const ws = encodeURIComponent(workspaceId);
+    const conv = encodeURIComponent(conversationId);
+    if (staff) {
+      return {
+        url: `${this.baseUrl}/v1/workspaces/${ws}/conversations/${conv}/tool-calls`,
+        headers: authHeaders,
+      };
+    }
+    if (!this.internalToken) {
+      throw new Error("ToolCallsClient requires an internal token for widget tool-call audit");
+    }
+    return {
+      url: `${this.baseUrl}/internal/workspaces/${ws}/widget/conversations/${conv}/tool-calls`,
+      headers: { authorization: `Bearer ${this.internalToken}` },
+    };
+  }
 
   async upsert(
     workspaceId: string,
@@ -13,13 +42,13 @@ export class ToolCallsClient {
     body: UpsertToolCallBody,
     authHeaders: Record<string, string>,
   ): Promise<{ record: ToolCallRecord; created: boolean }> {
-    const url = `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/tool-calls`;
+    const { url, headers } = this.resolve(workspaceId, conversationId, authHeaders);
     const res = await fetchWithPolicy(
       url,
       {
         method: "PUT",
         headers: {
-          ...authHeaders,
+          ...headers,
           "content-type": "application/json",
           accept: "application/json",
         },
@@ -40,13 +69,14 @@ export class ToolCallsClient {
     turnIdempotencyKey: string,
     authHeaders: Record<string, string>,
   ): Promise<ToolCallRecord[]> {
-    const params = new URLSearchParams({ turn_idempotency_key: turnIdempotencyKey });
-    const url = `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/tool-calls?${params}`;
+    const { url, headers } = this.resolve(workspaceId, conversationId, authHeaders);
+    const separator = url.includes("?") ? "&" : "?";
+    const params = `turn_idempotency_key=${encodeURIComponent(turnIdempotencyKey)}`;
     const res = await fetchWithPolicy(
-      url,
+      `${url}${separator}${params}`,
       {
         method: "GET",
-        headers: { ...authHeaders, accept: "application/json" },
+        headers: { ...headers, accept: "application/json" },
       },
       { timeoutMs: this.timeoutMs, maxRetries: 0 },
     );

@@ -422,6 +422,7 @@ export function FrontendPreview({ view }: { view: string[] }) {
               canRemoveMember: true,
               canManageSecrets: true,
               canManagePublishableKeys: true,
+              canManageCustomTools: true,
             }}
           />
         ) : (

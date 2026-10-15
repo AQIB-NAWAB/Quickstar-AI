@@ -1,4 +1,9 @@
-import type { AgentToolDefinition } from "@quickstart/contracts";
+import type {
+  AgentToolDefinition,
+  CustomToolConfig,
+  CustomToolKind,
+  CustomToolInput,
+} from "@quickstart/contracts";
 import {
   MAX_TOOL_TIMEOUT_MS,
   MAX_TOOLS_PER_AGENT,
@@ -18,6 +23,54 @@ function isPrivateHost(host: string): boolean {
     if (second >= 16 && second <= 31) return true;
   }
   return false;
+}
+
+const HEADER_NAME_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+const SECRET_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+const FORBIDDEN_HEADERS = new Set(["authorization", "x-api-key", "api-key"]);
+
+function validateHttpAuth(tool: AgentToolDefinition & { type: "http" }): void {
+  if (!tool.headers) return;
+  if (typeof tool.headers !== "object" || Array.isArray(tool.headers)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool headers must be an object",
+    });
+  }
+  for (const [key, value] of Object.entries(tool.headers)) {
+    if (!HEADER_NAME_PATTERN.test(key)) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `invalid static header name: ${key}`,
+      });
+    }
+    if (FORBIDDEN_HEADERS.has(key.toLowerCase())) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `header '${key}' is not allowed on tools; use a workspace secret via auth instead`,
+      });
+    }
+    if (typeof value !== "string" || value.length > 4096) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `header '${key}' value must be a string under 4096 characters`,
+      });
+    }
+  }
+  if (tool.auth) {
+    if (tool.auth.type !== "bearer_secret" || !tool.auth.secret_name?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "http tool auth requires type 'bearer_secret' and secret_name",
+      });
+    }
+    if (!SECRET_NAME_PATTERN.test(tool.auth.secret_name)) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "auth secret_name must match [A-Za-z0-9_.-]{1,64}",
+      });
+    }
+  }
 }
 
 function validateHttpTool(tool: AgentToolDefinition & { type: "http" }): void {
@@ -70,6 +123,13 @@ function validateHttpTool(tool: AgentToolDefinition & { type: "http" }): void {
       });
     }
   }
+  if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(tool.method)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "http tool method must be GET, POST, PUT, PATCH, or DELETE",
+    });
+  }
+  validateHttpAuth(tool);
 }
 
 function validateMcpTool(tool: AgentToolDefinition & { type: "mcp" }): void {
@@ -173,4 +233,88 @@ export function validateAgentTools(tools: AgentToolDefinition[]): AgentToolDefin
     normalized.push(tool);
   }
   return normalized;
+}
+
+/** Validates a workspace custom tool (registry row) before create/update. */
+export function validateCustomToolInput(input: CustomToolInput): CustomToolInput {
+  if (!input?.name?.trim()) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "custom tool requires a name",
+    });
+  }
+  const name = input.name.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(name)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "custom tool name must be alphanumeric with underscores",
+    });
+  }
+  if (input.description !== undefined && input.description.trim().length > 500) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "custom tool description must be under 500 characters",
+    });
+  }
+  if (input.kind !== "http" && input.kind !== "mcp") {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "custom tool kind must be http or mcp",
+    });
+  }
+  if (!input.config || typeof input.config !== "object" || Array.isArray(input.config)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "custom tool requires a config object",
+    });
+  }
+
+  const config = input.config as CustomToolConfig;
+  const timeout =
+    input.kind === "http"
+      ? (config as import("@quickstart/contracts").CustomToolHttpConfig).timeout_ms
+      : undefined;
+  if (timeout !== undefined && (timeout < 1000 || timeout > MAX_TOOL_TIMEOUT_MS)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: `custom tool timeout_ms must be between 1000 and ${MAX_TOOL_TIMEOUT_MS}`,
+    });
+  }
+
+  if (input.kind === "http") {
+    const httpConfig = config as import("@quickstart/contracts").CustomToolHttpConfig;
+    const synthetic: AgentToolDefinition & { type: "http" } = {
+      id: "custom:validation",
+      name,
+      description: input.description?.trim() || name,
+      type: "http",
+      method: httpConfig.method ?? "GET",
+      base_url: httpConfig.base_url ?? "",
+      allowed_hosts: httpConfig.allowed_hosts ?? [],
+      ...(httpConfig.path_template ? { path_template: httpConfig.path_template } : {}),
+      ...(httpConfig.headers ? { headers: httpConfig.headers } : {}),
+      ...(httpConfig.auth ? { auth: httpConfig.auth } : {}),
+      ...(timeout !== undefined ? { timeout_ms: timeout } : {}),
+      ...(httpConfig.idempotent !== undefined ? { idempotent: httpConfig.idempotent } : {}),
+    };
+    validateHttpTool(synthetic);
+  } else {
+    const mcpConfig = config as import("@quickstart/contracts").CustomToolMcpConfig;
+    const synthetic: AgentToolDefinition & { type: "mcp" } = {
+      id: "custom:validation",
+      name,
+      description: input.description?.trim() || name,
+      type: "mcp",
+      server_url: mcpConfig.server_url ?? "",
+      allowed_tool_names: mcpConfig.allowed_tool_names ?? [],
+    };
+    validateMcpTool(synthetic);
+  }
+
+  return {
+    name,
+    description: input.description?.trim() || "",
+    kind: input.kind as CustomToolKind,
+    config: input.config as CustomToolConfig,
+  };
 }
