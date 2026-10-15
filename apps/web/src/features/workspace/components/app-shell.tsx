@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Megaphone,
   Phone,
+  Plus,
   Send,
   Settings,
   UsersRound,
@@ -28,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { NotificationsProvider } from "@/features/notifications/context/notifications-context";
+import { CreateWorkspaceDialog } from "./create-workspace-dialog";
 import type { WorkspaceSummary } from "@/lib/server/workspace/workspaces";
 
 type Props = {
@@ -64,6 +66,7 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const isInbox = pathname.includes("/inbox");
@@ -231,20 +234,53 @@ export function AppShell({
                 />
               </button>
 
-              {workspaceMenuOpen && workspaces.length > 0 && (
-                <div className="absolute left-2 right-2 top-[calc(100%+6px)] z-40 max-h-64 overflow-auto rounded-lg border border-[#E1E5EA] bg-white py-1 shadow-lg">
-                  {workspaces.map((ws) => (
-                    <Link
-                      key={ws.id}
-                      href={`/workspaces/${ws.id}/agents`}
-                      onClick={() => setWorkspaceMenuOpen(false)}
-                      className={`block px-3 py-2 text-[14px] font-medium transition-colors hover:bg-[#F8F9FA] ${
-                        ws.id === workspaceId ? "bg-[#FFF3ED] font-semibold text-[#F15A24]" : "text-[#202125]"
-                      }`}
-                    >
-                      {ws.name}
-                    </Link>
-                  ))}
+              {workspaceMenuOpen && (
+                <div className="absolute left-2 right-2 top-[calc(100%+6px)] z-40 max-h-80 overflow-hidden rounded-lg border border-[#E1E5EA] bg-white py-1 shadow-lg flex flex-col">
+                  <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#98A2B3] shrink-0">
+                    Workspaces ({workspaces.length})
+                  </div>
+                  <div className="max-h-48 overflow-y-auto divide-y divide-[#F2F4F7]">
+                    {workspaces.map((ws) => (
+                      <Link
+                        key={ws.id}
+                        href={`/workspaces/${ws.id}/agents`}
+                        onClick={() => setWorkspaceMenuOpen(false)}
+                        className={`flex items-center justify-between px-3 py-2 text-[14px] font-medium transition-colors hover:bg-[#F8F9FA] ${
+                          ws.id === workspaceId
+                            ? "bg-[#FFF3ED] font-semibold text-[#F15A24]"
+                            : "text-[#202125]"
+                        }`}
+                      >
+                        <span className="truncate">{ws.name}</span>
+                        {ws.id === workspaceId && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F15A24] shrink-0" />
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+
+                  <div className="my-1 border-t border-[#EDF0F2] shrink-0" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWorkspaceMenuOpen(false);
+                      setCreateWorkspaceOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] font-semibold text-[#F15A24] hover:bg-[#FFF3ED] transition-colors shrink-0 text-left"
+                  >
+                    <Plus className="w-4 h-4 shrink-0" />
+                    <span>Create new workspace</span>
+                  </button>
+
+                  <Link
+                    href="/workspaces"
+                    onClick={() => setWorkspaceMenuOpen(false)}
+                    className="flex items-center justify-between px-3 py-1.5 text-[12px] text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] transition-colors shrink-0"
+                  >
+                    <span>View all workspaces</span>
+                    <span className="font-mono text-[11px]">→</span>
+                  </Link>
                 </div>
               )}
             </div>
@@ -440,6 +476,11 @@ export function AppShell({
           </div>
         </div>
       </div>
+
+      <CreateWorkspaceDialog
+        isOpen={createWorkspaceOpen}
+        onClose={() => setCreateWorkspaceOpen(false)}
+      />
     </NotificationsProvider>
   );
 }
