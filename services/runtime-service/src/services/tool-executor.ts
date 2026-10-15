@@ -1,6 +1,7 @@
 import type { AgentToolDefinition } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { fetchWithPolicy } from "@quickstart/utilities";
+import type { SecretsClient } from "../clients/secrets.client.js";
 import type { WebFetchClient } from "../clients/web-fetch.client.js";
 import type { McpToolRunner } from "./mcp-tool-runner.js";
 
@@ -20,6 +21,7 @@ export class ToolExecutor {
   constructor(
     private readonly webFetch?: WebFetchClient,
     private readonly mcpRunner?: McpToolRunner,
+    private readonly secrets?: SecretsClient,
   ) {}
 
   async execute(
@@ -133,7 +135,7 @@ export class ToolExecutor {
   private async executeHttp(
     tool: AgentToolDefinition & { type: "http" },
     args: Record<string, unknown>,
-    ctx: { timeoutMs: number },
+    ctx: { workspaceId: string; requestId: string; timeoutMs: number },
   ): Promise<ToolExecutionResult> {
     const path =
       typeof args.path === "string"
@@ -154,11 +156,33 @@ export class ToolExecutor {
       method !== "GET" && method !== "DELETE" && args.body !== undefined
         ? JSON.stringify(args.body)
         : undefined;
+
+    const headers: Record<string, string> = {
+      ...(tool.headers ?? {}),
+      ...(body ? { "content-type": "application/json" } : {}),
+    };
+    if (tool.auth?.type === "bearer_secret" && tool.auth.secret_name) {
+      if (!this.secrets) {
+        return {
+          ok: false,
+          content: "Secret-backed tool auth is not configured on the runtime",
+          errorCode: "SECRETS_UNAVAILABLE",
+          status: "failed",
+        };
+      }
+      const value = await this.secrets.reveal(
+        ctx.workspaceId,
+        tool.auth.secret_name,
+        ctx.requestId,
+      );
+      headers.authorization = `Bearer ${value}`;
+    }
+
     const res = await fetchWithPolicy(
       url.toString(),
       {
         method,
-        headers: body ? { "content-type": "application/json" } : undefined,
+        headers,
         body,
       },
       { timeoutMs: ctx.timeoutMs, maxRetries: 0 },

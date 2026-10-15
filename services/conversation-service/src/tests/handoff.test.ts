@@ -38,8 +38,10 @@ test("take assigns conversation to staff; second take returns 409", async () => 
     };
     assert.equal(taken.conversation.state, "human");
     assert.equal(taken.conversation.assignee_user_id, USER_A);
-    assert.equal(store.outboxEvents.length, 1);
+    // Handoff emits the handed_off event plus the system "teammate joined" message event.
+    assert.equal(store.outboxEvents.length, 2);
     assert.equal(store.outboxEvents[0].type, "conversation.handed_off");
+    assert.equal(store.outboxEvents[1].type, "message.appended");
 
     const takeB = await fetch(
       `${base}/v1/workspaces/${WS_A}/conversations/${conversationId}/take`,
@@ -116,10 +118,9 @@ test("list conversations filters by state", async () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    const humanList = await fetch(
-      `${base}/v1/workspaces/${WS_A}/conversations?state=human`,
-      { headers: { authorization: `Bearer ${token}` } },
-    );
+    const humanList = await fetch(`${base}/v1/workspaces/${WS_A}/conversations?state=human`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
     assert.equal(humanList.status, 200);
     const humanBody = (await humanList.json()) as { conversations: { id: string }[] };
     assert.equal(humanBody.conversations.length, 1);

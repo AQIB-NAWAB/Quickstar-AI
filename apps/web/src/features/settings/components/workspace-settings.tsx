@@ -9,6 +9,7 @@ import { MembersSettings } from "./members-settings";
 import { ApiKeysSettings } from "./api-keys-settings";
 import { SecretsSettings } from "./secrets-settings";
 import { PublishableKeysSettings } from "./publishable-keys-settings";
+import { CustomToolsSettings } from "./custom-tools-settings";
 import { DangerZone } from "./danger-zone";
 import { SettingsDialog } from "./settings-dialog";
 import type { SettingsTab, WorkspaceData, WorkspaceRole } from "../lib/types";
@@ -28,6 +29,7 @@ interface WorkspaceSettingsProps {
     canRemoveMember: boolean;
     canManageSecrets: boolean;
     canManagePublishableKeys: boolean;
+    canManageCustomTools: boolean;
   };
 }
 
@@ -38,6 +40,7 @@ const VALID_TABS: SettingsTab[] = [
   "api-keys",
   "secrets",
   "publishable-keys",
+  "custom-tools",
   "danger",
 ];
 
@@ -91,9 +94,7 @@ export function WorkspaceSettings({
     <div className="console-feature settings-feature w-full space-y-4">
       {/* Page Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-accent-black">
-          Workspace settings
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight text-accent-black">Workspace settings</h1>
         <p className="text-xs sm:text-sm text-neutral-500">
           Manage your workspace, team access, and credentials.
         </p>
@@ -103,75 +104,80 @@ export function WorkspaceSettings({
       <div className="flex flex-col gap-6 pt-2 md:flex-row md:items-start">
         <SettingsTabs activeTab={activeTab} onSelectTab={handleSelectTab} />
         <div className="min-w-0 flex-1">
-        {activeTab === "account" && (
-          <section className="rounded-16 border border-border-faint bg-white p-6 shadow-xs">
-            <h2 className="text-lg font-bold tracking-tight text-accent-black">Profile</h2>
-            <p className="mt-1 text-[13px] font-medium text-neutral-500">
-              The email on this staff account.
-            </p>
-            <dl className="mt-5 space-y-4 text-[13px]">
-              <div>
-                <dt className="font-semibold text-neutral-500">Email</dt>
-                <dd className="mt-1 font-medium text-accent-black">{currentUser.email}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-neutral-500">Workspace role</dt>
-                <dd className="mt-1 font-medium capitalize text-accent-black">
-                  {currentUser.role.replaceAll("_", " ")}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        )}
+          {activeTab === "account" && (
+            <section className="rounded-16 border border-border-faint bg-white p-6 shadow-xs">
+              <h2 className="text-lg font-bold tracking-tight text-accent-black">Profile</h2>
+              <p className="mt-1 text-[13px] font-medium text-neutral-500">
+                The email on this staff account.
+              </p>
+              <dl className="mt-5 space-y-4 text-[13px]">
+                <div>
+                  <dt className="font-semibold text-neutral-500">Email</dt>
+                  <dd className="mt-1 font-medium text-accent-black">{currentUser.email}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-neutral-500">Workspace role</dt>
+                  <dd className="mt-1 font-medium capitalize text-accent-black">
+                    {currentUser.role.replaceAll("_", " ")}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
-        {activeTab === "general" && (
-          <GeneralSettings
-            workspaceId={workspace.id}
-            initialWorkspace={workspace}
-            canUpdate={permissions.canUpdateWorkspace}
-            onDirtyChange={setIsGeneralDirty}
-            onWorkspaceUpdated={setWorkspace}
-          />
-        )}
+          {activeTab === "general" && (
+            <GeneralSettings
+              workspaceId={workspace.id}
+              initialWorkspace={workspace}
+              canUpdate={permissions.canUpdateWorkspace}
+              onDirtyChange={setIsGeneralDirty}
+              onWorkspaceUpdated={setWorkspace}
+            />
+          )}
 
-        {activeTab === "members" && (
-          <MembersSettings
-            key={currentUser.role}
-            workspaceId={workspace.id}
-            currentUserId={currentUser.id}
-            currentUserEmail={currentUser.email}
-            currentUserRole={currentUser.role}
-            canInvite={permissions.canInvite}
-            canUpdateRole={permissions.canUpdateRole}
-            canRemoveMember={permissions.canRemoveMember}
-          />
-        )}
+          {activeTab === "members" && (
+            <MembersSettings
+              key={currentUser.role}
+              workspaceId={workspace.id}
+              currentUserId={currentUser.id}
+              currentUserEmail={currentUser.email}
+              currentUserRole={currentUser.role}
+              canInvite={permissions.canInvite}
+              canUpdateRole={permissions.canUpdateRole}
+              canRemoveMember={permissions.canRemoveMember}
+            />
+          )}
 
-        {activeTab === "api-keys" && (
-          <ApiKeysSettings orgId={workspace.orgId} />
-        )}
+          {activeTab === "api-keys" && <ApiKeysSettings orgId={workspace.orgId} />}
 
-        {activeTab === "secrets" && (
-          <SecretsSettings
-            workspaceId={workspace.id}
-            canManageSecrets={permissions.canManageSecrets}
-          />
-        )}
+          {activeTab === "secrets" && (
+            <SecretsSettings
+              workspaceId={workspace.id}
+              canManageSecrets={permissions.canManageSecrets}
+            />
+          )}
 
-        {activeTab === "publishable-keys" && (
-          <PublishableKeysSettings
-            workspaceId={workspace.id}
-            canManagePublishableKeys={permissions.canManagePublishableKeys}
-          />
-        )}
+          {activeTab === "publishable-keys" && (
+            <PublishableKeysSettings
+              workspaceId={workspace.id}
+              canManagePublishableKeys={permissions.canManagePublishableKeys}
+            />
+          )}
 
-        {activeTab === "danger" && (
-          <DangerZone
-            workspaceId={workspace.id}
-            workspaceName={workspace.name}
-            canDeleteWorkspace={permissions.canDeleteWorkspace}
-          />
-        )}
+          {activeTab === "custom-tools" && (
+            <CustomToolsSettings
+              workspaceId={workspace.id}
+              canManageCustomTools={permissions.canManageCustomTools}
+            />
+          )}
+
+          {activeTab === "danger" && (
+            <DangerZone
+              workspaceId={workspace.id}
+              workspaceName={workspace.name}
+              canDeleteWorkspace={permissions.canDeleteWorkspace}
+            />
+          )}
         </div>
       </div>
 
@@ -189,7 +195,8 @@ export function WorkspaceSettings({
                 <AlertCircle className="w-4 h-4" />
               </div>
               <p className="text-xs text-neutral-600 leading-relaxed">
-                You have unsaved changes in General settings. Switching sections now will discard your changes.
+                You have unsaved changes in General settings. Switching sections now will discard
+                your changes.
               </p>
             </div>
 

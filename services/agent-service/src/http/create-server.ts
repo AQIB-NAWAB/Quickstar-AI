@@ -1,6 +1,7 @@
 import type { Logger } from "@quickstart/logging";
 import { createPlatformApp, type Application } from "@quickstart/http-server";
 import { createAgentsController } from "../controllers/agents.controller.js";
+import { createCustomToolsController } from "../controllers/custom-tools.controller.js";
 import { SERVICE_NAME } from "../controllers/health.controller.js";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import type { WorkspaceAccessClient } from "../lib/workspace-access-client.js";
@@ -8,6 +9,7 @@ import { createAuthMiddleware } from "../middleware/auth.middleware.js";
 import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
 import { requireTenantContext } from "../middleware/tenant.middleware.js";
 import type { AgentsService } from "../services/agents.service.js";
+import type { CustomToolsService } from "../services/custom-tools.service.js";
 import type { AgentHttpContext } from "./context.js";
 import { createAgentApiRouter } from "./routes/index.js";
 
@@ -16,6 +18,7 @@ export { SERVICE_NAME };
 export type CreateAgentHttpServerOptions = {
   logger: Logger;
   agents: AgentsService;
+  customTools: CustomToolsService;
   jwtSecret: string;
   internalToken: string;
   workspaceAccess: WorkspaceAccessClient;
@@ -26,7 +29,7 @@ export type CreateAgentHttpServerOptions = {
 };
 
 export function createHttpServer(options: CreateAgentHttpServerOptions): Application {
-  const { logger, agents, jwtSecret, workspaceAccess } = options;
+  const { logger, agents, customTools, jwtSecret, workspaceAccess } = options;
 
   const authGuard = createAuthMiddleware(jwtSecret);
   const tenantGuard = requireTenantContext();
@@ -38,6 +41,7 @@ export function createHttpServer(options: CreateAgentHttpServerOptions): Applica
     tenantMiddleware: [authGuard, tenantGuard],
     workspaceAccess,
     agentsCtrl: createAgentsController(agents),
+    customToolsCtrl: createCustomToolsController(customTools),
   };
 
   const apiRouter = createAgentApiRouter(httpContext);

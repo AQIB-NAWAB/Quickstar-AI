@@ -37,6 +37,18 @@ export const createInternalWidgetRoutes: RouteModule<ConversationHttpContext> = 
     tenant,
     asyncHandler(conversationsCtrl.appendMessage),
   );
+  router.put(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/tool-calls",
+    internalAuth,
+    tenant,
+    asyncHandler(conversationsCtrl.upsertToolCall),
+  );
+  router.get(
+    "/internal/workspaces/:workspaceId/widget/conversations/:conversationId/tool-calls",
+    internalAuth,
+    tenant,
+    asyncHandler(conversationsCtrl.listToolCalls),
+  );
 
   return router;
 };

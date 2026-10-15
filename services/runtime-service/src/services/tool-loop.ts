@@ -24,6 +24,21 @@ function findTool(tools: AgentToolDefinition[], name: string): AgentToolDefiniti
   return tools.find((t) => t.name === name);
 }
 
+/** Required parameters the model did not supply. Empty values count as missing. */
+function missingRequiredArgs(tool: AgentToolDefinition, args: Record<string, unknown>): string[] {
+  const required = tool.parameters?.required ?? [];
+  return required.filter((key) => {
+    const value = args[key];
+    return (
+      value === undefined || value === null || (typeof value === "string" && value.trim() === "")
+    );
+  });
+}
+
+function toolGuardMessage(message: string): string {
+  return JSON.stringify({ error: "tool_guard", instruction: message });
+}
+
 export type ToolLoopInput = {
   workspaceId: string;
   conversationId: string;
@@ -53,6 +68,7 @@ export class ToolLoop {
     const messages = [...input.chatMessages];
     const modelTools = input.tools.length > 0 ? toModelTools(input.tools) : undefined;
     let transferred = false;
+    const executedCalls = new Map<string, number>();
 
     for (let round = 0; round < MAX_TOOL_ROUNDS_PER_TURN; round += 1) {
       const completion = await this.modelClient.complete({
@@ -108,6 +124,35 @@ export class ToolLoop {
           });
           continue;
         }
+
+        const args = call.arguments ?? {};
+        const callFingerprint = `${call.name}:${JSON.stringify(args)}`;
+        if (executedCalls.has(callFingerprint)) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage(
+              `You already called ${call.name} with these arguments in this reply. Do not call it again — answer the visitor using the result you already received.`,
+            ),
+          });
+          continue;
+        }
+
+        const missing = missingRequiredArgs(tool, args);
+        if (missing.length > 0) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage(
+              `Missing required argument(s): ${missing.join(", ")}. Ask the visitor for the missing details before calling this tool again. Never guess or invent values.`,
+            ),
+          });
+          continue;
+        }
+
+        executedCalls.set(callFingerprint, round);
 
         const toolCallKey = buildToolCallKey(
           input.turnIdempotencyKey,

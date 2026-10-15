@@ -124,8 +124,10 @@ bold "4) Staff web (optional)"
 if curl -sf "http://127.0.0.1:3015" >/dev/null 2>&1 || curl -sf "http://127.0.0.1:3015/login" >/dev/null 2>&1; then
   echo "  web already up on :3015"
 else
-  # apps/web defaults to 3005 in package.json; force 3015 (staff web) for local stack
-  nohup env PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 >>"$LOG_DIR/web.log" 2>&1 &
+  # apps/web defaults to 3005 in package.json; force 3015 (staff web) for local stack.
+  # Force NODE_ENV=development: `next dev` keeps an inherited NODE_ENV=production,
+  # which disables eval in the middleware sandbox and crashes every page render.
+  nohup env NODE_ENV=development PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 >>"$LOG_DIR/web.log" 2>&1 &
   echo $! >"$LOG_DIR/web.pid"
   echo "  started web (pid $!) → $LOG_DIR/web.log"
 fi

@@ -3,12 +3,64 @@ export type AgentChannels = {
   voice: boolean;
 };
 
-export type AgentToolDefinition = {
-  name: string;
+export type ToolParameterProperty = {
+  type: string;
   description?: string;
-  parameters?: Record<string, unknown>;
-  [key: string]: unknown;
+  items?: { type: string };
+  enum?: Array<string | number | boolean>;
 };
+
+export type ToolParameterSchema = {
+  type: "object";
+  properties?: Record<string, ToolParameterProperty>;
+  required?: string[];
+};
+
+export type AgentHttpToolAuth = {
+  type: "bearer_secret";
+  secret_name: string;
+};
+
+export type AgentToolDefinitionBase = {
+  id: string;
+  name: string;
+  description: string;
+  parameters?: ToolParameterSchema;
+  timeout_ms?: number;
+  idempotent?: boolean;
+};
+
+export type AgentHttpToolDefinition = AgentToolDefinitionBase & {
+  type: "http";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  base_url: string;
+  allowed_hosts: string[];
+  path_template?: string;
+  headers?: Record<string, string>;
+  auth?: AgentHttpToolAuth;
+};
+
+export type AgentBuiltinWebToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_web";
+  action: "scrape" | "search";
+};
+
+export type AgentMcpToolDefinition = AgentToolDefinitionBase & {
+  type: "mcp";
+  server_url: string;
+  allowed_tool_names: string[];
+};
+
+export type AgentBuiltinLeadToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_leads";
+  action: "start" | "status" | "results" | "cancel";
+};
+
+export type AgentToolDefinition =
+  | AgentBuiltinLeadToolDefinition
+  | AgentHttpToolDefinition
+  | AgentBuiltinWebToolDefinition
+  | AgentMcpToolDefinition;
 
 export type AgentSnapshot = {
   name: string;

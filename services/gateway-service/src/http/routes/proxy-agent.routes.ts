@@ -21,5 +21,11 @@ export const createAgentProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => 
   );
   router.get("/v1/workspaces/:workspaceId/agents/:agentId/versions/:versionId", ...chain);
 
+  router.get("/v1/workspaces/:workspaceId/custom-tools", ...chain);
+  router.post("/v1/workspaces/:workspaceId/custom-tools", ...chain);
+  router.get("/v1/workspaces/:workspaceId/custom-tools/:toolId", ...chain);
+  router.patch("/v1/workspaces/:workspaceId/custom-tools/:toolId", ...chain);
+  router.delete("/v1/workspaces/:workspaceId/custom-tools/:toolId", ...chain);
+
   return router;
 };
