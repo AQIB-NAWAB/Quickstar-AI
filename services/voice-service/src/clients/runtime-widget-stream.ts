@@ -13,6 +13,7 @@ export async function streamWidgetTurn(
     requestId: string;
     modality?: "text" | "voice";
     replyLanguage?: string;
+    signal?: AbortSignal;
     onNudge?: (text: string) => void;
     onTransfer?: () => void;
   },
@@ -36,6 +37,7 @@ export async function streamWidgetTurn(
       modality: input.modality ?? "voice",
       reply_language: input.replyLanguage,
     }),
+    signal: input.signal,
   });
   if (!res.ok || !res.body) {
     const body = await res.text().catch(() => "");
