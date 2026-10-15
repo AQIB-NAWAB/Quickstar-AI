@@ -650,7 +650,7 @@
     pollTimer = window.setInterval(() => void pollNewMessages(), 2000);
   }
 
-  async function consumeTurnStream(response, onToken) {
+  async function consumeTurnStream(response, onToken, onNudge) {
     if (!response.body) {
       throw new Error("No response stream from server");
     }
@@ -681,6 +681,7 @@
           continue;
         }
         if (eventName === "token" && data.delta) onToken(data.delta);
+        else if (eventName === "nudge" && data.text) onNudge?.(data.text);
         else if (eventName === "handoff") turn = { ...(turn || {}), handoff: true, handoff_message: data.message };
         else if (eventName === "done") turn = { ...(data.turn || {}), handoff: turn?.handoff || data.turn?.handoff, handoff_message: turn?.handoff_message };
         else if (eventName === "error") {
@@ -694,7 +695,7 @@
     return turn;
   }
 
-  async function postTurnStream(path, options, onToken) {
+  async function postTurnStream(path, options, onToken, onNudge) {
     const response = await fetch(`${gatewayUrl}/v1/public/widget${path}`, {
       ...options,
       headers: {
@@ -712,7 +713,7 @@
       error.status = response.status;
       throw error;
     }
-    return consumeTurnStream(response, onToken);
+    return consumeTurnStream(response, onToken, onNudge);
   }
 
   async function request(path, options = {}) {
@@ -1304,6 +1305,7 @@
     status.textContent = "Thinking…";
     addMessage("user", text);
     let assistantBubble = null;
+    let progressBubble = null;
     const onToken = (delta) => {
       if (!assistantBubble) {
         assistantBubble = addMessage("assistant", "");
@@ -1311,6 +1313,15 @@
         beginAssistantStream(assistantBubble);
       }
       enqueueAssistantStream(assistantBubble, delta);
+    };
+    const onNudge = (spoken) => {
+      status.textContent = "";
+      if (!progressBubble) {
+        progressBubble = addMessage("assistant", spoken);
+        if (progressBubble) progressBubble.classList.add("tool-progress");
+      } else {
+        setMessageText(progressBubble, "assistant", spoken);
+      }
     };
     try {
       const turn = await postTurnStream(
@@ -1321,6 +1332,7 @@
           body: JSON.stringify({ message: text }),
         },
         onToken,
+        onNudge,
       );
       if (turn?.user_message) rememberMessage(turn.user_message);
       if (turn?.assistant_message?.id && assistantBubble) {

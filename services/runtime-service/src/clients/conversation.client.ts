@@ -142,7 +142,11 @@ export class ConversationClient {
     headers: Record<string, string>,
     limit: number = 50,
   ): Promise<MessageInfo[]> {
-    const url = `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/messages?limit=${limit}`;
+    // The conversation API's limit is applied from seq 1. For model context we
+    // need the tail of the thread, including the user message just appended.
+    const conversation = await this.getConversation(workspaceId, conversationId, headers);
+    const afterSeq = Math.max(0, conversation.last_seq - limit);
+    const url = `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/messages?after_seq=${afterSeq}&limit=${limit}`;
     const res = await fetchWithPolicy(
       url,
       {
@@ -277,7 +281,9 @@ export class ConversationClient {
     requestId: string,
     limit: number = 50,
   ): Promise<MessageInfo[]> {
-    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/messages?limit=${limit}`;
+    const conversation = await this.getConversationWidget(workspaceId, conversationId, requestId);
+    const afterSeq = Math.max(0, conversation.last_seq - limit);
+    const url = `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/messages?after_seq=${afterSeq}&limit=${limit}`;
     const res = await fetchWithPolicy(
       url,
       { method: "GET", headers: this.widgetAuthHeaders(requestId) },

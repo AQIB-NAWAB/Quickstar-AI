@@ -38,6 +38,7 @@ export class WidgetVoiceLiveSession {
   private ready = false;
   private processingTurn = false;
   private lastProcessedText = "";
+  private lastProcessedAt = 0;
   /** Finalized phrases in the current utterance. A short pause must not commit these. */
   private utteranceParts: string[] = [];
   private openInterim = "";
@@ -68,7 +69,6 @@ export class WidgetVoiceLiveSession {
   ) {}
 
   private held = false;
-  private transferNotified = false;
   private speakChain: Promise<void> = Promise.resolve();
 
   subscribe(listener: Listener): () => void {
@@ -84,7 +84,12 @@ export class WidgetVoiceLiveSession {
   }
 
   async start(): Promise<void> {
-    this.replyLanguage = await this.input.replyLanguage.catch(() => "en");
+    const [replyLanguage, voiceId] = await Promise.all([
+      this.input.replyLanguage.catch(() => "en"),
+      this.input.ttsVoiceId.catch(() => this.resolvedVoiceId),
+    ]);
+    this.replyLanguage = replyLanguage;
+    if (voiceId) this.resolvedVoiceId = voiceId;
     this.openDeepgram();
   }
 
@@ -197,7 +202,6 @@ export class WidgetVoiceLiveSession {
 
   releaseModel(): void {
     this.held = false;
-    this.transferNotified = false;
   }
 
   sayTransfer(name: string): void {
@@ -209,14 +213,6 @@ export class WidgetVoiceLiveSession {
       if (id) this.resolvedVoiceId = id;
       this.speak(line);
     });
-  }
-
-  private noteTransfer(text: string): void {
-    if (this.transferNotified) return;
-    if (!/switching you|ساتھی کے پاس/i.test(text)) return;
-    this.transferNotified = true;
-    this.held = true;
-    this.input.onTransferSpoken?.();
   }
 
   private speak(sentence: string, signal?: AbortSignal): void {
@@ -293,12 +289,14 @@ export class WidgetVoiceLiveSession {
     this.utteranceParts = [];
     this.openInterim = "";
     if (!text || this.processingTurn || this.closed || this.held) return;
-    if (text === this.lastProcessedText) return;
+    if (/^(um+|uh+|hmm+|ah+|er+|mm+)$/i.test(text)) return;
+    const now = Date.now();
+    if (text === this.lastProcessedText && now - this.lastProcessedAt < 1_500) return;
     if (text.length < 2) return;
     this.processingTurn = true;
     this.bargeFrames = 0;
     this.lastProcessedText = text;
-    this.resolvedVoiceId = await this.input.ttsVoiceId.catch(() => this.resolvedVoiceId);
+    this.lastProcessedAt = now;
     const turnAbort = new AbortController();
     this.turnAbort = turnAbort;
     const requestId = randomUUID();
@@ -324,9 +322,9 @@ export class WidgetVoiceLiveSession {
           requestId,
           modality: "voice",
           replyLanguage: this.replyLanguage,
+          signal: turnAbort.signal,
           onNudge: (line) => speak(line),
           onTransfer: () => {
-            this.transferNotified = true;
             this.held = true;
             this.input.onTransferSpoken?.();
           },
@@ -344,7 +342,6 @@ export class WidgetVoiceLiveSession {
       );
       const assistantText = turn.assistant_text || assistantBuffer;
       if (pending.trim()) speak(pending);
-      this.noteTransfer(assistantText);
       this.emit({ type: "assistant_done", text: assistantText });
       await this.speakChain;
       this.emit({ type: "turn_done" });
@@ -354,13 +351,18 @@ export class WidgetVoiceLiveSession {
       this.input.logger.warn("widget.voice.live_turn_failed", { message });
       this.emit({ type: "error", message });
     } finally {
-      if (this.turnAbort === turnAbort) this.turnAbort = null;
-      this.processingTurn = false;
+      if (this.turnAbort === turnAbort) {
+        this.turnAbort = null;
+        this.processingTurn = false;
+      }
     }
   }
 
   close(): void {
     this.closed = true;
+    this.turnAbort?.abort();
+    this.turnAbort = null;
+    this.processingTurn = false;
     this.cancelCommit();
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
