@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import type { Agent, AgentToolDefinition, AgentVersion } from "../lib/types";
 import { getAgent, listVersions, publishAgent, rollbackAgent, updateAgent } from "../lib/client";
-import { BUILTIN_TOOLS, customToolToAgentTool } from "../lib/tools";
 import { listCustomTools } from "@/features/settings/lib/client";
 import type { CustomToolItem } from "@/features/settings/lib/types";
 import { ConflictBanner } from "./conflict-banner";
@@ -29,10 +28,12 @@ import { PublishModal } from "./publish-modal";
 import { DiffModal } from "./diff-modal";
 import { TestChatDrawer } from "./test-chat-drawer";
 import { VoiceCatalogPicker, type CatalogVoice } from "./voice-catalog-picker";
+import { AgentToolsPanel } from "./agent-tools-panel";
 
 type Props = {
   workspaceId: string;
   initialAgent: Agent;
+  canManageCustomTools?: boolean;
 };
 
 type TabKey = "identity" | "instructions" | "model" | "tools" | "versions";
@@ -56,7 +57,11 @@ const AVAILABLE_MODELS = [
   },
 ];
 
-export function AgentEditor({ workspaceId, initialAgent }: Props) {
+export function AgentEditor({
+  workspaceId,
+  initialAgent,
+  canManageCustomTools = true,
+}: Props) {
   const router = useRouter();
   const [agent, setAgent] = useState<Agent>(initialAgent);
   const [activeTab, setActiveTab] = useState<TabKey>("instructions");
@@ -289,9 +294,9 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
   const estimatedTokens = Math.ceil(instructions.length / 4);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
+    <div className="mx-auto max-w-4xl space-y-5 pb-14">
       {/* Top Breadcrumb & Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-faint">
+      <div className="flex flex-col justify-between gap-4 border-b border-border-faint pb-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <Link
             href={`/workspaces/${workspaceId}/agents`}
@@ -302,7 +307,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-accent-black tracking-tight">{agent.name}</h1>
+              <h1 className="text-base font-bold text-accent-black tracking-tight">{agent.name}</h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neutral-100 text-neutral-600 border border-border-faint">
                 Draft v{agent.version}
               </span>
@@ -317,9 +322,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
                 </span>
               )}
             </div>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Workspace Agent Workbench · Optimistic concurrency guarded
-            </p>
+            <p className="mt-0.5 text-[11px] text-neutral-500">Agent configuration · save before publish</p>
           </div>
         </div>
 
@@ -387,13 +390,13 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
       )}
 
       {/* Tab Navigation */}
-      <div className="border-b border-border-faint flex items-center gap-1 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-5 overflow-x-auto border-b border-border-faint text-xs no-scrollbar">
         {[
-          { key: "instructions", label: "Instructions & Prompt", icon: FileText },
-          { key: "model", label: "Model & Parameters", icon: Cpu },
-          { key: "tools", label: "Tools & Functions", icon: Wrench },
-          { key: "identity", label: "Identity & Channels", icon: Bot },
-          { key: "versions", label: "Releases & Rollback", icon: GitCommit },
+          { key: "instructions", label: "Instructions", icon: FileText },
+          { key: "model", label: "Model", icon: Cpu },
+          { key: "tools", label: "Tools", icon: Wrench },
+          { key: "identity", label: "Identity", icon: Bot },
+          { key: "versions", label: "Releases", icon: GitCommit },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -402,29 +405,29 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key as TabKey)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap pb-2.5 -mb-px border-b-2 transition-colors ${
                 isActive
-                  ? "border-heat-100 text-heat-100 bg-heat-12/30"
-                  : "border-transparent text-neutral-500 hover:text-neutral-900 hover:border-neutral-300"
+                  ? "border-accent-black font-semibold text-accent-black"
+                  : "border-transparent font-medium text-neutral-500 hover:text-neutral-900"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="h-3.5 w-3.5 opacity-70" />
               {tab.label}
             </button>
           );
         })}
         <Link
           href={`/workspaces/${workspaceId}/agents/${agent.id}/eval`}
-          className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold border-b-2 border-transparent text-neutral-500 hover:text-neutral-900 hover:border-neutral-300 transition-all whitespace-nowrap ml-auto sm:ml-0"
+          className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap pb-2.5 -mb-px border-b-2 border-transparent font-medium text-neutral-500 transition-colors hover:text-neutral-900 sm:ml-0"
         >
-          <BarChart3 className="w-4 h-4 text-[#fa5d19]" />
+          <BarChart3 className="h-3.5 w-3.5" />
           Evaluation
         </Link>
       </div>
 
       {/* TAB 1: INSTRUCTIONS & SYSTEM PROMPT */}
       {activeTab === "instructions" && (
-        <div className="space-y-4 rounded-16 border border-border-faint bg-white p-6 shadow-xs animate-in fade-in">
+        <div className="animate-in fade-in space-y-4 rounded-14 border border-border-faint bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-accent-black">System Instructions</h3>
@@ -458,7 +461,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
 
       {/* TAB 2: MODEL & PARAMETERS */}
       {activeTab === "model" && (
-        <div className="space-y-6 rounded-16 border border-border-faint bg-white p-6 shadow-xs animate-in fade-in">
+        <div className="animate-in fade-in space-y-5 rounded-14 border border-border-faint bg-white p-5 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-accent-black">Model Settings & Generation</h3>
             <p className="text-xs text-neutral-500">
@@ -477,15 +480,15 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
                     key={m.id}
                     type="button"
                     onClick={() => setModel(m.id)}
-                    className={`p-3.5 rounded-10 border text-left transition-all ${
+                    className={`rounded-10 border p-3 text-left transition-all ${
                       isSelected
-                        ? "border-heat-100 bg-heat-12/20 ring-1 ring-heat-100"
+                        ? "border-accent-black/25 bg-neutral-50 ring-1 ring-accent-black/10"
                         : "border-border-faint hover:bg-neutral-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-accent-black">{m.label}</span>
-                      {isSelected && <Check className="w-4 h-4 text-heat-100" />}
+                      {isSelected && <Check className="h-4 w-4 text-accent-black" />}
                     </div>
                     <p className="mt-1 text-[11px] text-neutral-500">{m.desc}</p>
                   </button>
@@ -545,158 +548,23 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
 
       {/* TAB 3: TOOLS & FUNCTIONS */}
       {activeTab === "tools" && (
-        <div className="space-y-6 rounded-16 border border-border-faint bg-white p-6 shadow-xs animate-in fade-in">
-          <div>
-            <h3 className="text-sm font-bold text-accent-black">Agent Tools & Actions</h3>
-            <p className="text-xs text-neutral-500">
-              Attach callable tools that this agent can execute during conversational turns — in
-              staff chat, the website widget, and voice.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-neutral-600 uppercase tracking-wide">
-                  Workspace custom tools
-                </h4>
-                <Link
-                  href={`/workspaces/${workspaceId}/settings?tab=custom-tools`}
-                  className="text-[11px] font-semibold text-heat-100 hover:underline"
-                >
-                  Manage in settings →
-                </Link>
-              </div>
-
-              {customToolsLoading ? (
-                <div className="space-y-2 animate-pulse">
-                  <div className="h-14 bg-neutral-100 rounded-12" />
-                  <div className="h-14 bg-neutral-100 rounded-12" />
-                </div>
-              ) : customToolsError ? (
-                <div className="p-4 rounded-12 bg-red-50 border border-red-200 text-xs text-red-600">
-                  {customToolsError}
-                </div>
-              ) : customTools.length === 0 ? (
-                <div className="p-6 rounded-12 border border-dashed border-border-faint text-center space-y-2">
-                  <p className="text-xs text-neutral-500">No custom tools in this workspace yet.</p>
-                  <Link
-                    href={`/workspaces/${workspaceId}/settings?tab=custom-tools`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-8 bg-neutral-100 hover:bg-neutral-200 text-accent-black text-xs font-semibold transition-colors"
-                  >
-                    <Wrench className="w-3.5 h-3.5" />
-                    <span>Define a custom tool</span>
-                  </Link>
-                </div>
-              ) : (
-                customTools.map((custom) => {
-                  const tool = customToolToAgentTool(custom);
-                  const isAttached = attachedTools.some((t) => t.name === tool.name);
-                  return (
-                    <div
-                      key={custom.id}
-                      className={`p-4 rounded-12 border transition-all flex items-start justify-between gap-4 ${
-                        isAttached
-                          ? "border-neutral-400 bg-neutral-50/50"
-                          : "border-border-faint bg-white"
-                      }`}
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-accent-black">
-                            {tool.name}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-heat-12/40 text-heat-100 border border-heat-100/30">
-                            {custom.kind === "http" ? "HTTP" : "MCP"}
-                          </span>
-                          {isAttached && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-neutral-600">{tool.description}</p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleTool(tool)}
-                        className={`px-3 py-1.5 rounded-8 text-xs font-semibold transition-colors shrink-0 ${
-                          isAttached
-                            ? "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
-                            : "bg-heat-100 text-white hover:bg-heat-100/90 shadow-xs"
-                        }`}
-                      >
-                        {isAttached ? "Remove Tool" : "Attach Tool"}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-neutral-600 uppercase tracking-wide">
-                Platform built-ins
-              </h4>
-              {BUILTIN_TOOLS.map((tool) => {
-                const isAttached = attachedTools.some((t) => t.name === tool.name);
-                return (
-                  <div
-                    key={tool.name}
-                    className={`p-4 rounded-12 border transition-all flex items-start justify-between gap-4 ${
-                      isAttached
-                        ? "border-neutral-400 bg-neutral-50/50"
-                        : "border-border-faint bg-white"
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-accent-black">
-                          {tool.name}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600 border border-border-faint">
-                          {tool.type === "builtin_web" ? "WEB" : "LEADS"}
-                        </span>
-                        {isAttached && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-neutral-600">{tool.description}</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleTool(tool)}
-                      className={`px-3 py-1.5 rounded-8 text-xs font-semibold transition-colors shrink-0 ${
-                        isAttached
-                          ? "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
-                          : "bg-heat-100 text-white hover:bg-heat-100/90 shadow-xs"
-                      }`}
-                    >
-                      {isAttached ? "Remove Tool" : "Attach Tool"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-10 bg-neutral-50 border border-border-faint text-xs text-neutral-600 flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-neutral-400 shrink-0" />
-            <span>
-              Tools execute inside the runtime loop with per-call idempotency auditing. Custom tool
-              credentials are injected at call time from the secrets vault.
-            </span>
-          </div>
+        <div className="animate-in fade-in rounded-14 border border-border-faint bg-white p-5 shadow-xs">
+          <AgentToolsPanel
+            workspaceId={workspaceId}
+            canManageCustomTools={canManageCustomTools}
+            attachedTools={attachedTools}
+            onToggle={toggleTool}
+            customTools={customTools}
+            customToolsLoading={customToolsLoading}
+            customToolsError={customToolsError}
+            onCustomToolsChange={setCustomTools}
+          />
         </div>
       )}
 
       {/* TAB 4: IDENTITY & CHANNELS */}
       {activeTab === "identity" && (
-        <div className="space-y-6 rounded-16 border border-border-faint bg-white p-6 shadow-xs animate-in fade-in">
+        <div className="animate-in fade-in space-y-5 rounded-14 border border-border-faint bg-white p-5 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-accent-black">Identity & Target Channels</h3>
             <p className="text-xs text-neutral-500">
@@ -805,7 +673,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
 
       {/* TAB 5: VERSIONS & ROLLBACK */}
       {activeTab === "versions" && (
-        <div className="space-y-6 rounded-16 border border-border-faint bg-white p-6 shadow-xs animate-in fade-in">
+        <div className="animate-in fade-in space-y-5 rounded-14 border border-border-faint bg-white p-5 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-accent-black">Release Versions & History</h3>
             <p className="text-xs text-neutral-500">
