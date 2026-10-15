@@ -12,6 +12,7 @@ import {
   ResearchAgent,
   DemoProvider,
   qualify,
+  locationsCompatible,
   ResearchError,
   GatewayResearchProvider,
 } from "../research.js";
@@ -409,6 +410,58 @@ test("evidence rejects hallucinated contacts and unsupported targeting", () => {
     false,
   );
   assert.throws(() => policyInput({ max_active_tasks: 1000 }), /safety/);
+});
+
+test("a neighborhood inside the target city counts as the same location", () => {
+  assert.equal(locationsCompatible("Lahore, Pakistan", "Gulberg, Lahore, Pakistan"), true);
+  assert.equal(locationsCompatible("Lahore, Pakistan", "Lahore"), true);
+  assert.equal(locationsCompatible("Lahore, Pakistan", "Karachi, Pakistan"), false);
+  assert.equal(locationsCompatible("Lahore, Pakistan", "Lahore, India"), false);
+
+  const page = {
+    url: "https://example.com/",
+    text: "Example Clinic is a clinic in Gulberg, Lahore, Pakistan.",
+  };
+  const raw = {
+    company_name: "Example Clinic",
+    category: "clinic",
+    location: "Gulberg, Lahore, Pakistan",
+    fit_score: 82,
+    fit_reasons: ["clinic in Gulberg"],
+    target_checks: { category_match: true, location_match: false },
+    evidence: ["company_name", "category", "location"].map((field) => ({
+      field,
+      value:
+        field === "company_name"
+          ? "Example Clinic"
+          : field === "category"
+            ? "clinic"
+            : "Gulberg, Lahore, Pakistan",
+      source_url: page.url,
+      quote: page.text,
+    })),
+  };
+  const result = qualify(
+    raw,
+    [page],
+    { ...brief(), location: "Lahore, Pakistan" },
+    page.url,
+    "clinics",
+    70,
+  );
+  assert.equal(result.accepted, true);
+  assert.equal(result.data.location, "Gulberg, Lahore, Pakistan");
+
+  const otherCity = qualify(
+    { ...raw, location: "Karachi, Pakistan", target_checks: { category_match: true, location_match: true } },
+    [{ url: page.url, text: "Example Clinic is a clinic in Karachi, Pakistan." }],
+    { ...brief(), location: "Lahore, Pakistan" },
+    page.url,
+    "clinics",
+    70,
+  );
+  assert.equal(otherCity.accepted, false);
+  assert.ok(otherCity.data.reject_reasons?.includes("Location was not supported by the page"));
 });
 
 test("web guard rejects private, mapped, metadata and credential URLs", async () => {

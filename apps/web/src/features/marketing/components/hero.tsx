@@ -6,19 +6,19 @@ import { HeroBusinessConveyor } from "./hero-business-conveyor";
 
 export function Hero() {
   return (
-    <section className="relative w-full bg-[#FAFAF8] quickstart-hero pt-6 sm:pt-7 lg:pt-6 pb-4">
+    <section className="relative w-full bg-[#FAFAF8] quickstart-hero pt-8 sm:pt-10 lg:pt-12 pb-10 sm:pb-14 lg:pb-16">
       {/* Centered Editorial Composition Container (~1400px max) */}
       <div className="landing-container flex flex-col items-center text-center">
 
         {/* 1. Centered Eyebrow (y ≈ 40–52px) */}
-        <div className="inline-flex items-center justify-center mb-2.5 sm:mb-3">
+        <div className="inline-flex items-center justify-center mb-4 sm:mb-5 lg:mb-6">
           <span className="landing-eyebrow landing-eyebrow-muted">
             THE OPERATING LAYER FOR MODERN BUSINESS
           </span>
         </div>
 
         {/* 2. Semantic Two-Line Headline (y ≈ 75–195px) */}
-        <h1 className="hero-title text-[36px] sm:text-[48px] md:text-[54px] lg:text-[60px] xl:text-[64px] font-bold text-[#262626] tracking-[-0.035em] leading-[1.05] max-w-[1080px] mb-3">
+        <h1 className="hero-title text-[36px] sm:text-[48px] md:text-[54px] lg:text-[60px] xl:text-[64px] font-bold text-[#262626] tracking-[-0.035em] leading-[1.05] max-w-[1080px] mb-5 sm:mb-6 lg:mb-8">
           <span className="sm:block">AI agents that find, call,</span>{" "}
           <span className="sm:block">
             and <span className="text-[#FF571A]">get work done.</span>
@@ -26,13 +26,13 @@ export function Hero() {
         </h1>
 
         {/* 3. Centered Supporting Paragraph (y ≈ 218–260px) */}
-        <p className="hero-description landing-description max-w-[760px] mb-4">
+        <p className="hero-description landing-description max-w-[760px] mb-8 sm:mb-10 lg:mb-12">
           QuickStart brings lead generation, voice, conversations, tools, campaigns,
           and automation into one place — so your agents can do more than talk.
         </p>
 
         {/* 4. Compact Centered CTA Row (y ≈ 278–322px) */}
-        <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-5 mb-1 sm:mb-2">
+        <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-5 mb-12 sm:mb-14 lg:mb-16">
           {/* Primary CTA: Start building → */}
           <Link
             href="/register"
@@ -53,7 +53,7 @@ export function Hero() {
         </div>
 
         {/* 5. Isometric Business Conveyor Scene (y ≈ 300–655px) */}
-        <div className="w-full flex justify-center mt-0">
+        <div className="w-full flex justify-center mt-2 sm:mt-4 pt-8 sm:pt-10 lg:pt-12 border-t border-[#E8E6E1]/80 max-w-[min(100%,1200px)]">
           <HeroBusinessConveyor />
         </div>
 

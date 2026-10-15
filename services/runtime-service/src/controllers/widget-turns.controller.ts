@@ -26,6 +26,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
         actor_id?: string;
         subject_key?: string;
         modality?: "text" | "voice";
+        reply_language?: string;
       };
       const text = body.message ?? body.text ?? "";
       const rawHeaderKey = req.headers["idempotency-key"];
@@ -37,7 +38,10 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
 
       const stream = wantsEventStream(req);
 
-      const runTurn = (onToken?: (delta: string) => void) =>
+      const runTurn = (handlers?: {
+        onToken?: (delta: string) => void;
+        onToolStart?: (event: { name: string; spoken: string }) => void;
+      }) =>
         turnsService.executeWidgetTurn({
           workspaceId,
           conversationId,
@@ -45,8 +49,10 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
           idempotencyKey,
           actorId,
           requestId,
-          onToken,
+          onToken: handlers?.onToken,
+          onToolStart: handlers?.onToolStart,
           modality: body.modality,
+          replyLanguage: body.reply_language,
         });
 
       if (!stream) {
@@ -75,11 +81,22 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
       };
 
       try {
-        const result = await runTurn((delta) => {
-          openSse();
-          tokensStarted = true;
-          res.write(`event: token\n`);
-          res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+        const result = await runTurn({
+          onToken: (delta) => {
+            openSse();
+            tokensStarted = true;
+            res.write(`event: token\n`);
+            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+          },
+          onToolStart: (event) => {
+            openSse();
+            res.write(`event: nudge\n`);
+            res.write(`data: ${JSON.stringify({ name: event.name, text: event.spoken })}\n\n`);
+            if (event.name === "transfer_to_teammate") {
+              res.write(`event: transfer\n`);
+              res.write(`data: ${JSON.stringify({ status: "waiting" })}\n\n`);
+            }
+          },
         });
         openSse();
         if (result.handoff) {

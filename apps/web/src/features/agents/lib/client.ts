@@ -4,6 +4,7 @@ import type {
   AgentToolDefinition,
   AgentVersion,
   AgentVersionDiff,
+  AgentVoiceSettings,
   ApiError,
 } from "./types";
 
@@ -92,6 +93,7 @@ export type UpdateAgentPayload = {
   model_settings?: Record<string, unknown>;
   channels?: Partial<AgentChannels>;
   tools?: AgentToolDefinition[];
+  voice?: AgentVoiceSettings;
   expected_version: number;
 };
 

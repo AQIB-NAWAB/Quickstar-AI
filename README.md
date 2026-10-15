@@ -1,87 +1,101 @@
 # QuickStart AI
 
-Production-scale, multi-tenant AI agent platform — rebuilt incrementally on the [60-day roadmap](docs/roadmap.md).
+QuickStart AI is a **multi-tenant platform for building, deploying, and operating AI agents** for real businesses. A workspace configures agents with instructions, models, tools, and knowledge; those agents then serve customers on the **website widget**, in the **staff inbox** (chat and voice), through **outbound campaigns**, and via **automated lead generation** that finds and qualifies prospects before humans follow up.
+
+We are building this as a **production engineering system**, not a demo chatbot: tenant isolation, evidence-backed lead research, idempotent APIs, fair job scheduling, and observability are first-class from the start. The long-form product and scale targets live in [docs/project_details.md](docs/project_details.md).
+
+## What you get today
+
+| Area | What it does |
+|------|----------------|
+| **Agents** | Create and publish workspace agents (instructions, channels, tools). |
+| **Conversations & inbox** | Staff handle visitor threads, live voice, and handoff. |
+| **Embeddable widget** | Publishable-key chat (and voice paths) on customer sites. |
+| **Lead generation** | Business profile research, category/location runs, accepted leads with evidence. |
+| **Campaigns** | Audience from CSV or an accepted lead-gen run; voice campaigns when telephony is connected; audience-only campaigns without dial requirements. |
+| **Gateway** | Public API, widget routes, and service proxy behind one edge. |
+
+Staff UI runs in `apps/web` (Next.js). Domain logic lives in `services/*`; shared contracts and libraries live in `packages/*`.
+
+## Who this is for
+
+- **Operators** — run agents, inbox, campaigns, and lead runs in one workspace.
+- **Engineers** — extend services, contracts, and the widget without breaking tenant boundaries.
+- **Integrators** — embed the widget, ingest leads into campaigns, and wire telephony when ready.
 
 ## Documentation
 
-- **What we are building:** [docs/project_details.md](docs/project_details.md)
-- **Execution plan:** [docs/roadmap.md](docs/roadmap.md)
-- **Learn-day depth (Deep learning, database, APIs, identity):** [docs/ai-roadmap.md](docs/ai-roadmap.md)
-- **Architecture decisions:** [docs/adr/](docs/adr/)
+- **Product & scale:** [docs/project_details.md](docs/project_details.md)
+- **60-day execution plan:** [docs/roadmap.md](docs/roadmap.md)
+- **Deep dives (identity, data plane, widget):** [docs/ai-roadmap.md](docs/ai-roadmap.md)
+- **ADRs:** [docs/adr/](docs/adr/)
+- **Lead generation:** [services/lead-generation-service/README.md](services/lead-generation-service/README.md), [docs/lead-generation.md](docs/lead-generation.md)
+- **Gateway & APIs:** [docs/api/README.md](docs/api/README.md)
 
 ## Repository layout
 
 ```text
-services/     Deployable domain services (copy services/_template to add one)
-packages/     Shared libraries (contracts, errors, logging, tracing, auth, utilities)
-sdk/          Client SDKs (later)
-infra/        Terraform (later)
-deploy/       Helm / environment configs (later)
-tests/        Cross-service tests (later)
-docs/         Product spec, roadmap, ADRs, runbooks
+apps/web/       Staff app, marketing site, widget bundle (quickstart-widget.js)
+services/       Identity, workspace, gateway, agent, conversation, voice, campaign, lead-gen, …
+packages/       contracts, auth, errors, logging, utilities, …
+fixtures/       Widget demo host page and local test assets
+docs/           Spec, roadmap, ADRs, runbooks
 ```
-
-**Slot 01:** monorepo scaffold and `services/_template` with `GET /healthz` only.
-
-**Slot 02:** local data plane via Docker Compose (Postgres, Valkey, Kafka, OpenSearch, OTel, SQS-compatible queue). See [local data plane](docs/architecture/local-data-plane.md).
-
-**Slot 03:** shared platform libraries (`@quickstart/errors`, `logging`, `tracing`, `auth`, `utilities`) wired into `services/_template`.
-
-**Slot 04:** `services/identity-service` — register/login/refresh, organizations, org API keys. Run **`make identity-migrate`** before starting the service. See [ADR 0004](docs/adr/0004-identity.md), [database migrations](docs/architecture/database-migrations.md), and [services/identity-service/README.md](services/identity-service/README.md).
-
-**Slot 05–06:** `services/workspace-service` (tenancy, RBAC) and `services/gateway-service` (public API proxy). See [ADR 0005](docs/adr/0005-tenancy-and-rbac.md), [ADR 0006](docs/adr/0006-api-gateway.md), [docs/api](docs/api/README.md), and [gateway testing](services/gateway-service/TESTING.md).
-
-**Slot 07:** `services/agent-service` — workspace-scoped agent configuration (CRUD, optimistic concurrency). Run **`make agent-migrate`**. See [ADR 0007](docs/adr/0007-agent-aggregate.md) and [services/agent-service/README.md](services/agent-service/README.md).
 
 ## Prerequisites
 
 - Node.js **22+**
 - [pnpm](https://pnpm.io/) **9+**
-- **Docker Compose v2** for the local data plane
-- **AWS CLI** for the Slot 02 smoke test (SQS API against ElasticMQ)
+- **Docker Compose v2** for local Postgres, Valkey, and related data plane pieces
 
 ## Setup
 
 ```bash
 pnpm install
-pnpm check
+pnpm check          # lint, typecheck, test, build across workspaces
 ```
 
-`pnpm check` runs lint, typecheck, tests, and build for all workspaces.
+Copy [`.env.example`](.env.example) to `.env` and adjust ports if needed.
 
-### Local data plane (Slot 02)
+### Local data plane
 
 ```bash
 make up
 make smoke
-make playground   # Postgres/Valkey/OpenSearch + template HTTP demos + traces
 ```
 
-Connection defaults are in [`.env.example`](.env.example).
+Migrations and per-service READMEs are under each `services/*/README.md` (e.g. `make identity-migrate`, `make lead-generation-migrate`).
 
-**Try the template yourself** (with data plane + service running):
+### Staff web UI
 
 ```bash
-curl http://127.0.0.1:3000/healthz
-curl http://127.0.0.1:3000/demo/error
-curl http://127.0.0.1:3000/demo/outbound
+pnpm --filter @quickstart/web dev
 ```
 
-## Commit messages
+Default local URL is often **http://127.0.0.1:3015** when `PORT=3015` is set (see stack scripts).
 
-Use clear, human-authored messages. Reference the roadmap slot when relevant, e.g. `feat(slot-01): add monorepo scaffold`.
+### Widget on a customer-style page (port 8080)
 
-See [.cursorrules](.cursorrules) for commit hygiene (no AI co-author trailers).
+```bash
+pnpm seed:demo              # once, with stack up
+pnpm widget:test:prepare    # writes fixtures/widget-test/config.local.js (gitignored)
+pnpm widget:test:serve      # http://127.0.0.1:8080 — Northline demo host + embedded widget
+```
+
+Add `http://127.0.0.1:8080` to the publishable key’s allowed origins. Widget script is served from the web app (`/quickstart-widget.js`); gateway handles public widget API on **:3000**.
+
+### Lead generation stack (optional)
+
+```bash
+bash scripts/start-lead-generation.sh
+```
+
+See [services/lead-generation-service/README.md](services/lead-generation-service/README.md) for `LEAD_GENERATION_MODE=live` vs demo and provider keys.
+
+## Branching & commits
+
+Day-to-day work lands on **`aqib`**; **`main`** is integration. Use clear commit messages; no AI co-author trailers (see [.cursorrules](.cursorrules)).
 
 ## License
 
 TBD.
-
-## Lead generation backend
-
-The workspace-scoped lead generation service provides onboarding research,
-category-based runs, evidence-backed qualification, audited dynamic tier policies,
-fair scheduling and a campaign delivery adapter. See [the service README](services/lead-generation-service/README.md)
-and [API and integration contracts](docs/lead-generation.md).
-Windows setup: `scripts/setup-lead-generation.ps1`. Explicit demo mode uses synthetic
-data; live research requires configured providers and a verified campaign contract.

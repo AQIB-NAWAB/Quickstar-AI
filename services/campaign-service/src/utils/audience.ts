@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { AudienceFieldDef, IncomingTarget } from "../domain/types.js";
 import { isValidE164, normalizePhone } from "./phone.js";
@@ -33,19 +34,38 @@ export function normalizeAudienceSchema(raw: unknown): AudienceFieldDef[] {
           : typeof row.sourceColumn === "string"
             ? row.sourceColumn
             : undefined,
-      required: Boolean(row.required) || role === "dial",
+      required: Boolean(row.required),
     });
   }
   return out;
 }
 
+export function schemaUsesTelephony(schema: AudienceFieldDef[]): boolean {
+  return schema.some((f) => f.role === "dial");
+}
+
 export function assertAudienceSchemaHasDial(schema: AudienceFieldDef[]): void {
-  if (!schema.some((f) => f.role === "dial")) {
+  if (!schemaUsesTelephony(schema)) {
     throw new AppError({
       code: ErrorCode.VALIDATION_FAILED,
       message: "audience_schema must include one field with role=dial",
     });
   }
+}
+
+export function assertAudienceSchemaHasReachableContact(schema: AudienceFieldDef[]): void {
+  if (schema.some((f) => f.role === "contact_email" || f.role === "identity")) return;
+  throw new AppError({
+    code: ErrorCode.VALIDATION_FAILED,
+    message: "audience_schema must include identity or contact_email when telephony is disabled",
+  });
+}
+
+/** Reserved +1555… E.164 when a target has no dialable phone (audience-only campaigns). */
+export function syntheticDialFromKey(key: string): string {
+  const digits = createHash("sha256").update(key).digest("hex").replace(/\D/g, "");
+  const seven = (digits + "0000000").slice(0, 7);
+  return `+1555${seven}`;
 }
 
 export function sanitizeAttributes(
@@ -71,6 +91,7 @@ export function sanitizeAttributes(
 export function normalizeIncomingTargets(
   rows: IncomingTarget[],
   limits: { maxKeys: number; maxValueLength: number },
+  options?: { telephonyRequired?: boolean },
 ): {
   valid: Array<{
     dialAddress: string;
@@ -96,24 +117,43 @@ export function normalizeIncomingTargets(
   const seen = new Set<string>();
   let invalidCount = 0;
   let duplicateCount = 0;
+  const telephonyRequired = options?.telephonyRequired ?? true;
 
   for (const row of rows) {
-    const dialNormalized = normalizePhone(row.dialAddress ?? "");
+    const displayName = row.displayName?.trim() || null;
+    const email = row.email?.trim() || null;
+    let dialNormalized = normalizePhone(row.dialAddress ?? "");
     if (!isValidE164(dialNormalized)) {
-      invalidCount += 1;
-      continue;
+      if (telephonyRequired) {
+        invalidCount += 1;
+        continue;
+      }
+      const identityKey =
+        email?.toLowerCase() ||
+        row.sourceRef?.trim() ||
+        displayName?.toLowerCase() ||
+        "";
+      if (!identityKey) {
+        invalidCount += 1;
+        continue;
+      }
+      dialNormalized = syntheticDialFromKey(identityKey);
     }
     if (seen.has(dialNormalized)) {
       duplicateCount += 1;
       continue;
     }
     seen.add(dialNormalized);
+    const attributes = sanitizeAttributes(row.attributes, limits);
+    if (!telephonyRequired && !isValidE164(normalizePhone(row.dialAddress ?? ""))) {
+      attributes.telephony_mode = "none";
+    }
     valid.push({
       dialAddress: dialNormalized,
       dialNormalized,
-      displayName: row.displayName?.trim() || null,
-      email: row.email?.trim() || null,
-      attributes: sanitizeAttributes(row.attributes, limits),
+      displayName,
+      email,
+      attributes,
       sourceKind: row.sourceKind ?? "csv",
       sourceRef: row.sourceRef ?? null,
     });

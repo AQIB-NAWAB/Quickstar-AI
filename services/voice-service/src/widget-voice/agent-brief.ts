@@ -1,3 +1,4 @@
+import { findVoiceCatalogEntry } from "@quickstart/contracts";
 import { randomUUID } from "node:crypto";
 import type { Logger } from "@quickstart/logging";
 
@@ -20,10 +21,17 @@ type AgentJson = {
   name?: string;
   instructions?: string;
   production_version_id?: string | null;
+  voice?: { tts_voice_id?: string };
 };
 
 type VersionJson = {
-  snapshot?: { name?: string; instructions?: string };
+  snapshot?: { name?: string; instructions?: string; voice?: { tts_voice_id?: string } };
+};
+
+export type WidgetVoicePack = {
+  brief: string;
+  ttsVoiceId: string;
+  language: string;
 };
 
 async function getJson<T>(url: string, token: string, requestId: string): Promise<T | null> {
@@ -51,7 +59,7 @@ export async function loadWidgetVoiceBrief(input: {
   knowledgeUrl: string;
   internalToken: string;
   logger: Logger;
-}): Promise<string> {
+}): Promise<WidgetVoicePack> {
   const requestId = randomUUID();
   try {
     const conversation = await getJson<{ conversation?: { agent_id?: string | null } }>(
@@ -60,7 +68,7 @@ export async function loadWidgetVoiceBrief(input: {
       requestId,
     );
     const agentId = conversation?.conversation?.agent_id?.trim();
-    if (!agentId) return FALLBACK_BRIEF;
+    if (!agentId) return { brief: FALLBACK_BRIEF, ttsVoiceId: "uplift:v_8eelc901", language: "ur-PK" };
 
     const agentRes = await getJson<{ agent?: AgentJson }>(
       `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}`,
@@ -70,6 +78,7 @@ export async function loadWidgetVoiceBrief(input: {
     const agent = agentRes?.agent;
     let name = agent?.name?.trim() || "QuickStart AI";
     let instructions = agent?.instructions?.trim() || "";
+    let ttsVoiceId = agent?.voice?.tts_voice_id?.trim() || "uplift:v_8eelc901";
     const versionId = agent?.production_version_id?.trim();
     if (versionId) {
       const version = await getJson<{ version?: VersionJson }>(
@@ -80,6 +89,7 @@ export async function loadWidgetVoiceBrief(input: {
       const snapshot = version?.version?.snapshot;
       if (snapshot?.instructions?.trim()) instructions = snapshot.instructions.trim();
       if (snapshot?.name?.trim()) name = snapshot.name.trim();
+      if (snapshot?.voice?.tts_voice_id?.trim()) ttsVoiceId = snapshot.voice.tts_voice_id.trim();
     }
 
     const query = `${name}. ${instructions}`.slice(0, 500);
@@ -117,11 +127,12 @@ export async function loadWidgetVoiceBrief(input: {
       chars: parts.join("\n\n").length,
       knowledge: Boolean(facts),
     });
-    return parts.join("\n\n").slice(0, 6000);
+    const language = findVoiceCatalogEntry(ttsVoiceId)?.language || "en";
+    return { brief: parts.join("\n\n").slice(0, 6000), ttsVoiceId, language };
   } catch (err) {
     input.logger.warn("widget.voice.brief_failed", {
       message: err instanceof Error ? err.message : "brief failed",
     });
-    return FALLBACK_BRIEF;
+    return { brief: FALLBACK_BRIEF, ttsVoiceId: "uplift:v_8eelc901", language: "ur-PK" };
   }
 }

@@ -94,7 +94,8 @@ export function createWidgetVoiceLiveController(
       req.on("close", () => {
         clearInterval(keepAlive);
         unsubscribe();
-        manager.close(sessionId);
+        // Keep the Deepgram session alive while the visitor still sends audio chunks.
+        // The widget calls /voice-live/stop when the user hangs up.
       });
     }) as RequestHandler,
 

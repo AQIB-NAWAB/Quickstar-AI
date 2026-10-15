@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Northline — Customer support</title>
+    <meta
+      name="description"
+      content="Northline ships reliable business software. Questions about your account, billing, or onboarding? Our team is here."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #1a1a1a;
+        --muted: #5c5c5c;
+        --line: #e8e6e1;
+        --surface: #fafaf8;
+        --card: #ffffff;
+        --accent: #ff571a;
+        --accent-dark: #e04810;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "DM Sans", system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+        color: var(--ink);
+        background: var(--surface);
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--line);
+        background: var(--card);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 1.125rem;
+        letter-spacing: -0.02em;
+      }
+      .brand span {
+        color: var(--accent);
+      }
+      .nav-links {
+        display: none;
+        gap: 28px;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      @media (min-width: 720px) {
+        .nav-links {
+          display: flex;
+        }
+      }
+      .nav-links a:hover {
+        color: var(--accent);
+      }
+      .hero {
+        padding: 56px 0 48px;
+      }
+      @media (min-width: 720px) {
+        .hero {
+          padding: 80px 0 64px;
+        }
+      }
+      .hero-grid {
+        display: grid;
+        gap: 40px;
+        align-items: center;
+      }
+      @media (min-width: 900px) {
+        .hero-grid {
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 56px;
+        }
+      }
+      .eyebrow {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 16px;
+      }
+      h1 {
+        margin: 0 0 20px;
+        font-size: clamp(2rem, 4vw, 2.75rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        font-weight: 700;
+      }
+      .lead {
+        margin: 0 0 28px;
+        font-size: 1.0625rem;
+        color: var(--muted);
+        max-width: 34ch;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 20px;
+        border-radius: 8px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        border: 1px solid transparent;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: var(--accent-dark);
+      }
+      .btn-ghost {
+        background: transparent;
+        border-color: var(--line);
+        color: var(--ink);
+      }
+      .btn-ghost:hover {
+        border-color: #ccc;
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 24px;
+        box-shadow: 0 24px 48px rgba(26, 26, 26, 0.06);
+      }
+      .panel h2 {
+        margin: 0 0 8px;
+        font-size: 1.125rem;
+        font-weight: 600;
+      }
+      .panel p {
+        margin: 0 0 20px;
+        font-size: 0.9375rem;
+        color: var(--muted);
+      }
+      .hours {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        font-size: 0.875rem;
+      }
+      .hours li {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+      }
+      .hours li:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+      .strip {
+        border-top: 1px solid var(--line);
+        background: var(--card);
+        padding: 40px 0;
+      }
+      .cards {
+        display: grid;
+        gap: 20px;
+      }
+      @media (min-width: 720px) {
+        .cards {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .card {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .card p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      footer {
+        padding: 32px 0 48px;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        text-align: center;
+      }
+      .setup-hint {
+        margin-top: 48px;
+        padding: 16px 18px;
+        border-radius: 10px;
+        background: #fff8f4;
+        border: 1px dashed #ffc9b0;
+        font-size: 0.8125rem;
+        color: #8a4a2a;
+        display: none;
+      }
+      .setup-hint.visible {
+        display: block;
+      }
+      .setup-hint code {
+        font-size: 0.75rem;
+        background: #fff;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap nav">
+        <a class="brand" href="#">Northline<span>.</span></a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#support">Support</a>
+          <a href="#topics">Topics</a>
+          <a href="#status">Status</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">Customer success</p>
+            <h1>Answers when you need them—not a maze of forms.</h1>
+            <p class="lead">
+              Billing, onboarding, and product questions are handled in one thread. Use the
+              messenger in the corner to reach our team; typical first reply is under a few
+              minutes during business hours.
+            </p>
+            <div class="actions">
+              <a class="btn btn-primary" href="#support">Open messenger</a>
+              <a class="btn btn-ghost" href="#topics">Browse help topics</a>
+            </div>
+            <div id="setup-hint" class="setup-hint" role="status">
+              Local widget not configured. Run <code>pnpm seed:demo</code> then
+              <code>pnpm widget:test:prepare</code>, and serve this folder on port 8080.
+            </div>
+          </div>
+          <aside class="panel" id="support" aria-labelledby="hours-title">
+            <h2 id="hours-title">Support hours</h2>
+            <p>We route urgent issues to the right specialist automatically.</p>
+            <ul class="hours">
+              <li><span>Monday – Friday</span><span>9:00 – 18:00 PKT</span></li>
+              <li><span>Saturday</span><span>10:00 – 14:00 PKT</span></li>
+              <li><span>Sunday</span><span>Email only</span></li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <section class="strip" id="topics">
+        <div class="wrap">
+          <div class="cards">
+            <article class="card">
+              <h3>Accounts &amp; billing</h3>
+              <p>Invoices, seats, plan changes, and payment methods.</p>
+            </article>
+            <article class="card">
+              <h3>Getting started</h3>
+              <p>Workspace setup, invites, and your first automation.</p>
+            </article>
+            <article class="card">
+              <h3>Technical</h3>
+              <p>Integrations, API keys, and webhook delivery.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap" id="status">
+      © Northline Software · Demo customer site for embedded support
+    </footer>
+
+    <script src="config.local.js"></script>
+    <script>
+      (function () {
+        var cfg = window.QS_WIDGET_CONFIG;
+        var hint = document.getElementById("setup-hint");
+        if (!cfg || !cfg.publishableKey || !cfg.agentId) {
+          if (hint) hint.classList.add("visible");
+          return;
+        }
+        var s = document.createElement("script");
+        s.defer = true;
+        s.src = cfg.widgetScriptUrl;
+        s.setAttribute("data-gateway-url", cfg.gatewayUrl);
+        s.setAttribute("data-publishable-key", cfg.publishableKey);
+        s.setAttribute("data-agent-id", cfg.agentId);
+        s.setAttribute("data-title", cfg.title || "Northline support");
+        s.setAttribute("data-color", cfg.color || "#ff571a");
+        document.body.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

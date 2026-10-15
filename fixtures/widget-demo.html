@@ -3,46 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>QuickStart AI chat widget demo</title>
+    <title>Northline — Customer support (widget demo)</title>
+    <meta http-equiv="refresh" content="0; url=./widget-test/" />
     <style>
       body {
-        max-width: 720px;
-        margin: 64px auto;
-        padding: 0 24px;
-        color: #202020;
-        font:
-          16px/1.6 system-ui,
-          sans-serif;
+        font-family: system-ui, sans-serif;
+        padding: 48px 24px;
+        text-align: center;
+        color: #333;
       }
-      code {
-        padding: 2px 5px;
-        border-radius: 4px;
-        background: #f2f2f2;
+      a {
+        color: #ff571a;
       }
     </style>
   </head>
   <body>
-    <h1>QuickStart AI chat widget</h1>
-    <p>
-      This is a customer-site example. Configure a publishable key in the script tag below, add this
-      page's origin to that key's allowed origins, and publish the agent.
-    </p>
-    <p>
-      Open the launcher in the lower-right corner to chat. The visitor and conversation are saved in
-      this browser, so reloading the page restores the same thread.
-    </p>
-    <p>
-      For local use, serve this file from <code>http://127.0.0.1:8080</code>, add that exact origin
-      to the publishable key, and run the QuickStart web app on port 3005.
-    </p>
-    <script
-      defer
-      src="http://127.0.0.1:3015/quickstart-widget.js"
-      data-gateway-url="http://127.0.0.1:3000"
-      data-publishable-key="REPLACE_WITH_pk_live_KEY"
-      data-agent-id="REPLACE_WITH_PUBLISHED_AGENT_UUID"
-      data-title="QuickStart support"
-      data-color="#f15a24"
-    ></script>
+    <p>Moved to <a href="./widget-test/">fixtures/widget-test</a>. Serve that folder on port 8080.</p>
   </body>
 </html>

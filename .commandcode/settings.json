@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(node --version)",
+      "Shell(pnpm:*)",
+      "Shell(docker:*)",
+      "Shell(ls:*)",
+      "Shell(echo:*)",
+      "Shell(for:*)",
+      "Shell(do:*)",
+      "Shell(done:*)",
+      "Shell(bash scripts/start-local-stack.sh 2>&1)",
+      "Shell(sleep:*)",
+      "Shell(curl -sf http://127.0.0.1:3000/healthz)",
+      "Shell(curl -sf -o /dev/null -w web HTTP %{http_code}\\n http://127.0.0.1:3015/login)",
+      "Shell(grep -iE \"node_options|disallow|unsafe-eval|CSP\" .env .env.example 2>/dev/null; echo \"---\"; grep -riE \"disallow-code-generation\" apps/web/next.config.* apps/web/package.json 2>/dev/null; echo \"---\"; ls apps/web/next.config.*)",
+      "Shell(cat /tmp/qs-stack/web.pid | xargs -I{} sh -c 'cat /proc/{}/environ | tr \"\\0\" \"\\n\" | grep -iE \"NODE_OPTIONS|NEXT_\" ; echo \"---cmdline---\"; cat /proc/{}/cmdline | tr \"\\0\" \" \"')",
+      "Shell(cat > \"$COMMANDCODE_SCRATCHPAD/vmtest.mjs\" <<'EOF' import vm from \"node:vm\"; const ctx = vm.createContext({}, { codeGeneration: { strings: true, wasm: true } }); try { vm.runInContext('const r = eval(\"1 + 1\"); r', ctx); console.log(\"eval OK on\", process.version); } catch (e) { console.log(\"eval FAILED on\", process.version, \"->\", e.message); } EOF node \"$COMMANDCODE_SCRATCHPAD/vmtest.mjs\"; which node22 node-22 2>/dev/null; nvm ls 2>/dev/null | head -20)",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); const re = /codeGeneration/g; let m; const spots=[]; while((m=re.exec(s))) spots.push(m.index); console.log(\"occurrences:\", spots.length); for (const i of spots) console.log(\"...\", s.slice(Math.max(0,i-200), i+200).replace(/\\n/g,\" \"), \"...\\n\"); )",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); const i = s.indexOf(\"144:\"); const i2 = s.indexOf(\"144:(e,n,A)=>\"); console.log(s.slice(i2, i2+600)); )",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); const re = /(^|[^0-9a-zA-Z.$])144:\\(/g; let m; while((m=re.exec(s))){ console.log(\"at\", m.index); console.log(s.slice(m.index, m.index+500), \"\\n---\"); } const re2 = /(^|[^0-9a-zA-Z.$])144:/g; let m2; const idx=[]; while((m2=re2.exec(s))) idx.push(m2.index); console.log(\"144: refs:\", idx.length, idx.slice(0,10)); )",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); const i = s.indexOf(\"node:vm\"); console.log(\"node:vm at\", i); if(i>=0) console.log(s.slice(i-400, i+300)); )",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); for (const needle of [\"createContext\", \"runInContext\"]) { let i=0, c=0; while((i=s.indexOf(needle,i+1))>=0 && c<5){ console.log(needle, \"@\", i, \":\", s.slice(Math.max(0,i-120), i+80).replace(/\\n/g,\" \")); c++; } } )",
+      "Shell(node -e  const s = require(\"fs\").readFileSync(\"index.js\",\"utf8\"); for (const needle of [\"require(\\\"vm\\\")\",\"require(\\x27vm\\x27)\",\"ExternalModule\",\"vm;\",\"vm\\\"\",\"\\x27vm\\x27\"]) { let i=0, c=0; while((i=s.indexOf(needle,i+1))>=0 && c<3){ console.log(JSON.stringify(needle), \"@\", i, \":\", s.slice(Math.max(0,i-150), i+150).replace(/\\n/g,\" \")); c++; } } console.log(\"file length\", s.length); )",
+      "Shell(cat > \"$COMMANDCODE_SCRATCHPAD/vmtest2.mjs\" <<'EOF' import vm from \"node:vm\"; function tryCase(label, opts, code) { try { const ctx = vm.createContext({}, opts); const r = vm.runInContext(code, ctx); console.log(label, \"-> OK:\", JSON.stringify(r)); } catch (e) { console.log(label, \"-> FAIL:\", e.message); } } const webpackEval = 'var __webpack_require__ = { r: () => 1 }; eval(\"__webpack_require__.r({})\");'; tryCase(\"with name + strings:true\", { name: \"Edge Runtime\", codeGeneration: { strings: true, wasm: true } }, webpackEval); tryCase(\"no name + strings:true\", { codeGeneration: { strings: true, wasm: true } }, webpackEval); tryCase(\"no options\", {}, webpackEval); tryCase(\"strings:false\", { codeGeneration: { strings: false, wasm: true } }, webpackEval); EOF node \"$COMMANDCODE_SCRATCHPAD/vmtest2.mjs\")",
+      "Shell(ls ~/.nvm/versions/node/ 2>/dev/null; echo \"---\"; cat apps/web/package.json | head -40)",
+      "Shell(grep -n \"NODE_ENV\" .env .env.example apps/web/.env* 2>/dev/null; echo \"--- shell env:\"; echo \"NODE_ENV=[$NODE_ENV]\"; echo \"--- web process env:\"; PID=$(cat /tmp/qs-stack/web.pid 2>/dev/null); ps -o pid,ppid,cmd -p $PID --no-headers 2>/dev/null; NEXT_PID=$(pgrep -f \"next dev\" | head -1); echo \"next pid: $NEXT_PID\"; tr '\\0' '\\n' < /proc/$NEXT_PID/environ 2>/dev/null | grep -E \"^NODE_ENV=\")"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

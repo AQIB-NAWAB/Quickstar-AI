@@ -12,6 +12,9 @@ export async function streamWidgetTurn(
     idempotencyKey: string;
     requestId: string;
     modality?: "text" | "voice";
+    replyLanguage?: string;
+    onNudge?: (text: string) => void;
+    onTransfer?: () => void;
   },
   onToken: (delta: string) => void,
 ): Promise<WidgetTurnResult> {
@@ -31,6 +34,7 @@ export async function streamWidgetTurn(
       message: input.text,
       actor_id: input.actorId,
       modality: input.modality ?? "voice",
+      reply_language: input.replyLanguage,
     }),
   });
   if (!res.ok || !res.body) {
@@ -64,6 +68,7 @@ export async function streamWidgetTurn(
       if (!dataLine) continue;
       let data: {
         delta?: string;
+        text?: string;
         turn?: {
           deduplicated: boolean;
           conversation_id: string;
@@ -80,6 +85,8 @@ export async function streamWidgetTurn(
         continue;
       }
       if (eventName === "token" && data.delta) onToken(data.delta);
+      else if (eventName === "nudge" && data.text) input.onNudge?.(data.text);
+      else if (eventName === "transfer") input.onTransfer?.();
       else if (eventName === "done" && data.turn) {
         turn = {
           assistant_text: data.turn.assistant_message.text,

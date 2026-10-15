@@ -148,12 +148,20 @@ export interface ColumnMapping {
   role: AudienceFieldRole;
 }
 
+export type CampaignTelephonyMode = "required" | "none";
+
 export interface WizardDraft {
   name: string;
   description: string;
   agentId: string;
   agentName: string;
-  audienceSource: "csv" | "saved_list";
+  /** When "none", audience is saved without dialable phones (no outbound calls). */
+  telephonyMode: CampaignTelephonyMode;
+  audienceSource: "csv" | "saved_list" | "lead_run";
+  /** Lead-generation run whose accepted leads are the audience. */
+  leadRunId?: string;
+  /** Accepted candidate ids chosen from that run. */
+  selectedLeadIds?: string[];
   fileName?: string;
   rowCount?: number;
   /** All headers discovered from the uploaded CSV */
@@ -181,6 +189,7 @@ export interface WizardDraft {
     name?: string | null;
     email?: string | null;
     attributes: Record<string, string>;
+    sourceRef?: string | null;
   }[];
   validCount: number;
   invalidCount: number;

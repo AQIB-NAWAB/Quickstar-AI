@@ -64,6 +64,7 @@
   let voiceAudioPlaying = false;
   let voiceLiveAssistantBubble = null;
   let voiceLiveUserShown = "";
+  let voiceMicMuted = false;
 
   const host = document.createElement("div");
   host.setAttribute("data-quickstart-widget", "");
@@ -136,7 +137,10 @@
     .voice-person em { font-style: normal; color: #737373; font-size: 13px; }
     .voice-stage h3 { margin: 0; font-size: 16px; font-weight: 650; color: #171717; }
     .voice-stage p { margin: 0; max-width: 240px; color: #737373; font-size: 13px; line-height: 1.45; }
-    .panel.voice-live .input, .panel.voice-live .send { display: none; }
+    .panel.voice-live .voice-stage h3,
+    .panel.voice-live .voice-stage > p,
+    .voice-stage.with-person .voice-person em { display: none; }
+    .panel.voice-live .form { display: none; }
     .message { max-width: 85%; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
     .message.user { align-self: flex-end; border-bottom-right-radius: 4px; background: var(--qs-accent); color: white; white-space: pre-wrap; }
     .message.assistant, .message.human { align-self: flex-start; border-bottom-left-radius: 4px; background: white; border: 1px solid #e8e8e8; }
@@ -166,7 +170,8 @@
     .panel.needs-intro .messages,
     .panel.needs-intro .voice-stage,
     .panel.needs-intro .status,
-    .panel.needs-intro .form { display: none; }
+    .panel.needs-intro .form,
+    .panel.needs-intro .hangup-bar { display: none; }
     .panel.needs-intro .gate { display: flex; }
     .gate h3 { margin: 0; font-size: 16px; font-weight: 650; color: #171717; }
     .gate p { margin: 0; color: #737373; font-size: 13px; line-height: 1.45; }
@@ -176,6 +181,32 @@
     .gate .start { border: 0; border-radius: 12px; background: var(--qs-accent); color: #fff; padding: 11px 14px; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
     .gate .gate-error { min-height: 16px; color: #b42318; font-size: 12px; }
     .form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #eee; background: white; }
+    .hangup-bar { display: none; justify-content: center; align-items: center; gap: 20px; padding: 16px 12px 18px; border-top: 1px solid #eee; background: #fff; }
+    .panel.voice-live .hangup-bar { display: flex; }
+    .call-btn {
+      width: 52px;
+      height: 52px;
+      border: 0;
+      border-radius: 50%;
+      padding: 0;
+      background: var(--qs-accent);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--qs-accent) 35%, transparent);
+    }
+    .call-btn svg { width: 24px; height: 24px; display: block; }
+    .call-btn.mute {
+      background: #fff;
+      color: var(--qs-accent);
+      border: 1.5px solid color-mix(in srgb, var(--qs-accent) 45%, #fff);
+      box-shadow: none;
+    }
+    .call-btn .icon-off { display: none; }
+    .call-btn.muted .icon-on { display: none; }
+    .call-btn.muted .icon-off { display: block; }
     .input { flex: 1; min-width: 0; resize: none; max-height: 96px; border: 1px solid #ddd; border-radius: 12px; padding: 10px 12px; color: #171717; background: #fff; font: inherit; font-size: 14px; outline: none; }
     .input:focus { border-color: var(--qs-accent); }
     .send { width: 42px; border: 0; border-radius: 12px; background: var(--qs-accent); color: white; cursor: pointer; font-size: 18px; flex-shrink: 0; }
@@ -267,16 +298,13 @@
     return letters || "T";
   }
 
-  function showVoicePerson(name, pending) {
+  function showVoicePerson(name) {
     const label = name && name.trim() ? name.trim() : "Teammate";
     voiceStage.classList.add("with-person");
     voiceAvatar.textContent = personInitials(label);
     voicePersonName.textContent = label;
-    voicePersonRole.textContent = pending ? "Connecting you to a teammate" : "On the call with you";
-    voiceTitle.textContent = pending ? "Switching your call" : label;
-    voiceHint.textContent = pending
-      ? "A teammate is joining this call."
-      : "You are speaking with a person from the team.";
+    voicePersonRole.textContent = "";
+    status.textContent = "";
   }
 
   function hideVoicePerson() {
@@ -317,6 +345,22 @@
   send.setAttribute("aria-label", "Send message");
   send.textContent = "➤";
   form.append(input, micWrap, send);
+  const hangupBar = document.createElement("div");
+  hangupBar.className = "hangup-bar";
+  const muteBtn = document.createElement("button");
+  muteBtn.className = "call-btn mute";
+  muteBtn.type = "button";
+  muteBtn.setAttribute("aria-label", "Mute microphone");
+  muteBtn.setAttribute("aria-pressed", "false");
+  muteBtn.innerHTML = `<svg class="icon-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg><svg class="icon-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V6a3 3 0 0 0-6 0v.18l5.98 5.99zM4.27 3 3 4.27l6.01 6.01V11a3 3 0 0 0 4.15 2.77l1.45 1.45A5.9 5.9 0 0 1 12 16c-2.76 0-5.3-2.1-5.3-5H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>`;
+  const hangup = document.createElement("button");
+  hangup.className = "call-btn hangup";
+  hangup.type = "button";
+  hangup.setAttribute("aria-label", "Hang up");
+  hangup.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1-.29-.71c0-.28.11-.53.29-.71C3.18 8.86 7.4 7 12 7s8.82 1.86 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+  </svg>`;
+  hangupBar.append(muteBtn, hangup);
   const gate = document.createElement("form");
   gate.className = "gate";
   gate.innerHTML = `
@@ -330,7 +374,7 @@
   const gateName = gate.querySelector(".gate-name");
   const gateEmail = gate.querySelector(".gate-email");
   const gateError = gate.querySelector(".gate-error");
-  panel.append(header, gate, messages, voiceStage, status, form);
+  panel.append(header, gate, messages, voiceStage, status, form, hangupBar);
   const launcher = document.createElement("button");
   launcher.className = "launcher";
   launcher.type = "button";
@@ -823,6 +867,22 @@
     return btoa(binary);
   }
 
+  function resampleTo16k(float32, fromRate) {
+    if (!fromRate || fromRate === 16_000) return float32;
+    const ratio = fromRate / 16_000;
+    const outLen = Math.max(1, Math.floor(float32.length / ratio));
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const src = i * ratio;
+      const idx = Math.floor(src);
+      const frac = src - idx;
+      const a = float32[idx] ?? 0;
+      const b = float32[idx + 1] ?? a;
+      out[i] = a + (b - a) * frac;
+    }
+    return out;
+  }
+
   function float32ToInt16Bytes(float32) {
     const out = new Uint8Array(float32.length * 2);
     const view = new DataView(out.buffer);
@@ -864,8 +924,23 @@
 
   let voiceSendBusy = false;
 
+  function setMicMuted(muted) {
+    voiceMicMuted = muted;
+    voiceStream?.getAudioTracks().forEach((track) => {
+      track.enabled = !muted;
+    });
+    muteBtn.classList.toggle("muted", muted);
+    muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
+    muteBtn.setAttribute("aria-label", muted ? "Unmute microphone" : "Mute microphone");
+    if (muted) voicePcmPending = [];
+  }
+
   async function flushVoicePcm() {
-    if (voiceSendBusy || voiceAudioPlaying || voiceAudioQueue.length > 0) return;
+    if (voiceMicMuted) {
+      voicePcmPending = [];
+      return;
+    }
+    if (voiceSendBusy) return;
     if (!voiceSessionId || voicePcmPending.length === 0) return;
     voiceSendBusy = true;
     const merged = new Float32Array(
@@ -877,7 +952,8 @@
       offset += chunk.length;
     }
     voicePcmPending = [];
-    const pcm = float32ToInt16Bytes(merged);
+    const captureRate = voiceAudioContext?.sampleRate || 16_000;
+    const pcm = float32ToInt16Bytes(resampleTo16k(merged, captureRate));
     try {
       await fetch(`${gatewayUrl}/v1/public/widget/voice-live/audio`, {
         method: "POST",
@@ -1052,26 +1128,21 @@
           continue;
         }
         if (eventName === "ready") {
-          status.textContent = "Listening… speak naturally";
+          status.textContent = "";
         } else if (eventName === "level") {
           mic.style.setProperty("--mic-level", String(data.value ?? 0));
         } else if (eventName === "transcript") {
           if (!data.interim && data.text) voiceLiveUserShown = data.text;
-          if (voiceLiveActive && !voiceAudioPlaying) status.textContent = "Listening… speak naturally";
         } else if (eventName === "thinking" || eventName === "assistant_token") {
-          status.textContent = "Speaking…";
+          if (!voiceAudioPlaying && !voiceStage.classList.contains("with-person")) status.textContent = "";
         } else if (eventName === "audio") {
           if (data.encoding === "pcm16") enqueuePcm16(data.data, data.sample_rate || 24000);
           else enqueueVoiceClip(data.data, data.mime);
-        } else if (eventName === "handoff") {
-          showVoicePerson("Teammate", true);
-          status.textContent = "Switching you to a teammate…";
-        } else if (eventName === "human_joined") {
-          showVoicePerson(data.name || "Teammate", false);
-          status.textContent = `${data.name || "A teammate"} joined the call`;
+        } else if (eventName === "handoff" || eventName === "human_joined") {
+          showVoicePerson(data.name || "Teammate");
         } else if (eventName === "human_left") {
           hideVoicePerson();
-          status.textContent = "Listening… speak naturally";
+          status.textContent = "";
         } else if (eventName === "interrupt") {
           voicePlayTime = 0;
           voiceAudioPlaying = false;
@@ -1083,11 +1154,11 @@
           voiceAnalyser = null;
           voiceTimeData = null;
           stopVoicePlayback();
-          status.textContent = "Listening… speak naturally";
+          if (!voiceStage.classList.contains("with-person")) status.textContent = "";
         } else if (eventName === "turn_done" || eventName === "assistant_done") {
           voiceLiveAssistantBubble = null;
           outboundTurnActive = false;
-          if (voiceLiveActive && !voiceAudioPlaying) status.textContent = "Listening… speak naturally";
+          if (voiceLiveActive && !voiceAudioPlaying && !voiceStage.classList.contains("with-person")) status.textContent = "";
         } else if (eventName === "error") {
           status.textContent = data.message || "Voice error";
         }
@@ -1101,6 +1172,7 @@
     voiceStreamAbort?.abort();
     voiceStreamAbort = null;
     teardownVoiceGraph();
+    setMicMuted(false);
     mic.classList.remove("live");
     micWrap.classList.remove("live");
     mic.style.setProperty("--mic-level", "0");
@@ -1138,13 +1210,14 @@
     stopVoicePlayback();
     voiceLiveActive = true;
     voiceLiveUserShown = "";
+    setMicMuted(false);
     outboundTurnActive = false;
     mic.classList.add("live");
     micWrap.classList.add("live");
-    mic.setAttribute("aria-label", "Stop voice chat");
+    mic.setAttribute("aria-label", "Voice is on");
     panel.classList.add("voice-live");
     startVoiceWave();
-    status.textContent = "Connecting voice…";
+    status.textContent = "";
     try {
       const start = await request(
         `/conversations/${encodeURIComponent(conversationId)}/voice-live/start`,
@@ -1179,7 +1252,7 @@
       voiceSource = voiceAudioContext.createMediaStreamSource(voiceStream);
       voiceProcessor = voiceAudioContext.createScriptProcessor(1024, 1, 1);
       voiceProcessor.onaudioprocess = (event) => {
-        if (!voiceLiveActive) return;
+        if (!voiceLiveActive || voiceMicMuted) return;
         const input = event.inputBuffer.getChannelData(0);
         voicePcmPending.push(new Float32Array(input));
         let sum = 0;
@@ -1207,8 +1280,13 @@
   }
 
   mic.addEventListener("click", () => {
+    if (!voiceLiveActive) void startLiveVoice();
+  });
+  hangup.addEventListener("click", () => {
     if (voiceLiveActive) void stopLiveVoice();
-    else void startLiveVoice();
+  });
+  muteBtn.addEventListener("click", () => {
+    if (voiceLiveActive) setMicMuted(!voiceMicMuted);
   });
 
   form.addEventListener("submit", async (event) => {

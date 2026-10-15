@@ -56,6 +56,7 @@ export type CampaignLeadDelivery = {
     summary: string;
     fit_score: number;
     fit_reasons: string[];
+    reject_reasons?: string[];
     evidence: LeadEvidence[];
     discovered_fields?: Record<string, string>;
     checked_at: string;
