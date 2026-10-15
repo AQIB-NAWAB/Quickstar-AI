@@ -21,6 +21,15 @@ export type AgentSnapshot = {
   draft_version: number;
 };
 
+export type AgentVoiceSettings = {
+  voice_mode: "cascade" | "s2s";
+  language: string;
+  tts_voice_id: string;
+  max_response_chars: number;
+  turn_detection_profile_id: string;
+  recording_enabled: boolean;
+};
+
 export type Agent = {
   id: string;
   workspace_id: string;
@@ -31,6 +40,7 @@ export type Agent = {
   model_settings: Record<string, unknown>;
   channels: AgentChannels;
   tools: AgentToolDefinition[];
+  voice?: AgentVoiceSettings;
   version: number;
   production_version_id: string | null;
   created_at: string;

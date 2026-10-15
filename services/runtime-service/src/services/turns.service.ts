@@ -6,6 +6,7 @@ import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { ToolLoop } from "./tool-loop.js";
+import { visitorWantsTeammate, VOICE_TRANSFER_TOOL, VOICE_TRANSFER_TOOL_NAME } from "./voice-tools.js";
 
 export type ExecuteTurnInput = {
   workspaceId: string;
@@ -49,12 +50,43 @@ const WIDGET_REPLY_STYLE = [
   "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
 ].join("\n");
 
-const WIDGET_SPOKEN_REPLY_STYLE = [
-  "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
-  "Reply in 1–2 short sentences, under 50 words.",
-  "Plain spoken English only: no markdown, bullets, lists, emojis, URLs, or symbols.",
-  "Sound natural, like a phone agent, not a document.",
-].join("\n");
+function spokenReplyStyle(
+  language: string | undefined,
+  options: { canTransfer: boolean; tools: Array<{ name: string; description: string }> },
+): string {
+  const urdu = (language ?? "").toLowerCase().startsWith("ur");
+  const lines = [
+    "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
+    urdu
+      ? "Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words."
+      : "Reply in the same language the visitor just used.",
+    "One or two short spoken sentences, under 25 words.",
+    "Plain spoken words only: no markdown, bullets, lists, emojis, URLs, or symbols.",
+  ];
+  if (options.canTransfer) {
+    lines.push(
+      "If the visitor asks for a person, a human, or a teammate, call transfer_to_teammate. Do not say someone has already joined. The caller hears a short switch line while you call it.",
+    );
+  } else {
+    lines.push(
+      urdu
+        ? "اگر زائر انسان یا ساتھی مانگے تو یہی کہو: ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
+        : "If the visitor asks for a person, a human, or a teammate, say exactly: I'm switching you to a teammate now.",
+    );
+  }
+  if (options.tools.length > 0) {
+    lines.push(
+      "When one of these functions can answer, call it instead of guessing. Do not read the function name aloud. The caller hears a short checking line while it runs.",
+    );
+    lines.push(
+      options.tools
+        .slice(0, 8)
+        .map((tool) => `${tool.name}: ${tool.description.slice(0, 140)}`)
+        .join("\n"),
+    );
+  }
+  return lines.join("\n");
+}
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
 function resolveChatModel(modelSettings: Record<string, unknown>): { profile: string; modelId: string } {
@@ -70,9 +102,9 @@ function resolveChatModel(modelSettings: Record<string, unknown>): { profile: st
     const fromEnv = process.env.DEFAULT_CHAT_MODEL_PROFILE?.trim();
     const inferred =
       fromEnv ||
+      (modelId.startsWith("claude") ? "anthropic" : "") ||
+      (modelId.includes("/") || /llama|mixtral|gemma|gpt-oss/i.test(modelId) ? "groq" : "") ||
       (modelId.startsWith("gpt-") ? "openai" : "") ||
-      (modelId.startsWith("claude-") ? "anthropic" : "") ||
-      (/llama|mixtral|gemma/i.test(modelId) ? "groq" : "") ||
       "openai";
     return { profile: inferred, modelId };
   }
@@ -374,7 +406,7 @@ export class TurnsService {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "voice",
-      allowTools: false,
+      allowTools: true,
     });
   }
 
@@ -387,14 +419,17 @@ export class TurnsService {
     actorId: string;
     requestId: string;
     onToken?: (delta: string) => void;
+    onToolStart?: (event: { name: string; spoken: string }) => void;
     modality?: "text" | "voice";
+    replyLanguage?: string;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "widget",
-      allowTools: false,
+      allowTools: input.modality === "voice",
       compactReply: true,
       widgetModality: input.modality ?? "text",
+      replyLanguage: input.replyLanguage,
     });
   }
 
@@ -453,6 +488,8 @@ export class TurnsService {
     /** Website widget only: short structured replies. Eval turns stay on the agent instructions. */
     compactReply?: boolean;
     widgetModality?: "text" | "voice";
+    replyLanguage?: string;
+    onToolStart?: (event: { name: string; spoken: string }) => void;
   }): Promise<TurnResult> {
     const {
       workspaceId,
@@ -470,6 +507,7 @@ export class TurnsService {
       compactReply,
       widgetModality,
     } = input;
+    const replyLanguage = input.replyLanguage;
 
     const conversation = await this.conversationClient.getConversationWidget(
       workspaceId,
@@ -535,14 +573,23 @@ export class TurnsService {
       requestId,
     );
 
+    const voiceTurn = widgetModality === "voice" || channel === "voice";
     const agentTools = version.snapshot.tools ?? [];
+    const handoffRequest = voiceTurn && visitorWantsTeammate(text);
+    const modelTools = [
+      ...(voiceTurn && (handoffRequest || agentTools.length > 0) ? [VOICE_TRANSFER_TOOL] : []),
+      ...agentTools.filter((tool) => tool.name !== VOICE_TRANSFER_TOOL_NAME),
+    ];
     if (agentTools.length > 0 && !allowTools) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message:
-          channel === "voice"
-            ? "Tools are not supported on internal voice turns yet"
-            : "Tools are not supported on widget turns yet",
+        message: "Tools are not supported on widget text turns yet",
+      });
+    }
+    if (modelTools.length > 0 && allowTools && !this.toolLoop) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: "Voice tools are configured on the agent but the tool runner is not available",
       });
     }
 
@@ -584,13 +631,14 @@ export class TurnsService {
       workspaceId,
       conversationId,
       requestId,
-      50,
+      voiceTurn ? 8 : 50,
     );
 
     const chatMessages: ChatMessage[] = [];
     let retrievedChunkIds: string[] = [];
     let knowledgeContext = "";
-    if (this.knowledgeClient && text) {
+    // Voice stays on the published instructions. Retrieval on every turn adds seconds before the first word.
+    if (this.knowledgeClient && text && !voiceTurn) {
       const readyCount = await this.knowledgeClient.readyCount(workspaceId, requestId);
       if (readyCount > 0) {
         const chunks = await this.knowledgeClient.retrieve(workspaceId, text, requestId, 5);
@@ -613,7 +661,7 @@ export class TurnsService {
     }
 
     const subjectKey = conversation.subject_key?.trim();
-    if (this.memoryClient && subjectKey) {
+    if (this.memoryClient && subjectKey && !voiceTurn) {
       const memoryFacts = await this.memoryClient.listFacts(
         workspaceId,
         subjectKey,
@@ -631,7 +679,12 @@ export class TurnsService {
 
     if (compactReply) {
       systemParts.push(
-        widgetModality === "voice" ? WIDGET_SPOKEN_REPLY_STYLE : WIDGET_REPLY_STYLE,
+        widgetModality === "voice"
+          ? spokenReplyStyle(replyLanguage, {
+              canTransfer: modelTools.some((tool) => tool.name === VOICE_TRANSFER_TOOL_NAME),
+              tools: agentTools,
+            })
+          : WIDGET_REPLY_STYLE,
       );
     }
 
@@ -654,9 +707,11 @@ export class TurnsService {
       typeof modelSettings.max_tokens === "number" && modelSettings.max_tokens > 0
         ? modelSettings.max_tokens
         : undefined;
-    const maxTokens = compactReply
-      ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
-      : configuredMax;
+    const maxTokens = voiceTurn
+      ? Math.min(configuredMax ?? 220, 220)
+      : compactReply
+        ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
+        : configuredMax;
 
     const completionRequest = {
       workspace_id: workspaceId,
@@ -669,6 +724,36 @@ export class TurnsService {
 
     let streamedText = "";
     const runModel = async () => {
+      if (allowTools && modelTools.length > 0 && this.toolLoop) {
+        let nudge = "";
+        const loop = await this.toolLoop.run({
+          workspaceId,
+          conversationId,
+          requestId,
+          turnIdempotencyKey: idempotencyKey,
+          authHeaders: {},
+          model: { profile, model_id: modelId },
+          temperature,
+          maxTokens: 480,
+          replyLanguage,
+          tools: modelTools,
+          chatMessages,
+          onToolStart: (event) => {
+            nudge = event.spoken;
+            input.onToolStart?.(event);
+          },
+        });
+        const spoken = (loop.content || "").trim() || (loop.transferred ? nudge : "");
+        if (onToken && (loop.content || "").trim()) onToken((loop.content || "").trim());
+        return {
+          content: spoken,
+          finish_reason: "stop",
+          usage: { input_tokens: 0, output_tokens: 0 },
+          provider: profile,
+          model: modelId,
+          latency_ms: 0,
+        };
+      }
       if (onToken) {
         const result = await this.modelGatewayClient.stream(completionRequest, {
           onToken: (delta) => {

@@ -37,6 +37,7 @@ import { ConflictBanner } from "./conflict-banner";
 import { PublishModal } from "./publish-modal";
 import { DiffModal } from "./diff-modal";
 import { TestChatDrawer } from "./test-chat-drawer";
+import { VoiceCatalogPicker, type CatalogVoice } from "./voice-catalog-picker";
 
 type Props = {
   workspaceId: string;
@@ -87,6 +88,8 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
   const [environment, setEnvironment] = useState(initialAgent.environment);
   const [chatEnabled, setChatEnabled] = useState(initialAgent.channels.chat);
   const [voiceEnabled, setVoiceEnabled] = useState(initialAgent.channels.voice);
+  const [ttsVoiceId, setTtsVoiceId] = useState(initialAgent.voice?.tts_voice_id || "uplift:v_8eelc901");
+  const [voiceLanguage, setVoiceLanguage] = useState(initialAgent.voice?.language || "ur-PK");
 
   const modelSettings = initialAgent.model_settings || {};
   const [model, setModel] = useState((modelSettings.model as string) || "gpt-4o-mini");
@@ -136,6 +139,7 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
     environment !== agent.environment ||
     chatEnabled !== agent.channels.chat ||
     voiceEnabled !== agent.channels.voice ||
+    ttsVoiceId !== (agent.voice?.tts_voice_id || "uplift:v_8eelc901") ||
     model !== ((agent.model_settings?.model as string) || "gpt-4o-mini") ||
     temperature !==
       (typeof agent.model_settings?.temperature === "number"
@@ -174,10 +178,24 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
       channels: { chat: chatEnabled, voice: voiceEnabled },
       model_settings: {
         model,
+        model_id: model,
+        profile: model.startsWith("claude")
+          ? "anthropic"
+          : model.includes("/") || /llama|mixtral|gemma|gpt-oss/i.test(model)
+            ? "groq"
+            : "openai",
         temperature,
         max_tokens: maxTokens,
       },
       tools: attachedTools,
+      voice: {
+        voice_mode: "cascade",
+        language: voiceLanguage,
+        tts_voice_id: ttsVoiceId,
+        max_response_chars: agent.voice?.max_response_chars ?? 500,
+        turn_detection_profile_id: "eager",
+        recording_enabled: agent.voice?.recording_enabled ?? true,
+      },
       expected_version: agent.version,
     });
 
@@ -208,6 +226,8 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
       setEnvironment(a.environment);
       setChatEnabled(a.channels.chat);
       setVoiceEnabled(a.channels.voice);
+      setTtsVoiceId(a.voice?.tts_voice_id || "uplift:v_8eelc901");
+      setVoiceLanguage(a.voice?.language || "ur-PK");
       const m = a.model_settings || {};
       setModel((m.model as string) || "gpt-4o-mini");
       setTemperature(typeof m.temperature === "number" ? m.temperature : 0.3);
@@ -669,6 +689,15 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
                 </label>
               </div>
             </div>
+
+            <VoiceCatalogPicker
+              workspaceId={workspaceId}
+              voiceId={ttsVoiceId}
+              onChange={(voice: CatalogVoice) => {
+                setTtsVoiceId(voice.id);
+                setVoiceLanguage(voice.language);
+              }}
+            />
           </div>
         </div>
       )}

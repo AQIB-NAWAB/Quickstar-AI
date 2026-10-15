@@ -60,13 +60,15 @@ export class WidgetVoiceLiveSessionManager {
       openaiApiKey?: string;
       openaiRealtimeModel?: string;
       tts: TextToSpeech | null;
+      /** When set, live widget voice uses STT → runtime → the selected catalog voice. */
+      preferCascade: boolean;
       logger: Logger;
     },
   ) {}
 
   create(bind: LiveSessionBind): string {
     const id = randomUUID();
-    const brief = loadWidgetVoiceBrief({
+    const pack = loadWidgetVoiceBrief({
       workspaceId: bind.workspaceId,
       conversationId: bind.conversationId,
       conversationUrl: this.deps.conversationUrl,
@@ -75,7 +77,24 @@ export class WidgetVoiceLiveSessionManager {
       internalToken: this.deps.internalToken,
       logger: this.deps.logger,
     });
-    const session = this.deps.geminiApiKey
+    const brief = pack.then((loaded) => loaded.brief);
+    const session =
+      this.deps.preferCascade && this.deps.tts
+      ? new WidgetVoiceLiveSession({
+          workspaceId: bind.workspaceId,
+          conversationId: bind.conversationId,
+          actorId: bind.actorId,
+          deepgramApiKey: this.deps.deepgramApiKey ?? "",
+          deepgramModel: this.deps.deepgramModel,
+          runtimeUrl: this.deps.runtimeUrl,
+          internalToken: this.deps.internalToken,
+          tts: this.deps.tts,
+          ttsVoiceId: pack.then((loaded) => loaded.ttsVoiceId),
+          replyLanguage: pack.then((loaded) => loaded.language),
+          onTransferSpoken: () => this.onTransferSpoken(id),
+          logger: this.deps.logger,
+        })
+      : this.deps.geminiApiKey
       ? new GeminiLiveSession({
           apiKey: this.deps.geminiApiKey,
           model: this.deps.geminiLiveModel ?? "gemini-3.8-live",
@@ -108,6 +127,9 @@ export class WidgetVoiceLiveSessionManager {
           runtimeUrl: this.deps.runtimeUrl,
           internalToken: this.deps.internalToken,
           tts: this.deps.tts!,
+          ttsVoiceId: pack.then((loaded) => loaded.ttsVoiceId),
+          replyLanguage: pack.then((loaded) => loaded.language),
+          onTransferSpoken: () => this.onTransferSpoken(id),
           logger: this.deps.logger,
         });
     const previous = this.findByConversation(bind.workspaceId, bind.conversationId);
@@ -210,23 +232,11 @@ export class WidgetVoiceLiveSessionManager {
   join(workspaceId: string, conversationId: string, human: { userId: string; name: string }): "missing" | "conflict" | "ok" {
     const id = this.findByConversation(workspaceId, conversationId);
     const record = id ? this.sessions.get(id) : undefined;
-    if (!record) return "missing";
+    if (!id || !record) return "missing";
     if (record.human && record.human.userId !== human.userId) return "conflict";
     record.human = human;
-    record.needsHuman = true;
-    if (record.transferSpoken) {
-      if (record.mode !== "model") record.mode = "human";
-      this.emit(record.visitorBridge, { type: "human_joined", name: human.name });
-      return "ok";
-    }
-    if (record.session.sayTransfer) {
-      record.session.sayTransfer(human.name);
-      return "ok";
-    }
-    record.transferSpoken = true;
-    record.mode = "human";
-    record.session.holdModel?.();
-    this.emit(record.visitorBridge, { type: "human_joined", name: human.name });
+    record.session.sayTransfer?.(human.name);
+    this.onTransferSpoken(id);
     return "ok";
   }
 
@@ -270,6 +280,7 @@ export class WidgetVoiceLiveSessionManager {
     if (!record) return;
     record.transferSpoken = true;
     record.needsHuman = true;
+    record.mode = record.human ? "human" : "holding";
     record.session.holdModel?.();
     void this.markWaiting(record);
     if (record.human) {

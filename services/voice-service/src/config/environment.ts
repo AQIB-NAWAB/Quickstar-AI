@@ -32,6 +32,9 @@ export type VoiceConfig = {
   fishAudioApiKey?: string;
   fishAudioModel?: string;
   fishAudioReferenceId?: string;
+  upliftApiKey?: string;
+  cartesiaApiKey?: string;
+  cartesiaModel?: string;
   geminiApiKey?: string;
   geminiLiveModel?: string;
   requireRealSpeech: boolean;
@@ -115,6 +118,9 @@ export function loadVoiceConfig(): VoiceConfig {
     fishAudioApiKey: process.env.FISH_AUDIO_API_KEY?.trim() || undefined,
     fishAudioModel: process.env.FISH_AUDIO_MODEL?.trim() || undefined,
     fishAudioReferenceId: process.env.FISH_AUDIO_REFERENCE_ID?.trim() || undefined,
+    upliftApiKey: process.env.UPLIFT_AI_API_KEY?.trim() || process.env.UPLIFTAI_API_KEY?.trim() || undefined,
+    cartesiaApiKey: process.env.CARTESIA_API_KEY?.trim() || undefined,
+    cartesiaModel: process.env.CARTESIA_MODEL?.trim() || undefined,
     geminiApiKey:
       process.env.GEMINI_API_KEY?.trim() ||
       process.env.GOOGLE_API_KEY?.trim() ||

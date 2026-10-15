@@ -95,11 +95,12 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       toolCalls?.length && choice?.finish_reason !== "tool_calls"
         ? "tool_calls"
         : (choice?.finish_reason ?? "stop");
-    const messageContent =
-      choice?.message?.content ||
-      choice?.message?.reasoning_content ||
-      choice?.message?.reasoning ||
-      "";
+    const messageContent = toolCalls?.length
+      ? (choice?.message?.content ?? "")
+      : choice?.message?.content ||
+        choice?.message?.reasoning_content ||
+        choice?.message?.reasoning ||
+        "";
     return {
       content: messageContent,
       finishReason,
@@ -143,10 +144,14 @@ export class OpenAiCompatibleProvider implements ChatProvider {
         if (payload === "[DONE]") continue;
         try {
           const parsed = JSON.parse(payload) as {
-            choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+            choices?: Array<{
+              delta?: { content?: string; reasoning?: string; reasoning_content?: string };
+              finish_reason?: string | null;
+            }>;
             usage?: { prompt_tokens?: number; completion_tokens?: number };
           };
-          const delta = parsed.choices?.[0]?.delta?.content;
+          const deltaChunk = parsed.choices?.[0]?.delta;
+          const delta = deltaChunk?.content;
           if (delta) {
             content += delta;
             onChunk(delta);
@@ -178,6 +183,9 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     };
     if (input.temperature !== undefined) body.temperature = input.temperature;
     if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
+    if (/gpt-oss/i.test(input.modelId)) {
+      body.reasoning_effort = "low";
+    }
     if (input.tools?.length) {
       body.tools = input.tools.map((tool) => ({
         type: "function",

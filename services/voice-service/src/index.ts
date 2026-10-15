@@ -16,6 +16,9 @@ import { PgCallsRepository } from "./repository/calls.repository.js";
 import { PgCampaignsRepository } from "./repository/campaigns.repository.js";
 import { createLocalRecordingStore } from "./repository/recording.store.js";
 import { createSpeechBundle, type SpeechProfile } from "./speech/factory.js";
+import { createCatalogTextToSpeech } from "./speech/catalog-tts.js";
+import { DeepgramSpeechToText } from "./speech/deepgram-stt.js";
+import { createVoiceCatalogController } from "./controllers/voice-catalog.controller.js";
 import { createHttpRuntimeClient } from "./clients/runtime.client.js";
 import { createUsageIngestClient } from "./clients/usage.client.js";
 import { createRedisCallCaps } from "./caps/call-caps.js";
@@ -64,7 +67,16 @@ export async function startVoiceServer(): Promise<{
   const campaignsRepo = new PgCampaignsRepository(pool);
   const recordings = createLocalRecordingStore(config.recordingDir);
   const telephonyProfile = telephonySpeechProfile();
-  const speech = createSpeechBundle({
+  const catalog = createCatalogTextToSpeech({
+    upliftApiKey: config.upliftApiKey,
+    cartesiaApiKey: config.cartesiaApiKey,
+    cartesiaModel: config.cartesiaModel,
+    fishApiKey: config.fishAudioApiKey,
+    fishModel: config.fishAudioModel,
+    fishReferenceId: config.fishAudioReferenceId,
+    timeoutMs: config.speechHttpTimeoutMs,
+  });
+  const speechBundle = createSpeechBundle({
     profile: telephonyProfile,
     openaiApiKey: config.speechOpenaiApiKey,
     openaiBaseUrl: config.speechOpenaiBaseUrl,
@@ -79,7 +91,14 @@ export async function startVoiceServer(): Promise<{
     httpTimeoutMs: config.speechHttpTimeoutMs,
     logger,
   });
-  logger.info("speech.profile", { profile: telephonyProfile, configured: config.speechProfile });
+  const speech = catalog ? { ...speechBundle, tts: catalog } : speechBundle;
+  logger.info("speech.profile", {
+    profile: telephonyProfile,
+    configured: config.speechProfile,
+    catalog: catalog
+      ? { uplift: catalog.availability.uplift, cartesia: catalog.availability.cartesia, fish: catalog.availability.fish }
+      : null,
+  });
   const runtime = createHttpRuntimeClient(
     config.runtimeUrl,
     config.httpRequestTimeoutMs,
@@ -132,27 +151,38 @@ export async function startVoiceServer(): Promise<{
   let widgetVoiceLive: WidgetVoiceLiveSessionManager | null = null;
   const gemini = Boolean(config.geminiApiKey);
   const realtime = Boolean(config.speechOpenaiApiKey);
-  const cascade = Boolean(config.deepgramApiKey && (config.fishAudioApiKey || config.speechOpenaiApiKey));
+  const cascade = Boolean(config.deepgramApiKey && (catalog || config.fishAudioApiKey || config.speechOpenaiApiKey));
   if (gemini || realtime || cascade) {
-    const widgetSpeech = cascade
-      ? createSpeechBundle({
-          profile: config.fishAudioApiKey ? "deepgram-fish" : "openai",
-          deepgramApiKey: config.deepgramApiKey,
-          deepgramModel: config.deepgramModel,
-          fishApiKey: config.fishAudioApiKey,
-          fishModel: config.fishAudioModel,
-          fishReferenceId: config.fishAudioReferenceId,
-          openaiApiKey: config.speechOpenaiApiKey,
-          openaiBaseUrl: config.speechOpenaiBaseUrl,
-          requireRealSpeech: false,
-          circuitFailureThreshold: config.speechCircuitFailureThreshold,
-          circuitCooldownMs: config.speechCircuitCooldownMs,
-          httpTimeoutMs: config.speechHttpTimeoutMs,
-          logger,
-        })
-      : null;
-    if (widgetSpeech) {
-      widgetVoice = new WidgetVoiceService(widgetSpeech.stt, widgetSpeech.tts, runtime);
+    const widgetSpeech =
+      cascade && (config.fishAudioApiKey || config.speechOpenaiApiKey)
+        ? createSpeechBundle({
+            profile: config.fishAudioApiKey ? "deepgram-fish" : "openai",
+            deepgramApiKey: config.deepgramApiKey,
+            deepgramModel: config.deepgramModel,
+            fishApiKey: config.fishAudioApiKey,
+            fishModel: config.fishAudioModel,
+            fishReferenceId: config.fishAudioReferenceId,
+            openaiApiKey: config.speechOpenaiApiKey,
+            openaiBaseUrl: config.speechOpenaiBaseUrl,
+            requireRealSpeech: false,
+            circuitFailureThreshold: config.speechCircuitFailureThreshold,
+            circuitCooldownMs: config.speechCircuitCooldownMs,
+            httpTimeoutMs: config.speechHttpTimeoutMs,
+            logger,
+          })
+        : null;
+    if (catalog && config.deepgramApiKey && !widgetSpeech) {
+      widgetVoice = new WidgetVoiceService(
+        new DeepgramSpeechToText({
+          apiKey: config.deepgramApiKey,
+          model: config.deepgramModel,
+          timeoutMs: config.speechHttpTimeoutMs,
+        }),
+        catalog,
+        runtime,
+      );
+    } else if (widgetSpeech) {
+      widgetVoice = new WidgetVoiceService(widgetSpeech.stt, catalog ?? widgetSpeech.tts, runtime);
     }
     widgetVoiceLive = new WidgetVoiceLiveSessionManager({
       deepgramApiKey: config.deepgramApiKey,
@@ -166,11 +196,18 @@ export async function startVoiceServer(): Promise<{
       geminiLiveModel: config.geminiLiveModel,
       openaiApiKey: !gemini && realtime ? config.speechOpenaiApiKey : undefined,
       openaiRealtimeModel: process.env.OPENAI_REALTIME_MODEL?.trim() || undefined,
-      tts: widgetSpeech?.tts ?? null,
+      tts: catalog ?? widgetSpeech?.tts ?? null,
+      preferCascade: Boolean(catalog && config.deepgramApiKey),
       logger,
     });
     logger.info("widget.voice.enabled", {
-      live: gemini ? "gemini-live" : realtime ? "openai-realtime" : "deepgram-fish",
+      live: catalog && config.deepgramApiKey
+        ? "cascade-catalog"
+        : gemini
+          ? "gemini-live"
+          : realtime
+            ? "openai-realtime"
+            : "deepgram-fish",
     });
   } else {
     logger.warn("widget.voice.disabled", {
@@ -214,6 +251,7 @@ export async function startVoiceServer(): Promise<{
     }),
     widgetVoiceCtrl: createWidgetVoiceController(widgetVoice),
     widgetVoiceLiveCtrl: createWidgetVoiceLiveController(widgetVoiceLive),
+    voiceCatalogCtrl: createVoiceCatalogController(catalog),
   });
 
   const server: Server = await new Promise((resolve) => {

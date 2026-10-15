@@ -10,6 +10,7 @@ import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { ToolCallsClient } from "../clients/tool-calls.client.js";
 import { buildToolCallKey } from "../lib/tool-call-key.js";
 import type { ToolExecutor } from "./tool-executor.js";
+import { spokenToolNudge, VOICE_TRANSFER_TOOL_NAME } from "./voice-tools.js";
 
 function toModelTools(tools: AgentToolDefinition[]): ModelToolDefinition[] {
   return tools.map((t) => ({
@@ -33,6 +34,10 @@ export type ToolLoopInput = {
   temperature?: number;
   tools: AgentToolDefinition[];
   chatMessages: ChatMessage[];
+  maxTokens?: number;
+  replyLanguage?: string;
+  /** Spoken before the tool runs so the caller is not left in silence. */
+  onToolStart?: (event: { name: string; spoken: string }) => void;
 };
 
 export class ToolLoop {
@@ -42,9 +47,12 @@ export class ToolLoop {
     private readonly executor: ToolExecutor,
   ) {}
 
-  async run(input: ToolLoopInput): Promise<{ content: string; chatMessages: ChatMessage[] }> {
+  async run(
+    input: ToolLoopInput,
+  ): Promise<{ content: string; chatMessages: ChatMessage[]; transferred: boolean }> {
     const messages = [...input.chatMessages];
     const modelTools = input.tools.length > 0 ? toModelTools(input.tools) : undefined;
+    let transferred = false;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS_PER_TURN; round += 1) {
       const completion = await this.modelClient.complete({
@@ -54,11 +62,20 @@ export class ToolLoop {
         messages,
         tools: modelTools,
         temperature: input.temperature,
+        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
       });
 
       if (completion.finish_reason !== "tool_calls" || !completion.tool_calls?.length) {
-        return { content: completion.content, chatMessages: messages };
+        return { content: completion.content, chatMessages: messages, transferred };
       }
+
+      const primary =
+        completion.tool_calls.find((call) => call.name === VOICE_TRANSFER_TOOL_NAME) ??
+        completion.tool_calls[0];
+      input.onToolStart?.({
+        name: primary.name,
+        spoken: spokenToolNudge(primary.name, input.replyLanguage),
+      });
 
       messages.push({
         role: "assistant",
@@ -67,6 +84,20 @@ export class ToolLoop {
       });
 
       for (const [callIndex, call] of completion.tool_calls.entries()) {
+        if (call.name === VOICE_TRANSFER_TOOL_NAME) {
+          transferred = true;
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: JSON.stringify({
+              ok: true,
+              status: "waiting_for_teammate",
+              instruction: "The caller already heard the switch line. Reply with an empty string.",
+            }),
+          });
+          continue;
+        }
         const tool = findTool(input.tools, call.name);
         if (!tool) {
           messages.push({
@@ -83,12 +114,7 @@ export class ToolLoop {
           round,
           `${call.name}:${callIndex}`,
         );
-        const existing = await this.toolCallsClient.listByTurn(
-          input.workspaceId,
-          input.conversationId,
-          input.turnIdempotencyKey,
-          input.authHeaders,
-        );
+        const existing = await this.listPrior(input, input.turnIdempotencyKey);
         const prior = existing.find((r) => r.tool_call_key === toolCallKey);
         if (prior && ["succeeded", "failed", "unknown"].includes(prior.status)) {
           const replay =
@@ -104,18 +130,13 @@ export class ToolLoop {
           continue;
         }
 
-        await this.toolCallsClient.upsert(
-          input.workspaceId,
-          input.conversationId,
-          {
-            turn_idempotency_key: input.turnIdempotencyKey,
-            tool_call_key: toolCallKey,
-            tool_name: call.name,
-            status: "pending",
-            request_json: call.arguments,
-          },
-          input.authHeaders,
-        );
+        await this.remember(input, {
+          turn_idempotency_key: input.turnIdempotencyKey,
+          tool_call_key: toolCallKey,
+          tool_name: call.name,
+          status: "pending",
+          request_json: call.arguments,
+        });
 
         const timeoutMs = tool.timeout_ms ?? 30_000;
         const result = await this.executor.execute(tool, call.arguments, {
@@ -126,20 +147,15 @@ export class ToolLoop {
           authorization: input.authHeaders.authorization,
         });
 
-        await this.toolCallsClient.upsert(
-          input.workspaceId,
-          input.conversationId,
-          {
-            turn_idempotency_key: input.turnIdempotencyKey,
-            tool_call_key: toolCallKey,
-            tool_name: call.name,
-            status: result.status,
-            request_json: call.arguments,
-            response_json: result.ok ? { content: result.content } : null,
-            error_code: result.errorCode ?? null,
-          },
-          input.authHeaders,
-        );
+        await this.remember(input, {
+          turn_idempotency_key: input.turnIdempotencyKey,
+          tool_call_key: toolCallKey,
+          tool_name: call.name,
+          status: result.status,
+          request_json: call.arguments,
+          response_json: result.ok ? { content: result.content } : null,
+          error_code: result.errorCode ?? null,
+        });
 
         messages.push({
           role: "tool",
@@ -154,5 +170,35 @@ export class ToolLoop {
       code: ErrorCode.VALIDATION_FAILED,
       message: `Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS_PER_TURN})`,
     });
+  }
+
+  /** Widget voice has no staff token. A failed audit write must not block the function. */
+  private async listPrior(input: ToolLoopInput, turnIdempotencyKey: string) {
+    try {
+      return await this.toolCallsClient.listByTurn(
+        input.workspaceId,
+        input.conversationId,
+        turnIdempotencyKey,
+        input.authHeaders,
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async remember(
+    input: ToolLoopInput,
+    body: Parameters<ToolCallsClient["upsert"]>[2],
+  ): Promise<void> {
+    try {
+      await this.toolCallsClient.upsert(
+        input.workspaceId,
+        input.conversationId,
+        body,
+        input.authHeaders,
+      );
+    } catch {
+      /* the function result is still returned to the model */
+    }
   }
 }

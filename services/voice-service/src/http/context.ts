@@ -6,6 +6,7 @@ import type { createCampaignsController } from "../controllers/campaigns.control
 import type { createTelephonyController } from "../controllers/telephony.controller.js";
 import type { createWidgetVoiceController } from "../controllers/widget-voice.controller.js";
 import type { createWidgetVoiceLiveController } from "../controllers/widget-voice-live.controller.js";
+import type { createVoiceCatalogController } from "../controllers/voice-catalog.controller.js";
 
 export type VoiceHttpContext = {
   readinessProbes: ReadinessProbe[];
@@ -18,4 +19,5 @@ export type VoiceHttpContext = {
   telephonyCtrl: ReturnType<typeof createTelephonyController>;
   widgetVoiceCtrl: ReturnType<typeof createWidgetVoiceController>;
   widgetVoiceLiveCtrl: ReturnType<typeof createWidgetVoiceLiveController>;
+  voiceCatalogCtrl: ReturnType<typeof createVoiceCatalogController>;
 };

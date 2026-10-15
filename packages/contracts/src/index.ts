@@ -127,6 +127,14 @@ export {
 } from "./voice.js";
 
 export {
+  TTS_PROVIDERS,
+  VOICE_CATALOG,
+  findVoiceCatalogEntry,
+  type TtsProviderId,
+  type VoiceCatalogEntry,
+} from "./voice-catalog.js";
+
+export {
   USAGE_KINDS,
   type UsageKind,
   type UsageFactIngestBody,
