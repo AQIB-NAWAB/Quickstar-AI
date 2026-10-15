@@ -85,15 +85,25 @@ export async function startConversationServer(): Promise<{
   let platformConsumer: ReturnType<typeof createPlatformEventConsumer> | null = null;
 
   if (config.kafkaBrokers) {
-    const kafka = new Kafka({
-      clientId: "conversation-service",
-      brokers: config.kafkaBrokers.split(",").map((b) => b.trim()),
-    });
-    outboxPublisher = createOutboxPublisher({ pool: eventPool, kafka, logger });
-    await outboxPublisher.start();
-    if (config.eventConsumerEnabled) {
-      platformConsumer = createPlatformEventConsumer({ pool: eventPool, kafka, logger });
-      await platformConsumer.start();
+    try {
+      const kafka = new Kafka({
+        clientId: "conversation-service",
+        brokers: config.kafkaBrokers.split(",").map((b) => b.trim()),
+        retry: { retries: 2 },
+      });
+      outboxPublisher = createOutboxPublisher({ pool: eventPool, kafka, logger });
+      await outboxPublisher.start();
+      if (config.eventConsumerEnabled) {
+        platformConsumer = createPlatformEventConsumer({ pool: eventPool, kafka, logger });
+        await platformConsumer.start();
+      }
+    } catch (err) {
+      logger.warn("kafka.unavailable", {
+        detail: "Kafka broker unreachable; running in standalone mode without background outbox publisher",
+        error: err instanceof Error ? err.message : String(err),
+      });
+      outboxPublisher = null;
+      platformConsumer = null;
     }
   } else {
     logger.info("kafka.disabled", { detail: "KAFKA_BROKERS unset; outbox rows will not publish" });

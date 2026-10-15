@@ -54,3 +54,6 @@ design/
 
 !.env.example
 !.env.leads.example
+
+# Local run/review outputs
+output/

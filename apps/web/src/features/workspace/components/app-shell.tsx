@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Compass,
   Cable,
+  HelpCircle,
   LogOut,
   Menu,
   MessageSquare,
@@ -19,7 +20,6 @@ import {
   Phone,
   Send,
   Settings,
-  Search,
   UsersRound,
   Workflow,
   X,
@@ -47,6 +47,7 @@ type NavItem = {
   match?: string;
   exact?: boolean;
 };
+
 type NavSection = { label: string; items: NavItem[] };
 
 export function AppShell({
@@ -62,7 +63,10 @@ export function AppShell({
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const isInbox = pathname.includes("/inbox");
   const base = `/workspaces/${workspaceId}`;
   const route = (path: string) => (isPreview ? `/preview/${path}` : `${base}/${path}`);
 
@@ -115,31 +119,37 @@ export function AppShell({
         },
         { name: "Integrations", href: route("integrations"), icon: Cable, match: "/integrations" },
         { name: "Developer", href: route("developer"), icon: Code2, match: "/developer" },
-        { name: "Settings", href: route("settings"), icon: Settings, match: "/settings" },
       ],
     },
   ];
-  const navItems = sections.flatMap((section) => section.items);
 
+  const navItems = sections.flatMap((section) => section.items);
   const activePath = isPreview ? pathname.replace("/preview", base) : pathname;
+
   const isItemActive = (item: NavItem) => {
     if (item.name === "Evaluation")
       return activePath.includes("/eval/") || activePath.endsWith("/eval");
     const href = isPreview ? item.href.replace(/^\/preview/, base) : item.href;
     if (item.exact) return activePath === href;
-    if (item.name === "Agents" && activePath.includes("/agents/new")) return true;
-    if (item.name === "Campaigns" && activePath.includes("/campaigns/new")) return true;
+    if (item.name === "Agents" && (activePath.includes("/agents") || activePath.includes("/agents/"))) return true;
+    if (item.name === "Campaigns" && activePath.includes("/campaigns")) return true;
     if (item.name === "Calls" && activePath.includes("/voice")) return true;
     if (item.name === "Leads" && activePath.includes("/leads")) return true;
     if (item.name === "Lead generation" && activePath.includes("/lead-generation")) return true;
     return activePath.startsWith(item.match ? `${base}${item.match}` : href);
   };
+
   const activeItem = navItems.find(isItemActive) ?? navItems[0];
+
   useEffect(() => setMobileNavOpen(false), [pathname]);
+
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {
       if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(event.target as Node)) {
         setWorkspaceMenuOpen(false);
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", onDocClick);
@@ -152,195 +162,282 @@ export function AppShell({
     router.refresh();
   }
 
-  const initials = userEmail.slice(0, 2).toUpperCase();
+  const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "US";
+  const wsInitial = workspaceName ? workspaceName.charAt(0).toUpperCase() : "W";
+
+  // Derive breadcrumb text
+  let breadcrumbParent = "Workspace";
+  let breadcrumbChild = activeItem?.name || "Agents";
+
+  if (activePath.includes("/agents/")) {
+    const parts = activePath.split("/agents/");
+    if (parts[1] && parts[1] !== "new") {
+      breadcrumbParent = "Agents";
+      breadcrumbChild = "Editor";
+    }
+  } else if (activePath.includes("/lead-generation/profile")) {
+    breadcrumbParent = "Lead generation";
+    breadcrumbChild = "Business profile";
+  } else if (activePath.includes("/lead-generation/runs/") && activePath.split("/lead-generation/runs/")[1]) {
+    breadcrumbParent = "Lead generation";
+    breadcrumbChild = "Research run";
+  }
 
   return (
     <NotificationsProvider workspaceId={workspaceId} isPreview={isPreview}>
-      <div className="workspace-app min-h-screen bg-background-base flex font-medium">
-        <aside className="hidden md:flex sticky top-[var(--console-offset,0px)] h-[calc(100dvh-var(--console-offset,0px))] shrink-0 w-[264px] border-r border-border-faint bg-white flex-col">
-          <div className="h-16 px-5 border-b border-border-faint flex items-center">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-accent-black"
-            >
-              <BrandLogo className="w-6 h-6 shrink-0" />
-              <span>
-                QuickStart<span className="text-heat-100"> AI</span>
-              </span>
-            </Link>
+      <div className="staff-shell min-h-screen bg-[#F2F3F4] text-[#202125] flex font-sans antialiased">
+        {/* Desktop Sidebar: 272px */}
+        <aside className="hidden xl:flex sticky top-0 h-[calc(100dvh-var(--console-offset,0px))] shrink-0 w-[272px] bg-[#F2F3F4] flex-col justify-between p-4 pr-0 select-none">
+          <div className="flex flex-col min-h-0 flex-1">
+            {/* Logo */}
+            <div className="px-3 py-2.5 mb-2">
+              <Link
+                href={route("agents")}
+                className="flex items-center gap-2.5 text-[20px] font-bold tracking-tight text-[#202125]"
+              >
+                <BrandLogo className="w-6 h-6 shrink-0" />
+                <span>
+                  QuickStart<span className="text-[#F15A24]"> AI</span>
+                </span>
+              </Link>
+            </div>
+
+            {/* Workspace Selector */}
+            <div className="relative px-2 mb-4" ref={workspaceMenuRef}>
+              <button
+                type="button"
+                onClick={() => setWorkspaceMenuOpen((v) => !v)}
+                aria-expanded={workspaceMenuOpen}
+                aria-label="Switch workspace"
+                className="w-full flex items-center justify-between gap-2.5 rounded-lg border border-[#E1E5EA] bg-white px-2.5 py-2 text-left shadow-xs hover:border-[#CCD2D8] transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-6 h-6 rounded bg-[#F8F9FA] border border-[#E1E5EA] text-[#202125] font-semibold text-[11px] flex items-center justify-center shrink-0">
+                    {wsInitial}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block truncate text-[14px] font-semibold text-[#202125] leading-tight">
+                      {workspaceName}
+                    </span>
+                    <span className="block truncate text-[10px] font-mono text-[#667085] leading-tight">
+                      {workspaceSlug}
+                    </span>
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-[#667085] transition-transform ${
+                    workspaceMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {workspaceMenuOpen && workspaces.length > 0 && (
+                <div className="absolute left-2 right-2 top-[calc(100%+6px)] z-40 max-h-64 overflow-auto rounded-lg border border-[#E1E5EA] bg-white py-1 shadow-lg">
+                  {workspaces.map((ws) => (
+                    <Link
+                      key={ws.id}
+                      href={`/workspaces/${ws.id}/agents`}
+                      onClick={() => setWorkspaceMenuOpen(false)}
+                      className={`block px-3 py-2 text-[14px] font-medium transition-colors hover:bg-[#F8F9FA] ${
+                        ws.id === workspaceId ? "bg-[#FFF3ED] font-semibold text-[#F15A24]" : "text-[#202125]"
+                      }`}
+                    >
+                      {ws.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Navigation Groups */}
+            <nav aria-label="Workspace sections" className="flex-1 overflow-y-auto px-2 space-y-5 pr-3">
+              {sections.map((section) => (
+                <section key={section.label}>
+                  <h2 className="px-2.5 pb-1 text-[12px] font-medium tracking-wide text-[#667085]">
+                    {section.label}
+                  </h2>
+                  <div className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const ItemIcon = item.icon;
+                      const active = isItemActive(item);
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          className={`flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-[14px] font-medium transition-all ${
+                            active
+                              ? "bg-white text-[#202125] font-semibold border border-[#E1E5EA] shadow-xs"
+                              : "text-[#475467] hover:bg-black/5 hover:text-[#202125]"
+                          }`}
+                        >
+                          <ItemIcon
+                            className={`w-4 h-4 shrink-0 ${active ? "text-[#F15A24]" : "text-[#667085]"}`}
+                          />
+                          <span className="truncate">{item.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </nav>
           </div>
 
-          <nav aria-label="Workspace sections" className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-            {sections.map((section) => (
-              <section key={section.label}>
-                <h2 className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                  {section.label}
-                </h2>
-                <div className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const ItemIcon = item.icon;
-                    const active = isItemActive(item);
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-10 text-[13px] font-semibold transition-colors ${active ? "bg-heat-8 text-heat-100" : "text-neutral-700 hover:bg-neutral-50 hover:text-accent-black"}`}
-                      >
-                        <ItemIcon
-                          className={`w-4 h-4 ${active ? "text-heat-100" : "text-neutral-500"}`}
-                        />
-                        <span>{item.name}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </nav>
-
-          <div className="p-4 border-t border-border-faint flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-heat-8 flex items-center justify-center font-semibold text-[11px] text-heat-100 shrink-0">
-                {initials}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-accent-black truncate">{userEmail}</p>
-                <p className="text-[11px] text-neutral-500">Staff</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="text-neutral-400 hover:text-accent-crimson p-2 rounded-8 hover:bg-neutral-50"
-              title="Sign out"
-              aria-label="Sign out"
+          {/* Lower Sidebar Utility Area: Settings & Account */}
+          <div className="pt-2 px-2 border-t border-[#EDF0F2] space-y-1">
+            <Link
+              href={route("settings")}
+              className={`flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-[14px] font-medium transition-colors ${
+                activePath.includes("/settings")
+                  ? "bg-white text-[#202125] font-semibold border border-[#E1E5EA] shadow-xs"
+                  : "text-[#475467] hover:bg-black/5 hover:text-[#202125]"
+              }`}
             >
-              <LogOut className="w-4 h-4" />
-            </button>
+              <Settings className="w-4 h-4 text-[#667085] shrink-0" />
+              <span>Settings</span>
+            </Link>
+
+            <div className="relative pt-1" ref={accountMenuRef}>
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-black/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-[#344054] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-[#202125] truncate leading-tight">
+                      {userEmail || "QuickStart user"}
+                    </p>
+                    <p className="text-[10px] text-[#667085] leading-tight">Staff account</p>
+                  </div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-[#667085] shrink-0" />
+              </button>
+
+              {accountMenuOpen && (
+                <div className="absolute left-0 right-0 bottom-[calc(100%+6px)] z-40 rounded-lg border border-[#E1E5EA] bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] font-medium text-[#B42318] hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-[var(--console-offset,0px)] z-20 shrink-0 border-b border-border-faint bg-white">
-            <div className="h-16 px-4 sm:px-6 flex items-center gap-3">
-              <button
-                type="button"
-                className="md:hidden p-2 rounded-10 border border-border-faint text-neutral-600"
-                aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
-                aria-expanded={mobileNavOpen}
-                aria-controls="workspace-mobile-navigation"
-                onClick={() => setMobileNavOpen((value) => !value)}
+        {/* Inset Main Pane */}
+        <div className="flex-1 flex flex-col min-w-0 h-[calc(100dvh-var(--console-offset,0px))] overflow-hidden p-3 pl-3 xl:pl-2">
+          <div className="bg-white border border-[#E1E5EA] rounded-[12px] flex-1 flex flex-col min-w-0 overflow-hidden shadow-xs">
+            {/* Top Bar with Breadcrumbs & Global Controls */}
+            <header className="h-14 px-6 border-b border-[#EDF0F2] flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  className="xl:hidden p-1.5 rounded-lg border border-[#E1E5EA] text-[#667085] hover:bg-[#F8F9FA]"
+                  aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+                  onClick={() => setMobileNavOpen((v) => !v)}
+                >
+                  {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+
+                <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[14px] text-[#667085]">
+                  <span>{breadcrumbParent}</span>
+                  <span className="text-[#CCD2D8]">/</span>
+                  <span className="font-semibold text-[#202125] truncate">{breadcrumbChild}</span>
+                </nav>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  title="Documentation & help"
+                  onClick={() => router.push(route("developer"))}
+                  className="p-1.5 text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] rounded-md transition-colors"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                <NotificationBell workspaceId={workspaceId} isPreview={isPreview} />
+              </div>
+            </header>
+
+            {/* Mobile Navigation Drawer */}
+            {mobileNavOpen && (
+              <nav
+                id="workspace-mobile-navigation"
+                aria-label="Workspace navigation"
+                className="xl:hidden fixed inset-x-0 top-14 bottom-0 z-50 overflow-y-auto border-t border-[#E1E5EA] bg-[#F2F3F4] p-4 shadow-xl"
               >
-                {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-              <div className="relative shrink-0" ref={workspaceMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setWorkspaceMenuOpen((value) => !value)}
-                  aria-expanded={workspaceMenuOpen}
-                  aria-label="Switch workspace"
-                  className="flex max-w-[220px] items-center gap-2 rounded-10 border border-border-faint bg-white px-3 py-1.5 text-left hover:border-neutral-300 hover:bg-neutral-50"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-[13px] font-semibold text-accent-black">
-                      {workspaceName}
-                    </span>
-                    <span className="block truncate text-[10px] font-mono text-neutral-500">
-                      {workspaceSlug}
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {workspaceMenuOpen && workspaces.length > 0 && (
-                  <div className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-64 w-64 overflow-auto rounded-12 border border-border-faint bg-white py-1 shadow-firecrawl-card">
-                    {workspaces.map((workspace) => (
-                      <Link
-                        key={workspace.id}
-                        href={`/workspaces/${workspace.id}/agents`}
-                        onClick={() => setWorkspaceMenuOpen(false)}
-                        className={`block px-3 py-2.5 text-[13px] font-medium hover:bg-neutral-50 ${workspace.id === workspaceId ? "bg-heat-8 font-semibold text-heat-100" : "text-accent-black"}`}
-                      >
-                        {workspace.name}
-                      </Link>
-                    ))}
+                <div className="space-y-4">
+                  {sections.map((section) => (
+                    <section key={section.label}>
+                      <h2 className="px-2 pb-1 text-[11px] font-semibold text-[#667085]">
+                        {section.label}
+                      </h2>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {section.items.map((item) => {
+                          const ItemIcon = item.icon;
+                          const active = isItemActive(item);
+                          return (
+                            <Link
+                              key={item.name}
+                              href={item.href}
+                              onClick={() => setMobileNavOpen(false)}
+                              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-medium ${
+                                active
+                                  ? "bg-white text-[#202125] font-semibold border border-[#E1E5EA] shadow-xs"
+                                  : "text-[#475467] hover:bg-white/60"
+                              }`}
+                            >
+                              <ItemIcon
+                                className={`h-4 w-4 shrink-0 ${active ? "text-[#F15A24]" : "text-[#667085]"}`}
+                              />
+                              <span className="truncate">{item.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                  <div className="pt-2 border-t border-[#EDF0F2]">
+                    <button
+                      type="button"
+                      onClick={() => void logout()}
+                      className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-medium text-[#B42318] bg-white border border-[#E1E5EA]"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
                   </div>
-                )}
-              </div>
-              <div className="hidden sm:block w-[1px] h-5 bg-neutral-200 mx-1 shrink-0" />
-              <div className="flex items-center gap-2 text-xs min-w-0 flex-1 truncate">
-                <span className="text-neutral-400 font-normal hidden sm:inline">
-                  {activePath.includes("/lead-generation/profile")
-                    ? "Lead generation"
-                    : activePath.includes("/lead-generation/runs/") && activePath.split("/lead-generation/runs/")[1]
-                    ? "Lead generation"
-                    : "Workspace"}
-                </span>
-                <span className="text-neutral-300 font-normal hidden sm:inline">/</span>
-                <h1 className="font-bold text-neutral-900 truncate text-xs sm:text-[13px]">
-                  {activePath.includes("/lead-generation/profile")
-                    ? "Business profile"
-                    : activePath.includes("/lead-generation/runs/") && activePath.split("/lead-generation/runs/")[1]
-                    ? "Research run"
-                    : activePath.includes("/lead-generation")
-                    ? "Lead generation"
-                    : activePath.includes("/leads")
-                    ? "Leads"
-                    : activeItem.name}
-                </h1>
-              </div>
-              <NotificationBell workspaceId={workspaceId} isPreview={isPreview} />
-            </div>
-          </header>
+                </div>
+              </nav>
+            )}
 
-          {mobileNavOpen && (
-            <nav
-              id="workspace-mobile-navigation"
-              aria-label="Workspace navigation"
-              className="md:hidden fixed inset-x-0 top-[calc(4rem+var(--console-offset,0px))] bottom-0 z-40 overflow-y-auto border-t border-border-faint bg-white p-4 shadow-xl"
+            {/* Main Content Area */}
+            <main
+              className={`flex-1 min-w-0 flex flex-col ${
+                isInbox ? "overflow-hidden" : "overflow-y-auto"
+              }`}
             >
-              <div className="space-y-4">
-                {sections.map((section) => (
-                  <section key={section.label}>
-                    <h2 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                      {section.label}
-                    </h2>
-                    <div className="grid grid-cols-2 gap-1">
-                      {section.items.map((item) => {
-                        const ItemIcon = item.icon;
-                        const active = isItemActive(item);
-                        return (
-                          <Link
-                            key={item.name}
-                            href={item.href}
-                            onClick={() => setMobileNavOpen(false)}
-                            className={`flex items-center gap-2.5 rounded-10 px-3 py-3 text-[13px] font-semibold ${active ? "bg-heat-8 text-heat-100" : "text-neutral-700 hover:bg-neutral-50"}`}
-                          >
-                            <ItemIcon className="h-4 w-4" />
-                            {item.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => void logout()}
-                  className="w-full flex items-center gap-2 rounded-10 px-3 py-3 text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign out
-                </button>
+              <div
+                className={
+                  isInbox
+                    ? "flex-1 flex flex-col min-h-0 w-full"
+                    : "p-5 sm:p-6 max-w-[1600px] mx-auto w-full"
+                }
+              >
+                {children}
               </div>
-            </nav>
-          )}
-
-          <main className="workspace-console flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
-            <div className="mx-auto w-full max-w-[1440px]">{children}</div>
-          </main>
+            </main>
+          </div>
         </div>
       </div>
     </NotificationsProvider>
