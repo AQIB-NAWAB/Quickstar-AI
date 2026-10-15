@@ -32,6 +32,11 @@ export type SynthesisResult = {
   provider: string;
 };
 
+export type SynthesisStreamMetrics = {
+  firstChunkLatencyMs: number;
+  latencyMs: number;
+};
+
 export interface SpeechToText {
   readonly id: string;
   transcribe(chunk: AudioChunk, signal?: AbortSignal): Promise<TranscriptResult>;
@@ -40,6 +45,13 @@ export interface SpeechToText {
 export interface TextToSpeech {
   readonly id: string;
   synthesize(text: string, voiceId: string, signal?: AbortSignal): Promise<SynthesisResult>;
+  /** Optional low-latency path. Providers may emit audio before synthesis completes. */
+  streamSynthesize?(
+    text: string,
+    voiceId: string,
+    onAudio: (audio: AudioChunk) => void,
+    signal?: AbortSignal,
+  ): Promise<SynthesisStreamMetrics>;
 }
 
 /** Optional realtime speech-to-speech session (emotional / compliance profiles). */

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import WebSocket from "ws";
 import type { Logger } from "@quickstart/logging";
 import type { TextToSpeech } from "../speech/types.js";
 import { textForSpeech } from "../services/widget-voice.service.js";
@@ -10,7 +11,7 @@ function firstSpeakableCut(pending: string): number {
   const punct = pending.search(/[.!?،۔؟]/);
   if (punct >= 4) return punct + 1;
   const words = pending.trim().split(/\s+/);
-  if (words.length >= 4 && pending.endsWith(" ")) return pending.length;
+  if (words.length >= 3 && pending.endsWith(" ")) return pending.length;
   return 0;
 }
 
@@ -95,7 +96,8 @@ export class WidgetVoiceLiveSession {
 
   private openDeepgram(): void {
     if (this.closed) return;
-    const model = this.input.deepgramModel || "nova-2";
+    const configuredModel = this.input.deepgramModel || "nova-2";
+    const model = configuredModel;
     const params = new URLSearchParams({
       model,
       encoding: "linear16",
@@ -104,16 +106,21 @@ export class WidgetVoiceLiveSession {
       interim_results: "true",
       punctuate: "true",
       smart_format: "true",
-      language: this.replyLanguage.toLowerCase().startsWith("ur") ? "ur" : "en",
+      language: "en",
       endpointing: "200",
+      // Deepgram rejects values below its configured step size; 1000 ms is
+      // the minimum supported value for this streaming configuration.
       utterance_end_ms: "1000",
       vad_events: "true",
     });
     const url = `wss://api.deepgram.com/v1/listen?${params}`;
-    const dg = new WebSocket(url, ["token", this.input.deepgramApiKey]);
+    const dg = new WebSocket(url, {
+      headers: { Authorization: `Token ${this.input.deepgramApiKey}` },
+    });
     this.dgSocket = dg;
 
     dg.addEventListener("open", () => {
+      this.input.logger.info("widget.voice.stt_connected", { model, language: "en" });
       this.dgReconnectAttempts = 0;
       if (this.dgReconnectTimer) {
         clearTimeout(this.dgReconnectTimer);
@@ -166,17 +173,38 @@ export class WidgetVoiceLiveSession {
     });
 
     dg.addEventListener("error", () => {
-      this.input.logger.warn("widget.voice.dg_error");
+      this.input.logger.warn("widget.voice.dg_error", { model, language: "en" });
     });
 
-    dg.addEventListener("close", (ev: Event) => {
+    dg.on("unexpected-response", (_request, response) => {
+      let detail = "";
+      response.on("data", (chunk: Buffer) => {
+        if (detail.length < 300) detail += chunk.toString("utf8").slice(0, 300 - detail.length);
+      });
+      response.on("end", () => {
+        let message = detail;
+        try {
+          const parsed = JSON.parse(detail) as { err_msg?: string; err_code?: string };
+          message = parsed.err_msg ?? parsed.err_code ?? detail;
+        } catch {
+          // Keep the bounded provider response text for diagnostics.
+        }
+        this.input.logger.warn("widget.voice.dg_rejected", {
+          status: response.statusCode,
+          model,
+          language: "en",
+          message,
+        });
+      });
+    });
+
+    dg.on("close", (code: number, reason: Buffer) => {
       if (this.closed || this.dgSocket !== dg) return;
       this.ready = false;
       this.dgSocket = null;
-      const close = ev as Event & { code?: number; reason?: string };
       this.input.logger.warn("widget.voice.dg_closed", {
-        code: close.code,
-        reason: close.reason,
+        code,
+        reason: reason.toString("utf8"),
       });
       this.scheduleDeepgramReconnect();
     });
@@ -222,6 +250,31 @@ export class WidgetVoiceLiveSession {
     this.speakChain = this.speakChain
       .then(async () => {
         if (this.closed || signal?.aborted) return;
+        if (this.input.tts.streamSynthesize) {
+          const metrics = await this.input.tts.streamSynthesize(
+            clean,
+            voiceId,
+            (audio) => {
+              if (this.closed || signal?.aborted) return;
+              const pcm = audio.encoding === "pcm16";
+              this.emit({
+                type: "audio",
+                mime: audio.mimeType ?? (pcm ? "audio/pcm" : "audio/mpeg"),
+                data: audio.bytes.toString("base64"),
+                ...(pcm ? { encoding: "pcm16" as const, sample_rate: audio.sampleRateHz } : {}),
+              });
+            },
+            signal,
+          );
+          if (!this.closed && !signal?.aborted) {
+            this.input.logger.info("widget.voice.tts_stream_complete", {
+              provider: this.input.tts.id,
+              first_chunk_ms: metrics.firstChunkLatencyMs,
+              total_ms: metrics.latencyMs,
+            });
+          }
+          return;
+        }
         const tts = await this.input.tts.synthesize(clean, voiceId, signal);
         if (this.closed || signal?.aborted) return;
         this.emit({
@@ -301,6 +354,8 @@ export class WidgetVoiceLiveSession {
     this.turnAbort = turnAbort;
     const requestId = randomUUID();
     const idempotencyKey = randomUUID();
+    const turnStartedAt = Date.now();
+    let firstTokenLogged = false;
     let assistantBuffer = "";
 
     this.emit({ type: "transcript", text, interim: false });
@@ -330,6 +385,13 @@ export class WidgetVoiceLiveSession {
           },
         },
         (delta) => {
+          if (!firstTokenLogged) {
+            firstTokenLogged = true;
+            this.input.logger.info("widget.voice.turn_first_token", {
+              request_id: requestId,
+              elapsed_ms: Date.now() - turnStartedAt,
+            });
+          }
           assistantBuffer += delta;
           pending += delta;
           this.emit({ type: "assistant_token", delta });

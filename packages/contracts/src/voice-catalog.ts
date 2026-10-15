@@ -11,6 +11,8 @@ export type VoiceCatalogEntry = {
   voice_id: string;
   label: string;
   language: string;
+  /** Grammatical voice persona used when composing spoken Urdu replies. */
+  gender?: "female" | "male" | "neutral";
   description: string;
   sample_text: string;
 };
@@ -22,6 +24,7 @@ export const VOICE_CATALOG: readonly VoiceCatalogEntry[] = [
     voice_id: "v_8eelc901",
     label: "Uplift Info",
     language: "ur-PK",
+    gender: "male",
     description: "Clear Urdu, education and support.",
     sample_text: "سلام، میں آپ کی کس طرح مدد کر سکتا ہوں؟",
   },
@@ -31,6 +34,7 @@ export const VOICE_CATALOG: readonly VoiceCatalogEntry[] = [
     voice_id: "v_30s70t3a",
     label: "Uplift News",
     language: "ur-PK",
+    gender: "female",
     description: "Pakistani news cadence.",
     sample_text: "آج کی اہم خبر یہ ہے کہ آپ کا آرڈر تصدیق ہو گیا ہے۔",
   },
@@ -40,6 +44,7 @@ export const VOICE_CATALOG: readonly VoiceCatalogEntry[] = [
     voice_id: "v_meklc281",
     label: "Uplift Urdu",
     language: "ur-PK",
+    gender: "female",
     description: "Urdu female conversational voice.",
     sample_text: "آپ کا آرڈر کنفرم ہو گیا ہے۔ میں مزید کس طرح مدد کروں؟",
   },
@@ -58,6 +63,7 @@ export const VOICE_CATALOG: readonly VoiceCatalogEntry[] = [
     voice_id: "d463004e-0353-4063-80d4-2fabbf1c5dcb",
     label: "Cartesia Hina",
     language: "ur",
+    gender: "female",
     description: "Urdu, steady and clear.",
     sample_text: "سلام، میں آپ کی کس طرح مدد کر سکتا ہوں؟",
   },

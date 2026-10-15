@@ -774,10 +774,16 @@ importers:
       redis:
         specifier: ^4.7.1
         version: 4.7.1
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
     devDependencies:
       '@types/pg':
         specifier: ^8.15.5
         version: 8.23.1
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
 
   services/web-fetch-service:
     dependencies:
@@ -1460,6 +1466,9 @@ packages:
 
   '@types/shimmer@1.2.0':
     resolution: {integrity: sha512-UE7oxhQLLd9gub6JKIAhDq06T0F6FnztwMNRvYgjeQSBeMc1ZG/tA47EwfduvkuQS8apbkM/lpLpWsaCeYsXVg==}
+
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@typescript-eslint/eslint-plugin@8.70.0':
     resolution: {integrity: sha512-/v8HZt6RlyIZxB3ntehELOcUcfxKPVGWXnQdJuHRmzrqgF8nQypcC/oxGW+Ot4VGKDq81XugPKxx0n5PBtf9PA==}
@@ -2744,6 +2753,18 @@ packages:
     resolution: {integrity: sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww==}
     engines: {node: '>=18'}
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -3488,6 +3509,10 @@ snapshots:
       '@types/node': 22.20.4
 
   '@types/shimmer@1.2.0': {}
+
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 22.20.4
 
   '@typescript-eslint/eslint-plugin@8.70.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5(jiti@1.21.7)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(jiti@1.21.7)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)':
     dependencies:
@@ -4745,6 +4770,8 @@ snapshots:
       ansi-styles: 6.2.3
       string-width: 7.2.0
       strip-ansi: 7.2.0
+
+  ws@8.22.0: {}
 
   xtend@4.0.2: {}
 

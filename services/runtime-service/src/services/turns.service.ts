@@ -68,6 +68,7 @@ const WIDGET_REPLY_STYLE = [
 
 function spokenReplyStyle(
   language: string | undefined,
+  gender: "female" | "male" | "neutral" | undefined,
   options: {
     handoff: "off" | "ask" | "now";
     tools: Array<{ name: string; description: string }>;
@@ -77,7 +78,7 @@ function spokenReplyStyle(
   const lines = [
     "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
     urdu
-      ? "Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words."
+      ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
     "One or two short spoken sentences, under 25 words.",
     "Plain spoken words only: no markdown, bullets, lists, emojis, URLs, or symbols.",
@@ -501,6 +502,7 @@ export class TurnsService {
     onToolStart?: (event: { name: string; spoken: string }) => void;
     modality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
     signal?: AbortSignal;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
@@ -510,6 +512,7 @@ export class TurnsService {
       compactReply: true,
       widgetModality: input.modality ?? "text",
       replyLanguage: input.replyLanguage,
+      replyGender: input.replyGender,
     });
   }
 
@@ -569,6 +572,7 @@ export class TurnsService {
     compactReply?: boolean;
     widgetModality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
     onToolStart?: (event: { name: string; spoken: string }) => void;
     signal?: AbortSignal;
   }): Promise<TurnResult> {
@@ -590,6 +594,7 @@ export class TurnsService {
       signal,
     } = input;
     const replyLanguage = input.replyLanguage;
+    const replyGender = input.replyGender;
 
     const conversation = await this.conversationClient.getConversationWidget(
       workspaceId,
@@ -792,7 +797,7 @@ export class TurnsService {
     if (compactReply) {
       systemParts.push(
         widgetModality === "voice"
-          ? spokenReplyStyle(replyLanguage, {
+          ? spokenReplyStyle(replyLanguage, replyGender, {
               handoff: confirmedHandoff ? "now" : pendingHandoff ? "ask" : "off",
               tools: modelTools,
             })
@@ -824,7 +829,7 @@ export class TurnsService {
         ? modelSettings.max_tokens
         : undefined;
     const maxTokens = voiceTurn
-      ? Math.min(configuredMax ?? 160, 160)
+      ? Math.min(configuredMax ?? 96, 96)
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
         : configuredMax;
@@ -850,8 +855,9 @@ export class TurnsService {
           authHeaders: {},
           model: { profile, model_id: modelId },
           temperature,
-          maxTokens: 480,
+          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 480,
           replyLanguage,
+          replyGender,
           tools: modelTools,
           chatMessages,
           visitorText: text,

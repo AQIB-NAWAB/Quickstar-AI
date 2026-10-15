@@ -145,6 +145,7 @@ export type ToolLoopInput = {
   chatMessages: ChatMessage[];
   maxTokens?: number;
   replyLanguage?: string;
+  replyGender?: "female" | "male" | "neutral";
   /** Spoken before the tool runs so the caller is not left in silence. */
   onToolStart?: (event: { name: string; spoken: string }) => void;
   visitorText?: string;
@@ -194,7 +195,7 @@ export class ToolLoop {
           transferred = true;
           input.onToolStart?.({
             name: call.name,
-            spoken: spokenToolNudge(call.name, input.replyLanguage),
+            spoken: spokenToolNudge(call.name, input.replyLanguage, input.replyGender),
           });
           messages.push({
             role: "tool",
@@ -263,7 +264,7 @@ export class ToolLoop {
         executedCalls.set(callFingerprint, round);
         input.onToolStart?.({
           name: call.name,
-          spoken: spokenToolNudge(call.name, input.replyLanguage),
+          spoken: spokenToolNudge(call.name, input.replyLanguage, input.replyGender),
         });
 
         // Barge-in can arrive while the model is choosing a tool. Never start

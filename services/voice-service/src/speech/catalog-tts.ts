@@ -2,7 +2,7 @@ import { findVoiceCatalogEntry, VOICE_CATALOG, type TtsProviderId } from "@quick
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { CartesiaTextToSpeech } from "./cartesia-tts.js";
 import { FishAudioTextToSpeech } from "./fish-tts.js";
-import type { SynthesisResult, TextToSpeech } from "./types.js";
+import type { AudioChunk, SynthesisResult, SynthesisStreamMetrics, TextToSpeech } from "./types.js";
 import { UpliftTextToSpeech } from "./uplift-tts.js";
 
 export type CatalogTtsOptions = {
@@ -88,6 +88,40 @@ export class CatalogTextToSpeech implements TextToSpeech {
       return this.cartesia.synthesize(text, nativeId, signal, entry.language);
     }
     return impl.synthesize(text, nativeId, signal);
+  }
+
+  async streamSynthesize(
+    text: string,
+    voiceId: string,
+    onAudio: (audio: AudioChunk) => void,
+    signal?: AbortSignal,
+  ): Promise<SynthesisStreamMetrics> {
+    const requested = findVoiceCatalogEntry(voiceId);
+    const entry = requested ?? this.listVoices().find((voice) => voice.available) ?? VOICE_CATALOG[0];
+    const nativeId =
+      entry.provider === "fish" && entry.voice_id === "reference"
+        ? this.options.fishReferenceId?.trim() || ""
+        : entry.voice_id;
+    const impl = entry.provider === "uplift" ? this.uplift : entry.provider === "cartesia" ? this.cartesia : this.fish;
+    if (!impl || !nativeId) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `${entry.provider} is not configured. Add the API key (and Fish reference id) before previewing ${entry.label}.`,
+      });
+    }
+    const streamingImpl = impl as TextToSpeech;
+    if (streamingImpl.streamSynthesize) {
+      return streamingImpl.streamSynthesize(text, nativeId, onAudio, signal);
+    }
+
+    // Other catalog providers retain their existing full-clip path.
+    const started = Date.now();
+    const result =
+      entry.provider === "cartesia" && this.cartesia
+        ? await this.cartesia.synthesize(text, nativeId, signal, entry.language)
+        : await impl.synthesize(text, nativeId, signal);
+    onAudio(result.audio);
+    return { firstChunkLatencyMs: Date.now() - started, latencyMs: result.latencyMs };
   }
 }
 

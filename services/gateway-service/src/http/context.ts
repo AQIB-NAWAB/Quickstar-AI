@@ -7,4 +7,9 @@ export type GatewayHttpContext = {
   requireAccessToken: RequestHandler;
   requireWorkspaceMembership: RequestHandler;
   requirePublishableKey: RequestHandler;
+  customLlm: {
+    workspaceId?: string;
+    agentId?: string;
+    token?: string;
+  };
 };

@@ -23,6 +23,9 @@ export type GatewayConfig = {
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
   membershipCacheTtlSec: number;
+  customLlmWorkspaceId?: string;
+  customLlmAgentId?: string;
+  customLlmToken?: string;
   membershipCacheNegativeTtlSec: number;
 };
 
@@ -105,6 +108,9 @@ export function loadGatewayConfig(): GatewayConfig {
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 300),
     membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
+    customLlmWorkspaceId: process.env.QUICKSTART_CUSTOM_LLM_WORKSPACE_ID?.trim() || undefined,
+    customLlmAgentId: process.env.QUICKSTART_CUSTOM_LLM_AGENT_ID?.trim() || undefined,
+    customLlmToken: process.env.QUICKSTART_CUSTOM_LLM_TOKEN?.trim() || undefined,
     membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),
   };
 }
