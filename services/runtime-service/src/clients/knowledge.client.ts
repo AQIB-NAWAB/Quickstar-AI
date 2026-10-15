@@ -46,6 +46,7 @@ export class KnowledgeClient {
     query: string,
     requestId: string,
     limit = 5,
+    signal?: AbortSignal,
   ): Promise<RetrievedChunk[]> {
     const url = `${this.baseUrl}/internal/retrieve`;
     const res = await fetchWithPolicy(
@@ -58,6 +59,7 @@ export class KnowledgeClient {
           "x-request-id": requestId,
         },
         body: JSON.stringify({ workspace_id: workspaceId, query, limit }),
+        signal,
       },
       { timeoutMs: this.timeoutMs, maxRetries: 0 },
     );

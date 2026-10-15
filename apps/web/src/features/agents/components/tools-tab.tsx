@@ -147,9 +147,9 @@ export function ToolsTab({
                       <span className="text-[15px] font-semibold text-[#202125]">
                         {tool.name}
                       </span>
-                      {Boolean(tool.executor_type) && (
+                      {Boolean(tool.type) && (
                         <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#F2F4F7] text-[#667085]">
-                          {String(tool.executor_type)}
+                          {String(tool.type)}
                         </span>
                       )}
                     </div>

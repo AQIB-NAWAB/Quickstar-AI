@@ -1,12 +1,25 @@
 import type { ChatMessage, TokenUsage } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { AgentClient } from "../clients/agent.client.js";
+import type { AgentClient, AgentVersionInfo } from "../clients/agent.client.js";
 import type { ConversationClient, MessageInfo } from "../clients/conversation.client.js";
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { ToolLoop } from "./tool-loop.js";
-import { visitorWantsTeammate, VOICE_TRANSFER_TOOL, VOICE_TRANSFER_TOOL_NAME } from "./voice-tools.js";
+import {
+  assistantAskedForActionConfirmation,
+  assistantOfferedHandoff,
+  assistantAskedForLookupTarget,
+  CONVERSATION_PRIORITY,
+  lookupRequestMissingIdentifier,
+  visitorConfirmed,
+  visitorRequestsToolAction,
+  visitorSuppliedIdentifier,
+  utteranceRequestsAction,
+  visitorWantsTeammate,
+  VOICE_TRANSFER_TOOL,
+  VOICE_TRANSFER_TOOL_NAME,
+} from "./voice-tools.js";
 
 export type ExecuteTurnInput = {
   workspaceId: string;
@@ -22,6 +35,7 @@ export type ExecuteTurnInput = {
   callId?: string;
   /** When set, tokens are forwarded as the model gateway streams them. */
   onToken?: (delta: string) => void;
+  signal?: AbortSignal;
 };
 
 export type TurnResult = {
@@ -45,51 +59,61 @@ const WIDGET_REPLY_STYLE = [
   "Use normal sentences only. Never use bullet lists, numbered lists, markdown headings, or lines formatted as **Bold label** — description.",
   "Do not reply with a menu of topics (Pricing / Security / Getting Started) unless the user explicitly asked for a list of links or steps.",
   "If prior assistant messages in this conversation used bullets, ignore that pattern; from now on use prose only.",
+  "Answer the visitor's newest message. Never repeat your previous reply or re-run an earlier task unless the visitor explicitly asks again.",
   "",
   "Example — user asks about pricing:",
   "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
 ].join("\n");
 
+
 function spokenReplyStyle(
   language: string | undefined,
-  options: { canTransfer: boolean; tools: Array<{ name: string; description: string }> },
+  gender: "female" | "male" | "neutral" | undefined,
+  options: {
+    handoff: "off" | "ask" | "now";
+    tools: Array<{ name: string; description: string }>;
+  },
 ): string {
   const urdu = (language ?? "").toLowerCase().startsWith("ur");
   const lines = [
     "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
     urdu
-      ? "Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words."
+      ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
     "One or two short spoken sentences, under 25 words.",
     "Plain spoken words only: no markdown, bullets, lists, emojis, URLs, or symbols.",
+    "Answer general questions from the knowledge base. For a requested lookup, use the matching tool; ask briefly if a required detail is missing and never invent it.",
+    "If a requested post or order lookup is missing its ID, ask for that ID in one short question and wait.",
   ];
-  if (options.canTransfer) {
-    lines.push(
-      "If the visitor asks for a person, a human, or a teammate, call transfer_to_teammate. Do not say someone has already joined. The caller hears a short switch line while you call it.",
-    );
-  } else {
+  if (options.handoff === "now") {
+    lines.push("The visitor confirmed. Call transfer_to_teammate now. Do not ask again.");
+  } else if (options.handoff === "ask") {
     lines.push(
       urdu
-        ? "اگر زائر انسان یا ساتھی مانگے تو یہی کہو: ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
-        : "If the visitor asks for a person, a human, or a teammate, say exactly: I'm switching you to a teammate now.",
+        ? "صرف یہ پوچھو: کیا میں آپ کو ایک ساتھی سے ملا دوں؟ ابھی کال مت بدلو۔"
+        : "Ask only this: Would you like me to connect you with a teammate? Do not transfer yet.",
     );
+  } else {
+    lines.push("Do not mention a teammate or say you are switching the call.");
   }
   if (options.tools.length > 0) {
+    lines.push(CONVERSATION_PRIORITY);
     lines.push(
-      "When one of these functions can answer, call it instead of guessing. Do not read the function name aloud. The caller hears a short checking line while it runs.",
-    );
-    lines.push(
-      options.tools
-        .slice(0, 8)
-        .map((tool) => `${tool.name}: ${tool.description.slice(0, 140)}`)
-        .join("\n"),
+      "Available only when the visitor asks for that action:\n" +
+        options.tools
+          .slice(0, 8)
+          .map((tool) => `${tool.name}: ${tool.description.slice(0, 120)}`)
+          .join("\n"),
     );
   }
   return lines.join("\n");
 }
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
-function resolveChatModel(modelSettings: Record<string, unknown>): { profile: string; modelId: string } {
+function resolveChatModel(modelSettings: Record<string, unknown>): {
+  profile: string;
+  modelId: string;
+} {
   const profile = typeof modelSettings.profile === "string" ? modelSettings.profile.trim() : "";
   const modelId =
     (typeof modelSettings.model_id === "string" ? modelSettings.model_id.trim() : "") ||
@@ -112,6 +136,11 @@ function resolveChatModel(modelSettings: Record<string, unknown>): { profile: st
 }
 
 export class TurnsService {
+  private readonly widgetVersionCache = new Map<
+    string,
+    { expiresAt: number; value: Promise<AgentVersionInfo> }
+  >();
+
   constructor(
     private readonly agentClient: AgentClient,
     private readonly conversationClient: ConversationClient,
@@ -120,6 +149,59 @@ export class TurnsService {
     private readonly memoryClient?: MemoryClient,
     private readonly toolLoop?: ToolLoop,
   ) {}
+
+  private async getWidgetVersion(
+    workspaceId: string,
+    agentId: string,
+    versionId: string,
+    requestId: string,
+  ): Promise<AgentVersionInfo> {
+    const key = `${workspaceId}:${agentId}:${versionId}`;
+    const cached = this.widgetVersionCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const value = this.agentClient.getVersionWidget(workspaceId, agentId, versionId, requestId);
+    this.widgetVersionCache.set(key, { expiresAt: Date.now() + 30_000, value });
+    try {
+      return await value;
+    } catch (error) {
+      if (this.widgetVersionCache.get(key)?.value === value) this.widgetVersionCache.delete(key);
+      throw error;
+    }
+  }
+
+  private async getPublishedWidgetVersion(
+    workspaceId: string,
+    agentId: string,
+    requestId: string,
+  ): Promise<AgentVersionInfo> {
+    const key = `${workspaceId}:${agentId}:published`;
+    const cached = this.widgetVersionCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const value = (async () => {
+      const agent = await this.agentClient.getAgentWidget(workspaceId, agentId, requestId);
+      if (!agent.production_version_id) {
+        throw new AppError({
+          code: ErrorCode.CONFLICT,
+          message: "Agent has no published version",
+        });
+      }
+      return this.agentClient.getVersionWidget(
+        workspaceId,
+        agentId,
+        agent.production_version_id,
+        requestId,
+      );
+    })();
+    this.widgetVersionCache.set(key, { expiresAt: Date.now() + 30_000, value });
+    try {
+      return await value;
+    } catch (error) {
+      if (this.widgetVersionCache.get(key)?.value === value) this.widgetVersionCache.delete(key);
+      throw error;
+    }
+  }
 
   async executeTurn(input: ExecuteTurnInput): Promise<TurnResult> {
     const {
@@ -132,6 +214,7 @@ export class TurnsService {
       requestId,
       deadlineMs,
       onToken,
+      signal,
     } = input;
 
     // 1. Fetch conversation (fails with 404 NOT_FOUND if wrong workspace)
@@ -195,9 +278,7 @@ export class TurnsService {
         authHeaders,
         20,
       );
-      const existingAsst = recentMessages.find(
-        (m) => m.idempotency_key === asstIdempotencyKey,
-      );
+      const existingAsst = recentMessages.find((m) => m.idempotency_key === asstIdempotencyKey);
       if (existingAsst) {
         return {
           deduplicated: true,
@@ -240,18 +321,13 @@ export class TurnsService {
     }
     if (knowledgeContext) {
       systemParts.push(
-        `Use the following knowledge snippets when answering:\n\n${knowledgeContext}`,
+        `Knowledge base (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
       );
     }
 
     const subjectKey = conversation.subject_key?.trim();
     if (this.memoryClient && subjectKey) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        20,
-      );
+      const memoryFacts = await this.memoryClient.listFacts(workspaceId, subjectKey, requestId, 20);
       if (memoryFacts.length > 0) {
         const memoryBlock = memoryFacts
           .map((f) => `- ${f.fact_text}`)
@@ -279,9 +355,7 @@ export class TurnsService {
     }
 
     // If history didn't include the newly appended user message yet, ensure it is present
-    const hasCurrent = chatMessages.some(
-      (m) => m.role === "user" && m.content === (text ?? ""),
-    );
+    const hasCurrent = chatMessages.some((m) => m.role === "user" && m.content === (text ?? ""));
     if (!hasCurrent && text) {
       chatMessages.push({ role: "user", content: text });
     }
@@ -290,11 +364,16 @@ export class TurnsService {
     const modelSettings = version.snapshot.model_settings ?? {};
     const { profile, modelId } = resolveChatModel(modelSettings);
     const temperature =
-      typeof modelSettings.temperature === "number"
-        ? modelSettings.temperature
-        : undefined;
+      typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
     const agentTools = version.snapshot.tools ?? [];
+    if (agentTools.length > 0) {
+      const firstSystem = chatMessages.findIndex((m) => m.role === "system");
+      chatMessages.splice(Math.max(0, firstSystem + 1), 0, {
+        role: "system",
+        content: CONVERSATION_PRIORITY,
+      });
+    }
     let assistantText = "";
     let usage: TokenUsage | undefined;
 
@@ -310,6 +389,8 @@ export class TurnsService {
           temperature,
           tools: agentTools,
           chatMessages,
+          visitorText: text,
+          signal,
         });
         assistantText = loopResult.content;
       } else if (onToken) {
@@ -322,6 +403,7 @@ export class TurnsService {
             temperature,
           },
           { onToken },
+          signal,
         );
         assistantText = completion.content;
         usage = completion.usage;
@@ -332,7 +414,7 @@ export class TurnsService {
           model: { profile, model_id: modelId },
           messages: chatMessages,
           temperature,
-        });
+        }, signal);
         assistantText = completion.content;
         usage = completion.usage;
       }
@@ -371,9 +453,7 @@ export class TurnsService {
         sender_type: "assistant",
         sender_id: version.id,
         metadata:
-          retrievedChunkIds.length > 0
-            ? { retrieved_chunk_ids: retrievedChunkIds }
-            : undefined,
+          retrievedChunkIds.length > 0 ? { retrieved_chunk_ids: retrievedChunkIds } : undefined,
       },
       authHeaders,
     );
@@ -422,14 +502,17 @@ export class TurnsService {
     onToolStart?: (event: { name: string; spoken: string }) => void;
     modality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
+    signal?: AbortSignal;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
       ...input,
       channel: "widget",
-      allowTools: input.modality === "voice",
+      allowTools: true,
       compactReply: true,
       widgetModality: input.modality ?? "text",
       replyLanguage: input.replyLanguage,
+      replyGender: input.replyGender,
     });
   }
 
@@ -489,7 +572,9 @@ export class TurnsService {
     compactReply?: boolean;
     widgetModality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
     onToolStart?: (event: { name: string; spoken: string }) => void;
+    signal?: AbortSignal;
   }): Promise<TurnResult> {
     const {
       workspaceId,
@@ -506,8 +591,10 @@ export class TurnsService {
       onToken,
       compactReply,
       widgetModality,
+      signal,
     } = input;
     const replyLanguage = input.replyLanguage;
+    const replyGender = input.replyGender;
 
     const conversation = await this.conversationClient.getConversationWidget(
       workspaceId,
@@ -554,36 +641,22 @@ export class TurnsService {
       });
     }
 
-    let versionId = pinnedVersionId;
-    if (!versionId) {
-      const agent = await this.agentClient.getAgentWidget(workspaceId, agentId, requestId);
-      if (!agent.production_version_id) {
-        throw new AppError({
-          code: ErrorCode.CONFLICT,
-          message: "Agent has no published version",
-        });
-      }
-      versionId = agent.production_version_id;
-    }
-
-    const version = await this.agentClient.getVersionWidget(
-      workspaceId,
-      agentId,
-      versionId,
-      requestId,
-    );
+    const version = pinnedVersionId
+      ? await this.getWidgetVersion(workspaceId, agentId, pinnedVersionId, requestId)
+      : await this.getPublishedWidgetVersion(workspaceId, agentId, requestId);
 
     const voiceTurn = widgetModality === "voice" || channel === "voice";
     const agentTools = version.snapshot.tools ?? [];
-    const handoffRequest = voiceTurn && visitorWantsTeammate(text);
-    const modelTools = [
-      ...(voiceTurn && (handoffRequest || agentTools.length > 0) ? [VOICE_TRANSFER_TOOL] : []),
-      ...agentTools.filter((tool) => tool.name !== VOICE_TRANSFER_TOOL_NAME),
-    ];
+    const catalogTools = agentTools.filter((tool) => tool.name !== VOICE_TRANSFER_TOOL_NAME);
+    let actionRequest = voiceTurn
+      ? utteranceRequestsAction(text)
+      : visitorRequestsToolAction(text);
+    const incompleteLookup = lookupRequestMissingIdentifier(text);
+    let modelTools = actionRequest && !incompleteLookup ? [...catalogTools] : [];
     if (agentTools.length > 0 && !allowTools) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message: "Tools are not supported on widget text turns yet",
+        message: "Tools are not supported on this turn path",
       });
     }
     if (modelTools.length > 0 && allowTools && !this.toolLoop) {
@@ -627,26 +700,63 @@ export class TurnsService {
       }
     }
 
+    // Retrieval and history are independent after the visitor message is
+    // committed. Start the one query-specific RAG request now, and cancel it
+    // if this turn is a tool lookup once the previous assistant line is known.
+    const retrievalAbort = new AbortController();
+    const retrievalPromise =
+      this.knowledgeClient && text && !actionRequest
+        ? this.knowledgeClient
+            .retrieve(workspaceId, text, requestId, voiceTurn ? 3 : 5, retrievalAbort.signal)
+            .catch(() => [])
+        : Promise.resolve([]);
+
     const history = await this.conversationClient.listMessagesWidget(
       workspaceId,
       conversationId,
       requestId,
       voiceTurn ? 8 : 50,
     );
+    const lastAssistant = [...history].reverse().find((message) => message.sender_type === "assistant");
+    if (
+      voiceTurn &&
+      !actionRequest &&
+      visitorSuppliedIdentifier(text) &&
+      assistantAskedForLookupTarget(lastAssistant?.text)
+    ) {
+      actionRequest = true;
+      modelTools = [...catalogTools];
+    }
+    if (
+      !actionRequest &&
+      visitorConfirmed(text) &&
+      assistantAskedForActionConfirmation(lastAssistant?.text)
+    ) {
+      actionRequest = true;
+      modelTools = [...catalogTools];
+    }
+    if (actionRequest) retrievalAbort.abort();
 
     const chatMessages: ChatMessage[] = [];
     let retrievedChunkIds: string[] = [];
     let knowledgeContext = "";
-    // Voice stays on the published instructions. Retrieval on every turn adds seconds before the first word.
-    if (this.knowledgeClient && text && !voiceTurn) {
-      const readyCount = await this.knowledgeClient.readyCount(workspaceId, requestId);
-      if (readyCount > 0) {
-        const chunks = await this.knowledgeClient.retrieve(workspaceId, text, requestId, 5);
+    if (this.knowledgeClient && text && !actionRequest) {
+      try {
+        const chunks = voiceTurn
+          ? await Promise.race([
+              retrievalPromise,
+              new Promise<Awaited<ReturnType<KnowledgeClient["retrieve"]>>>((resolve) =>
+                setTimeout(() => resolve([]), 350),
+              ),
+            ])
+          : await retrievalPromise;
         retrievedChunkIds = chunks.map((c) => c.chunk_id);
         knowledgeContext = chunks
           .map((c) => c.text)
           .join("\n\n")
-          .slice(0, MAX_RETRIEVAL_CHARS);
+          .slice(0, voiceTurn ? 1400 : MAX_RETRIEVAL_CHARS);
+      } catch {
+        knowledgeContext = "";
       }
     }
 
@@ -656,18 +766,13 @@ export class TurnsService {
     }
     if (knowledgeContext) {
       systemParts.push(
-        `Use the following knowledge snippets when answering:\n\n${knowledgeContext}`,
+        `Knowledge base (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
       );
     }
 
     const subjectKey = conversation.subject_key?.trim();
     if (this.memoryClient && subjectKey && !voiceTurn) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        20,
-      );
+      const memoryFacts = await this.memoryClient.listFacts(workspaceId, subjectKey, requestId, 20);
       if (memoryFacts.length > 0) {
         const memoryBlock = memoryFacts
           .map((f) => `- ${f.fact_text}`)
@@ -677,15 +782,31 @@ export class TurnsService {
       }
     }
 
+    const confirmedHandoff =
+      voiceTurn &&
+      visitorConfirmed(text) &&
+      (visitorWantsTeammate(text) || assistantOfferedHandoff(lastAssistant?.text));
+    const pendingHandoff = voiceTurn && visitorWantsTeammate(text) && !confirmedHandoff;
+    if (confirmedHandoff) {
+      modelTools = [
+        VOICE_TRANSFER_TOOL,
+        ...modelTools.filter((tool) => tool.name !== VOICE_TRANSFER_TOOL_NAME),
+      ];
+    }
+
     if (compactReply) {
       systemParts.push(
         widgetModality === "voice"
-          ? spokenReplyStyle(replyLanguage, {
-              canTransfer: modelTools.some((tool) => tool.name === VOICE_TRANSFER_TOOL_NAME),
-              tools: agentTools,
+          ? spokenReplyStyle(replyLanguage, replyGender, {
+              handoff: confirmedHandoff ? "now" : pendingHandoff ? "ask" : "off",
+              tools: modelTools,
             })
           : WIDGET_REPLY_STYLE,
       );
+    }
+
+    if (agentTools.length > 0 && widgetModality !== "voice") {
+      systemParts.push(CONVERSATION_PRIORITY);
     }
 
     if (systemParts.length > 0) {
@@ -708,7 +829,7 @@ export class TurnsService {
         ? modelSettings.max_tokens
         : undefined;
     const maxTokens = voiceTurn
-      ? Math.min(configuredMax ?? 220, 220)
+      ? Math.min(configuredMax ?? 96, 96)
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
         : configuredMax;
@@ -734,14 +855,17 @@ export class TurnsService {
           authHeaders: {},
           model: { profile, model_id: modelId },
           temperature,
-          maxTokens: 480,
+          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 480,
           replyLanguage,
+          replyGender,
           tools: modelTools,
           chatMessages,
+          visitorText: text,
           onToolStart: (event) => {
             nudge = event.spoken;
             input.onToolStart?.(event);
           },
+          signal,
         });
         const spoken = (loop.content || "").trim() || (loop.transferred ? nudge : "");
         if (onToken && (loop.content || "").trim()) onToken((loop.content || "").trim());
@@ -760,13 +884,13 @@ export class TurnsService {
             streamedText += delta;
             onToken(delta);
           },
-        });
+        }, signal);
         if (!(result.content || "").trim() && streamedText.trim()) {
           return { ...result, content: streamedText };
         }
         return result;
       }
-      return this.modelGatewayClient.complete(completionRequest);
+      return this.modelGatewayClient.complete(completionRequest, signal);
     };
 
     let completion: Awaited<ReturnType<ModelGatewayClient["complete"]>>;
@@ -792,6 +916,8 @@ export class TurnsService {
     } else {
       completion = await runModel();
     }
+
+    if (signal?.aborted) throw new DOMException("Turn interrupted", "AbortError");
 
     const asstMetadata: Record<string, unknown> = { channel };
     if (callId) asstMetadata.call_id = callId;

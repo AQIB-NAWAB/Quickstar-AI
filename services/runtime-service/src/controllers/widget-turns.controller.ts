@@ -27,6 +27,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
         subject_key?: string;
         modality?: "text" | "voice";
         reply_language?: string;
+        reply_gender?: "female" | "male" | "neutral";
       };
       const text = body.message ?? body.text ?? "";
       const rawHeaderKey = req.headers["idempotency-key"];
@@ -38,10 +39,13 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
 
       const stream = wantsEventStream(req);
 
-      const runTurn = (handlers?: {
-        onToken?: (delta: string) => void;
-        onToolStart?: (event: { name: string; spoken: string }) => void;
-      }) =>
+      const runTurn = (
+        handlers?: {
+          onToken?: (delta: string) => void;
+          onToolStart?: (event: { name: string; spoken: string }) => void;
+        },
+        signal?: AbortSignal,
+      ) =>
         turnsService.executeWidgetTurn({
           workspaceId,
           conversationId,
@@ -53,6 +57,8 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
           onToolStart: handlers?.onToolStart,
           modality: body.modality,
           replyLanguage: body.reply_language,
+          replyGender: body.reply_gender,
+          signal,
         });
 
       if (!stream) {
@@ -67,6 +73,10 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
 
       let sseOpen = false;
       let tokensStarted = false;
+      const turnAbort = new AbortController();
+      res.on("close", () => {
+        if (!res.writableEnded) turnAbort.abort();
+      });
       const openSse = () => {
         if (sseOpen) return;
         sseOpen = true;
@@ -97,7 +107,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
               res.write(`data: ${JSON.stringify({ status: "waiting" })}\n\n`);
             }
           },
-        });
+        }, turnAbort.signal);
         openSse();
         if (result.handoff) {
           res.write(`event: handoff\n`);
@@ -119,6 +129,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
         res.write(`data: ${JSON.stringify({ turn: result })}\n\n`);
         res.end();
       } catch (error) {
+        if (turnAbort.signal.aborted) return;
         if (!sseOpen) {
           throw error;
         }

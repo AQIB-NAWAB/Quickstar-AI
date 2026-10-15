@@ -17,13 +17,27 @@ export {
 
 export type {
   AgentBuiltinWebToolDefinition,
+  AgentHttpToolAuth,
   AgentHttpToolDefinition,
   AgentMcpToolDefinition,
   AgentToolDefinition,
+  ToolParameterProperty,
   ToolParameterSchema,
 } from "./agent-tools.js";
 
 export type { ToolCallRecord, ToolCallStatus, UpsertToolCallBody } from "./tool-calls.js";
+
+export {
+  MAX_CUSTOM_TOOLS_PER_WORKSPACE,
+  toAgentToolDefinition,
+  type CustomTool,
+  type CustomToolConfig,
+  type CustomToolHttpConfig,
+  type CustomToolInput,
+  type CustomToolKind,
+  type CustomToolMcpConfig,
+  type CustomToolUpdate,
+} from "./custom-tools.js";
 
 export {
   DEFAULT_TOOL_TIMEOUT_MS,

@@ -40,10 +40,15 @@ export async function fetchWithPolicy(
   let attempt = 0;
   while (true) {
     const controller = new AbortController();
+    const externalSignal = init.signal;
+    const abortFromCaller = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) controller.abort(externalSignal.reason);
+    else externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
     try {
       const response = await fetch(input, { ...init, signal: controller.signal });
       clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", abortFromCaller);
 
       const retryableStatus = response.status >= 500 || response.status === 429;
       if (!retrySafe || !retryableStatus || attempt >= maxRetries) {
@@ -51,6 +56,8 @@ export async function fetchWithPolicy(
       }
     } catch (error) {
       clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", abortFromCaller);
+      if (externalSignal?.aborted) throw error;
       if (!retrySafe || attempt >= maxRetries) {
         throw error;
       }

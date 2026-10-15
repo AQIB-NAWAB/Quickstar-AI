@@ -3,6 +3,7 @@ import type {
   ApiError,
   CreateApiKeyResult,
   CreatePublishableKeyResult,
+  CustomToolItem,
   PublishableKeyItem,
   SecretItem,
   WorkspaceData,
@@ -310,4 +311,69 @@ export async function revokePublishableKey(
   );
   if (error) return { success: false, error };
   return { success: true };
+}
+
+// Custom tools (agent-callable workspace integrations)
+export type CustomToolPayload = {
+  name: string;
+  description?: string;
+  kind: CustomToolItem["kind"];
+  config: CustomToolItem["config"];
+};
+
+export async function listCustomTools(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<{ tools?: CustomToolItem[]; error?: ApiError }> {
+  const { data, error } = await bff<{ tools: CustomToolItem[] }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/custom-tools`,
+    { signal },
+  );
+  if (error) return { error };
+  return { tools: data?.tools ?? [] };
+}
+
+export async function createCustomTool(
+  workspaceId: string,
+  input: CustomToolPayload,
+): Promise<{ tool?: CustomToolItem; error?: ApiError }> {
+  const { data, error } = await bff<{ tool: CustomToolItem }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/custom-tools`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  if (error) return { error };
+  return { tool: data?.tool };
+}
+
+export async function updateCustomTool(
+  workspaceId: string,
+  toolId: string,
+  input: Partial<CustomToolPayload>,
+): Promise<{ tool?: CustomToolItem; error?: ApiError }> {
+  const { data, error } = await bff<{ tool: CustomToolItem }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/custom-tools/${encodeURIComponent(toolId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+  if (error) return { error };
+  return { tool: data?.tool };
+}
+
+export async function deleteCustomTool(
+  workspaceId: string,
+  toolId: string,
+): Promise<{ success: boolean; error?: ApiError }> {
+  const { data, error } = await bff<{ deleted: boolean }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/custom-tools/${encodeURIComponent(toolId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  if (error) return { success: false, error };
+  return { success: Boolean(data?.deleted) };
 }

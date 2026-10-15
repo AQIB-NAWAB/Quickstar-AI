@@ -1,10 +1,16 @@
 import { createApiRouter, createServiceRouter, type Router } from "@quickstart/http-server";
 import type { AgentHttpContext } from "../context.js";
 import { createAgentsRoutes } from "./agents.routes.js";
+import { createCustomToolsRoutes } from "./custom-tools.routes.js";
 import { createHealthRoutes } from "./health.routes.js";
 import { createInternalWidgetRoutes } from "./internal-widget.routes.js";
 
-const agentRouteModules = [createHealthRoutes, createInternalWidgetRoutes, createAgentsRoutes] as const;
+const agentRouteModules = [
+  createHealthRoutes,
+  createInternalWidgetRoutes,
+  createAgentsRoutes,
+  createCustomToolsRoutes,
+] as const;
 
 export function createAgentApiRouter(context: AgentHttpContext): Router {
   const root = createServiceRouter();

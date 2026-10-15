@@ -13,7 +13,9 @@ import {
 } from "@quickstart/workspace-access";
 import { createAgentDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmAgentStore } from "./repository/typeorm/agent-typeorm-store.js";
+import { createTypeOrmCustomToolStore } from "./repository/typeorm/custom-tool-typeorm-store.js";
 import { AgentsService } from "./services/agents.service.js";
+import { CustomToolsService } from "./services/custom-tools.service.js";
 
 export async function startAgentServer(): Promise<{
   server: Server;
@@ -29,6 +31,7 @@ export async function startAgentServer(): Promise<{
   await dataSource.initialize();
   const store = createTypeOrmAgentStore(dataSource);
   const agents = new AgentsService(store);
+  const customTools = new CustomToolsService(createTypeOrmCustomToolStore(dataSource));
 
   const redisClient = createRedisClient(config.redisUrl);
   try {
@@ -61,6 +64,7 @@ export async function startAgentServer(): Promise<{
   const app = createHttpServer({
     logger,
     agents,
+    customTools,
     jwtSecret: config.jwtAccessSecret,
     internalToken: config.internalToken,
     workspaceAccess,

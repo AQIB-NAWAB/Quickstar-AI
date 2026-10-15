@@ -45,6 +45,11 @@ export function createGatewayServer(options: CreateGatewayServerOptions): Applic
     requireAccessToken: createRequireAccessTokenMiddleware(config.jwtAccessSecret),
     requireWorkspaceMembership: createRequireWorkspaceMembershipMiddleware(workspaceAccess),
     requirePublishableKey: createRequirePublishableKeyMiddleware(config),
+    customLlm: {
+      workspaceId: config.customLlmWorkspaceId,
+      agentId: config.customLlmAgentId,
+      token: config.customLlmToken,
+    },
   };
 
   const apiRouter = createGatewayApiRouter(httpContext);

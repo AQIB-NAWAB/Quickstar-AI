@@ -10,7 +10,7 @@ export class ModelGatewayClient {
     private readonly timeoutMs: number = 30000,
   ) {}
 
-  async complete(body: CompletionRequestBody): Promise<CompletionResponseBody> {
+  async complete(body: CompletionRequestBody, signal?: AbortSignal): Promise<CompletionResponseBody> {
     const url = `${this.baseUrl}/internal/complete`;
     const res = await fetchWithPolicy(
       url,
@@ -22,6 +22,7 @@ export class ModelGatewayClient {
           Accept: "application/json",
         },
         body: JSON.stringify(body),
+        signal,
       },
       { timeoutMs: this.timeoutMs, maxRetries: 0 },
     ).catch((err: Error) => {
@@ -57,6 +58,7 @@ export class ModelGatewayClient {
   async stream(
     body: CompletionRequestBody,
     handlers: ModelGatewayStreamHandlers,
+    signal?: AbortSignal,
   ): Promise<CompletionResponseBody> {
     const url = `${this.baseUrl}/internal/stream`;
     const res = await fetchWithPolicy(
@@ -69,6 +71,7 @@ export class ModelGatewayClient {
           Accept: "text/event-stream",
         },
         body: JSON.stringify(body),
+        signal,
       },
       { timeoutMs: this.timeoutMs, maxRetries: 0 },
     ).catch((err: Error) => {

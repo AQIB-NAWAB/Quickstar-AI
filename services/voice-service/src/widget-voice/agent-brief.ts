@@ -1,6 +1,7 @@
-import { findVoiceCatalogEntry } from "@quickstart/contracts";
 import { randomUUID } from "node:crypto";
 import type { Logger } from "@quickstart/logging";
+
+const ENGLISH_DEMO_VOICE_ID = "cartesia:6c756032-11c3-4be8-a120-74f9673fb700";
 
 const SPOKEN_STYLE = [
   "Speak as this published QuickStart AI agent on a live voice call.",
@@ -68,7 +69,7 @@ export async function loadWidgetVoiceBrief(input: {
       requestId,
     );
     const agentId = conversation?.conversation?.agent_id?.trim();
-    if (!agentId) return { brief: FALLBACK_BRIEF, ttsVoiceId: "uplift:v_8eelc901", language: "ur-PK" };
+    if (!agentId) return { brief: FALLBACK_BRIEF, ttsVoiceId: ENGLISH_DEMO_VOICE_ID, language: "en" };
 
     const agentRes = await getJson<{ agent?: AgentJson }>(
       `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}`,
@@ -78,7 +79,7 @@ export async function loadWidgetVoiceBrief(input: {
     const agent = agentRes?.agent;
     let name = agent?.name?.trim() || "QuickStart AI";
     let instructions = agent?.instructions?.trim() || "";
-    let ttsVoiceId = agent?.voice?.tts_voice_id?.trim() || "uplift:v_8eelc901";
+    const ttsVoiceId = ENGLISH_DEMO_VOICE_ID;
     const versionId = agent?.production_version_id?.trim();
     if (versionId) {
       const version = await getJson<{ version?: VersionJson }>(
@@ -89,7 +90,6 @@ export async function loadWidgetVoiceBrief(input: {
       const snapshot = version?.version?.snapshot;
       if (snapshot?.instructions?.trim()) instructions = snapshot.instructions.trim();
       if (snapshot?.name?.trim()) name = snapshot.name.trim();
-      if (snapshot?.voice?.tts_voice_id?.trim()) ttsVoiceId = snapshot.voice.tts_voice_id.trim();
     }
 
     const query = `${name}. ${instructions}`.slice(0, 500);
@@ -127,12 +127,11 @@ export async function loadWidgetVoiceBrief(input: {
       chars: parts.join("\n\n").length,
       knowledge: Boolean(facts),
     });
-    const language = findVoiceCatalogEntry(ttsVoiceId)?.language || "en";
-    return { brief: parts.join("\n\n").slice(0, 6000), ttsVoiceId, language };
+    return { brief: parts.join("\n\n").slice(0, 6000), ttsVoiceId, language: "en" };
   } catch (err) {
     input.logger.warn("widget.voice.brief_failed", {
       message: err instanceof Error ? err.message : "brief failed",
     });
-    return { brief: FALLBACK_BRIEF, ttsVoiceId: "uplift:v_8eelc901", language: "ur-PK" };
+    return { brief: FALLBACK_BRIEF, ttsVoiceId: ENGLISH_DEMO_VOICE_ID, language: "en" };
   }
 }

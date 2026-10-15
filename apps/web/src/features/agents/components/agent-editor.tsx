@@ -10,11 +10,13 @@ import {
   rollbackAgent,
   updateAgent,
 } from "../lib/client";
+import { listCustomTools } from "@/features/settings/lib/client";
+import type { CustomToolItem } from "@/features/settings/lib/types";
 import { EditorHeader } from "./editor-header";
 import { EditorTabs, type EditorTabKey } from "./editor-tabs";
 import { InstructionsTab } from "./instructions-tab";
 import { ModelTab } from "./model-tab";
-import { ToolsTab } from "./tools-tab";
+import { AgentToolsPanel } from "./agent-tools-panel";
 import { IdentityChannelsTab } from "./identity-channels-tab";
 import { ReleasesTab } from "./releases-tab";
 import { TestAgentPanel } from "./test-agent-panel";
@@ -25,9 +27,14 @@ import { DiffModal } from "./diff-modal";
 type Props = {
   workspaceId: string;
   initialAgent: Agent;
+  canManageCustomTools?: boolean;
 };
 
-export function AgentEditor({ workspaceId, initialAgent }: Props) {
+export function AgentEditor({
+  workspaceId,
+  initialAgent,
+  canManageCustomTools = true,
+}: Props) {
   const router = useRouter();
   const [agent, setAgent] = useState<Agent>(initialAgent);
   const [activeTab, setActiveTab] = useState<EditorTabKey>("instructions");
@@ -58,6 +65,9 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
   const [attachedTools, setAttachedTools] = useState<AgentToolDefinition[]>(
     initialAgent.tools || [],
   );
+  const [customTools, setCustomTools] = useState<CustomToolItem[]>([]);
+  const [customToolsLoading, setCustomToolsLoading] = useState(false);
+  const [customToolsError, setCustomToolsError] = useState<string | null>(null);
 
   // Status & Conflict Handling
   const [isSaving, setIsSaving] = useState(false);
@@ -162,6 +172,26 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
       fetchVersions();
     }
   }, [activeTab, workspaceId, agent.id]);
+
+  // Fetch workspace custom tools when the tools tab opens
+  useEffect(() => {
+    if (activeTab !== "tools") return;
+    let cancelled = false;
+    setCustomToolsLoading(true);
+    setCustomToolsError(null);
+    listCustomTools(workspaceId).then((res) => {
+      if (cancelled) return;
+      setCustomToolsLoading(false);
+      if (res.tools) {
+        setCustomTools(res.tools);
+      } else {
+        setCustomToolsError(res.error?.message || "Failed to load custom tools.");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, workspaceId]);
 
   // Save handler with Optimistic Concurrency Control
   async function handleSave() {
@@ -274,20 +304,14 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
     }
   }
 
-  // Tool management
-  function handleRemoveTool(toolName: string) {
-    setAttachedTools((prev) => prev.filter((t) => t.name !== toolName));
-  }
-
-  function handleSaveTool(toolDef: AgentToolDefinition) {
+  // Tool attachment toggle
+  function toggleTool(tool: AgentToolDefinition) {
     setAttachedTools((prev) => {
-      const existingIdx = prev.findIndex((t) => t.name === toolDef.name);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = toolDef;
-        return updated;
+      const exists = prev.some((t) => t.name === tool.name);
+      if (exists) {
+        return prev.filter((t) => t.name !== tool.name);
       }
-      return [...prev, toolDef];
+      return [...prev, tool];
     });
   }
 
@@ -377,12 +401,18 @@ export function AgentEditor({ workspaceId, initialAgent }: Props) {
               )}
 
               {activeTab === "tools" && (
-                <ToolsTab
-                  tools={attachedTools}
-                  onRemoveTool={handleRemoveTool}
-                  onSaveTool={handleSaveTool}
-                  isDirty={isDirty}
-                />
+                <div className="bg-white border border-[#E1E5EA] rounded-[12px] p-6 shadow-xs">
+                  <AgentToolsPanel
+                    workspaceId={workspaceId}
+                    canManageCustomTools={canManageCustomTools}
+                    attachedTools={attachedTools}
+                    onToggle={toggleTool}
+                    customTools={customTools}
+                    customToolsLoading={customToolsLoading}
+                    customToolsError={customToolsError}
+                    onCustomToolsChange={setCustomTools}
+                  />
+                </div>
               )}
             </div>
 

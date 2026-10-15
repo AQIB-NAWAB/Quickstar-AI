@@ -1,7 +1,9 @@
 import { DEFAULT_AGENT_VOICE_SETTINGS } from "@quickstart/contracts";
+import type { CustomTool } from "@quickstart/contracts";
 import type { Agent, AgentVersion } from "../../domain/types.js";
 import type { AgentEntity } from "../entities/agent.entity.js";
 import type { AgentVersionEntity } from "../entities/agent-version.entity.js";
+import type { CustomToolEntity } from "../entities/custom-tool.entity.js";
 
 export function toAgent(entity: AgentEntity): Agent {
   return {
@@ -39,5 +41,19 @@ export function toAgentVersion(entity: AgentVersionEntity): AgentVersion {
     },
     createdBy: entity.createdBy,
     createdAt: entity.createdAt,
+  };
+}
+
+export function toCustomTool(entity: CustomToolEntity): CustomTool {
+  return {
+    id: entity.id,
+    workspace_id: entity.workspaceId,
+    name: entity.name,
+    description: entity.description ?? "",
+    kind: entity.kind,
+    config: entity.config ?? {},
+    created_by: entity.createdBy,
+    created_at: entity.createdAt.toISOString(),
+    updated_at: entity.updatedAt.toISOString(),
   };
 }

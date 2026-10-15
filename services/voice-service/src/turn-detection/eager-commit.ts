@@ -4,14 +4,14 @@
  * mid-thought does not start the agent talking.
  */
 const OPEN_ENDING =
-  /(?:\b(?:and|or|but|so|because|if|when|um|uh|like|aur|lekin|kyunke|کہ|اور|لیکن|تو)\s*)$/iu;
+  /(?:\b(?:and|or|but|so|because|if|when|using|with|of|the|a|an|to|for|by|um|uh|like|aur|lekin|kyunke|کہ|اور|لیکن|تو)\s*)$/iu;
 
 export function eagerCommitDelayMs(text: string): number {
   const trimmed = text.trim();
-  if (trimmed.length < 8) return 420;
-  if (OPEN_ENDING.test(trimmed)) return 560;
+  if (trimmed.length < 8) return 300;
+  if (OPEN_ENDING.test(trimmed)) return 350;
   if (/[.?!۔؟]$/.test(trimmed)) return 40;
-  return 180;
+  return 120;
 }
 
 /** Relative energy 0..1. Frames under the floor are room noise, not a barge-in. */
@@ -25,4 +25,5 @@ export function frameEnergy(pcm: Buffer): number {
   return Math.min(1, sum / samples / 8000);
 }
 
-export const BARGE_IN_ENERGY = 0.12;
+/** Speech has to clear room noise and paper rustle before it counts as an interruption. */
+export const BARGE_IN_ENERGY = 0.2;

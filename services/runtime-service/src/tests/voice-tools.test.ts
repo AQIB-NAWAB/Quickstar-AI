@@ -1,15 +1,48 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { spokenToolNudge, visitorWantsTeammate, VOICE_TRANSFER_TOOL_NAME } from "../services/voice-tools.js";
+import {
+  spokenToolNudge,
+  toolChangesData,
+  utteranceRequestsAction,
+  visitorConfirmed,
+  visitorWantsTeammate,
+  VOICE_TRANSFER_TOOL,
+  VOICE_TRANSFER_TOOL_NAME,
+} from "../services/voice-tools.js";
+import type { AgentToolDefinition } from "@quickstart/contracts";
 
-test("a request for a person is treated as a call transfer", () => {
+test("a normal voice question does not open tools", () => {
+  assert.equal(utteranceRequestsAction("what is the price"), false);
+  assert.equal(utteranceRequestsAction("tell me about the product"), false);
+  assert.equal(utteranceRequestsAction("please look up order 14"), true);
+});
+
+test("only an explicit request for a person is a transfer", () => {
   assert.equal(visitorWantsTeammate("can I talk to a human"), true);
   assert.equal(visitorWantsTeammate("مجھے ساتھی سے بات کرنی ہے"), true);
   assert.equal(visitorWantsTeammate("what is the price"), false);
+  assert.equal(visitorWantsTeammate("tell me about personal plans"), false);
+  assert.equal(visitorWantsTeammate("someone told me about this"), false);
+});
+
+test("writes wait for a yes and lookups do not", () => {
+  const write: AgentToolDefinition = {
+    id: "http:create",
+    name: "create_post",
+    description: "Create a post",
+    type: "http",
+    method: "POST",
+    base_url: "https://example.com",
+    allowed_hosts: ["example.com"],
+  };
+  assert.equal(toolChangesData(write), true);
+  assert.equal(toolChangesData(VOICE_TRANSFER_TOOL), false);
+  assert.equal(visitorConfirmed("yes, go ahead"), true);
+  assert.equal(visitorConfirmed("what is pricing"), false);
 });
 
 test("tool nudges are short spoken lines", () => {
   assert.match(spokenToolNudge(VOICE_TRANSFER_TOOL_NAME, "en"), /switching you/i);
-  assert.match(spokenToolNudge("lookup_order", "ur-PK"), /چیک/);
-  assert.match(spokenToolNudge("lookup_order", "en"), /checking/i);
+  assert.match(spokenToolNudge("lookup_order", "en"), /fetching/i);
+  assert.match(spokenToolNudge("order_status", "en"), /checking/i);
 });

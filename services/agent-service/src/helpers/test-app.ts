@@ -6,7 +6,9 @@ import type { ServiceConfig } from "../config/environment.js";
 import { createHttpServer } from "../http/create-server.js";
 import type { WorkspaceAccessClient } from "../lib/workspace-access-client.js";
 import { MemoryAgentStore } from "../repository/memory.js";
+import { MemoryCustomToolStore } from "../repository/memory-custom-tools.js";
 import { AgentsService } from "../services/agents.service.js";
+import { CustomToolsService } from "../services/custom-tools.service.js";
 
 export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): ServiceConfig {
   return {
@@ -56,10 +58,12 @@ export async function withAgentServer(
   const store = options?.store ?? new MemoryAgentStore();
   const config = testServiceConfig();
   const agents = new AgentsService(store);
+  const customTools = new CustomToolsService(new MemoryCustomToolStore());
   const workspaceAccess = createMockWorkspaceAccess(options?.role ?? "developer");
 
   const app = createHttpServer({
     agents,
+    customTools,
     jwtSecret: config.jwtAccessSecret,
     internalToken: config.internalToken,
     workspaceAccess,

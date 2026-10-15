@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import type { AgentToolDefinition } from "../lib/types";
+import type { AgentToolDefinition, ToolParameterSchema } from "../lib/types";
 
 export type ToolTemplate = {
   id: string;
@@ -11,7 +11,7 @@ export type ToolTemplate = {
   description: string;
   defaultMethod: "GET" | "POST";
   defaultPathTemplate: string;
-  defaultParameters: Record<string, unknown>;
+  defaultParameters?: ToolParameterSchema;
 };
 
 type Props = {

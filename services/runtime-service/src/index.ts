@@ -11,6 +11,7 @@ import { ConversationClient } from "./clients/conversation.client.js";
 import { KnowledgeClient } from "./clients/knowledge.client.js";
 import { MemoryClient } from "./clients/memory.client.js";
 import { ModelGatewayClient } from "./clients/model-gateway.client.js";
+import { SecretsClient } from "./clients/secrets.client.js";
 import { ToolCallsClient } from "./clients/tool-calls.client.js";
 import { WebFetchClient } from "./clients/web-fetch.client.js";
 import { loadRuntimeConfig } from "./config/environment.js";
@@ -54,13 +55,26 @@ export async function main(): Promise<void> {
     timeoutMs: config.httpRequestTimeoutMs,
     logger,
   });
-  const toolCallsClient = new ToolCallsClient(config.conversationServiceUrl, config.httpRequestTimeoutMs);
+  const toolCallsClient = new ToolCallsClient(
+    config.conversationServiceUrl,
+    config.httpRequestTimeoutMs,
+    config.internalToken,
+  );
   const webFetchClient = new WebFetchClient(
     config.webFetchUrl,
     config.webFetchInternalToken,
     config.httpRequestTimeoutMs,
   );
-  const toolExecutor = new ToolExecutor(webFetchClient, new McpToolRunner(config.httpRequestTimeoutMs));
+  const secretsClient = new SecretsClient({
+    baseUrl: config.secretsServiceUrl,
+    internalToken: config.secretsInternalToken,
+    timeoutMs: config.httpRequestTimeoutMs,
+  });
+  const toolExecutor = new ToolExecutor(
+    webFetchClient,
+    new McpToolRunner(config.httpRequestTimeoutMs),
+    secretsClient,
+  );
   const toolLoop = new ToolLoop(modelGatewayClient, toolCallsClient, toolExecutor);
   const turnsService = new TurnsService(
     agentClient,
@@ -128,4 +142,3 @@ const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   void main();
 }
-
