@@ -95,12 +95,8 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       toolCalls?.length && choice?.finish_reason !== "tool_calls"
         ? "tool_calls"
         : (choice?.finish_reason ?? "stop");
-    const messageContent = toolCalls?.length
-      ? (choice?.message?.content ?? "")
-      : choice?.message?.content ||
-        choice?.message?.reasoning_content ||
-        choice?.message?.reasoning ||
-        "";
+    // Reasoning fields are private model output, never a visitor-facing reply.
+    const messageContent = choice?.message?.content ?? "";
     return {
       content: messageContent,
       finishReason,
@@ -130,43 +126,48 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     let inputTokens = 0;
     let outputTokens = 0;
 
+    const consumeLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) return;
+      const payload = trimmed.slice(5).trim();
+      if (payload === "[DONE]") return;
+      try {
+        const parsed = JSON.parse(payload) as {
+          choices?: Array<{
+            delta?: { content?: string; reasoning?: string; reasoning_content?: string };
+            finish_reason?: string | null;
+          }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
+        };
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) {
+          content += delta;
+          onChunk(delta);
+        }
+        const fr = parsed.choices?.[0]?.finish_reason;
+        if (fr) finishReason = fr;
+        if (parsed.usage) {
+          inputTokens = parsed.usage.prompt_tokens ?? inputTokens;
+          outputTokens = parsed.usage.completion_tokens ?? outputTokens;
+        }
+      } catch {
+        // Ignore malformed or non-JSON SSE data frames.
+      }
+    };
+
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        buffer += decoder.decode();
+        break;
+      }
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const payload = trimmed.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(payload) as {
-            choices?: Array<{
-              delta?: { content?: string; reasoning?: string; reasoning_content?: string };
-              finish_reason?: string | null;
-            }>;
-            usage?: { prompt_tokens?: number; completion_tokens?: number };
-          };
-          const deltaChunk = parsed.choices?.[0]?.delta;
-          const delta = deltaChunk?.content;
-          if (delta) {
-            content += delta;
-            onChunk(delta);
-          }
-          const fr = parsed.choices?.[0]?.finish_reason;
-          if (fr) finishReason = fr;
-          if (parsed.usage) {
-            inputTokens = parsed.usage.prompt_tokens ?? inputTokens;
-            outputTokens = parsed.usage.completion_tokens ?? outputTokens;
-          }
-        } catch {
-          // skip malformed chunk
-        }
-      }
+      for (const line of lines) consumeLine(line);
     }
+    if (buffer.trim()) consumeLine(buffer);
 
     return {
       content,

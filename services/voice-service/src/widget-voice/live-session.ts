@@ -1,10 +1,39 @@
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import type { Logger } from "@quickstart/logging";
-import type { TextToSpeech } from "../speech/types.js";
+import type { AudioChunk, TextToSpeech } from "../speech/types.js";
 import { textForSpeech } from "../services/widget-voice.service.js";
 import { streamWidgetTurn } from "../clients/runtime-widget-stream.js";
 import { BARGE_IN_ENERGY, eagerCommitDelayMs, frameEnergy } from "../turn-detection/eager-commit.js";
+
+const TOOL_NUDGE = "Let me check that for you.";
+const toolNudgeCache = new WeakMap<TextToSpeech, Map<string, Promise<AudioChunk[]>>>();
+
+function prewarmToolNudge(tts: TextToSpeech, voiceId: string): Promise<AudioChunk[]> {
+  let voices = toolNudgeCache.get(tts);
+  if (!voices) {
+    voices = new Map();
+    toolNudgeCache.set(tts, voices);
+  }
+  const cached = voices.get(voiceId);
+  if (cached) return cached;
+
+  const audioPromise = (async () => {
+    const chunks: AudioChunk[] = [];
+    if (tts.streamSynthesize) {
+      await tts.streamSynthesize(TOOL_NUDGE, voiceId, (audio) => chunks.push(audio));
+    } else {
+      chunks.push((await tts.synthesize(TOOL_NUDGE, voiceId)).audio);
+    }
+    if (chunks.length === 0) throw new Error("TTS returned no audio for the tool acknowledgement");
+    return chunks;
+  })();
+  voices.set(voiceId, audioPromise);
+  void audioPromise.catch(() => {
+    if (voices?.get(voiceId) === audioPromise) voices.delete(voiceId);
+  });
+  return audioPromise;
+}
 
 /** Speak the first clause as soon as it exists so TTS overlaps the rest of the reply. */
 function firstSpeakableCut(pending: string): number {
@@ -91,6 +120,18 @@ export class WidgetVoiceLiveSession {
     ]);
     this.replyLanguage = replyLanguage;
     if (voiceId) this.resolvedVoiceId = voiceId;
+    if (!replyLanguage.toLowerCase().startsWith("ur")) {
+      void prewarmToolNudge(this.input.tts, this.resolvedVoiceId).then(
+        () =>
+          this.input.logger.info("widget.voice.tool_nudge_ready", {
+            voice_id: this.resolvedVoiceId,
+          }),
+        (err) =>
+          this.input.logger.warn("widget.voice.tool_nudge_prewarm_failed", {
+            message: err instanceof Error ? err.message : "TTS prewarm failed",
+          }),
+      );
+    }
     this.openDeepgram();
   }
 
@@ -250,19 +291,24 @@ export class WidgetVoiceLiveSession {
     this.speakChain = this.speakChain
       .then(async () => {
         if (this.closed || signal?.aborted) return;
+        if (clean === TOOL_NUDGE && !this.replyLanguage.toLowerCase().startsWith("ur")) {
+          try {
+            const chunks = await prewarmToolNudge(this.input.tts, voiceId);
+            if (this.closed || signal?.aborted) return;
+            for (const audio of chunks) this.emitAudio(audio);
+            this.input.logger.info("widget.voice.tool_nudge_played", { cached: true });
+            return;
+          } catch {
+            // Keep the live turn moving if the prewarm provider call failed.
+          }
+        }
         if (this.input.tts.streamSynthesize) {
           const metrics = await this.input.tts.streamSynthesize(
             clean,
             voiceId,
             (audio) => {
               if (this.closed || signal?.aborted) return;
-              const pcm = audio.encoding === "pcm16";
-              this.emit({
-                type: "audio",
-                mime: audio.mimeType ?? (pcm ? "audio/pcm" : "audio/mpeg"),
-                data: audio.bytes.toString("base64"),
-                ...(pcm ? { encoding: "pcm16" as const, sample_rate: audio.sampleRateHz } : {}),
-              });
+              this.emitAudio(audio);
             },
             signal,
           );
@@ -277,11 +323,7 @@ export class WidgetVoiceLiveSession {
         }
         const tts = await this.input.tts.synthesize(clean, voiceId, signal);
         if (this.closed || signal?.aborted) return;
-        this.emit({
-          type: "audio",
-          mime: "audio/mpeg",
-          data: tts.audio.bytes.toString("base64"),
-        });
+        this.emitAudio(tts.audio);
       })
       .catch((err) => {
         if (this.closed || signal?.aborted) return;
@@ -289,6 +331,16 @@ export class WidgetVoiceLiveSession {
           message: err instanceof Error ? err.message : "TTS failed",
         });
       });
+  }
+
+  private emitAudio(audio: AudioChunk): void {
+    const pcm = audio.encoding === "pcm16";
+    this.emit({
+      type: "audio",
+      mime: audio.mimeType ?? (pcm ? "audio/pcm" : "audio/mpeg"),
+      data: audio.bytes.toString("base64"),
+      ...(pcm ? { encoding: "pcm16" as const, sample_rate: audio.sampleRateHz } : {}),
+    });
   }
 
   pushPcm(int16: Buffer): void {
@@ -378,7 +430,13 @@ export class WidgetVoiceLiveSession {
           modality: "voice",
           replyLanguage: this.replyLanguage,
           signal: turnAbort.signal,
-          onNudge: (line) => speak(line),
+          onNudge: (line) => {
+            this.input.logger.info("widget.voice.tool_nudge_detected", {
+              request_id: requestId,
+              elapsed_ms: Date.now() - turnStartedAt,
+            });
+            speak(line);
+          },
           onTransfer: () => {
             this.held = true;
             this.input.onTransferSpoken?.();

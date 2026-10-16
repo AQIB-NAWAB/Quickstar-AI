@@ -16,6 +16,7 @@ import {
   visitorRequestsToolAction,
   visitorSuppliedIdentifier,
   utteranceRequestsAction,
+  spokenToolNudge,
   visitorWantsTeammate,
   VOICE_TRANSFER_TOOL,
   VOICE_TRANSFER_TOOL_NAME,
@@ -735,6 +736,22 @@ export class TurnsService {
       actionRequest = true;
       modelTools = [...catalogTools];
     }
+
+    const proactiveToolAcknowledgement =
+      widgetModality === "voice" &&
+      allowTools &&
+      modelTools.length > 0 &&
+      actionRequest &&
+      !incompleteLookup &&
+      utteranceRequestsAction(text) &&
+      !/\b(create|update|delete|cancel|book|start)\b/i.test(text ?? "");
+    if (proactiveToolAcknowledgement) {
+      input.onToolStart?.({
+        name: "tool_intent_acknowledgement",
+        spoken: spokenToolNudge("tool_intent_acknowledgement", replyLanguage, replyGender),
+      });
+    }
+
     if (actionRequest) retrievalAbort.abort();
 
     const chatMessages: ChatMessage[] = [];
@@ -805,6 +822,12 @@ export class TurnsService {
       );
     }
 
+    if (widgetModality === "voice" && modelTools.length > 0) {
+      systemParts.push(
+        "For a tool lookup, the voice system speaks a brief acknowledgement separately. After receiving tool results, skip filler such as ‘Let me check that for you’ and state the result directly.",
+      );
+    }
+
     if (agentTools.length > 0 && widgetModality !== "voice") {
       systemParts.push(CONVERSATION_PRIORITY);
     }
@@ -863,7 +886,7 @@ export class TurnsService {
           visitorText: text,
           onToolStart: (event) => {
             nudge = event.spoken;
-            input.onToolStart?.(event);
+            if (!proactiveToolAcknowledgement) input.onToolStart?.(event);
           },
           signal,
         });
@@ -885,10 +908,18 @@ export class TurnsService {
             onToken(delta);
           },
         }, signal);
-        if (!(result.content || "").trim() && streamedText.trim()) {
-          return { ...result, content: streamedText };
+        const streamedContent = (result.content || streamedText || "").trim();
+        if (streamedContent) {
+          return { ...result, content: streamedContent };
         }
-        return result;
+
+        // Some compatible providers occasionally close a successful stream
+        // without emitting assistant text. Retry once as a regular completion
+        // before failing the visitor's turn.
+        const retry = await this.modelGatewayClient.complete(completionRequest, signal);
+        const retryContent = (retry.content || "").trim();
+        if (retryContent) onToken(retryContent);
+        return { ...retry, content: retryContent };
       }
       return this.modelGatewayClient.complete(completionRequest, signal);
     };
