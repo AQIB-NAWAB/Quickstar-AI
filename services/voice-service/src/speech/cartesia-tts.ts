@@ -83,4 +83,110 @@ export class CartesiaTextToSpeech implements TextToSpeech {
       clearTimeout(timer);
     }
   }
+
+  async streamSynthesize(
+    text: string,
+    voiceId: string,
+    onAudio: (audio: AudioChunk) => void,
+    signal?: AbortSignal,
+  ): Promise<{ firstChunkLatencyMs: number; latencyMs: number }> {
+    const started = Date.now();
+    const transcript = text.trim();
+    const voice = voiceId.trim();
+    if (!transcript || !voice) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Cartesia TTS requires non-empty text and voice id",
+      });
+    }
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 20_000);
+    let firstChunkLatencyMs = 0;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let pending = "";
+    const decoder = new TextDecoder();
+
+    const consumeFrame = (frame: string): boolean => {
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n");
+      if (!data) return false;
+      const event = JSON.parse(data) as { type?: string; data?: string; done?: boolean; message?: string; title?: string };
+      if (event.type === "chunk" && event.data) {
+        const bytes = Buffer.from(event.data, "base64");
+        if (bytes.length) {
+          if (!firstChunkLatencyMs) firstChunkLatencyMs = Math.max(1, Date.now() - started);
+          onAudio({ bytes, encoding: "pcm16", sampleRateHz: 22_050, mimeType: "audio/pcm" });
+        }
+      } else if (event.type === "error") {
+        throw new AppError({
+          code: ErrorCode.UPSTREAM_UNAVAILABLE,
+          message: `Cartesia TTS stream failed: ${(event.message ?? event.title ?? "provider error").slice(0, 160)}`,
+        });
+      }
+      return event.type === "done" || event.done === true;
+    };
+
+    try {
+      const response = await (this.options.fetchImpl ?? fetch)("https://api.cartesia.ai/tts/sse", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.options.apiKey}`,
+          "Cartesia-Version": "2026-08-14",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model_id: this.options.model ?? "sonic-3.6",
+          transcript: transcript.slice(0, 2000),
+          voice,
+          language: "en",
+          output_format: { container: "raw", encoding: "pcm_s16le", sample_rate: 22_050 },
+          add_timestamps: false,
+          add_phoneme_timestamps: false,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const detail = await response.text().catch(() => "");
+        throw new AppError({
+          code: response.status === 429 || response.status >= 500 ? ErrorCode.UPSTREAM_UNAVAILABLE : ErrorCode.VALIDATION_FAILED,
+          message: `Cartesia TTS stream failed (${response.status}): ${detail.slice(0, 160)}`,
+        });
+      }
+      reader = response.body.getReader();
+      let done = false;
+      while (!done) {
+        const result = await reader.read();
+        pending += decoder.decode(result.value, { stream: !result.done });
+        let boundary = pending.indexOf("\n\n");
+        while (boundary >= 0) {
+          done = consumeFrame(pending.slice(0, boundary));
+          pending = pending.slice(boundary + 2);
+          if (done) break;
+          boundary = pending.indexOf("\n\n");
+        }
+        if (result.done) break;
+      }
+      if (pending.trim()) consumeFrame(pending);
+      if (!firstChunkLatencyMs) {
+        throw new AppError({ code: ErrorCode.UPSTREAM_UNAVAILABLE, message: "Cartesia returned an empty audio stream" });
+      }
+      return { firstChunkLatencyMs, latencyMs: Math.max(1, Date.now() - started) };
+    } catch (err) {
+      if (controller.signal.aborted && !signal?.aborted) {
+        throw new AppError({ code: ErrorCode.UPSTREAM_TIMEOUT, message: "Cartesia TTS stream timed out" });
+      }
+      if (signal?.aborted) throw new DOMException("Synthesis interrupted", "AbortError");
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      if (reader) void reader.cancel().catch(() => undefined);
+    }
+  }
 }

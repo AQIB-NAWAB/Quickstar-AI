@@ -8,10 +8,10 @@ const OPEN_ENDING =
 
 export function eagerCommitDelayMs(text: string): number {
   const trimmed = text.trim();
-  if (trimmed.length < 8) return 420;
-  if (OPEN_ENDING.test(trimmed)) return 560;
+  if (trimmed.length < 8) return 300;
+  if (OPEN_ENDING.test(trimmed)) return 350;
   if (/[.?!۔؟]$/.test(trimmed)) return 40;
-  return 180;
+  return 120;
 }
 
 /** Relative energy 0..1. Frames under the floor are room noise, not a barge-in. */

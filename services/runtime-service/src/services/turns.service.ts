@@ -16,6 +16,7 @@ import {
   visitorRequestsToolAction,
   visitorSuppliedIdentifier,
   utteranceRequestsAction,
+  spokenToolNudge,
   visitorWantsTeammate,
   VOICE_TRANSFER_TOOL,
   VOICE_TRANSFER_TOOL_NAME,
@@ -68,6 +69,7 @@ const WIDGET_REPLY_STYLE = [
 
 function spokenReplyStyle(
   language: string | undefined,
+  gender: "female" | "male" | "neutral" | undefined,
   options: {
     handoff: "off" | "ask" | "now";
     tools: Array<{ name: string; description: string }>;
@@ -77,7 +79,7 @@ function spokenReplyStyle(
   const lines = [
     "VOICE CHAT OUTPUT (spoken aloud via text-to-speech — highest priority):",
     urdu
-      ? "Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words."
+      ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
     "One or two short spoken sentences, under 25 words.",
     "Plain spoken words only: no markdown, bullets, lists, emojis, URLs, or symbols.",
@@ -501,6 +503,7 @@ export class TurnsService {
     onToolStart?: (event: { name: string; spoken: string }) => void;
     modality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
     signal?: AbortSignal;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
@@ -510,6 +513,7 @@ export class TurnsService {
       compactReply: true,
       widgetModality: input.modality ?? "text",
       replyLanguage: input.replyLanguage,
+      replyGender: input.replyGender,
     });
   }
 
@@ -569,6 +573,7 @@ export class TurnsService {
     compactReply?: boolean;
     widgetModality?: "text" | "voice";
     replyLanguage?: string;
+    replyGender?: "female" | "male" | "neutral";
     onToolStart?: (event: { name: string; spoken: string }) => void;
     signal?: AbortSignal;
   }): Promise<TurnResult> {
@@ -590,6 +595,7 @@ export class TurnsService {
       signal,
     } = input;
     const replyLanguage = input.replyLanguage;
+    const replyGender = input.replyGender;
 
     const conversation = await this.conversationClient.getConversationWidget(
       workspaceId,
@@ -730,6 +736,22 @@ export class TurnsService {
       actionRequest = true;
       modelTools = [...catalogTools];
     }
+
+    const proactiveToolAcknowledgement =
+      widgetModality === "voice" &&
+      allowTools &&
+      modelTools.length > 0 &&
+      actionRequest &&
+      !incompleteLookup &&
+      utteranceRequestsAction(text) &&
+      !/\b(create|update|delete|cancel|book|start)\b/i.test(text ?? "");
+    if (proactiveToolAcknowledgement) {
+      input.onToolStart?.({
+        name: "tool_intent_acknowledgement",
+        spoken: spokenToolNudge("tool_intent_acknowledgement", replyLanguage, replyGender),
+      });
+    }
+
     if (actionRequest) retrievalAbort.abort();
 
     const chatMessages: ChatMessage[] = [];
@@ -792,11 +814,17 @@ export class TurnsService {
     if (compactReply) {
       systemParts.push(
         widgetModality === "voice"
-          ? spokenReplyStyle(replyLanguage, {
+          ? spokenReplyStyle(replyLanguage, replyGender, {
               handoff: confirmedHandoff ? "now" : pendingHandoff ? "ask" : "off",
               tools: modelTools,
             })
           : WIDGET_REPLY_STYLE,
+      );
+    }
+
+    if (widgetModality === "voice" && modelTools.length > 0) {
+      systemParts.push(
+        "For a tool lookup, the voice system speaks a brief acknowledgement separately. After receiving tool results, skip filler such as ‘Let me check that for you’ and state the result directly.",
       );
     }
 
@@ -824,7 +852,7 @@ export class TurnsService {
         ? modelSettings.max_tokens
         : undefined;
     const maxTokens = voiceTurn
-      ? Math.min(configuredMax ?? 160, 160)
+      ? Math.min(configuredMax ?? 96, 96)
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
         : configuredMax;
@@ -850,14 +878,15 @@ export class TurnsService {
           authHeaders: {},
           model: { profile, model_id: modelId },
           temperature,
-          maxTokens: 480,
+          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 480,
           replyLanguage,
+          replyGender,
           tools: modelTools,
           chatMessages,
           visitorText: text,
           onToolStart: (event) => {
             nudge = event.spoken;
-            input.onToolStart?.(event);
+            if (!proactiveToolAcknowledgement) input.onToolStart?.(event);
           },
           signal,
         });
@@ -879,10 +908,18 @@ export class TurnsService {
             onToken(delta);
           },
         }, signal);
-        if (!(result.content || "").trim() && streamedText.trim()) {
-          return { ...result, content: streamedText };
+        const streamedContent = (result.content || streamedText || "").trim();
+        if (streamedContent) {
+          return { ...result, content: streamedContent };
         }
-        return result;
+
+        // Some compatible providers occasionally close a successful stream
+        // without emitting assistant text. Retry once as a regular completion
+        // before failing the visitor's turn.
+        const retry = await this.modelGatewayClient.complete(completionRequest, signal);
+        const retryContent = (retry.content || "").trim();
+        if (retryContent) onToken(retryContent);
+        return { ...retry, content: retryContent };
       }
       return this.modelGatewayClient.complete(completionRequest, signal);
     };
