@@ -1,0 +1,880 @@
+/* ==========================================================================
+   QuickStart AI — Approved Auth Styles (auth-v17 visual authority)
+   Strictly scoped under .auth-scope to protect unrelated pages and components.
+   ========================================================================== */
+
+.auth-page {
+  background-color: #f6f6f3;
+  color: #262626;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   Shell Container
+   ========================================================================== */
+.auth-scope .auth-shell {
+  position: relative;
+  margin: 22px;
+  min-height: calc(100vh - 44px);
+  min-height: calc(100dvh - 44px);
+  border: 1px solid #e0e0da;
+  border-radius: 18px;
+  display: grid;
+  grid-template-columns: 47% 53%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+/* Brand Link (Upper left inside shell) */
+.auth-scope .auth-brand {
+  position: absolute;
+  z-index: 10;
+  top: 34px;
+  left: 47px;
+  width: 181px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.auth-scope .auth-brand:focus-visible {
+  outline: 2px solid #ff571a;
+  outline-offset: 4px;
+}
+
+/* ==========================================================================
+   Right Panel — Scene Side
+   ========================================================================== */
+.auth-scope .auth-scene-side {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  background: #f7f7f3;
+  padding: 34px 47px 27px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  isolation: isolate;
+}
+
+.auth-scope .auth-scene-side::before {
+  content: "";
+  position: absolute;
+  inset: 28% -15% 0;
+  z-index: -1;
+  background: radial-gradient(ellipse at 50% 60%, #ff571a0d, transparent 60%);
+  pointer-events: none;
+}
+
+.auth-scope .auth-intro {
+  margin: 103px 0 0;
+  position: relative;
+}
+
+.auth-scope .auth-scene-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #888888;
+  letter-spacing: 1.3px;
+  margin-bottom: 19px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.auth-scope .auth-scene-eyebrow-dot {
+  width: 5px;
+  height: 5px;
+  background: #ff571a;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.auth-scope .auth-scene-title {
+  font-size: 39px;
+  line-height: 1.14;
+  letter-spacing: -1.2px;
+  max-width: 470px;
+  font-weight: 500;
+  margin: 0 0 17px;
+  color: #262626;
+}
+
+.auth-scope .auth-scene-desc {
+  font-size: 14px;
+  color: #777777;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 400px;
+}
+
+.auth-scope .auth-art-wrap {
+  width: 100%;
+  max-width: 550px;
+  align-self: center;
+  margin: 32px 0 20px;
+  position: relative;
+  outline: none;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.auth-scope .auth-art-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.auth-scope .auth-art-wrap:focus-visible {
+  outline: 1px solid #ff571a;
+  border-radius: 10px;
+  outline-offset: -10px;
+}
+
+/* ==========================================================================
+   Left Panel — Form Side
+   ========================================================================== */
+.auth-scope .auth-form-side {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 33px 48px 25px;
+  display: flex;
+  flex-direction: column;
+  border-left: 0;
+  border-right: 1px solid #e8e8e2;
+  min-width: 0;
+}
+
+.auth-scope .auth-form-side::after {
+  content: "";
+  display: block;
+  height: 12px;
+  flex: none;
+}
+
+.auth-scope .auth-form {
+  width: 100%;
+  max-width: 382px;
+  margin: auto;
+  padding: 90px 0 45px;
+}
+
+.auth-scope .auth-form-signup {
+  padding-top: 65px;
+}
+
+.auth-scope .auth-form-eyebrow {
+  font-size: 11px;
+  color: #999999;
+  margin-bottom: 16px;
+}
+
+.auth-scope .auth-form-title {
+  font-size: 31px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.9px;
+  margin: 0 0 13px;
+  color: #262626;
+}
+
+.auth-scope .auth-form-sub {
+  font-size: 14px;
+  color: #777777;
+  line-height: 1.6;
+  margin: 0 0 33px;
+  max-width: 350px;
+}
+
+/* ==========================================================================
+   Form Fields & Controls
+   ========================================================================== */
+.auth-scope .auth-field {
+  margin-bottom: 24px;
+}
+
+.auth-scope .auth-label {
+  font-size: 13px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 9px;
+  color: #262626;
+}
+
+.auth-scope .auth-input {
+  height: 49px;
+  width: 100%;
+  border: 1px solid #dcdcd6;
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 0 14px;
+  outline: none;
+  color: #262626;
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-scope .auth-input::placeholder {
+  color: #a7a7a1;
+}
+
+.auth-scope .auth-input:focus {
+  border-color: #ff571a;
+  box-shadow: 0 0 0 3px #ff571a10;
+}
+
+.auth-scope .auth-pw-wrap {
+  position: relative;
+}
+
+.auth-scope .auth-pw-wrap .auth-input {
+  padding-right: 48px;
+}
+
+.auth-scope .auth-eye-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #92928b;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.auth-scope .auth-eye-btn:hover {
+  color: #262626;
+}
+
+.auth-scope .auth-eye-btn:focus-visible {
+  outline: 2px solid #ff571a;
+  outline-offset: 2px;
+}
+
+.auth-scope .auth-hint {
+  font-size: 11px;
+  color: #999999;
+  margin: 9px 0 0;
+}
+
+.auth-scope .auth-error {
+  border-radius: 7px;
+  border: 1px solid #fecaca;
+  background-color: #fef2f2;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #b91c1c;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.auth-scope .auth-btn-primary {
+  width: 100%;
+  height: 49px;
+  border: 1px solid #ec4d11;
+  border-radius: 7px;
+  background: #ff571a;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 3px #ff571a13;
+  margin-top: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-scope .auth-btn-primary:hover:not(:disabled) {
+  background: #f44e13;
+  border-color: #df450d;
+}
+
+.auth-scope .auth-btn-primary:focus-visible {
+  outline: 2px solid #ff571a;
+  outline-offset: 3px;
+}
+
+.auth-scope .auth-btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.auth-scope .auth-btn-arrow {
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.auth-scope .auth-alternate {
+  font-size: 13px;
+  text-align: center;
+  color: #888888;
+  margin-top: 28px;
+}
+
+.auth-scope .auth-alternate a {
+  font-weight: 600;
+  color: #262626;
+  text-decoration: none;
+}
+
+.auth-scope .auth-alternate a:hover,
+.auth-scope .auth-alternate a:focus-visible {
+  text-decoration: underline;
+}
+
+.auth-scope .auth-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Anatomy Isometric Tokens & Vector Engine Rules
+   ========================================================================== */
+.auth-scope .iso {
+  --anatomy-page: #0b0b0b;
+  --anatomy-card: #131313;
+  --anatomy-text: #a3a3a3;
+  --anatomy-strong: #e6e6e6;
+  --anatomy-muted: #6e6e6e;
+  --anatomy-paper: #131313;
+  --anatomy-face: #1b1b1b;
+  --anatomy-top: #1c1c1c;
+  --anatomy-shade-0: #0f0f0f;
+  --anatomy-shade-1: #121212;
+  --anatomy-shade-2: #151515;
+  --anatomy-shade-3: #181818;
+  --anatomy-lit-top: #262626;
+  --anatomy-lit-shade: #1d1d1d;
+  --anatomy-hi: #d4d4d4;
+  --anatomy-mid: #6a6a6a;
+  --anatomy-lo: #3e3e3e;
+  --anatomy-faint: #2a2a2a;
+  --anatomy-lit: #ffffff;
+  --anatomy-halo: #050505;
+  --anatomy-halo-opacity: 0.9;
+  --anatomy-dot: #e6e6e6;
+  --anatomy-red: #ff6b6b;
+  --anatomy-green: #6be0a0;
+  --anatomy-blue: #6b9bff;
+  --anatomy-weight: 0.6px;
+  --anatomy-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --anatomy-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.auth-scope .iso[data-theme="light"] {
+  --anatomy-page: #f2f2ef;
+  --anatomy-card: #fbfbfa;
+  --anatomy-text: #57575a;
+  --anatomy-strong: #18181a;
+  --anatomy-muted: #8c8c90;
+  --anatomy-paper: #f7f7f3;
+  --anatomy-face: #ffffff;
+  --anatomy-top: #ffffff;
+  --anatomy-shade-0: #d4d4ce;
+  --anatomy-shade-1: #dfdfd9;
+  --anatomy-shade-2: #e9e9e3;
+  --anatomy-shade-3: #f4f4ee;
+  --anatomy-lit-top: #ffffff;
+  --anatomy-lit-shade: #eeeeeb;
+  --anatomy-hi: #4f4f56;
+  --anatomy-mid: #87878f;
+  --anatomy-lo: #aaaab2;
+  --anatomy-faint: #d2d2d7;
+  --anatomy-lit: #000000;
+  --anatomy-halo: #77776c;
+  --anatomy-halo-opacity: 0.19;
+  --anatomy-dot: #3a3a3e;
+  --anatomy-red: #e5484d;
+  --anatomy-green: #30a46c;
+  --anatomy-blue: #3e63dd;
+  --anatomy-weight: 0.72px;
+}
+
+.auth-scope .iso-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.auth-scope .iso-svg path,
+.auth-scope .iso-svg circle {
+  vector-effect: non-scaling-stroke;
+}
+
+.auth-scope .iso-fill {
+  fill: var(--anatomy-paper);
+  stroke: none;
+}
+
+.auth-scope .iso-solid[data-lit] > .iso-fill {
+  fill: var(--anatomy-face);
+}
+
+.auth-scope .iso-shade,
+.auth-scope .iso-top {
+  stroke: none;
+}
+
+.auth-scope .iso-shade[data-shade="0"] {
+  fill: var(--anatomy-shade-0);
+}
+
+.auth-scope .iso-shade[data-shade="1"] {
+  fill: var(--anatomy-shade-1);
+}
+
+.auth-scope .iso-shade[data-shade="2"] {
+  fill: var(--anatomy-shade-2);
+}
+
+.auth-scope .iso-shade[data-shade="3"] {
+  fill: var(--anatomy-shade-3);
+}
+
+.auth-scope .iso-top {
+  fill: var(--anatomy-top);
+}
+
+.auth-scope .iso-solid[data-lit] > .iso-top {
+  fill: var(--anatomy-lit-top);
+}
+
+.auth-scope .iso-solid[data-lit] > .iso-shade {
+  fill: var(--anatomy-lit-shade);
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-shade,
+.auth-scope .iso-solid[data-seamless] > .iso-top {
+  stroke-width: 0.4;
+  stroke-linejoin: round;
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-shade[data-shade="0"] {
+  stroke: var(--anatomy-shade-0);
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-shade[data-shade="1"] {
+  stroke: var(--anatomy-shade-1);
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-shade[data-shade="2"] {
+  stroke: var(--anatomy-shade-2);
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-shade[data-shade="3"] {
+  stroke: var(--anatomy-shade-3);
+}
+
+.auth-scope .iso-solid[data-seamless] > .iso-top {
+  stroke: var(--anatomy-top);
+}
+
+.auth-scope .iso-solid[data-seamless][data-lit] > .iso-top {
+  stroke: var(--anatomy-lit-top);
+}
+
+.auth-scope .iso-solid[data-seamless][data-lit] > .iso-shade {
+  stroke: var(--anatomy-lit-shade);
+}
+
+.auth-scope .iso-solid[data-lit] > .iso-edge {
+  stroke: var(--anatomy-lit);
+}
+
+.auth-scope .iso-halo {
+  fill: var(--anatomy-halo);
+  stroke: none;
+  filter: blur(9px);
+  opacity: var(--anatomy-halo-opacity);
+  transform: translateY(6px);
+}
+
+.auth-scope .iso-line {
+  fill: none;
+  stroke: var(--anatomy-lo);
+  stroke-width: var(--anatomy-weight);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.auth-scope .iso-line[data-tone="hi"] {
+  stroke: var(--anatomy-hi);
+}
+
+.auth-scope .iso-line[data-tone="mid"] {
+  stroke: var(--anatomy-mid);
+}
+
+.auth-scope .iso-line[data-tone="lo"] {
+  stroke: var(--anatomy-lo);
+}
+
+.auth-scope .iso-line[data-tone="faint"] {
+  stroke: var(--anatomy-faint);
+}
+
+.auth-scope .iso-line[data-tone="lit"] {
+  stroke: var(--anatomy-lit);
+}
+
+.auth-scope .iso-line[data-tone="red"] {
+  stroke: var(--anatomy-red);
+}
+
+.auth-scope .iso-line[data-tone="green"] {
+  stroke: var(--anatomy-green);
+}
+
+.auth-scope .iso-line[data-tone="blue"] {
+  stroke: var(--anatomy-blue);
+}
+
+.auth-scope .iso-line[data-dotted] {
+  stroke-dasharray: 0.01 3.5;
+  stroke-width: 1;
+}
+
+.auth-scope .iso-line[data-dashed] {
+  stroke-dasharray: 3 3;
+}
+
+.auth-scope .iso-line[data-flow] {
+  stroke-dasharray: 2 6;
+}
+
+.auth-scope .iso-wire-end {
+  fill: var(--anatomy-paper);
+  stroke: var(--anatomy-lo);
+  stroke-width: var(--anatomy-weight);
+}
+
+.auth-scope .iso-wire[data-tone="hi"] .iso-wire-end {
+  stroke: var(--anatomy-hi);
+}
+
+.auth-scope .iso-wire[data-tone="mid"] .iso-wire-end {
+  stroke: var(--anatomy-mid);
+}
+
+.auth-scope .iso-wire[data-tone="faint"] .iso-wire-end {
+  stroke: var(--anatomy-faint);
+}
+
+.auth-scope .iso-wire[data-tone="lit"] .iso-wire-end {
+  stroke: var(--anatomy-lit);
+}
+
+.auth-scope .iso-dots circle {
+  fill: var(--anatomy-dot);
+  stroke: none;
+  opacity: 0.32;
+}
+
+.auth-scope .iso-dots[data-tone="hi"] circle {
+  opacity: 0.85;
+}
+
+.auth-scope .iso-dots[data-tone="mid"] circle {
+  opacity: 0.45;
+}
+
+.auth-scope .iso-dots[data-tone="lo"] circle {
+  opacity: 0.22;
+}
+
+.auth-scope .iso-dots[data-tone="faint"] circle {
+  opacity: 0.12;
+}
+
+/* ==========================================================================
+   Approved Illustration Anatomy Geometry Colors (auth-v17 exact palettes)
+   ========================================================================== */
+.auth-scope .accent > .iso-top {
+  fill: #ffdeca;
+}
+
+.auth-scope .accent > .iso-shade {
+  fill: #eeb18b;
+}
+
+.auth-scope .accent > .iso-edge {
+  stroke: #e4773c;
+}
+
+.auth-scope .lock-rim {
+  fill: #e6e6df;
+  stroke: #aaaab2;
+  stroke-width: 0.7;
+}
+
+.auth-scope .key-metal {
+  fill: #ffdeca;
+  stroke: #df8b58;
+  stroke-width: 0.65;
+}
+
+.auth-scope .key-metal-under {
+  fill: #e6b38e;
+  stroke: #d88a58;
+  stroke-width: 0.6;
+}
+
+.auth-scope .key-engraving {
+  fill: none;
+  stroke: #edbe9c;
+  stroke-width: 0.5;
+}
+
+.auth-scope .screen-rim {
+  fill: #f4f4ef;
+  stroke: #c2c2ba;
+  stroke-width: 0.6;
+}
+
+.auth-scope .screen {
+  fill: #fafaf7;
+  stroke: #cfcfc7;
+  stroke-width: 0.5;
+}
+
+.auth-scope .screen-nav {
+  fill: #f0f0eb;
+}
+
+.auth-scope .ink {
+  fill: #c8c8c0;
+  stroke: none;
+}
+
+.auth-scope .rule-fill {
+  fill: #deded6;
+  stroke: none;
+}
+
+.auth-scope .orange-fill {
+  fill: #ff571a;
+  stroke: none;
+}
+
+.auth-scope .screw {
+  fill: #f7f7f3;
+  stroke: #aaa;
+  stroke-width: 0.6;
+}
+
+.auth-scope .cavity {
+  fill: #b9b9b0;
+  stroke: #999;
+  stroke-width: 0.7;
+}
+
+.auth-scope .door-outline {
+  fill: none;
+  stroke: #aaa;
+  stroke-width: 0.7;
+}
+
+.auth-scope .door-outline.faint {
+  stroke: #d1d1ca;
+}
+
+.auth-scope .slot-plate {
+  fill: #eee9e1;
+  stroke: #b4b2a9;
+  stroke-width: 0.6;
+}
+
+.auth-scope .slot {
+  fill: #97978d;
+  stroke: none;
+}
+
+.auth-scope .panel-seam {
+  fill: none;
+  stroke: #aaaab0;
+  stroke-width: 0.6;
+}
+
+.auth-scope .panel-seam.faint {
+  stroke: #d0d0d3;
+}
+
+.auth-scope .label-pocket {
+  fill: #efefea;
+  stroke: #bcbcc0;
+  stroke-width: 0.5;
+}
+
+.auth-scope .screw-slot {
+  fill: none;
+  stroke: #8d8d95;
+  stroke-width: 0.55;
+  stroke-linecap: round;
+}
+
+.auth-scope .control-dot {
+  fill: #b8b8bf;
+}
+
+.auth-scope .slot-border {
+  fill: none;
+  stroke: #9e9ea6;
+  stroke-width: 0.65;
+}
+
+.auth-scope .vent-inset {
+  fill: #deded8;
+  stroke: #aaaab2;
+  stroke-width: 0.5;
+}
+
+.auth-scope .stand-channel {
+  fill: #dfdfd8;
+  stroke: #b7b7bf;
+  stroke-width: 0.5;
+}
+
+.auth-scope .neck-seat > .iso-top {
+  fill: #efefe9;
+}
+
+.auth-scope .bezel-seam {
+  fill: none;
+  stroke: #d2d2d7;
+  stroke-width: 0.6;
+}
+
+.auth-scope .toe-seam {
+  fill: none;
+  stroke: #a8a8af;
+  stroke-width: 0.6;
+}
+
+.auth-scope .safe-toe > .iso-shade {
+  fill: #cdcdc6;
+}
+
+.auth-scope .safe-skirt > .iso-shade {
+  fill: #e1e1d9;
+}
+
+.auth-scope .inner-bevel {
+  fill: none;
+  stroke: #e2e2dc;
+  stroke-width: 0.9;
+}
+
+.auth-scope .monitor-foot > .iso-shade {
+  fill: #e4e4de;
+}
+
+.auth-scope .monitor-neck > .iso-shade[data-shade="0"] {
+  fill: #cbcbc4;
+}
+
+.auth-scope .stand-pad > .iso-top,
+.auth-scope .contact-pad > .iso-top {
+  fill: #deded7;
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+@media (min-width: 1550px) {
+  .auth-scope .auth-shell {
+    max-width: 1500px;
+    margin: 24px auto;
+  }
+  .auth-scope .auth-scene-side {
+    padding-inline: 64px;
+  }
+  .auth-scope .auth-brand {
+    left: 64px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .auth-scope .auth-scene-side {
+    padding: 32px;
+  }
+  .auth-scope .auth-form-side {
+    padding: 32px;
+  }
+  .auth-scope .auth-scene-title {
+    font-size: 33px;
+  }
+  .auth-scope .auth-intro {
+    margin-top: 103px;
+  }
+}
+
+@media (max-width: 760px) {
+  .auth-scope .auth-shell {
+    margin: 12px;
+    display: block;
+  }
+  .auth-scope .auth-scene-side {
+    display: none !important;
+  }
+  .auth-scope .auth-brand {
+    position: static;
+    width: 160px;
+    margin: 24px 28px 0;
+  }
+  .auth-scope .auth-form-side {
+    padding: 22px 28px;
+    border: 0;
+  }
+  .auth-scope .auth-form {
+    padding: 34px 0 45px;
+  }
+  .auth-scope .auth-form-signup {
+    padding: 34px 0 45px;
+  }
+  .auth-scope .auth-form-eyebrow {
+    display: none;
+  }
+  .auth-scope .auth-form-title {
+    font-size: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-scope * {
+    scroll-behavior: auto;
+  }
+  .auth-scope .iso-line[data-flow],
+  .auth-scope .iso-dots circle[data-pulse] {
+    animation: none;
+  }
+}

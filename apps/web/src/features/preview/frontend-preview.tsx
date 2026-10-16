@@ -14,6 +14,7 @@ import { CreateAgentForm } from "@/features/agents/components/create-agent-form"
 import type { Agent } from "@/features/agents/lib/types";
 import { InboxSidebar } from "@/features/inbox/components/inbox-sidebar";
 import { ConversationThread } from "@/features/inbox/components/conversation-thread";
+import { EmptyInboxState } from "@/features/inbox/components/empty-inbox-state";
 import { TranscriptView } from "@/features/inbox/components/transcript-view";
 import type { Conversation, Message } from "@/features/inbox/lib/types";
 import { AnalyticsDashboard } from "@/features/analytics/components/analytics-dashboard";
@@ -31,23 +32,25 @@ import type { KnowledgeSource, MemoryFact } from "@/features/knowledge/lib/types
 const workspace = {
   id: "local-preview",
   orgId: "local-preview-org",
-  name: "Acme Support",
-  slug: "acme-support",
+  name: "Demo Workspace",
+  slug: "demo",
 };
-const date = "2026-10-10T10:00:00.000Z";
+const date = "2026-10-15T10:42:00.000Z";
 const previewConversations: Conversation[] = [
-  { id: "conversation-1", subject_key: "Order delivery question", state: "waiting" },
-  { id: "conversation-2", subject_key: "Product setup help", state: "bot" },
-  { id: "conversation-3", subject_key: "Billing support", state: "human" },
-].map((item) => ({
+  { id: "84b0cd", subject_key: "anon:84b0cd", state: "bot" },
+  { id: "fdfa0c", subject_key: "anon:fdfa0c", state: "bot" },
+].map((item, index) => ({
   ...item,
   state: item.state as Conversation["state"],
   workspace_id: workspace.id,
   agent_id: "support-assistant",
   assignee_user_id: item.state === "human" ? "preview-owner" : null,
-  last_seq: 2,
-  created_at: date,
-  updated_at: date,
+  last_seq: index === 0 ? 2 : 1,
+  created_at: index === 0 ? "2026-10-15T10:42:00.000Z" : "2026-10-15T10:39:00.000Z",
+  updated_at:
+    index === 0
+      ? new Date(Date.now() - 120000).toISOString()
+      : new Date(Date.now() - 300000).toISOString(),
 }));
 const previewAgents: Agent[] = [
   {
@@ -58,11 +61,11 @@ const previewAgents: Agent[] = [
     instructions:
       "Help customers with product questions. Use the knowledge base for company policies and ask for clarification when needed.",
     environment: "production",
-    model_settings: { model: "gpt-4o-mini", temperature: 0.4 },
+    model_settings: { model: "gpt-4o-mini", temperature: 0.3, max_tokens: 1024 },
     channels: { chat: true, voice: true },
     tools: [],
     version: 1,
-    production_version_id: null,
+    production_version_id: "preview-release-1",
     created_at: date,
     updated_at: date,
   },
@@ -144,6 +147,12 @@ export function FrontendPreview({ view }: { view: string[] }) {
           headers: { "Content-Type": "application/json" },
         });
       // This development-only visual preview never sends API requests to real services.
+      if (method === "POST" && url.pathname.endsWith("/summary")) {
+        return reply({
+          summary: "The visitor asked about pricing. The agent shared an overview and offered help choosing a plan.",
+          ready: true,
+        });
+      }
       if (method !== "GET")
         return reply(
           {
@@ -165,25 +174,85 @@ export function FrontendPreview({ view }: { view: string[] }) {
           ),
         });
       if (path.startsWith(conversationPrefix + "/")) {
+        const conversationId = path.slice(conversationPrefix.length + 1).split("/")[0];
         const conversation = previewConversations.find(
-          (item) => item.id === path.slice(conversationPrefix.length + 1).split("/")[0],
+          (item) => item.id === conversationId,
         );
         if (!conversation) return reply({ error: { message: "Conversation not found" } }, 404);
+        if (path.endsWith("/take")) {
+          conversation.state = "human";
+          conversation.assignee_user_id = "preview-owner";
+          return reply({ conversation });
+        }
+        if (path.endsWith("/release")) {
+          conversation.state = "bot";
+          conversation.assignee_user_id = null;
+          return reply({ conversation });
+        }
+        if (path.endsWith("/summary")) {
+          return reply({
+            summary:
+              "The visitor asked about pricing. The agent shared an overview and offered help choosing a plan.",
+            ready: true,
+          });
+        }
         if (path.endsWith("/messages")) {
-          const messages: Message[] = [
-            "Hello, I need help with my order.",
-            "Of course. Could you share your order number?",
-          ].map((text, index) => ({
-            id: `${conversation.id}-${index}`,
-            workspace_id: workspace.id,
-            conversation_id: conversation.id,
-            seq: index + 1,
-            sender_type: index ? "assistant" : "user",
-            sender_id: index ? "support-assistant" : "sample-visitor",
-            text,
-            idempotency_key: `preview-${index}`,
-            created_at: date,
-          }));
+          if (init?.method === "POST") {
+            const body = init?.body ? JSON.parse(init.body as string) : {};
+            const newMsg: Message = {
+              id: `${conversation.id}-${Date.now()}`,
+              workspace_id: workspace.id,
+              conversation_id: conversation.id,
+              seq: conversation.last_seq + 1,
+              sender_type: "human",
+              sender_id: "preview-owner",
+              text: body.text || "",
+              idempotency_key: body.idempotency_key || `preview-${Date.now()}`,
+              created_at: new Date().toISOString(),
+            };
+            conversation.last_seq += 1;
+            return reply({ message: newMsg });
+          }
+          const messages: Message[] =
+            conversation.id === "84b0cd"
+              ? [
+                  {
+                    id: "84b0cd-0",
+                    workspace_id: workspace.id,
+                    conversation_id: conversation.id,
+                    seq: 1,
+                    sender_type: "user",
+                    sender_id: "sample-visitor",
+                    text: "Can you tell me about your pricing?",
+                    idempotency_key: "preview-0",
+                    created_at: "2026-10-15T10:42:00.000Z",
+                  },
+                  {
+                    id: "84b0cd-1",
+                    workspace_id: workspace.id,
+                    conversation_id: conversation.id,
+                    seq: 2,
+                    sender_type: "assistant",
+                    sender_id: "support-assistant",
+                    text:
+                      "Our plans depend on your team's needs. You can explore the options on our pricing page, or I can help you find the right fit.",
+                    idempotency_key: "preview-1",
+                    created_at: "2026-10-15T10:42:00.000Z",
+                  },
+                ]
+              : [
+                  {
+                    id: "fdfa0c-0",
+                    workspace_id: workspace.id,
+                    conversation_id: conversation.id,
+                    seq: 1,
+                    sender_type: "user",
+                    sender_id: "sample-visitor",
+                    text: "Hello, I need help getting started.",
+                    idempotency_key: "preview-0",
+                    created_at: "2026-10-15T10:39:00.000Z",
+                  },
+                ];
           return reply({
             messages: messages
               .filter((item) => item.seq > Number(url.searchParams.get("after_seq") ?? 0))
@@ -220,12 +289,25 @@ export function FrontendPreview({ view }: { view: string[] }) {
       if (path.endsWith("/api-keys")) return reply({ api_keys: keys });
       if (path.endsWith("/secrets")) return reply({ secrets });
       if (path.endsWith("/publishable-keys")) return reply({ publishable_keys: widgetKeys });
+      if (path === `/api/workspaces/${workspace.id}/voice/catalog`)
+        return reply({ voices: [
+          ["uplift:v_8eelc901", "uplift", "Uplift Info", "ur-PK", "Clear Urdu, education and support."],
+          ["uplift:v_30s70t3a", "uplift", "Uplift News", "ur-PK", "Pakistani news cadence."],
+          ["uplift:v_meklc281", "uplift", "Uplift Urdu", "ur-PK", "Urdu female conversational voice."],
+          ["cartesia:6c756032-11c3-4be8-a120-74f9673fb700", "cartesia", "Cartesia Harlow", "en", "Warm English support voice."],
+          ["cartesia:d463004e-0353-4063-80d4-2fabbf1c5dcb", "cartesia", "Cartesia Hina", "ur", "Urdu, steady and clear."],
+          ["fish:reference", "fish", "Fish reference", "en", "Custom workspace voice."],
+        ].map(([id, provider, label, language, description]) => ({ id, provider, label, language, description, available: false, sample_text: "Hello. How can I help?" })) });
       if (path === `/api/workspaces/${workspace.id}/agents`)
         return reply({ agents: previewAgents });
       if (path === `/api/workspaces/${workspace.id}/agents/support-assistant`)
         return reply({ agent: previewAgents[0] });
       if (path === `/api/workspaces/${workspace.id}/agents/support-assistant/versions`)
-        return reply({ versions: [] });
+        return reply({ versions: [{
+          id: "preview-release-1", workspace_id: workspace.id, agent_id: "support-assistant",
+          release_number: 1, created_by: "preview-owner", created_at: date,
+          snapshot: { ...previewAgents[0], draft_version: 1 },
+        }] });
       if (path === `/api/workspaces/${workspace.id}`) return reply({ workspace });
       return reply({ error: { message: "Unavailable in visual preview" } }, 404);
     };
@@ -324,26 +406,20 @@ export function FrontendPreview({ view }: { view: string[] }) {
         workspaceId={workspace.id}
         workspaceName={workspace.name}
         workspaceSlug={workspace.slug}
-        userEmail="staff@acme.com"
+        userEmail="quickstart@gmail.com"
         workspaces={[workspace]}
         isPreview={true}
       >
         {!ready ? (
           <p>Loading sample data…</p>
         ) : view[0] === "inbox" ? (
-          <div className="-m-4 md:-m-6 flex h-[calc(100dvh-92px)] min-h-[480px] overflow-hidden rounded-b-12 border-t border-border-faint">
+          <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden bg-white">
             <InboxSidebar workspaceId={workspace.id} isPreview />
             <div
-              className={`${view[1] ? "flex" : "hidden md:flex"} flex-1 min-w-0 min-h-0 flex-col`}
+              className={`${view[1] ? "flex" : "hidden md:flex"} flex-1 min-w-0 min-h-0 flex-col overflow-hidden`}
             >
               {view[1] ? (
                 <>
-                  <Link
-                    href="/preview/inbox"
-                    className="md:hidden px-4 py-3 text-xs text-heat-100 border-b border-border-faint"
-                  >
-                    ← All conversations
-                  </Link>
                   {view[2] === "transcript" ? (
                     <TranscriptView workspaceId={workspace.id} conversationId={view[1]} />
                   ) : (
@@ -352,19 +428,12 @@ export function FrontendPreview({ view }: { view: string[] }) {
                       workspaceId={workspace.id}
                       conversationId={view[1]}
                       userId="preview-owner"
-                      agentName="Preview agent"
+                      agentName="Demo Support Agent"
                     />
                   )}
                 </>
               ) : (
-                <div className="flex flex-1 items-center justify-center p-6 text-center">
-                  <div>
-                    <h2 className="text-sm font-semibold">Select a conversation</h2>
-                    <p className="mt-2 text-xs text-neutral-500">
-                      Choose a thread to read messages and review handoff.
-                    </p>
-                  </div>
-                </div>
+                <EmptyInboxState />
               )}
             </div>
           </div>
@@ -372,7 +441,7 @@ export function FrontendPreview({ view }: { view: string[] }) {
           <EvaluationPreviewView view={view} />
         ) : view[0] === "agents" ? (
           !view[1] ? (
-            <AgentList workspaceId={workspace.id} initialAgents={previewAgents} />
+            <AgentList workspaceId={workspace.id} workspaceName={workspace.name} initialAgents={previewAgents} />
           ) : view[1] === "new" ? (
             <CreateAgentForm workspaceId={workspace.id} isPreview />
           ) : view[1] === "support-assistant" ? (

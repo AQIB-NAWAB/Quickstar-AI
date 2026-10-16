@@ -32,86 +32,88 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="publish-modal-title"
-        className="w-full max-w-md rounded-16 border border-border-faint bg-white p-6 shadow-xl relative"
+        className="w-full max-w-md rounded-[12px] border border-[#E1E5EA] bg-white p-6 shadow-xl relative"
       >
         <button
           type="button"
           onClick={onClose}
           disabled={loading}
-          className="absolute right-4 top-4 p-1 rounded-8 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+          className="absolute right-4 top-4 p-1.5 rounded-[6px] text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] transition-colors"
+          aria-label="Close dialog"
         >
           <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-12 bg-heat-12 text-heat-100 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-[8px] bg-[#FFF3ED] text-[#F15A24] flex items-center justify-center shrink-0">
             <Rocket className="w-5 h-5" />
           </div>
           <div>
-            <h3 id="publish-modal-title" className="text-base font-bold text-accent-black">
+            <h3 id="publish-modal-title" className="text-[17px] font-semibold text-[#202125]">
               Publish Release to Production
             </h3>
-            <p className="text-xs text-neutral-500">Agent: {agent.name}</p>
+            <p className="text-[13px] text-[#667085]">Agent: {agent.name}</p>
           </div>
         </div>
 
         {hasUnsavedChanges && (
-          <div className="mt-4 p-3 rounded-10 bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+          <div className="mt-4 p-3 rounded-[8px] bg-amber-50 border border-amber-200 text-amber-900 text-[12px] flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
-              You have unsaved changes in your draft editor. Please save your draft before publishing.
+              You have unsaved changes in your editor draft. Save your draft before publishing.
             </span>
           </div>
         )}
 
-        <div className="mt-4 space-y-2 text-xs text-neutral-600">
+        <div className="mt-4 space-y-2.5 text-[13px] text-[#667085] leading-relaxed">
           <p>
-            Publishing creates an <strong>immutable frozen snapshot</strong> of this agent&apos;s current
-            prompt instructions, model parameters, and attached tools.
+            Publishing freezes an immutable snapshot of this agent&apos;s current prompt instructions,
+            model parameters, and attached tools.
           </p>
-          <div className="p-3 rounded-10 bg-neutral-50 border border-border-faint space-y-1.5 font-mono text-[11px]">
+          <div className="p-3.5 rounded-[8px] bg-[#F8F9FA] border border-[#E1E5EA] space-y-1.5 text-[12px]">
             <div className="flex justify-between">
-              <span className="text-neutral-500">Draft Version:</span>
-              <span className="font-semibold text-accent-black">v{agent.version}</span>
+              <span className="text-[#667085]">Draft Version:</span>
+              <span className="font-semibold text-[#202125] font-mono">v{agent.version}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-neutral-500">Current Live Release:</span>
-              <span className="text-accent-black font-semibold">
+              <span className="text-[#667085]">Current Live Release:</span>
+              <span className="text-[#202125] font-semibold">
                 {agent.production_version_id ? "Active Release" : "None (First Release)"}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-neutral-500">Channels:</span>
-              <span className="text-accent-black">
-                {[agent.channels.chat && "Chat", agent.channels.voice && "Voice"]
+              <span className="text-[#667085]">Active Channels:</span>
+              <span className="text-[#202125]">
+                {[agent.channels.chat && "Website chat", agent.channels.voice && "Phone calls"]
                   .filter(Boolean)
                   .join(", ") || "None"}
               </span>
             </div>
           </div>
-          <p className="text-neutral-500 text-[11px] leading-relaxed">
-            All conversational turns via the API Gateway and widget will instantly switch to this
-            new published version.
+          <p className="text-[#7A808A] text-[12px]">
+            All conversational turns via website chat and voice channels will immediately switch to
+            this new published release.
           </p>
         </div>
 
         {error && (
-          <div className="mt-3 p-2.5 rounded-8 bg-red-50 border border-red-200 text-red-700 text-xs">
-            {error}
+          <div className="mt-3 p-3 rounded-[6px] bg-red-50 border border-red-200 text-red-700 text-[13px] flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-end gap-2.5">
+        <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-[#EDF0F2]">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-3.5 py-2 rounded-8 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors border border-border-faint"
+            className="px-4 py-2 rounded-[6px] text-[13px] font-medium text-[#202125] bg-white border border-[#E1E5EA] hover:bg-[#F8F9FA] transition-colors"
           >
             Cancel
           </button>
@@ -119,7 +121,7 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
             type="button"
             onClick={handlePublish}
             disabled={loading || hasUnsavedChanges}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-8 bg-heat-100 text-white text-xs font-semibold hover:bg-heat-100/90 transition-colors shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[#F15A24] text-white text-[13px] font-medium hover:bg-[#C94716] transition-colors shadow-sm disabled:opacity-50"
           >
             {loading ? (
               "Publishing..."

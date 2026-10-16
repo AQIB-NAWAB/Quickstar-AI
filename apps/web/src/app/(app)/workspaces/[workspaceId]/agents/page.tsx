@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
 import { gatewayFetch, getAccessTokenFromCookies } from "@/lib/server/gateway/fetch";
 import { AgentList } from "@/features/agents/components/agent-list";
@@ -19,7 +18,11 @@ export default async function WorkspaceAgentsPage({ params }: Props) {
 
   return (
     <div className="w-full">
-      <AgentList workspaceId={activeWorkspace.id} initialAgents={agents} />
+      <AgentList
+        workspaceId={activeWorkspace.id}
+        workspaceName={activeWorkspace.name}
+        initialAgents={agents}
+      />
     </div>
   );
 }
