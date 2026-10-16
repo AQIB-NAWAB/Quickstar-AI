@@ -102,17 +102,15 @@ export function spokenToolNudge(
   const feminine = gender === "female";
   if (toolName === VOICE_TRANSFER_TOOL_NAME) {
     return urdu
-      ? feminine ? "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہی ہوں۔" : "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
+      ? feminine
+        ? "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہی ہوں۔"
+        : "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
       : "Okay, I'm switching you to a teammate.";
   }
-  const name = toolName.toLowerCase();
-  if (/fetch|get|lookup|search|scrape|retrieve|list/.test(name)) {
-    return urdu ? feminine ? "ٹھیک ہے، میں یہ لا رہی ہوں۔" : "ٹھیک ہے، میں یہ لا رہا ہوں۔" : "I'm fetching that now.";
+  if (urdu) {
+    return feminine ? "ٹھیک ہے، میں یہ چیک کر رہی ہوں۔" : "ٹھیک ہے، میں یہ چیک کر رہا ہوں۔";
   }
-  if (/status|check/.test(name)) {
-    return urdu ? feminine ? "ٹھیک ہے، میں یہ چیک کر رہی ہوں۔" : "ٹھیک ہے، میں یہ چیک کر رہا ہوں۔" : "I'm checking that.";
-  }
-  return urdu ? feminine ? "ایک لمحہ، میں یہ دیکھ رہی ہوں۔" : "ایک لمحہ، میں یہ دیکھ رہا ہوں۔" : "One moment, I'm looking that up.";
+  return "Let me check that for you.";
 }
 
 /** Writes, starts, and cancels wait for a yes. Lookups the visitor already asked for do not. */
