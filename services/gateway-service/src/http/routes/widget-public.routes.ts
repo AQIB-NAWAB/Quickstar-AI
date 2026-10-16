@@ -75,6 +75,7 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
   router.options("/v1/public/widget/conversations/:conversationId/voice-live/start", widgetPreflight);
   router.options("/v1/public/widget/conversations/:conversationId/voice-live/stream", widgetPreflight);
   router.options("/v1/public/widget/voice-live/audio", widgetPreflight);
+  router.options("/v1/public/widget/voice-live/recording", widgetPreflight);
   router.options("/v1/public/widget/voice-live/stop", widgetPreflight);
 
   router.post(
@@ -430,6 +431,25 @@ export const createWidgetPublicRoutes: RouteModule<GatewayHttpContext> = (ctx) =
         return;
       }
       res.end();
+    }),
+  );
+
+  router.post(
+    "/v1/public/widget/voice-live/recording",
+    requirePublishableKey,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const widget = widgetContext(res);
+      const upstream = await postInternalJson(
+        config.voiceUrl,
+        "/internal/widget/voice-live/recording",
+        config.internalToken,
+        { ...req.body, workspace_id: widget.workspaceId },
+        requestId,
+        config.httpRequestTimeoutMs,
+      );
+      applyWidgetCors(req, res);
+      res.status(upstream.status).end();
     }),
   );
 

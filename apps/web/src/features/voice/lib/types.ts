@@ -39,6 +39,10 @@ export interface InboundCallDetail extends InboundCall {
   recordingAvailable: boolean;
   recordingDurationSeconds?: number;
   recordingUrl?: string | null;
+  callerRecordingUrl?: string | null;
+  callerRecordingAvailable?: boolean;
+  recordingOffsetMs?: number;
+  callerRecordingOffsetMs?: number;
   transcript: TranscriptSegment[];
   processingTurns: ProcessingTurn[];
   disposition: string;

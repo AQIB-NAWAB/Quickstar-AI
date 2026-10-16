@@ -744,6 +744,9 @@ importers:
 
   services/voice-service:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1141.0
+        version: 3.1141.0
       '@quickstart/auth':
         specifier: workspace:*
         version: link:../../packages/auth

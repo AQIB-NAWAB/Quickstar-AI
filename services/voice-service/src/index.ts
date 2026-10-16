@@ -14,7 +14,7 @@ import { createRequireInternalTokenMiddleware } from "./middleware/require-inter
 import { requireTenantContext } from "./middleware/tenant.middleware.js";
 import { PgCallsRepository } from "./repository/calls.repository.js";
 import { PgCampaignsRepository } from "./repository/campaigns.repository.js";
-import { createLocalRecordingStore } from "./repository/recording.store.js";
+import { createLocalRecordingStore, createS3RecordingStore } from "./repository/recording.store.js";
 import { createSpeechBundle, type SpeechProfile } from "./speech/factory.js";
 import { createCatalogTextToSpeech } from "./speech/catalog-tts.js";
 import { DeepgramSpeechToText } from "./speech/deepgram-stt.js";
@@ -24,6 +24,7 @@ import { createUsageIngestClient } from "./clients/usage.client.js";
 import { createRedisCallCaps } from "./caps/call-caps.js";
 import { CallSessionOrchestrator } from "./session/orchestrator.js";
 import { CampaignsService } from "./services/campaigns.service.js";
+import { startFishCallSync } from "./services/fish-call-sync.js";
 import { createTelephonyRouter } from "./telephony/factory.js";
 import { createRedisStatusIdempotencyStore } from "./telephony/status-idempotency.js";
 import { createCallsController } from "./controllers/calls.controller.js";
@@ -65,7 +66,37 @@ export async function startVoiceServer(): Promise<{
   const pool = new Pool({ connectionString: config.databaseUrl });
   const callsRepo = new PgCallsRepository(pool);
   const campaignsRepo = new PgCampaignsRepository(pool);
-  const recordings = createLocalRecordingStore(config.recordingDir);
+  if (config.recordingStore === "s3" && (
+    !config.recordingS3Endpoint ||
+    !config.recordingS3Bucket ||
+    !config.recordingS3AccessKeyId ||
+    !config.recordingS3SecretAccessKey
+  )) {
+    throw new Error("S3 recording store needs endpoint, bucket, access key, and secret key settings");
+  }
+  const recordings = config.recordingStore === "s3"
+    ? createS3RecordingStore({
+        endpoint: config.recordingS3Endpoint ?? "",
+        bucket: config.recordingS3Bucket ?? "",
+        region: config.recordingS3Region,
+        accessKeyId: config.recordingS3AccessKeyId ?? "",
+        secretAccessKey: config.recordingS3SecretAccessKey ?? "",
+      })
+    : createLocalRecordingStore(config.recordingDir);
+  const stopFishCallSync = config.fishAudioApiKey && config.fishAudioAgentId && config.fishCallsWorkspaceId
+    ? startFishCallSync({
+        pool,
+        recordings,
+        apiKey: config.fishAudioApiKey,
+        fishAgentId: config.fishAudioAgentId,
+        workspaceId: config.fishCallsWorkspaceId,
+        quickstartAgentId: config.fishCallsQuickstartAgentId,
+        logger,
+      })
+    : null;
+  if (config.fishAudioApiKey && !config.fishAudioAgentId) {
+    logger.warn("fish.calls.sync_disabled", { reason: "FISH_AUDIO_AGENT_ID is not configured" });
+  }
   const telephonyProfile = telephonySpeechProfile();
   const catalog = createCatalogTextToSpeech({
     upliftApiKey: config.upliftApiKey,
@@ -198,6 +229,8 @@ export async function startVoiceServer(): Promise<{
       openaiRealtimeModel: process.env.OPENAI_REALTIME_MODEL?.trim() || undefined,
       tts: catalog ?? widgetSpeech?.tts ?? null,
       preferCascade: Boolean(catalog && config.deepgramApiKey),
+      calls: callsRepo,
+      recordings,
       logger,
     });
     logger.info("widget.voice.enabled", {
@@ -260,6 +293,7 @@ export async function startVoiceServer(): Promise<{
   logger.info("listening", { port: config.port, service: SERVICE_NAME });
 
   const shutdown = async () => {
+    stopFishCallSync?.();
     orchestrator.setDraining(true);
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));

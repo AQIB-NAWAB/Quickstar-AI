@@ -1,0 +1,2 @@
+ALTER TABLE voice_calls ADD COLUMN IF NOT EXISTS recording_offset_ms INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE voice_calls ADD COLUMN IF NOT EXISTS caller_recording_offset_ms INTEGER NOT NULL DEFAULT 0;

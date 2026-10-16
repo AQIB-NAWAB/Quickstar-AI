@@ -1,7 +1,7 @@
 "use client";
 
 import { Pause,Play,Volume2,VolumeX } from "lucide-react";
-import React,{ useRef,useState } from "react";
+import React,{ useEffect,useRef,useState } from "react";
 import { formatDuration } from "../../lib/format";
 
 interface RecordingPlayerProps {
@@ -11,6 +11,11 @@ interface RecordingPlayerProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
   recordingAvailable: boolean;
+  recordingUrl?: string | null;
+  callerRecordingUrl?: string | null;
+  recordingOffsetMs: number;
+  callerRecordingOffsetMs: number;
+  onTimeUpdate: (seconds: number) => void;
 }
 
 export function RecordingPlayer({
@@ -20,10 +25,39 @@ export function RecordingPlayer({
   isPlaying,
   onTogglePlay,
   recordingAvailable,
+  recordingUrl,
+  callerRecordingUrl,
+  recordingOffsetMs,
+  callerRecordingOffsetMs,
+  onTimeUpdate,
 }: RecordingPlayerProps) {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const agentAudioRef = useRef<HTMLAudioElement>(null);
+  const callerAudioRef = useRef<HTMLAudioElement>(null);
+  const scheduledStartsRef = useRef<number[]>([]);
+  const endedTracksRef = useRef(new Set<string>());
+
+  const clearScheduledStarts = () => {
+    scheduledStartsRef.current.forEach((timer) => window.clearTimeout(timer));
+    scheduledStartsRef.current = [];
+  };
+
+  const audioTracks = () => [
+    { key: "caller", audio: callerAudioRef.current, offset: callerRecordingOffsetMs / 1000 },
+    { key: "agent", audio: agentAudioRef.current, offset: recordingOffsetMs / 1000 },
+  ].filter((track): track is { key: string; audio: HTMLAudioElement; offset: number } => Boolean(track.audio));
+
+  useEffect(() => {
+    for (const track of audioTracks()) {
+      track.audio.playbackRate = playbackRate;
+      track.audio.muted = isMuted;
+      if (!isPlaying) track.audio.pause();
+    }
+    if (!isPlaying) clearScheduledStarts();
+  }, [isPlaying, isMuted, playbackRate, recordingUrl, callerRecordingUrl]);
 
   const safeDuration = durationSeconds > 0 ? durationSeconds : 252;
   const progressRatio = Math.min(1, Math.max(0, currentTimeSeconds / safeDuration));
@@ -34,7 +68,66 @@ export function RecordingPlayer({
     const rect = progressBarRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
-    onSeek(Math.floor(ratio * safeDuration));
+    const seconds = Math.floor(ratio * safeDuration);
+    seekTracks(seconds);
+    onSeek(seconds);
+  }
+
+  function seekTracks(positionSeconds: number) {
+    clearScheduledStarts();
+    endedTracksRef.current.clear();
+    for (const track of audioTracks()) {
+      const localPosition = positionSeconds - track.offset;
+      if (localPosition >= 0) {
+        track.audio.currentTime = localPosition;
+        if (isPlaying) void track.audio.play().catch(() => setPlaybackError("One of the call audio tracks could not be played."));
+        else track.audio.pause();
+      } else {
+        track.audio.currentTime = 0;
+        track.audio.pause();
+        if (isPlaying) {
+          const timer = window.setTimeout(() => {
+            void track.audio.play().catch(() => setPlaybackError("One of the call audio tracks could not be played."));
+          }, Math.round(-localPosition * 1000));
+          scheduledStartsRef.current.push(timer);
+        }
+      }
+    }
+  }
+
+  function handleTrackEnded(trackKey: string) {
+    endedTracksRef.current.add(trackKey);
+    const tracks = audioTracks();
+    if (isPlaying && tracks.every((track) => endedTracksRef.current.has(track.key))) {
+      clearScheduledStarts();
+      onTogglePlay();
+    }
+  }
+
+  function handleTogglePlayback() {
+    setPlaybackError(null);
+    if (!isPlaying) {
+      endedTracksRef.current.clear();
+      clearScheduledStarts();
+      for (const track of audioTracks()) {
+        const localPosition = currentTimeSeconds - track.offset;
+        track.audio.currentTime = Math.max(0, localPosition);
+        if (localPosition >= 0) {
+          // Start available tracks in the click handler to preserve browser gesture permission.
+          void track.audio.play().catch(() => setPlaybackError("This recording could not be played. Try reloading the call details."));
+        } else {
+          const timer = window.setTimeout(() => {
+            void track.audio.play().catch(() => setPlaybackError("This recording could not be played. Try reloading the call details."));
+          }, Math.round(-localPosition * 1000));
+          scheduledStartsRef.current.push(timer);
+        }
+      }
+      onTogglePlay();
+      return;
+    }
+    clearScheduledStarts();
+    audioTracks().forEach((track) => track.audio.pause());
+    onTogglePlay();
   }
 
   // Generate stylized vertical bars for waveform visualization
@@ -52,19 +145,42 @@ export function RecordingPlayer({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between text-xs text-neutral-500">
-        <span className="font-semibold text-accent-black text-xs">
-          Recording &amp; transcript
-        </span>
+        <span className="font-semibold text-accent-black text-xs">Call recording</span>
         <span className="text-[11px] text-neutral-400">
           Playback highlights the current speaker turn.
         </span>
       </div>
 
+      <p className="text-[11px] text-neutral-500">Caller and agent voices are mixed into one synchronized playback.</p>
+
       <div className="bg-neutral-50 border border-border-faint rounded-12 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4">
+        {callerRecordingUrl && (
+          <audio
+            ref={callerAudioRef}
+            src={callerRecordingUrl}
+            preload="metadata"
+            className="sr-only"
+            onTimeUpdate={(event) => onTimeUpdate(event.currentTarget.currentTime + callerRecordingOffsetMs / 1000)}
+            onEnded={() => handleTrackEnded("caller")}
+            onError={() => setPlaybackError("This recording could not be loaded. Please try again.")}
+          />
+        )}
+        {recordingUrl && (
+          <audio
+            ref={agentAudioRef}
+            src={recordingUrl}
+            preload="metadata"
+            className="sr-only"
+            onTimeUpdate={(event) => onTimeUpdate(event.currentTarget.currentTime + recordingOffsetMs / 1000)}
+            onEnded={() => handleTrackEnded("agent")}
+            onError={() => setPlaybackError("This recording could not be loaded. Please try again.")}
+          />
+        )}
         {/* Play/Pause Button */}
         <button
           type="button"
-          onClick={onTogglePlay}
+          onClick={handleTogglePlayback}
+          disabled={!recordingAvailable || !recordingUrl}
           aria-label={isPlaying ? "Pause playback" : "Start playback"}
           className="w-10 h-10 rounded-full bg-heat-100 hover:bg-heat-200 text-white flex items-center justify-center shrink-0 shadow-xs transition-colors"
         >
@@ -138,8 +254,11 @@ export function RecordingPlayer({
 
       {!recordingAvailable && (
         <p className="text-[11px] text-neutral-400 italic">
-          Simulated playback active &middot; No raw carrier audio file connected.
+          No recording is available for this call.
         </p>
+      )}
+      {playbackError && (
+        <p role="alert" className="text-[11px] text-red-600">{playbackError}</p>
       )}
     </div>
   );

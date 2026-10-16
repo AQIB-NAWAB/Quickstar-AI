@@ -37,13 +37,19 @@ export function visitorRequestsToolAction(text: string | undefined): boolean {
   if (!value) return false;
   return /\b(?:look\s*up|lookup|search(?:\s+for)?|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get)\b.{0,70}\b(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\b|\b(?:create|update|delete|cancel|book|run)\s+(?:a|an|the|my|this|it)?\s*(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|it|this)\b|چیک کرو|ڈھونڈ|کینسل/i.test(
     value,
-  );
+  ) ||
+    /\b(?:details?|information)\s+(?:of|for|about)\s+(?:(?:the|a|an|my|this|that)\s+)?(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\b/i.test(
+      value,
+    );
 }
 
 export function assistantAskedForLookupTarget(text: string | undefined): boolean {
   return /\b(?:which|what).{0,50}\b(?:post|order|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)(?:\s+id)?\b|\b(?:which|what).{0,40}\b(?:id|identifier|number)\b/i.test(
     text ?? "",
-  );
+  ) ||
+    /\b(?:share|provide|give|tell me)\b.{0,40}\b(?:the\s+)?(?:id|identifier|number)\b/i.test(
+      text ?? "",
+    );
 }
 
 export function visitorSuppliedIdentifier(text: string | undefined): boolean {
@@ -59,7 +65,7 @@ export function visitorSuppliedIdentifier(text: string | undefined): boolean {
 export function lookupRequestMissingIdentifier(text: string | undefined): boolean {
   const value = text ?? "";
   const isLookupVerb =
-    /\b(?:look\s*up|lookup|search|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get)\b/i.test(
+    /\b(?:look\s*up|lookup|search|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get|details?|information)\b/i.test(
       value,
     );
   const mentionsRecord =

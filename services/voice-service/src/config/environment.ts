@@ -22,6 +22,12 @@ export type VoiceConfig = {
   defaultVoiceDeadlineMs: number;
   spokenFallbackPhrase: string;
   recordingDir: string;
+  recordingStore: "local" | "s3";
+  recordingS3Endpoint?: string;
+  recordingS3Bucket?: string;
+  recordingS3Region: string;
+  recordingS3AccessKeyId?: string;
+  recordingS3SecretAccessKey?: string;
   sipBridgeSharedSecret: string;
   draining: boolean;
   speechProfile: SpeechProfile;
@@ -32,6 +38,9 @@ export type VoiceConfig = {
   fishAudioApiKey?: string;
   fishAudioModel?: string;
   fishAudioReferenceId?: string;
+  fishAudioAgentId?: string;
+  fishCallsWorkspaceId?: string;
+  fishCallsQuickstartAgentId?: string;
   upliftApiKey?: string;
   cartesiaApiKey?: string;
   cartesiaModel?: string;
@@ -107,6 +116,12 @@ export function loadVoiceConfig(): VoiceConfig {
     spokenFallbackPhrase:
       process.env.VOICE_SPOKEN_FALLBACK ?? "Sorry, I am having trouble right now. Please try again.",
     recordingDir: process.env.VOICE_RECORDING_DIR ?? "/tmp/quickstart-voice-recordings",
+    recordingStore: process.env.VOICE_RECORDING_STORE?.trim().toLowerCase() === "s3" ? "s3" : "local",
+    recordingS3Endpoint: process.env.VOICE_RECORDING_S3_ENDPOINT?.trim() || undefined,
+    recordingS3Bucket: process.env.VOICE_RECORDING_S3_BUCKET?.trim() || undefined,
+    recordingS3Region: process.env.VOICE_RECORDING_S3_REGION?.trim() || "auto",
+    recordingS3AccessKeyId: process.env.VOICE_RECORDING_S3_ACCESS_KEY_ID?.trim() || undefined,
+    recordingS3SecretAccessKey: process.env.VOICE_RECORDING_S3_SECRET_ACCESS_KEY?.trim() || undefined,
     sipBridgeSharedSecret:
       process.env.VOICE_SIP_BRIDGE_SECRET ?? internalToken.slice(0, 32).padEnd(32, "0"),
     draining: process.env.VOICE_DRAINING === "1",
@@ -118,6 +133,9 @@ export function loadVoiceConfig(): VoiceConfig {
     fishAudioApiKey: process.env.FISH_AUDIO_API_KEY?.trim() || undefined,
     fishAudioModel: process.env.FISH_AUDIO_MODEL?.trim() || undefined,
     fishAudioReferenceId: process.env.FISH_AUDIO_REFERENCE_ID?.trim() || undefined,
+    fishAudioAgentId: process.env.FISH_AUDIO_AGENT_ID?.trim() || undefined,
+    fishCallsWorkspaceId: process.env.QUICKSTART_CUSTOM_LLM_WORKSPACE_ID?.trim() || undefined,
+    fishCallsQuickstartAgentId: process.env.QUICKSTART_CUSTOM_LLM_AGENT_ID?.trim() || undefined,
     upliftApiKey: process.env.UPLIFT_AI_API_KEY?.trim() || process.env.UPLIFTAI_API_KEY?.trim() || undefined,
     cartesiaApiKey: process.env.CARTESIA_API_KEY?.trim() || undefined,
     cartesiaModel: process.env.CARTESIA_MODEL?.trim() || undefined,

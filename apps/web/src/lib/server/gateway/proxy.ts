@@ -4,6 +4,7 @@ import { COOKIE_ACCESS, COOKIE_REFRESH } from "../auth/constants";
 import { type TokenPair } from "../auth/cookies";
 import { accessTokenNeedsRefresh } from "../auth/jwt";
 import { gatewayFetch, getAccessTokenFromCookies, type GatewayError } from "./fetch";
+import { gatewayBaseUrl } from "./fetch";
 
 type ProxyOk<T> = { ok: true; data: T; status: number };
 type ProxyFail = { ok: false; response: NextResponse };
@@ -87,4 +88,39 @@ export async function proxyToGateway<T>(
   }
 
   return { ok: true, data: result.data, status: result.status };
+}
+
+export async function proxyBinaryToGateway(path: string, range?: string | null): Promise<NextResponse> {
+  let token = await getAccessTokenFromCookies();
+  if (!token || accessTokenNeedsRefresh(token, 30)) token = (await tryRefreshToken()) ?? token;
+  if (!token) return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not signed in" } }, { status: 401 });
+
+  const send = (accessToken: string) => fetch(`${gatewayBaseUrl()}${path}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(range ? { Range: range } : {}),
+    },
+    cache: "no-store",
+  });
+  let upstream: Response;
+  try {
+    upstream = await send(token);
+    if (upstream.status === 401) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) upstream = await send(refreshed);
+    }
+  } catch {
+    return NextResponse.json({ error: { code: "UPSTREAM_UNAVAILABLE", message: "Gateway is unavailable" } }, { status: 502 });
+  }
+  if (!upstream.ok) {
+    const body = await upstream.json().catch(() => ({}));
+    return NextResponse.json(body, { status: upstream.status });
+  }
+  const headers = new Headers();
+  for (const name of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  headers.set("Cache-Control", "private, no-store");
+  return new NextResponse(upstream.body, { status: upstream.status, headers });
 }

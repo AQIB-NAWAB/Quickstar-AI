@@ -24,6 +24,9 @@ export type VoiceCallRow = {
   failure_code: string | null;
   time_to_first_audio_ms: number | null;
   recording_object_key: string | null;
+  caller_recording_object_key?: string | null;
+  recording_offset_ms?: number;
+  caller_recording_offset_ms?: number;
   started_at: Date;
   ended_at: Date | null;
 };
