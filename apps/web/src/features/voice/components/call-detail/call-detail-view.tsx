@@ -2,7 +2,7 @@
 
 import { ArrowLeft,Calendar,Clock,ExternalLink,Phone,User as UserIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect,useState } from "react";
+import { useState } from "react";
 import { formatDuration,formatUtcDateTime } from "../../lib/format";
 import type { InboundCallDetail } from "../../lib/types";
 import { VoiceStatusBadge } from "../voice-status-badge";
@@ -29,27 +29,9 @@ export function CallDetailView({
 
   // Playback state (with simulated timer for preview)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(18); // Default 00:18 as in screenshot
+  const [currentTime, setCurrentTime] = useState(0);
   const [followPlayback, setFollowPlayback] = useState(true);
   const [selectedTurnId, setSelectedTurnId] = useState<string>("turn_2"); // Default Turn 2 as in screenshot
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= (call.durationSeconds || 252)) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPlaying, call.durationSeconds]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -170,7 +152,12 @@ export function CallDetailView({
             onSeek={(s) => setCurrentTime(s)}
             isPlaying={isPlaying}
             onTogglePlay={() => setIsPlaying(!isPlaying)}
-            recordingAvailable={call.recordingAvailable}
+            recordingAvailable={call.recordingAvailable || Boolean(call.callerRecordingAvailable)}
+            recordingUrl={call.recordingUrl}
+            callerRecordingUrl={call.callerRecordingUrl}
+            recordingOffsetMs={call.recordingOffsetMs ?? 0}
+            callerRecordingOffsetMs={call.callerRecordingOffsetMs ?? 0}
+            onTimeUpdate={setCurrentTime}
           />
 
           <div className="h-px bg-border-faint" />

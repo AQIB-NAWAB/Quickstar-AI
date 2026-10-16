@@ -34,7 +34,7 @@ export function createWidgetVoiceLiveController(
       const conversationId = routeParam(req.params.conversationId);
       const body = (req.body ?? {}) as { actor_id?: string };
       const actorId = body.actor_id?.trim() || "widget-visitor";
-      const sessionId = manager.create({
+      const sessionId = await manager.create({
         workspaceId,
         conversationId,
         actorId,
@@ -123,11 +123,38 @@ export function createWidgetVoiceLiveController(
       res.status(204).end();
     }) as RequestHandler,
 
+    recording: (async (req, res) => {
+      const body = (req.body ?? {}) as {
+        session_id?: string;
+        workspace_id?: string;
+        action?: string;
+        content_type?: string;
+        chunk_b64?: string;
+      };
+      const sessionId = body.session_id?.trim();
+      if (!sessionId || !body.workspace_id || !body.action || !manager) {
+        throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "session_id and action are required" });
+      }
+      if (body.action === "start") {
+        await manager.startRecording(sessionId, body.workspace_id, body.content_type ?? "audio/webm");
+      } else if (body.action === "chunk") {
+        if (!body.chunk_b64 || body.chunk_b64.length > 700_000) {
+          throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Recording chunk is missing or too large" });
+        }
+        await manager.appendRecording(sessionId, body.workspace_id, Buffer.from(body.chunk_b64, "base64"));
+      } else if (body.action === "finish") {
+        await manager.finishRecording(sessionId, body.workspace_id);
+      } else {
+        throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Unsupported recording action" });
+      }
+      res.status(204).end();
+    }) as RequestHandler,
+
     stop: (async (req, res) => {
       const body = (req.body ?? {}) as { session_id?: string };
       const sessionId = body.session_id?.trim();
       if (sessionId && manager) {
-        manager.close(sessionId);
+        await manager.close(sessionId);
       }
       res.status(204).end();
     }) as RequestHandler,

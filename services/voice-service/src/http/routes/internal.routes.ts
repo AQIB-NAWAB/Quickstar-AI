@@ -22,6 +22,7 @@ export const createInternalRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
     asyncHandler(widgetVoiceLiveCtrl.stream),
   );
   router.post("/internal/widget/voice-live/audio", internalAuth, asyncHandler(widgetVoiceLiveCtrl.audio));
+  router.post("/internal/widget/voice-live/recording", internalAuth, asyncHandler(widgetVoiceLiveCtrl.recording));
   router.post("/internal/widget/voice-live/stop", internalAuth, asyncHandler(widgetVoiceLiveCtrl.stop));
 
   router.post(

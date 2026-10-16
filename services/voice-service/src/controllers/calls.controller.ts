@@ -48,15 +48,15 @@ export function createCallsController(
       }
       const transcript = await calls.listTranscript(workspaceId, callId);
       const timings = await calls.listTimings(workspaceId, callId);
-      const recordingUrl = row.recording_object_key
-        ? await recordings.getPlaybackUrl(row.recording_object_key)
-        : null;
       sendPlatformJson(res, 200, {
         request_id: requestIdFromResponse(res),
         call: {
           ...toStaffCall(row),
           recording_available: Boolean(row.recording_object_key),
-          recording_url: recordingUrl,
+          recording_url: row.recording_object_key ? "available" : null,
+          caller_recording_available: Boolean(row.caller_recording_object_key),
+          recording_offset_ms: row.recording_offset_ms ?? 0,
+          caller_recording_offset_ms: row.caller_recording_offset_ms ?? 0,
           transcript,
           processing_turns: timings.map((t) => ({
             id: t.id,
@@ -70,6 +70,53 @@ export function createCallsController(
           disposition: row.state,
         },
       });
+    }) as RequestHandler,
+
+    getRecording: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const callId = routeParam(req.params.callId);
+      const row = await calls.get(workspaceId, callId);
+      const recordingTrack = typeof req.query.track === "string" ? req.query.track : "agent";
+      const objectKey = recordingTrack === "caller"
+        ? row?.caller_recording_object_key
+        : row?.recording_object_key;
+      if (!row || row.direction !== "inbound" || !objectKey) {
+        sendPlatformJson(res, 404, {
+          request_id: requestIdFromResponse(res),
+          error: { code: "NOT_FOUND", message: "Call recording not found" },
+        });
+        return;
+      }
+      const bytes = await recordings.getBytes(objectKey);
+      if (!bytes) {
+        sendPlatformJson(res, 404, {
+          request_id: requestIdFromResponse(res),
+          error: { code: "NOT_FOUND", message: "Call recording not found" },
+        });
+        return;
+      }
+      const extension = objectKey.split(".").pop()?.toLowerCase();
+      const contentType = extension === "webm" ? "audio/webm" : extension === "mp3" ? "audio/mpeg" : extension === "ogg" ? "audio/ogg" : extension === "wav" ? "audio/wav" : "application/octet-stream";
+      const range = typeof req.headers.range === "string" ? req.headers.range : "";
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      let body = bytes;
+      let status = 200;
+      if (match && bytes.length > 0) {
+        const start = match[1] ? Number(match[1]) : Math.max(0, bytes.length - Number(match[2] || 0));
+        const end = match[2] && match[1] ? Math.min(bytes.length - 1, Number(match[2])) : bytes.length - 1;
+        if (start <= end && start < bytes.length) {
+          body = bytes.subarray(start, end + 1);
+          status = 206;
+          res.setHeader("Content-Range", `bytes ${start}-${end}/${bytes.length}`);
+        }
+      }
+      res.status(status);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Content-Length", body.length);
+      res.setHeader("Content-Disposition", `inline; filename="${callId}.${extension ?? "audio"}"`);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.send(body);
     }) as RequestHandler,
 
     listOutbound: (async (req, res) => {

@@ -5,6 +5,8 @@ import { WidgetVoiceLiveSession, type VoiceLiveEvent } from "./live-session.js";
 import { GeminiLiveSession } from "./gemini-live-session.js";
 import { OpenAiRealtimeLiveSession } from "./openai-realtime-session.js";
 import { loadWidgetVoiceBrief } from "./agent-brief.js";
+import type { CallsRepository } from "../repository/calls.repository.js";
+import type { RecordingStore } from "../repository/recording.store.js";
 
 export type LiveSessionBind = {
   workspaceId: string;
@@ -27,6 +29,12 @@ type SessionMode = "model" | "holding" | "human";
 type SessionRecord = {
   session: BridgedSession;
   bind: LiveSessionBind;
+  callId: string;
+  startedAtMs: number;
+  transcriptSequence: number;
+  persistChain: Promise<void>;
+  recordingObjectKey: string | null;
+  recordingSequence: number;
   started: boolean;
   mode: SessionMode;
   needsHuman: boolean;
@@ -62,11 +70,22 @@ export class WidgetVoiceLiveSessionManager {
       tts: TextToSpeech | null;
       /** When set, live widget voice uses STT → runtime → the selected catalog voice. */
       preferCascade: boolean;
+      calls: CallsRepository;
+      recordings: RecordingStore;
       logger: Logger;
     },
   ) {}
 
-  create(bind: LiveSessionBind): string {
+  async create(bind: LiveSessionBind): Promise<string> {
+    const call = await this.deps.calls.create({
+      workspaceId: bind.workspaceId,
+      conversationId: bind.conversationId,
+      direction: "inbound",
+      voiceMode: "cascade",
+      telephonyProvider: "widget",
+      caller: "Website visitor",
+    });
+    await this.deps.calls.updateState(bind.workspaceId, call.id, { state: "live" });
     const id = randomUUID();
     const pack = loadWidgetVoiceBrief({
       workspaceId: bind.workspaceId,
@@ -133,10 +152,16 @@ export class WidgetVoiceLiveSessionManager {
           logger: this.deps.logger,
         });
     const previous = this.findByConversation(bind.workspaceId, bind.conversationId);
-    if (previous) this.close(previous);
-    this.sessions.set(id, {
+    if (previous) await this.close(previous);
+    const record: SessionRecord = {
       session,
       bind,
+      callId: call.id,
+      startedAtMs: Date.now(),
+      transcriptSequence: 0,
+      persistChain: Promise.resolve(),
+      recordingObjectKey: null,
+      recordingSequence: 0,
       started: false,
       mode: "model",
       needsHuman: false,
@@ -144,8 +169,65 @@ export class WidgetVoiceLiveSessionManager {
       human: null,
       visitorBridge: new Set(),
       agentBridge: new Set(),
-    });
+    };
+    session.subscribe((event) => this.persistCallEvent(record, event));
+    this.sessions.set(id, record);
     return id;
+  }
+
+  private persistCallEvent(record: SessionRecord, event: VoiceLiveEvent): void {
+    const text = event.type === "transcript" && !event.interim
+      ? event.text.trim()
+      : event.type === "assistant_done"
+        ? event.text.trim()
+        : "";
+    if (!text) return;
+    const speaker = event.type === "assistant_done" ? "agent" : "user";
+    const startMs = Math.max(0, Date.now() - record.startedAtMs);
+    const sequence = ++record.transcriptSequence;
+    record.persistChain = record.persistChain.then(async () => {
+      await this.deps.calls.addTranscript(record.bind.workspaceId, record.callId, {
+        sequence,
+        speaker,
+        text,
+        start_ms: startMs,
+        end_ms: startMs,
+        finalized: true,
+      });
+    }).catch((err) => {
+      this.deps.logger.warn("widget.voice.transcript_persist_failed", {
+        call_id: record.callId,
+        message: err instanceof Error ? err.message : "transcript persistence failed",
+      });
+    });
+  }
+
+  async startRecording(id: string, workspaceId: string, contentType: string): Promise<void> {
+    const record = this.sessions.get(id);
+    if (!record || record.bind.workspaceId !== workspaceId || record.recordingObjectKey) return;
+    const normalizedType = contentType.split(";")[0]?.trim().toLowerCase();
+    if (normalizedType !== "audio/webm") throw new Error("Widget call recordings must use audio/webm");
+    record.recordingObjectKey = await this.deps.recordings.begin(
+      record.bind.workspaceId,
+      record.callId,
+      normalizedType,
+    );
+  }
+
+  async appendRecording(id: string, workspaceId: string, bytes: Buffer): Promise<void> {
+    const record = this.sessions.get(id);
+    if (!record || record.bind.workspaceId !== workspaceId || !record.recordingObjectKey || bytes.length === 0) return;
+    await this.deps.recordings.append(record.recordingObjectKey, record.recordingSequence++, bytes);
+  }
+
+  async finishRecording(id: string, workspaceId: string): Promise<void> {
+    const record = this.sessions.get(id);
+    if (!record || record.bind.workspaceId !== workspaceId || !record.recordingObjectKey) return;
+    const key = record.recordingObjectKey;
+    await this.deps.recordings.finish(key);
+    await this.deps.calls.updateState(record.bind.workspaceId, record.callId, {
+      recordingObjectKey: key,
+    });
   }
 
   private ensureStarted(record: SessionRecord): void {
@@ -312,11 +394,16 @@ export class WidgetVoiceLiveSessionManager {
     }
   }
 
-  close(id: string): void {
+  async close(id: string): Promise<void> {
     const record = this.sessions.get(id);
     if (!record) return;
     record.session.close();
     this.sessions.delete(id);
+    await record.persistChain;
+    await this.deps.calls.updateState(record.bind.workspaceId, record.callId, {
+      state: record.transferSpoken ? "transferred" : "completed",
+      endedAt: new Date(),
+    });
   }
 }
 

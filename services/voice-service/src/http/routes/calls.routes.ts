@@ -8,6 +8,7 @@ export const createCallsRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
   const { authGuard, tenantGuard, workspaceAccess, callsCtrl } = ctx;
   const tenant = [authGuard, tenantGuard];
   const read = requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.VOICE_CALLS_READ);
+  const listenRecording = requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.VOICE_RECORDINGS_LISTEN);
 
   router.get(
     "/v1/workspaces/:workspaceId/voice/inbound",
@@ -26,6 +27,12 @@ export const createCallsRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
     ...tenant,
     read,
     asyncHandler(callsCtrl.getInbound),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/voice/inbound/:callId/recording",
+    ...tenant,
+    listenRecording,
+    asyncHandler(callsCtrl.getRecording),
   );
   router.get(
     "/v1/workspaces/:workspaceId/voice/outbound",

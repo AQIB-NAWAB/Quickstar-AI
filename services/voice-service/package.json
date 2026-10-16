@@ -14,6 +14,7 @@
     "voice-load-smoke": "node dist/scripts/voice-load-smoke.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
     "@quickstart/auth": "workspace:*",
     "@quickstart/contracts": "workspace:*",
     "@quickstart/errors": "workspace:*",

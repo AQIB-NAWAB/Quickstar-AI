@@ -976,10 +976,76 @@
 
   let voicePlayCtx = null;
   let voicePlayTime = 0;
+  let voicePcmSources = new Set();
   let voiceAnalyser = null;
   let voiceTimeData = null;
   let voiceMicLevel = 0;
   let voiceWaveRaf = 0;
+  let voiceRecordingDestination = null;
+  let voiceRecorder = null;
+  let voiceRecordingUploadChain = Promise.resolve();
+
+  async function sendVoiceRecording(payload) {
+    if (!voiceSessionId) return;
+    const response = await fetch(`${gatewayUrl}/v1/public/widget/voice-live/recording`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Publishable-Key": publishableKey,
+      },
+      body: JSON.stringify({ session_id: voiceSessionId, ...payload }),
+    });
+    if (!response.ok) throw new Error("Recording upload failed");
+  }
+
+  async function finishVoiceRecording() {
+    const recorder = voiceRecorder;
+    if (!recorder) return;
+    voiceRecorder = null;
+    if (recorder.state !== "inactive") {
+      await new Promise((resolve) => {
+        recorder.addEventListener("stop", resolve, { once: true });
+        recorder.stop();
+      });
+    }
+    await voiceRecordingUploadChain.catch(() => {});
+    try {
+      await sendVoiceRecording({ action: "finish" });
+    } catch {
+      status.textContent = "Call ended; recording upload did not finish";
+    }
+    voiceRecordingDestination = null;
+  }
+
+  async function startVoiceRecording(ctx, micSource) {
+    if (typeof MediaRecorder === "undefined" || !ctx.createMediaStreamDestination) return;
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "";
+    if (!mimeType) return;
+    const destination = ctx.createMediaStreamDestination();
+    voiceRecordingDestination = destination;
+    micSource.connect(destination);
+    try {
+      await sendVoiceRecording({ action: "start", content_type: mimeType });
+      const recorder = new MediaRecorder(destination.stream, { mimeType });
+      voiceRecorder = recorder;
+      voiceRecordingUploadChain = Promise.resolve();
+      recorder.addEventListener("dataavailable", (event) => {
+        if (!event.data || event.data.size === 0) return;
+        voiceRecordingUploadChain = voiceRecordingUploadChain.then(async () => {
+          const bytes = new Uint8Array(await event.data.arrayBuffer());
+          await sendVoiceRecording({ action: "chunk", chunk_b64: bytesToBase64(bytes) });
+        });
+      });
+      recorder.start(5000);
+    } catch {
+      voiceRecordingDestination = null;
+      status.textContent = "Call recording is unavailable";
+    }
+  }
 
   function attachPlaybackAnalyser(ctx) {
     if (voiceAnalyser && voiceAnalyser.context === ctx) return voiceAnalyser;
@@ -987,6 +1053,7 @@
     voiceAnalyser.fftSize = 1024;
     voiceAnalyser.smoothingTimeConstant = 0.32;
     voiceAnalyser.connect(ctx.destination);
+    if (voiceRecordingDestination) voiceAnalyser.connect(voiceRecordingDestination);
     voiceTimeData = new Uint8Array(voiceAnalyser.fftSize);
     return voiceAnalyser;
   }
@@ -1055,6 +1122,7 @@
     buffer.copyToChannel(samples, 0);
     const source = voicePlayCtx.createBufferSource();
     source.buffer = buffer;
+    voicePcmSources.add(source);
     source.connect(attachPlaybackAnalyser(voicePlayCtx));
     const now = voicePlayCtx.currentTime;
     if (voicePlayTime < now + 0.02) voicePlayTime = now + 0.05;
@@ -1063,6 +1131,7 @@
     voiceAudioPlaying = true;
     status.textContent = "Speaking…";
     source.onended = () => {
+      voicePcmSources.delete(source);
       if (!voicePlayCtx || voicePlayCtx.currentTime + 0.08 >= voicePlayTime) {
         voiceAudioPlaying = false;
         if (voiceLiveActive && !outboundTurnActive) status.textContent = "Listening… speak naturally";
@@ -1145,13 +1214,13 @@
           hideVoicePerson();
           status.textContent = "";
         } else if (eventName === "interrupt") {
-          voicePlayTime = 0;
+          for (const source of voicePcmSources) {
+            try { source.stop(); } catch { /* already stopped */ }
+          }
+          voicePcmSources.clear();
+          voicePlayTime = voicePlayCtx?.currentTime || 0;
           voiceAudioPlaying = false;
           voiceAudioQueue = [];
-          if (voicePlayCtx && voicePlayCtx.state !== "closed") {
-            void voicePlayCtx.close();
-            voicePlayCtx = null;
-          }
           voiceAnalyser = null;
           voiceTimeData = null;
           stopVoicePlayback();
@@ -1172,6 +1241,7 @@
     outboundTurnActive = false;
     voiceStreamAbort?.abort();
     voiceStreamAbort = null;
+    await finishVoiceRecording();
     teardownVoiceGraph();
     setMicMuted(false);
     mic.classList.remove("live");
@@ -1250,7 +1320,9 @@
         audio: { echoCancellation: true, noiseSuppression: true },
       });
       voiceAudioContext = new AudioContext({ sampleRate: 16_000 });
+      voicePlayCtx = voiceAudioContext;
       voiceSource = voiceAudioContext.createMediaStreamSource(voiceStream);
+      await startVoiceRecording(voiceAudioContext, voiceSource);
       voiceProcessor = voiceAudioContext.createScriptProcessor(1024, 1, 1);
       voiceProcessor.onaudioprocess = (event) => {
         if (!voiceLiveActive || voiceMicMuted) return;

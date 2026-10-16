@@ -133,7 +133,15 @@ export class ApiVoiceRepository implements VoiceRepository {
       data: {
         ...base,
         recordingAvailable: Boolean(callRaw.recording_available),
-        recordingUrl: callRaw.recording_url ? String(callRaw.recording_url) : null,
+        recordingUrl: callRaw.recording_available
+          ? `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/inbound/${encodeURIComponent(callId)}/recording`
+          : null,
+        callerRecordingAvailable: Boolean(callRaw.caller_recording_available),
+        callerRecordingUrl: callRaw.caller_recording_available
+          ? `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/inbound/${encodeURIComponent(callId)}/recording?track=caller`
+          : null,
+        recordingOffsetMs: Number(callRaw.recording_offset_ms ?? 0),
+        callerRecordingOffsetMs: Number(callRaw.caller_recording_offset_ms ?? 0),
         transcript,
         processingTurns,
         disposition: String(callRaw.disposition ?? base.status),

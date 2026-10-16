@@ -69,6 +69,29 @@ export async function proxyToUpstream(
     );
 
     const contentType = upstream.headers.get("content-type") ?? "";
+    if (/^(audio|video|image)\//i.test(contentType) || /^(application\/(?:octet-stream|pdf|zip|x-tar))/i.test(contentType)) {
+      res.status(upstream.status);
+      for (const name of ["content-type", "content-length", "content-range", "accept-ranges", "content-disposition", "cache-control", "etag", "last-modified"]) {
+        const value = upstream.headers.get(name);
+        if (value) res.setHeader(name, value);
+      }
+      res.setHeader("x-request-id", requestId);
+      if (!upstream.body) {
+        res.end();
+        return;
+      }
+      // Audio recordings and other binary resources must never pass through text decoding.
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!res.write(Buffer.from(value))) {
+          await new Promise<void>((resolve) => res.once("drain", resolve));
+        }
+      }
+      res.end();
+      return;
+    }
     if (contentType.includes("text/event-stream") && upstream.body) {
       res.status(upstream.status);
       res.setHeader("content-type", contentType);
