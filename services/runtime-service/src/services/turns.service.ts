@@ -5,7 +5,7 @@ import type { ConversationClient, MessageInfo } from "../clients/conversation.cl
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
-import type { ToolLoop } from "./tool-loop.js";
+import type { ToolExecutionSummary, ToolLoop } from "./tool-loop.js";
 import {
   assistantAskedForActionConfirmation,
   assistantOfferedHandoff,
@@ -36,6 +36,8 @@ export type ExecuteTurnInput = {
   callId?: string;
   /** When set, tokens are forwarded as the model gateway streams them. */
   onToken?: (delta: string) => void;
+  onToolStart?: (event: { name: string; args?: Record<string, unknown> }) => void;
+  onToolDone?: (event: ToolExecutionSummary) => void;
   signal?: AbortSignal;
 };
 
@@ -49,6 +51,7 @@ export type TurnResult = {
   /** Visitor message was stored for a human teammate. No model reply. */
   handoff?: boolean;
   usage?: TokenUsage;
+  tool_calls?: ToolExecutionSummary[];
 };
 
 const MAX_RETRIEVAL_CHARS = 4000;
@@ -57,10 +60,11 @@ const WIDGET_MAX_OUTPUT_TOKENS = 420;
 const WIDGET_REPLY_STYLE = [
   "WEBSITE CHAT OUTPUT (highest priority — overrides agent instructions and earlier messages in this thread):",
   "Write 1–3 short paragraphs of plain conversational prose, under 90 words total.",
-  "Use normal sentences only. Never use bullet lists, numbered lists, markdown headings, or lines formatted as **Bold label** — description.",
+  "Use normal sentences only. Never use bullet lists, numbered lists, markdown headings (#, ##), or lines formatted as **Bold label** — description.",
   "Do not reply with a menu of topics (Pricing / Security / Getting Started) unless the user explicitly asked for a list of links or steps.",
   "If prior assistant messages in this conversation used bullets, ignore that pattern; from now on use prose only.",
   "Answer the visitor's newest message. Never repeat your previous reply or re-run an earlier task unless the visitor explicitly asks again.",
+  "ANTI-HALLUCINATION GUARD (strict): When a search or tool lookup returns zero records or indicates not found, state clearly and truthfully that no matching records were found. NEVER invent, fabricate, or assume order IDs, appointment slots, dates, or prices.",
   "",
   "Example — user asks about pricing:",
   "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
@@ -82,9 +86,10 @@ function spokenReplyStyle(
       ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
     "One or two short spoken sentences, under 25 words.",
-    "Plain spoken words only: no markdown, bullets, lists, emojis, URLs, or symbols.",
+    "Plain spoken words only: absolutely no markdown syntax, asterisks (*), hashtags (#), brackets, lists, bullets, emojis, URLs, or symbols, as these will be read aloud phonetically by the text-to-speech voice.",
     "Answer general questions from the knowledge base. For a requested lookup, use the matching tool; ask briefly if a required detail is missing and never invent it.",
     "If a requested post or order lookup is missing its ID, ask for that ID in one short question and wait.",
+    "ANTI-HALLUCINATION: If a requested detail or record is not found, state that directly. Never guess or fabricate an identifier.",
   ];
   if (options.handoff === "now") {
     lines.push("The visitor confirmed. Call transfer_to_teammate now. Do not ask again.");
@@ -108,6 +113,85 @@ function spokenReplyStyle(
     );
   }
   return lines.join("\n");
+}
+
+/**
+ * Dynamic message history windowing to prevent context-window overflow and reasoning degradation.
+ * Preserves system directives and recent dialogue turns, keeping tool call pairings intact.
+ */
+export function windowChatHistory(
+  messages: ChatMessage[],
+  maxHistoryTokens = 3500,
+): ChatMessage[] {
+  const systemMessages = messages.filter((m) => m.role === "system");
+  const dialogueMessages = messages.filter((m) => m.role !== "system");
+
+  if (dialogueMessages.length <= 8) {
+    return messages;
+  }
+
+  const estTokens = (text: string) => Math.ceil((text?.length ?? 0) / 4);
+
+  let currentTokens = systemMessages.reduce(
+    (sum, m) => sum + estTokens(m.content),
+    0,
+  );
+
+  const selectedDialogue: ChatMessage[] = [];
+  const minRecentMessages = 6;
+
+  for (let i = dialogueMessages.length - 1; i >= 0; i--) {
+    const msg = dialogueMessages[i];
+    const msgTokens = estTokens(msg.content);
+
+    if (
+      selectedDialogue.length < minRecentMessages ||
+      currentTokens + msgTokens <= maxHistoryTokens
+    ) {
+      selectedDialogue.unshift(msg);
+      currentTokens += msgTokens;
+    } else {
+      break;
+    }
+  }
+
+  // Ensure tool call integrity: if the oldest retained message is a tool result,
+  // also include its preceding assistant message containing tool_calls
+  let startIndex = dialogueMessages.indexOf(selectedDialogue[0]);
+  while (startIndex > 0 && selectedDialogue[0]?.role === "tool") {
+    startIndex -= 1;
+    selectedDialogue.unshift(dialogueMessages[startIndex]);
+  }
+
+  return [...systemMessages, ...selectedDialogue];
+}
+
+/**
+ * Strips markdown symbols, asterisks, hashtags, bullet lists, emojis, and raw URLs
+ * from spoken text so text-to-speech engines produce clean, natural audio without
+ * reading aloud formatting punctuation.
+ */
+export function sanitizeSpokenOutput(text: string): string {
+  if (!text) return "";
+
+  let cleaned = text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/^[\s*-]+\s+/gm, "")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const sentences = cleaned.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) ?? [cleaned];
+  if (sentences.length > 2) {
+    cleaned = sentences.slice(0, 2).join(" ").trim();
+  }
+
+  return cleaned || text;
 }
 
 /** Staff UI stores `model`; seeds use `profile` + `model_id`. Missing profile must not silently use fake. */
@@ -377,6 +461,9 @@ export class TurnsService {
     }
     let assistantText = "";
     let usage: TokenUsage | undefined;
+    let executedToolCalls: ToolExecutionSummary[] = [];
+
+    const windowedMessages = windowChatHistory(chatMessages);
 
     const runModel = async (): Promise<void> => {
       if (agentTools.length > 0 && this.toolLoop) {
@@ -389,18 +476,21 @@ export class TurnsService {
           model: { profile, model_id: modelId },
           temperature,
           tools: agentTools,
-          chatMessages,
+          chatMessages: windowedMessages,
           visitorText: text,
           signal,
+          onToolStart: input.onToolStart,
+          onToolDone: input.onToolDone,
         });
         assistantText = loopResult.content;
+        executedToolCalls = loopResult.toolCalls;
       } else if (onToken) {
         const completion = await this.modelGatewayClient.stream(
           {
             workspace_id: workspaceId,
             request_id: requestId,
             model: { profile, model_id: modelId },
-            messages: chatMessages,
+            messages: windowedMessages,
             temperature,
           },
           { onToken },
@@ -413,7 +503,7 @@ export class TurnsService {
           workspace_id: workspaceId,
           request_id: requestId,
           model: { profile, model_id: modelId },
-          messages: chatMessages,
+          messages: windowedMessages,
           temperature,
         }, signal);
         assistantText = completion.content;
@@ -453,8 +543,10 @@ export class TurnsService {
         idempotency_key: asstIdempotencyKey,
         sender_type: "assistant",
         sender_id: version.id,
-        metadata:
-          retrievedChunkIds.length > 0 ? { retrieved_chunk_ids: retrievedChunkIds } : undefined,
+        metadata: {
+          ...(retrievedChunkIds.length > 0 ? { retrieved_chunk_ids: retrievedChunkIds } : {}),
+          ...(executedToolCalls.length > 0 ? { tool_calls: executedToolCalls } : {}),
+        },
       },
       authHeaders,
     );
@@ -467,6 +559,7 @@ export class TurnsService {
       user_message: userMsgResult.message,
       assistant_message: asstMsgResult.message,
       usage,
+      tool_calls: executedToolCalls,
     };
   }
 
@@ -855,13 +948,15 @@ export class TurnsService {
       ? Math.min(configuredMax ?? 96, 96)
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
-        : configuredMax;
+        : Math.min(configuredMax ?? 220, 220);
+
+    const windowedMessages = windowChatHistory(chatMessages, voiceTurn ? 1000 : 1800);
 
     const completionRequest = {
       workspace_id: workspaceId,
       request_id: requestId,
       model: { profile, model_id: modelId },
-      messages: chatMessages,
+      messages: windowedMessages,
       temperature,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
@@ -878,11 +973,11 @@ export class TurnsService {
           authHeaders: {},
           model: { profile, model_id: modelId },
           temperature,
-          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 480,
+          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 220,
           replyLanguage,
           replyGender,
           tools: modelTools,
-          chatMessages,
+          chatMessages: windowedMessages,
           visitorText: text,
           onToolStart: (event) => {
             nudge = event.spoken;
@@ -954,7 +1049,10 @@ export class TurnsService {
     if (callId) asstMetadata.call_id = callId;
     if (retrievedChunkIds.length > 0) asstMetadata.retrieved_chunk_ids = retrievedChunkIds;
 
-    const assistantText = (completion.content || streamedText || "").trim();
+    let assistantText = (completion.content || streamedText || "").trim();
+    if (voiceTurn) {
+      assistantText = sanitizeSpokenOutput(assistantText);
+    }
     if (!assistantText) {
       throw new AppError({
         code: ErrorCode.UPSTREAM_UNAVAILABLE,

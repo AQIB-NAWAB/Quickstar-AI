@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { EyeOff } from "lucide-react";
 
 interface PasswordInputProps {
   value: string;
@@ -52,9 +52,12 @@ export function PasswordInput({
           className="auth-eye-btn"
         >
           {visible ? (
-            <EyeOff className="w-[18px] h-[18px]" aria-hidden="true" />
+            <EyeOff className="w-[18px] h-[18px]" strokeWidth={1.5} aria-hidden="true" />
           ) : (
-            <Eye className="w-[18px] h-[18px]" aria-hidden="true" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z" />
+              <circle cx="12" cy="12" r="2.8" />
+            </svg>
           )}
         </button>
       </div>

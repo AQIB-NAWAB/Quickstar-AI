@@ -33,8 +33,8 @@ export function EditorTabs({ activeTab, onTabChange, workspaceId, agentId }: Pro
   ];
 
   return (
-    <div className="border-b border-[#EDF0F2] overflow-x-auto select-none">
-      <nav aria-label="Editor sections" className="flex items-center gap-2 sm:gap-3 text-[15px]">
+    <div className="border-b border-[#EAECF0] overflow-x-auto select-none">
+      <nav aria-label="Editor sections" className="flex items-center gap-6 sm:gap-8 text-[15px]">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.key;
 
@@ -43,10 +43,10 @@ export function EditorTabs({ activeTab, onTabChange, workspaceId, agentId }: Pro
               <Link
                 key={tab.key}
                 href={tab.href}
-                className={`px-4 py-4 whitespace-nowrap transition-colors border-b-2 font-medium ${
+                className={`py-3.5 whitespace-nowrap transition-colors border-b-2 font-medium ${
                   isActive
-                    ? "border-[#F15A24] text-[#202125] font-semibold"
-                    : "border-transparent text-[#475467] hover:text-[#202125]"
+                    ? "border-[#FF571A] text-[#202125] font-semibold"
+                    : "border-transparent text-[#667085] hover:text-[#202125]"
                 }`}
               >
                 {tab.label}
@@ -59,10 +59,10 @@ export function EditorTabs({ activeTab, onTabChange, workspaceId, agentId }: Pro
               key={tab.key}
               type="button"
               onClick={() => onTabChange(tab.key)}
-              className={`px-4 py-4 whitespace-nowrap transition-colors border-b-2 font-medium ${
+              className={`py-3.5 whitespace-nowrap transition-colors border-b-2 font-medium ${
                 isActive
-                  ? "border-[#F15A24] text-[#202125] font-semibold"
-                  : "border-transparent text-[#475467] hover:text-[#202125]"
+                  ? "border-[#FF571A] text-[#202125] font-semibold"
+                  : "border-transparent text-[#667085] hover:text-[#202125]"
               }`}
             >
               {tab.label}

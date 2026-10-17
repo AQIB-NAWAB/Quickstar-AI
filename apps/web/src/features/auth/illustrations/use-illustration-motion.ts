@@ -19,6 +19,7 @@ export function useIllustrationMotion({
 }: UseIllustrationMotionOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
+  const progressRef = useRef(0);
   const activeRef = useRef(false);
   activeRef.current = active;
 
@@ -34,7 +35,7 @@ export function useIllustrationMotion({
     const stage = containerRef.current;
     if (!stage) return;
 
-    let at = 0;
+    let at = progressRef.current;
     let target = 0;
     let raf = 0;
     let last = 0;
@@ -48,6 +49,8 @@ export function useIllustrationMotion({
       if (prefersReducedMotion) {
         at = target;
         paint();
+      } else {
+        run();
       }
     };
     mediaQuery.addEventListener("change", onMotionChange);
@@ -57,6 +60,7 @@ export function useIllustrationMotion({
     const focusLine = stage.querySelector<SVGElement>('[data-focus-line]');
 
     function paint() {
+      progressRef.current = at;
       if (offsets["drawer"]) {
         const [dx, dy] = offsets["drawer"];
         drawerElements.forEach((el) => {
@@ -87,7 +91,7 @@ export function useIllustrationMotion({
 
       paint();
 
-      if (isVisible && at !== target && !prefersReducedMotion) {
+      if (isVisible && !document.hidden && at !== target && !prefersReducedMotion) {
         raf = requestAnimationFrame(tick);
       } else {
         raf = 0;
@@ -95,7 +99,7 @@ export function useIllustrationMotion({
     }
 
     function run() {
-      if (isVisible && !raf) {
+      if (isVisible && !document.hidden && !raf) {
         last = 0;
         raf = requestAnimationFrame(tick);
       }

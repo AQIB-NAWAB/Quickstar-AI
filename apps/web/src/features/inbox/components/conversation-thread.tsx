@@ -26,6 +26,7 @@ import { useMessages } from "@/features/inbox/hooks/use-messages";
 import { LiveCallWave, useStaffLiveCall } from "./live-call-panel";
 import { ConversationDetailsPanel } from "./conversation-details-panel";
 import { getAgent } from "@/features/agents/lib/client";
+import { FormattedChatMessage } from "@/features/agents/components/formatted-chat-message";
 
 type Props = {
   workspaceId: string;
@@ -495,8 +496,8 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
                       <User className="w-3.5 h-3.5 stroke-[2]" />
                     </div>
                     {/* Visitor Bubble: soft neutral gray matching Images 1 & 2 */}
-                    <div className="min-w-0 bg-[#F2F4F7] text-[#202125] rounded-[16px] px-4 py-3 text-[16px] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
-                      {m.text}
+                    <div className="min-w-0 bg-[#F2F4F7] text-[#202125] rounded-[16px] px-4 py-3 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere]">
+                      <FormattedChatMessage text={m.text} isUser={true} />
                     </div>
                   </div>
                 </div>
@@ -520,11 +521,11 @@ export function ConversationThread({ workspaceId, conversationId, userId }: Prop
                   <div
                     className={
                       isAssistant
-                        ? "min-w-0 bg-[#FFF3EE] text-[#202125] rounded-[16px] px-4 py-3 text-[16px] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
-                        : "bg-[#F2F4F7] text-[#202125] rounded-[16px] px-4 py-2.5 text-[14px] leading-relaxed border border-[#E3E6EA] whitespace-pre-wrap break-words"
+                        ? "min-w-0 bg-[#FFF3EE] text-[#202125] rounded-[16px] px-4 py-3 text-[15px] leading-relaxed break-words [overflow-wrap:anywhere]"
+                        : "bg-[#F2F4F7] text-[#202125] rounded-[16px] px-4 py-2.5 text-[14px] leading-relaxed border border-[#E3E6EA] break-words [overflow-wrap:anywhere]"
                     }
                   >
-                    {m.text}
+                    <FormattedChatMessage text={m.text} isUser={!isAssistant} />
                   </div>
 
                   {/* Agent avatar on right */}

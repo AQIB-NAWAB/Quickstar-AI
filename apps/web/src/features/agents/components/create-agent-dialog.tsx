@@ -274,19 +274,19 @@ export function CreateAgentDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-agent-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#101828]/40 animate-in fade-in duration-150"
     >
       <div
         ref={dialogRef}
-        className="agent-create-dialog w-full max-w-[720px] max-h-[calc(100dvh-32px)] bg-white rounded-xl border border-[#E1E5EA] shadow-2xl flex flex-col overflow-hidden"
+        className="agent-create-dialog w-full max-w-[640px] max-h-[calc(100dvh-48px)] bg-white rounded-[12px] border border-[#DCE1E8] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
       >
-        {/* Header matching 7.png / 8.png / 9.png */}
-        <div className="px-8 py-6 flex items-start justify-between border-b border-[#EDF0F2] shrink-0">
+        {/* Header matching 10.png / 11.png / 12.png */}
+        <div className="px-7 py-5 flex items-start justify-between border-b border-[#EDF0F2] shrink-0 bg-white">
           <div>
             <h1 id="create-agent-dialog-title" className="text-[20px] font-semibold text-[#202125]">
               Create agent
             </h1>
-            <p className="text-[14px] text-[#667085] mt-0.5">{workspaceName}</p>
+            <p className="text-[13px] text-[#667085] mt-0.5">{workspaceName}</p>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -296,20 +296,20 @@ export function CreateAgentDialog({
                 onClick={() => setMenuOpen((v) => !v)}
                 aria-label="More options"
                 aria-expanded={menuOpen}
-                className="p-1.5 text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] rounded-md transition-colors"
+                className="p-1.5 text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FB] rounded-[6px] transition-colors"
               >
                 <MoreHorizontal className="w-5 h-5" />
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-44 rounded-lg border border-[#E1E5EA] bg-white py-1 shadow-lg">
+                <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-48 rounded-[8px] border border-[#DCE1E8] bg-white py-1 shadow-lg">
                   <button
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
                       setConfirmDiscardOpen(true);
                     }}
-                    className="w-full text-left px-3 py-2 text-[14px] text-[#B42318] hover:bg-red-50 transition-colors"
+                    className="w-full text-left px-3.5 py-2 text-[13px] font-medium text-[#B42318] hover:bg-red-50 transition-colors"
                   >
                     Discard setup draft
                   </button>
@@ -321,28 +321,28 @@ export function CreateAgentDialog({
               type="button"
               onClick={onClose}
               aria-label="Close dialog"
-              className="p-1.5 text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] rounded-md transition-colors"
+              className="p-1.5 text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FB] rounded-[6px] transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Stepper Indicator */}
-        <div className="px-8 pt-8 pb-3 bg-white shrink-0">
-          <div className="flex items-center justify-between max-w-[570px] mx-auto text-[14px]">
+        <div className="px-7 pt-6 pb-2 bg-white shrink-0">
+          <div className="flex items-center justify-between max-w-[500px] mx-auto text-[14px]">
             {/* Step 1 */}
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex items-center gap-2 group cursor-pointer"
+              className="flex items-center gap-2.5 group cursor-pointer"
             >
               {step > 1 ? (
                 <span className="w-8 h-8 rounded-full border border-[#202125] text-[#202125] flex items-center justify-center text-[12px] font-bold">
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 </span>
               ) : (
-                <span className="w-8 h-8 rounded-full bg-[#F15A24] text-white flex items-center justify-center text-[13px] font-semibold">
+                <span className="w-8 h-8 rounded-full bg-[#FF571A] text-white flex items-center justify-center text-[13px] font-semibold">
                   1
                 </span>
               )}
@@ -351,7 +351,7 @@ export function CreateAgentDialog({
               </span>
             </button>
 
-            <div className="w-12 sm:w-16 h-[1px] bg-[#E1E5EA]" />
+            <div className="flex-1 max-w-[64px] h-[1px] bg-[#DCE1E8] mx-2" />
 
             {/* Step 2 */}
             <button
@@ -360,18 +360,18 @@ export function CreateAgentDialog({
                 if (step >= 2) setStep(2);
               }}
               disabled={step < 2}
-              className="flex items-center gap-2 group disabled:cursor-not-allowed"
+              className="flex items-center gap-2.5 group disabled:cursor-not-allowed"
             >
               {step > 2 ? (
                 <span className="w-8 h-8 rounded-full border border-[#202125] text-[#202125] flex items-center justify-center text-[12px] font-bold">
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 </span>
               ) : step === 2 ? (
-                <span className="w-8 h-8 rounded-full bg-[#F15A24] text-white flex items-center justify-center text-[13px] font-semibold">
+                <span className="w-8 h-8 rounded-full bg-[#FF571A] text-white flex items-center justify-center text-[13px] font-semibold">
                   2
                 </span>
               ) : (
-                <span className="w-8 h-8 rounded-full border border-[#D0D5DD] text-[#7A808A] flex items-center justify-center text-[13px] font-medium">
+                <span className="w-8 h-8 rounded-full border border-[#DCE1E8] text-[#7A808A] flex items-center justify-center text-[13px] font-medium">
                   2
                 </span>
               )}
@@ -388,7 +388,7 @@ export function CreateAgentDialog({
               </span>
             </button>
 
-            <div className="w-12 sm:w-16 h-[1px] bg-[#E1E5EA]" />
+            <div className="flex-1 max-w-[64px] h-[1px] bg-[#DCE1E8] mx-2" />
 
             {/* Step 3 */}
             <button
@@ -397,14 +397,14 @@ export function CreateAgentDialog({
                 if (step === 3) setStep(3);
               }}
               disabled={step !== 3}
-              className="flex items-center gap-2 group disabled:cursor-not-allowed"
+              className="flex items-center gap-2.5 group disabled:cursor-not-allowed"
             >
               {step === 3 ? (
-                <span className="w-8 h-8 rounded-full bg-[#F15A24] text-white flex items-center justify-center text-[13px] font-semibold">
+                <span className="w-8 h-8 rounded-full bg-[#FF571A] text-white flex items-center justify-center text-[13px] font-semibold">
                   3
                 </span>
               ) : (
-                <span className="w-8 h-8 rounded-full border border-[#D0D5DD] text-[#7A808A] flex items-center justify-center text-[13px] font-medium">
+                <span className="w-8 h-8 rounded-full border border-[#DCE1E8] text-[#7A808A] flex items-center justify-center text-[13px] font-medium">
                   3
                 </span>
               )}
@@ -416,18 +416,18 @@ export function CreateAgentDialog({
         </div>
 
         {/* Modal Body (Scrollable if viewport is short) */}
-        <div className="px-8 py-8 sm:px-12 overflow-y-auto flex-1 space-y-6">
+        <div className="px-7 py-6 sm:px-10 overflow-y-auto flex-1 space-y-6">
           {submitError && (
-            <div className="p-3 text-[14px] text-[#B42318] bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-[13px] text-[#B42318] bg-red-50 border border-red-200 rounded-[8px]">
               {submitError}
             </div>
           )}
 
-          {/* STEP 1: IDENTITY (7.png) */}
+          {/* STEP 1: IDENTITY (10.png) */}
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-[24px] font-semibold text-[#202125]">
+                <h2 className="text-[22px] font-semibold text-[#202125] tracking-tight">
                   Give your agent a name
                 </h2>
                 <p className="mt-1 text-[14px] text-[#667085]">
@@ -438,7 +438,7 @@ export function CreateAgentDialog({
               <div className="space-y-4">
                 <div>
                   <label htmlFor="agent-name" className="block text-[14px] font-medium text-[#202125]">
-                    Agent name <span className="text-[#F15A24]">*</span>
+                    Agent name <span className="text-[#FF571A]">*</span>
                   </label>
                   <input
                     ref={nameInputRef}
@@ -452,16 +452,16 @@ export function CreateAgentDialog({
                       if (nameError) setNameError(null);
                     }}
                     placeholder="e.g. Customer support"
-                    className={`mt-1.5 w-full px-3.5 py-2 text-[15px] text-[#202125] bg-white border rounded-lg focus:outline-none focus:ring-1 transition-colors ${
+                    className={`mt-1.5 w-full px-3.5 py-2.5 text-[14px] text-[#202125] bg-white border rounded-[8px] focus:outline-none focus:ring-1 transition-colors ${
                       nameError
                         ? "border-[#B42318] focus:border-[#B42318] focus:ring-[#B42318]"
-                        : "border-[#E1E5EA] focus:border-[#F15A24] focus:ring-[#F15A24]"
+                        : "border-[#DCE1E8] focus:border-[#FF571A] focus:ring-[#FF571A]"
                     }`}
                   />
                   {nameError ? (
-                    <p id="agent-name-error" role="alert" className="mt-1 text-[13px] text-[#B42318]">{nameError}</p>
+                    <p id="agent-name-error" role="alert" className="mt-1.5 text-[12px] text-[#B42318]">{nameError}</p>
                   ) : (
-                    <p className="mt-1 text-[13px] text-[#7A808A]">You can change this later.</p>
+                    <p className="mt-1.5 text-[12px] text-[#667085]">You can change this later.</p>
                   )}
                 </div>
 
@@ -470,7 +470,7 @@ export function CreateAgentDialog({
                     <label htmlFor="agent-description" className="block text-[14px] font-medium text-[#202125]">
                       Description
                     </label>
-                    <span className="text-[13px] text-[#7A808A]">Optional</span>
+                    <span className="text-[12px] text-[#667085]">Optional</span>
                   </div>
                   <textarea
                     id="agent-description"
@@ -478,18 +478,18 @@ export function CreateAgentDialog({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="What does this agent help with?"
-                    className="mt-1.5 w-full px-3.5 py-2.5 text-[15px] text-[#202125] bg-white border border-[#E1E5EA] rounded-lg focus:outline-none focus:border-[#F15A24] focus:ring-1 focus:ring-[#F15A24] resize-none leading-relaxed transition-colors"
+                    className="mt-1.5 w-full px-3.5 py-2.5 text-[14px] text-[#202125] bg-white border border-[#DCE1E8] rounded-[8px] focus:outline-none focus:border-[#FF571A] focus:ring-1 focus:ring-[#FF571A] resize-none leading-relaxed transition-colors"
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 2: INSTRUCTIONS (8.png) */}
+          {/* STEP 2: INSTRUCTIONS (11.png) */}
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-[24px] font-semibold text-[#202125]">
+                <h2 className="text-[22px] font-semibold text-[#202125] tracking-tight">
                   How should your agent help?
                 </h2>
                 <p className="mt-1 text-[14px] text-[#667085]">
@@ -500,36 +500,36 @@ export function CreateAgentDialog({
               <div className="space-y-4">
                 <div>
                   <label htmlFor="agent-instructions" className="block text-[14px] font-medium text-[#202125]">
-                    System instructions <span className="text-[#F15A24]">*</span>
+                    System instructions <span className="text-[#FF571A]">*</span>
                   </label>
                   <textarea
                     id="agent-instructions"
                     aria-invalid={Boolean(instructionsError)}
                     aria-describedby={instructionsError ? "agent-instructions-error" : undefined}
-                    rows={9}
+                    rows={8}
                     value={instructions}
                     onChange={(e) => {
                       setInstructions(e.target.value);
                       if (instructionsError) setInstructionsError(null);
                     }}
                     placeholder="Describe how your agent should act..."
-                    className={`mt-1.5 w-full p-4 text-[15px] text-[#202125] bg-white border rounded-lg focus:outline-none focus:ring-1 resize-none leading-relaxed transition-colors ${
+                    className={`mt-1.5 w-full p-4 text-[14px] text-[#202125] bg-white border rounded-[8px] focus:outline-none focus:ring-1 resize-none leading-relaxed transition-colors ${
                       instructionsError
                         ? "border-[#B42318] focus:border-[#B42318] focus:ring-[#B42318]"
-                        : "border-[#E1E5EA] focus:border-[#F15A24] focus:ring-[#F15A24]"
+                        : "border-[#DCE1E8] focus:border-[#FF571A] focus:ring-[#FF571A]"
                     }`}
                   />
                   {instructionsError && (
-                    <p id="agent-instructions-error" role="alert" className="mt-1 text-[13px] text-[#B42318]">{instructionsError}</p>
+                    <p id="agent-instructions-error" role="alert" className="mt-1.5 text-[12px] text-[#B42318]">{instructionsError}</p>
                   )}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <h3 className="text-[14px] font-semibold text-[#202125]">A useful starting point</h3>
                   <p className="text-[13px] text-[#667085] leading-relaxed">
                     Be specific about what to answer, how to sound, and when to ask a teammate for help.
                   </p>
-                  <p className="text-[13px] text-[#7A808A] pt-1">
+                  <p className="text-[12px] text-[#7A808A] pt-0.5">
                     You can refine these instructions in the agent editor.
                   </p>
                 </div>
@@ -537,11 +537,11 @@ export function CreateAgentDialog({
             </div>
           )}
 
-          {/* STEP 3: CHANNELS (9.png) */}
+          {/* STEP 3: CHANNELS (12.png) */}
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-[24px] font-semibold text-[#202125]">
+                <h2 className="text-[22px] font-semibold text-[#202125] tracking-tight">
                   Choose where your agent works
                 </h2>
                 <p className="mt-1 text-[14px] text-[#667085]">
@@ -552,17 +552,17 @@ export function CreateAgentDialog({
               <div className="space-y-4">
                 <div>
                   <span className="block text-[14px] font-medium text-[#202125] mb-2">Channels</span>
-                  <div className="border border-[#E1E5EA] rounded-lg divide-y divide-[#EDF0F2] overflow-hidden">
+                  <div className="border border-[#DCE1E8] rounded-[8px] divide-y divide-[#EDF0F2] overflow-hidden">
                     {/* Website Chat */}
                     <label
                       className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
-                        chatEnabled ? "bg-[#FFF8F5]" : "hover:bg-[#F8F9FA]"
+                        chatEnabled ? "bg-[#FFF6F2]" : "hover:bg-[#F8F9FB]"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <MessageSquare className="w-5 h-5 text-[#202125]" />
                         <div>
-                          <span className="block text-[15px] font-semibold text-[#202125]">Website chat</span>
+                          <span className="block text-[14px] font-semibold text-[#202125]">Website chat</span>
                           <span className="block text-[13px] text-[#667085]">Widget and staff conversations</span>
                         </div>
                       </div>
@@ -570,20 +570,20 @@ export function CreateAgentDialog({
                         type="checkbox"
                         checked={chatEnabled}
                         onChange={(e) => setChatEnabled(e.target.checked)}
-                        className="w-5 h-5 accent-[#F15A24] rounded text-[#F15A24] border-[#D0D5DD] focus:ring-[#F15A24] cursor-pointer"
+                        className="w-5 h-5 accent-[#FF571A] rounded text-[#FF571A] border-[#DCE1E8] focus:ring-[#FF571A] cursor-pointer"
                       />
                     </label>
 
                     {/* Voice Calls */}
                     <label
                       className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${
-                        voiceEnabled ? "bg-[#FFF8F5]" : "hover:bg-[#F8F9FA]"
+                        voiceEnabled ? "bg-[#FFF6F2]" : "hover:bg-[#F8F9FB]"
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <Mic className="w-5 h-5 text-[#202125]" />
                         <div>
-                          <span className="block text-[15px] font-semibold text-[#202125]">Voice calls</span>
+                          <span className="block text-[14px] font-semibold text-[#202125]">Voice calls</span>
                           <span className="block text-[13px] text-[#667085]">Inbound and outbound calls</span>
                         </div>
                       </div>
@@ -591,7 +591,7 @@ export function CreateAgentDialog({
                         type="checkbox"
                         checked={voiceEnabled}
                         onChange={(e) => setVoiceEnabled(e.target.checked)}
-                        className="w-5 h-5 accent-[#F15A24] rounded text-[#F15A24] border-[#D0D5DD] focus:ring-[#F15A24] cursor-pointer"
+                        className="w-5 h-5 accent-[#FF571A] rounded text-[#FF571A] border-[#DCE1E8] focus:ring-[#FF571A] cursor-pointer"
                       />
                     </label>
                   </div>
@@ -606,7 +606,7 @@ export function CreateAgentDialog({
                       id="agent-env"
                       value={environment}
                       onChange={(e) => setEnvironment(e.target.value)}
-                      className="w-full appearance-none px-3.5 py-2.5 text-[15px] text-[#202125] bg-white border border-[#E1E5EA] rounded-lg focus:outline-none focus:border-[#F15A24] focus:ring-1 focus:ring-[#F15A24] pr-10 transition-colors"
+                      className="w-full appearance-none px-3.5 py-2.5 text-[14px] text-[#202125] bg-white border border-[#DCE1E8] rounded-[8px] focus:outline-none focus:border-[#FF571A] focus:ring-1 focus:ring-[#FF571A] pr-10 transition-colors"
                     >
                       <option value="production">Production</option>
                       <option value="staging">Staging</option>
@@ -614,12 +614,12 @@ export function CreateAgentDialog({
                     </select>
                     <ChevronDown className="w-4 h-4 text-[#667085] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
-                  <p className="mt-1 text-[13px] text-[#7A808A]">
+                  <p className="mt-1.5 text-[12px] text-[#667085]">
                     An environment label. This doesn&apos;t publish your agent.
                   </p>
                 </div>
 
-                <div className="p-4 bg-[#F8F9FA] border border-[#EDF0F2] rounded-lg flex items-start gap-3">
+                <div className="p-4 bg-[#F8F9FB] border border-[#DCE1E8] rounded-[8px] flex items-start gap-3">
                   <FileText className="w-4 h-4 text-[#667085] shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-[14px] font-semibold text-[#202125]">Create as a draft</h3>
@@ -642,7 +642,7 @@ export function CreateAgentDialog({
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-4 bg-white border-t border-[#EDF0F2] flex items-center justify-between shrink-0">
+        <div className="px-7 py-4 bg-white border-t border-[#EDF0F2] flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -656,7 +656,7 @@ export function CreateAgentDialog({
               <button
                 type="button"
                 onClick={() => setStep((s) => (s === 3 ? 2 : 1))}
-                className="min-h-11 px-5 py-2 text-[14px] font-medium text-[#202125] bg-white border border-[#E1E5EA] rounded-md hover:bg-[#F8F9FA] transition-colors"
+                className="px-4 py-2 text-[14px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[8px] hover:bg-[#F8F9FB] transition-colors"
               >
                 Back
               </button>
@@ -666,7 +666,7 @@ export function CreateAgentDialog({
               <button
                 type="button"
                 onClick={handleContinueStep1}
-                className="inline-flex items-center gap-1.5 min-h-11 px-5 py-2 text-[14px] font-semibold text-white bg-[#F15A24] hover:bg-[#C94716] rounded-md shadow-sm transition-colors"
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-[14px] font-semibold text-white bg-[#FF571A] hover:bg-[#E04810] rounded-[8px] shadow-sm transition-colors"
               >
                 Continue
                 <ArrowRight className="w-4 h-4" />
@@ -677,7 +677,7 @@ export function CreateAgentDialog({
               <button
                 type="button"
                 onClick={handleContinueStep2}
-                className="inline-flex items-center gap-1.5 min-h-11 px-5 py-2 text-[14px] font-semibold text-white bg-[#F15A24] hover:bg-[#C94716] rounded-md shadow-sm transition-colors"
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-[14px] font-semibold text-white bg-[#FF571A] hover:bg-[#E04810] rounded-[8px] shadow-sm transition-colors"
               >
                 Continue
                 <ArrowRight className="w-4 h-4" />
@@ -689,7 +689,7 @@ export function CreateAgentDialog({
                 type="button"
                 onClick={() => void handleCreateAgent()}
                 disabled={isSubmitting}
-                className="inline-flex items-center gap-1.5 min-h-11 px-5 py-2 text-[14px] font-semibold text-white bg-[#F15A24] hover:bg-[#C94716] rounded-md shadow-sm transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-[14px] font-semibold text-white bg-[#FF571A] hover:bg-[#E04810] rounded-[8px] shadow-sm transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? "Creating agent..." : "Create agent"}
               </button>
@@ -700,24 +700,24 @@ export function CreateAgentDialog({
 
       {/* Discard Confirmation Modal */}
       {confirmDiscardOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/30">
-          <div className="bg-white rounded-xl border border-[#E1E5EA] p-6 max-w-sm w-full space-y-4 shadow-xl">
-            <h3 className="text-[18px] font-semibold text-[#202125]">Discard setup draft?</h3>
-            <p className="text-[14px] text-[#667085] leading-relaxed">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#101828]/40">
+          <div className="bg-white rounded-[12px] border border-[#DCE1E8] p-6 max-w-sm w-full space-y-4 shadow-xl">
+            <h3 className="text-[17px] font-semibold text-[#202125]">Discard setup draft?</h3>
+            <p className="text-[13px] text-[#667085] leading-relaxed">
               This will clear the entered details on this device and reset the wizard.
             </p>
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setConfirmDiscardOpen(false)}
-                className="px-3.5 py-1.5 text-[14px] font-medium text-[#202125] bg-white border border-[#E1E5EA] rounded-md hover:bg-[#F8F9FA]"
+                className="px-3.5 py-1.5 text-[13px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[8px] hover:bg-[#F8F9FB]"
               >
                 Keep editing
               </button>
               <button
                 type="button"
                 onClick={discardDraft}
-                className="px-3.5 py-1.5 text-[14px] font-semibold text-white bg-[#B42318] hover:bg-[#912018] rounded-md"
+                className="px-3.5 py-1.5 text-[13px] font-semibold text-white bg-[#B42318] hover:bg-[#912018] rounded-[8px]"
               >
                 Discard
               </button>

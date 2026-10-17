@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getConversation, listMessages } from "@/features/inbox/lib/client";
 import type { Message } from "@/features/inbox/lib/types";
 
-const POLL_MS = 3000;
+const POLL_MS = 5000;
 const PAGE_SIZE = 50;
 
 function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
