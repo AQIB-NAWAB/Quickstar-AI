@@ -23,6 +23,7 @@ import { TestAgentPanel } from "./test-agent-panel";
 import { ConflictBanner } from "./conflict-banner";
 import { PublishModal } from "./publish-modal";
 import { DiffModal } from "./diff-modal";
+import { AgentOutlineIcon } from "@/components/brand/agent-outline-icon";
 
 type Props = {
   workspaceId: string;
@@ -82,8 +83,7 @@ export function AgentEditor({
 
   // Modals & Panels
   const [isPublishOpen, setIsPublishOpen] = useState(false);
-  const [isTestInlineOpen, setIsTestInlineOpen] = useState(true);
-  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [diffModalState, setDiffModalState] = useState<{
     isOpen: boolean;
     leftId: string;
@@ -315,35 +315,24 @@ export function AgentEditor({
     });
   }
 
-  // Whether inline test panel is supported on this tab
-  const canShowInlineTest =
-    activeTab === "instructions" || activeTab === "model" || activeTab === "tools";
-
   // Derive latest release number for label display if available
   const currentLiveRelease = versions.find((v) => v.id === agent.production_version_id);
   const liveReleaseNumber = currentLiveRelease?.release_number;
 
   return (
     <div className="space-y-6 w-full pb-10">
-      {/* Header */}
+      {/* Header matching 2.png */}
       <EditorHeader
         agent={agent}
         releaseNumber={liveReleaseNumber}
         workspaceId={workspaceId}
-        showTestButton={!canShowInlineTest || !isTestInlineOpen}
         isDirty={isDirty}
         isSaving={isSaving}
         saveSuccess={saveSuccess}
+        saveError={saveError}
         onSave={handleSave}
         onPublish={() => setIsPublishOpen(true)}
-        onToggleTest={() => {
-          if (canShowInlineTest) {
-            setIsTestInlineOpen((prev) => !prev);
-          } else {
-            setIsTestDrawerOpen((prev) => !prev);
-          }
-        }}
-        isTestDrawerOpen={canShowInlineTest ? isTestInlineOpen : isTestDrawerOpen}
+        onOpenTest={() => setIsTestModalOpen(true)}
       />
 
       {/* 409 Conflict Banner */}
@@ -365,7 +354,7 @@ export function AgentEditor({
         </div>
       )}
 
-      {/* Tabs navigation */}
+      {/* Tabs navigation matching 2.png-8.png */}
       <EditorTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -373,65 +362,42 @@ export function AgentEditor({
         agentId={agent.id}
       />
 
-      {/* Tab Panels */}
+      {/* Tab Panels: Full content width without inline testing panel */}
       <div className="pt-2">
-        {/* Instructions, Model, or Tools Tab layout: Left form (62%), Right Test Panel (38%) */}
-        {canShowInlineTest ? (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.67fr)_minmax(0,1fr)] gap-6 items-start">
-            {/* Primary Editing Column */}
-            <div className={isTestInlineOpen ? "min-w-0 space-y-6" : "xl:col-span-2 min-w-0 space-y-6"}>
-              {activeTab === "instructions" && (
-                <InstructionsTab
-                  instructions={instructions}
-                  onChangeInstructions={setInstructions}
-                  isDirty={isDirty}
-                />
-              )}
+        {activeTab === "instructions" && (
+          <InstructionsTab
+            instructions={instructions}
+            onChangeInstructions={setInstructions}
+            isDirty={isDirty}
+            version={agent.version}
+          />
+        )}
 
-              {activeTab === "model" && (
-                <ModelTab
-                  model={model}
-                  onChangeModel={setModel}
-                  temperature={temperature}
-                  onChangeTemperature={setTemperature}
-                  maxTokens={maxTokens}
-                  onChangeMaxTokens={setMaxTokens}
-                  isDirty={isDirty}
-                />
-              )}
+        {activeTab === "model" && (
+          <ModelTab
+            model={model}
+            onChangeModel={setModel}
+            temperature={temperature}
+            onChangeTemperature={setTemperature}
+            maxTokens={maxTokens}
+            onChangeMaxTokens={setMaxTokens}
+            isDirty={isDirty}
+          />
+        )}
 
-              {activeTab === "tools" && (
-                <div className="bg-white border border-[#E1E5EA] rounded-[12px] p-6 shadow-xs">
-                  <AgentToolsPanel
-                    workspaceId={workspaceId}
-                    canManageCustomTools={canManageCustomTools}
-                    attachedTools={attachedTools}
-                    onToggle={toggleTool}
-                    customTools={customTools}
-                    customToolsLoading={customToolsLoading}
-                    customToolsError={customToolsError}
-                    onCustomToolsChange={setCustomTools}
-                  />
-                </div>
-              )}
-            </div>
+        {activeTab === "tools" && (
+          <AgentToolsPanel
+            workspaceId={workspaceId}
+            canManageCustomTools={canManageCustomTools}
+            attachedTools={attachedTools}
+            onToggle={toggleTool}
+            customTools={customTools}
+            customToolsLoading={customToolsLoading}
+            customToolsError={customToolsError}
+            onCustomToolsChange={setCustomTools}
+          />
+        )}
 
-            {/* Test Agent Inline Panel */}
-            {isTestInlineOpen && (
-              <div className="min-w-0 xl:sticky xl:top-4">
-                <TestAgentPanel
-                  agent={agent}
-                  workspaceId={workspaceId}
-                  releaseNumber={liveReleaseNumber}
-                  isInline={true}
-                  onClose={() => setIsTestInlineOpen(false)}
-                />
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {/* Identity & Channels Tab */}
         {activeTab === "identity" && (
           <IdentityChannelsTab
             workspaceId={workspaceId}
@@ -450,10 +416,10 @@ export function AgentEditor({
               setTtsVoiceId(voiceId);
               setVoiceLanguage(language);
             }}
+            isDirty={isDirty}
           />
         )}
 
-        {/* Releases & Rollback Tab */}
         {activeTab === "releases" && (
           <ReleasesTab
             agent={agent}
@@ -473,16 +439,28 @@ export function AgentEditor({
             }}
           />
         )}
+
+        {activeTab === "evaluation" && (
+          <div className="rounded-[12px] border border-[#DCE1E8] bg-white p-12 text-center shadow-sm space-y-3">
+            <div className="w-12 h-12 rounded-[10px] bg-[#F8F9FB] border border-[#DCE1E8] text-[#202125] mx-auto flex items-center justify-center">
+              <AgentOutlineIcon className="w-6 h-6 text-[#202125]" />
+            </div>
+            <h3 className="text-[20px] font-semibold text-[#202125]">Agent evaluation</h3>
+            <p className="text-[14px] text-[#667085] max-w-md mx-auto leading-relaxed">
+              Automated testing and benchmark evaluation metrics for {agent.name}. Run test assertions against historical conversations and evaluate responses.
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Floating Test Drawer (used on Identity, Releases, or when triggered from header) */}
-      {!canShowInlineTest && isTestDrawerOpen && (
+      {/* Shared Centered Test Agent Modal (9.png) */}
+      {isTestModalOpen && (
         <TestAgentPanel
           agent={agent}
           workspaceId={workspaceId}
           releaseNumber={liveReleaseNumber}
-          isInline={false}
-          onClose={() => setIsTestDrawerOpen(false)}
+          isOpen={true}
+          onClose={() => setIsTestModalOpen(false)}
         />
       )}
 

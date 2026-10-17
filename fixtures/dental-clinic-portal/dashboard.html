@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dental Strivers — Clinic Operations & Live Calendar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0F19;
+      --card-bg: #111827;
+      --border: #1F2937;
+      --accent: #FF571A;
+      --accent-glow: rgba(255, 87, 26, 0.15);
+      --green: #10B981;
+      --green-glow: rgba(16, 185, 129, 0.15);
+      --text: #F9FAFB;
+      --text-muted: #9CA3AF;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Top Nav */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #FF571A, #D03B00);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 14px rgba(255, 87, 26, 0.35);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34D399;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 10px #10B981;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    .btn-reset {
+      background: #1F2937;
+      border: 1px solid #374151;
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-reset:hover {
+      background: #374151;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .kpi-val {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: #6B7280;
+      margin-top: 4px;
+    }
+
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 1024px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Slot Item */
+    .slot-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .slot-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      background: rgba(31, 41, 55, 0.4);
+      border: 1px solid #1F2937;
+      border-radius: 10px;
+      transition: all 0.3s;
+    }
+
+    .slot-item.booked {
+      opacity: 0.55;
+      background: rgba(17, 24, 39, 0.8);
+      border-color: #374151;
+    }
+
+    .slot-time {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .slot-doc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .badge-available {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-booked {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Bookings Table */
+    .bookings-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .bookings-table th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .bookings-table td {
+      padding: 14px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.6);
+      font-size: 14px;
+    }
+
+    .patient-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .patient-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .patient-avatar.hashir {
+      background: linear-gradient(135deg, #FF571A, #B83200);
+      box-shadow: 0 0 12px rgba(255, 87, 26, 0.5);
+    }
+
+    .new-row-highlight {
+      animation: highlightRow 2.5s ease-out;
+    }
+
+    @keyframes highlightRow {
+      0% { background: rgba(16, 185, 129, 0.35); border-left: 4px solid #10B981; }
+      100% { background: transparent; border-left: 4px solid transparent; }
+    }
+
+    .badge-resend {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 87, 26, 0.12);
+      border: 1px solid rgba(255, 87, 26, 0.3);
+      color: #FF8555;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Webhook Logs Panel */
+    .webhook-card {
+      background: #0D1117;
+      border: 1px solid #21262D;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .webhook-pill {
+      color: #58A6FF;
+      background: rgba(56, 139, 253, 0.15);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand-group">
+        <div class="brand-icon">🦷</div>
+        <div>
+          <h1>Dental Strivers Clinic Portal</h1>
+          <p class="tagline">External Management System &bull; Real-time Calendar &bull; Resend Webhook Sync</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="live-badge">
+          <span class="live-dot"></span>
+          SSE Live Stream Active
+        </span>
+        <button class="btn-reset" onclick="resetDemo()">Reset Slots</button>
+      </div>
+    </header>
+
+    <!-- KPI Summary Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Available Slots</div>
+        <div class="kpi-val" id="kpi-available" style="color: #34D399;">5</div>
+        <div class="kpi-sub">Ready for voice booking</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Appointments</div>
+        <div class="kpi-val" id="kpi-total" style="color: #60A5FA;">1</div>
+        <div class="kpi-sub">Confirmed for this week</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Resend Webhooks Sent</div>
+        <div class="kpi-val" id="kpi-webhooks" style="color: #FF571A;">1</div>
+        <div class="kpi-sub">Instant patient emails</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">API Status</div>
+        <div class="kpi-val" style="color: #A78BFA; font-size: 20px; padding-top: 4px;">GET / POST 200 OK</div>
+        <div class="kpi-sub">Listening on :4000</div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Slots & Bookings -->
+    <div class="main-grid">
+      <!-- Left: Open Slots -->
+      <section class="panel">
+        <div class="panel-title">
+          <span>Open Clinic Slots</span>
+          <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Live query via Agent</span>
+        </div>
+        <div class="slot-list" id="slots-container">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- Right: Booked Appointments Feed -->
+      <section class="panel">
+        <div class="panel-title">
+          <span>Confirmed Appointments Feed</span>
+          <span style="font-size: 12px; color: #34D399; font-weight: normal;">Updates instantly on voice call</span>
+        </div>
+        <table class="bookings-table">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Time Slot</th>
+              <th>Dentist</th>
+              <th>Status</th>
+              <th>Notification</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-body">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <!-- Webhook & Resend Delivery Logs -->
+    <section class="panel">
+      <div class="panel-title">
+        <span>Webhook &amp; Email Delivery Stream (Resend)</span>
+        <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Automated post-booking trigger</span>
+      </div>
+      <div id="webhook-logs">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+  </div>
+
+  <script>
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        console.error('Failed to load state', err);
+      }
+    }
+
+    function render(data) {
+      if (!data) return;
+
+      // KPIs
+      const openSlots = data.slots.filter(s => s.status === 'available');
+      const activeBookings = data.bookings.filter(b => b.status !== 'cancelled');
+      document.getElementById('kpi-available').innerText = openSlots.length;
+      document.getElementById('kpi-total').innerText = activeBookings.length;
+      document.getElementById('kpi-webhooks').innerText = data.logs.length;
+
+      // Render Slots
+      const slotsContainer = document.getElementById('slots-container');
+      slotsContainer.innerHTML = data.slots.map(s => `
+        <div class="slot-item ${s.status === 'booked' ? 'booked' : ''}" id="${s.id}">
+          <div>
+            <div class="slot-time">${s.time}</div>
+            <div class="slot-doc">${s.doctor}</div>
+          </div>
+          <div>
+            ${s.status === 'available' 
+              ? '<span class="badge-available">Available</span>'
+              : '<span class="badge-booked">Booked</span>'}
+          </div>
+        </div>
+      `).join('');
+
+      // Render Bookings
+      const bookingsBody = document.getElementById('bookings-body');
+      bookingsBody.innerHTML = data.bookings.map((b, idx) => {
+        const isHashir = b.patient_name.toLowerCase().includes('hashir');
+        const initials = b.patient_name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+        const isCancelled = b.status === 'cancelled';
+        const isRescheduled = b.status === 'rescheduled';
+
+        let statusBadge = '<span class="badge-available" style="padding: 2px 8px; font-size: 11px;">Confirmed</span>';
+        if (isCancelled) {
+          statusBadge = '<span class="badge-booked" style="padding: 2px 8px; font-size: 11px;">Cancelled</span>';
+        } else if (isRescheduled) {
+          statusBadge = '<span style="background: rgba(96, 165, 250, 0.15); color: #60A5FA; border: 1px solid rgba(96, 165, 250, 0.3); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">Rescheduled</span>';
+        }
+
+        return `
+          <tr class="${idx === 0 ? 'new-row-highlight' : ''}" style="${isCancelled ? 'opacity: 0.55; background: rgba(239, 68, 68, 0.04);' : ''}">
+            <td>
+              <div class="patient-cell">
+                <div class="patient-avatar ${isHashir ? 'hashir' : ''}" style="${isCancelled ? 'filter: grayscale(1);' : ''}">${initials}</div>
+                <div>
+                  <div style="font-weight: 600; ${isCancelled ? 'text-decoration: line-through; color: #9CA3AF;' : ''}">${b.patient_name}</div>
+                  <div style="font-size: 12px; color: var(--text-muted);">${b.service}</div>
+                </div>
+              </div>
+            </td>
+            <td><strong style="color: ${isCancelled ? '#9CA3AF' : '#60A5FA'}; ${isCancelled ? 'text-decoration: line-through;' : ''}">${b.slot}</strong></td>
+            <td>${b.doctor}</td>
+            <td>${statusBadge}</td>
+            <td>
+              <span class="${isCancelled ? 'badge-booked' : 'badge-resend'}" style="font-size: 11px;">
+                <span>${isCancelled ? '✕' : '✉'}</span> ${isCancelled ? 'Cancelled' : 'Resend Sent'}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Render Webhook Logs
+      const logsContainer = document.getElementById('webhook-logs');
+      logsContainer.innerHTML = data.logs.slice(0, 5).map(log => `
+        <div class="webhook-card">
+          <div>
+            <span class="webhook-pill">POST /webhook</span>
+            <span>Triggered <strong>${log.event}</strong> for <strong>${log.patient}</strong> (${log.slot})</span>
+          </div>
+          <div style="color: #34D399; display: flex; align-items: center; gap: 8px;">
+            <span>✓ Email dispatched via Resend</span>
+            <span style="color: var(--text-muted); font-size: 11px;">${log.timestamp}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function resetDemo() {
+      await fetch('/api/reset', { method: 'POST' });
+      fetchState();
+    }
+
+    // Connect to Server-Sent Events (SSE) for Real-Time Updates
+    const evtSource = new EventSource('/events');
+    evtSource.addEventListener('booking_created', (e) => {
+      fetchState();
+    });
+
+    evtSource.addEventListener('booking_cancelled', (e) => {
+      fetchState();
+    });
+
+    evtSource.addEventListener('booking_rescheduled', (e) => {
+      fetchState();
+    });
+
+    evtSource.addEventListener('reset', () => {
+      fetchState();
+    });
+
+    // Initial load
+    fetchState();
+  </script>
+</body>
+</html>

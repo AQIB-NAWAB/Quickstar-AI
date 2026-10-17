@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownAZ,
   ArrowUpAZ,
-  Bot,
   ChevronDown,
   Plus,
   Search,
@@ -52,7 +51,7 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
     }
   }
 
-  // Active test drawer state
+  // Active test modal state (centered modal matching 9.png)
   const [activeTestingAgent, setActiveTestingAgent] = useState<Agent | null>(null);
 
   // Filter & sort agents
@@ -94,95 +93,96 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
   }
 
   return (
-    <div className="space-y-8 w-full pb-12">
-      {/* Page Header matching 2.png */}
+    <div className="space-y-6 w-full pb-12">
+      {/* Page Header matching 1.png */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[32px] font-semibold text-[#202125] tracking-tight">Agents</h1>
-          <p className="mt-1 text-[15px] text-[#667085]">Your agents, ready to work.</p>
+          <h1 className="text-[36px] font-bold text-[#202125] tracking-tight leading-tight">Agents</h1>
+          <p className="mt-1 text-[15px] text-[#667085]">
+            Build and manage your customer-facing assistants.
+          </p>
         </div>
 
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-[6px] bg-[#F15A24] text-white text-[14px] font-medium hover:bg-[#C94716] transition-colors shadow-sm self-start sm:self-auto cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-[6px] bg-[#FF571A] text-white text-[14px] font-medium hover:bg-[#E04B14] transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          Create agent
+          <span>Create agent</span>
         </button>
       </div>
 
-      {/* Toolbar: Search input on left, Status dropdown on right */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-[440px]">
-          <Search className="w-4 h-4 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search agents"
-            className="w-full pl-9 pr-8 h-11 rounded-[6px] border border-[#E1E5EA] bg-white text-[14px] text-[#202125] placeholder-[#7A808A] focus:outline-none focus:border-[#F15A24] transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7A808A] hover:text-[#202125]"
-              aria-label="Clear search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Status Dropdown Filter */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="appearance-none pl-3 pr-8 h-11 rounded-[6px] border border-[#E1E5EA] bg-white text-[14px] text-[#202125] font-medium focus:outline-none focus:border-[#F15A24] cursor-pointer"
-            >
-              <option value="all">All statuses</option>
-              <option value="published">Published</option>
-              <option value="unpublished">Unpublished</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Subheader: "Your agents ({count})" & Sort control */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="text-[15px] font-semibold text-[#202125]">
-          Your agents{" "}
-          <span className="text-[#667085] font-normal text-[14px]">
+      {/* Toolbar matching 1.png: "All agents {count}" on left, Search on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2 text-[18px] font-semibold text-[#202125]">
+          <span>All agents</span>
+          <span className="text-[#667085] font-normal text-[15px]">
             {filteredAndSortedAgents.length}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-[14px] font-medium text-[#667085] hover:text-[#202125] hover:bg-white border border-transparent hover:border-[#E1E5EA] transition-colors"
-          title={`Sort ${sortOrder === "asc" ? "Z to A" : "A to Z"}`}
-        >
-          {sortOrder === "asc" ? (
-            <ArrowDownAZ className="w-4 h-4 text-[#667085]" />
-          ) : (
-            <ArrowUpAZ className="w-4 h-4 text-[#667085]" />
-          )}
-          <span>Name</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-1 max-w-[480px] justify-end">
+          {/* Search agents input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search agents..."
+              className="w-full pl-9 pr-8 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[14px] text-[#202125] placeholder-[#98A2B3] focus:outline-none focus:border-[#FF571A] focus:ring-1 focus:ring-[#FF571A] transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#202125]"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Compact Status Filter */}
+          <div className="relative shrink-0">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              aria-label="Filter by status"
+              className="appearance-none pl-3 pr-7 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[13px] text-[#202125] font-medium focus:outline-none focus:border-[#FF571A] cursor-pointer"
+            >
+              <option value="all">All statuses</option>
+              <option value="published">Live</option>
+              <option value="unpublished">Draft</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* Sort order toggle */}
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+            className="p-2 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] transition-colors shrink-0"
+            title={`Sort ${sortOrder === "asc" ? "Z to A" : "A to Z"}`}
+            aria-label="Toggle alphabetical sort"
+          >
+            {sortOrder === "asc" ? (
+              <ArrowDownAZ className="w-4 h-4" />
+            ) : (
+              <ArrowUpAZ className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Agents Cards List (Stacked cards matching 2.png) */}
+      {/* Thin divider beneath toolbar matching 1.png */}
+      <div className="border-b border-[#EAECF0]" />
+
+      {/* Directory Table Structure */}
       {agents.length === 0 ? (
-        <div className="rounded-[10px] border border-dashed border-[#CCD2D8] bg-white p-12 text-center">
-          <div className="w-12 h-12 rounded-[10px] bg-[#FFF3ED] text-[#F15A24] mx-auto flex items-center justify-center mb-4">
-            <Bot className="w-6 h-6" />
-          </div>
+        <div className="rounded-[8px] border border-dashed border-[#DCE1E8] bg-white p-12 text-center">
           <h3 className="text-[18px] font-semibold text-[#202125]">No agents yet</h3>
           <p className="mt-1 text-[14px] text-[#667085] max-w-sm mx-auto leading-relaxed">
             Create your first agent to set up instructions, AI models, and tools for your business.
@@ -191,7 +191,7 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[6px] bg-[#F15A24] text-white text-[14px] font-medium hover:bg-[#C94716] transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[6px] bg-[#FF571A] text-white text-[14px] font-medium hover:bg-[#E04B14] transition-colors shadow-xs"
             >
               <Plus className="w-4 h-4" />
               Create agent
@@ -199,7 +199,7 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
           </div>
         </div>
       ) : filteredAndSortedAgents.length === 0 ? (
-        <div className="p-8 text-center bg-white rounded-[10px] border border-[#E1E5EA] space-y-3">
+        <div className="p-8 text-center bg-white rounded-[8px] border border-[#DCE1E8] space-y-3">
           <p className="text-[15px] text-[#667085]">
             No agents match your search or selected filters.
           </p>
@@ -209,31 +209,41 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
               setSearchQuery("");
               setStatusFilter("all");
             }}
-            className="px-3.5 py-1.5 rounded-[6px] text-[14px] font-medium text-[#202125] bg-white border border-[#E1E5EA] hover:bg-[#F8F9FA] transition-colors"
+            className="px-3.5 py-1.5 rounded-[6px] text-[14px] font-medium text-[#202125] bg-white border border-[#DCE1E8] hover:bg-[#F8F9FA] transition-colors"
           >
             Clear filters
           </button>
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredAndSortedAgents.map((agent) => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              workspaceId={workspaceId}
-              onTestAgent={(a) => setActiveTestingAgent(a)}
-              onDeleteAgent={handleDeleteAgent}
-            />
-          ))}
+          {/* Table-like column headings matching 1.png */}
+          <div className="hidden sm:flex items-center justify-between px-6 text-[11px] font-semibold tracking-wider text-[#667085] uppercase">
+            <span className="flex-1">AGENT</span>
+            <span className="w-[180px]">CHANNEL</span>
+            <span className="w-[140px] text-left">STATUS</span>
+          </div>
+
+          {/* Agent Records */}
+          <div className="space-y-3">
+            {filteredAndSortedAgents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                workspaceId={workspaceId}
+                onTestAgent={(a) => setActiveTestingAgent(a)}
+                onDeleteAgent={handleDeleteAgent}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Footer count indicator */}
+      {/* Footer count indicator matching 1.png: "1 agent in Demo Workspace" */}
       {agents.length > 0 && (
-        <div className="pt-2 text-[13px] text-[#667085] flex justify-between items-center">
+        <div className="pt-2 text-[13px] text-[#667085]">
           <span>
-            Showing {filteredAndSortedAgents.length} of {agents.length}{" "}
-            {agents.length === 1 ? "agent" : "agents"}
+            {filteredAndSortedAgents.length}{" "}
+            {filteredAndSortedAgents.length === 1 ? "agent" : "agents"} in {workspaceName}
           </span>
         </div>
       )}
@@ -243,7 +253,7 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
         <CreateQueryOpener onOpen={openCreate} />
       </Suspense>
 
-      {/* Create Agent Wizard Dialog (7.png, 8.png, 9.png) */}
+      {/* Create Agent Wizard Dialog (10.png, 11.png, 12.png) */}
       <CreateAgentDialog
         isOpen={isCreateOpen}
         onClose={closeCreate}
@@ -251,13 +261,13 @@ export function AgentList({ workspaceId, workspaceName = "Workspace", initialAge
         workspaceName={workspaceName}
       />
 
-      {/* Slide-over Test Agent Drawer when launched from an agent card */}
+      {/* Centered Test Agent Modal (9.png) */}
       {activeTestingAgent && (
         <TestAgentPanel
           agent={activeTestingAgent}
           workspaceId={workspaceId}
           releaseNumber={undefined}
-          isInline={false}
+          isOpen={true}
           onClose={() => setActiveTestingAgent(null)}
         />
       )}

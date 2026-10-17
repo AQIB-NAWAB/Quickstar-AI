@@ -44,14 +44,14 @@ export function DeleteAgentModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-agent-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#101828]/40 animate-in fade-in duration-150"
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-[440px] bg-white rounded-xl border border-[#E1E5EA] shadow-xl overflow-hidden p-6 space-y-4"
+        className="w-full max-w-[440px] bg-white rounded-[12px] border border-[#DCE1E8] shadow-2xl overflow-hidden p-6 space-y-4 animate-in zoom-in-95 duration-150"
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 text-[#B42318] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-[8px] bg-red-50 text-[#B42318] flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <button
@@ -59,7 +59,7 @@ export function DeleteAgentModal({
             onClick={onCancel}
             disabled={isDeleting}
             aria-label="Close"
-            className="text-[#667085] hover:text-[#202125] p-1 rounded-md transition-colors"
+            className="text-[#667085] hover:text-[#202125] p-1 rounded-[6px] hover:bg-[#F8F9FB] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -80,7 +80,7 @@ export function DeleteAgentModal({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="px-4 py-2 text-[13px] font-medium text-[#202125] bg-white border border-[#E1E5EA] rounded-md hover:bg-[#F8F9FA] transition-colors"
+            className="px-4 py-2 text-[13px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[8px] hover:bg-[#F8F9FB] transition-colors"
           >
             Cancel
           </button>
@@ -88,7 +88,7 @@ export function DeleteAgentModal({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="px-4 py-2 text-[13px] font-semibold text-white bg-[#B42318] hover:bg-[#912018] rounded-md transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-[13px] font-semibold text-white bg-[#B42318] hover:bg-[#912018] rounded-[8px] transition-colors disabled:opacity-50"
           >
             {isDeleting ? "Deleting..." : "Delete agent"}
           </button>

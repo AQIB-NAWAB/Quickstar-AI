@@ -219,6 +219,14 @@ export class CompletionOrchestrator {
           });
         }
         if (error instanceof ProviderError && error.httpStatus === 429) {
+          if (attempt === 1 && !options.callbacks?.tokensStarted()) {
+            this.logger.warn("model.rate_limited_retry", {
+              profile: model.profile,
+              attempt,
+            });
+            await new Promise((r) => setTimeout(r, 2500));
+            continue;
+          }
           throw new AppError({
             code: ErrorCode.RATE_LIMITED,
             message: error.message || "Model provider rate limit exceeded",

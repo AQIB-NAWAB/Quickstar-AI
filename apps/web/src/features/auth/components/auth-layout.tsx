@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BrandLogo } from "@/components/brand/brand-logo";
+import { AuthBrandLockup } from "./auth-brand-lockup";
 import { WorkstationIllustration } from "../illustrations/workstation-illustration";
 import { LockerIllustration } from "../illustrations/locker-illustration";
 import "@/features/auth/styles/auth.css";
@@ -83,21 +83,7 @@ export function AuthLayout({
           aria-label="QuickStart AI home"
           className="auth-brand"
         >
-          <BrandLogo
-            size={32}
-            animated={true}
-            paused={false}
-            mood="idle"
-            fillColor="#fa5d19"
-            className="w-7 h-7 sm:w-8 sm:h-8 shrink-0"
-            aria-hidden="true"
-          />
-          <span
-            className="text-[20px] sm:text-[22px] font-bold tracking-tight text-[#262626] leading-none select-none"
-            aria-hidden="true"
-          >
-            QuickStart<span className="text-[#ff571a]"> AI</span>
-          </span>
+          <AuthBrandLockup />
         </Link>
 
         {/* Left Panel: Form Side */}
@@ -112,7 +98,7 @@ export function AuthLayout({
         </section>
 
         {/* Right Panel: Scene Side (Hidden on <=760px) */}
-        <section className="auth-scene-side" aria-hidden="true">
+        <section className="auth-scene-side">
           <div className="auth-intro">
             <div className="auth-scene-eyebrow">
               <span className="auth-scene-eyebrow-dot" />

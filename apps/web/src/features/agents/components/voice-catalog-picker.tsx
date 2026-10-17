@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Play, Search, Square } from "lucide-react";
+import { ChevronDown, FileText, Play, Search, Square } from "lucide-react";
 
 export type CatalogVoice = {
   id: string;
@@ -39,7 +39,7 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Stop audio on unmount
+  // Stop audio on unmount or tab switch
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -66,7 +66,7 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
     };
   }, [workspaceId]);
 
-  // Audio preview handler
+  // Audio preview handler (click on Preview does NOT select the voice radio)
   async function handlePreview(voice: CatalogVoice, e: React.MouseEvent) {
     e.stopPropagation();
 
@@ -148,53 +148,52 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
   });
 
   return (
-    <div className="bg-white border border-[#E1E5EA] rounded-[8px] overflow-hidden shadow-sm flex flex-col">
-      {/* Header */}
-      <div className="p-4 pb-3">
-        <h3 className="text-[18px] font-semibold text-[#202125]">Spoken voice</h3>
-        <p className="mt-0.5 text-[13px] text-[#667085]">
+    <div className="space-y-4 max-w-2xl">
+      <div>
+        <h3 className="text-[20px] font-semibold text-[#202125]">Spoken voice</h3>
+        <p className="mt-1 text-[14px] text-[#667085]">
           Choose a voice and listen before saving.
         </p>
+      </div>
 
-        {/* Filter Row */}
-        <div className="mt-4 flex flex-wrap sm:flex-nowrap items-center gap-3">
-          <div className="relative min-w-0 flex-1">
-            <Search className="w-3.5 h-3.5 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search voices..."
-              className="w-full pl-8 pr-3 py-2.5 text-[14px] text-[#202125] bg-white border border-[#E1E5EA] rounded-md focus:outline-none focus:border-[#F15A24] placeholder-[#98A2B3]"
-            />
-          </div>
+      {/* Toolbar: Search input & All languages dropdown on same baseline matching 7.png */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search voices..."
+            className="w-full pl-9 pr-3 h-10 text-[14px] text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A] placeholder-[#98A2B3]"
+          />
+        </div>
 
-          <div className="relative">
-            <select
-              value={languageFilter}
-              onChange={(e) => setLanguageFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-2.5 text-[14px] font-medium text-[#344054] bg-white border border-[#E1E5EA] rounded-md focus:outline-none focus:border-[#F15A24]"
-            >
-              <option value="all">All languages</option>
-              {uniqueLanguages.map((lang) => (
-                <option key={lang} value={lang}>
-                  {formatLanguage(lang)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+        <div className="relative shrink-0">
+          <select
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value)}
+            className="appearance-none pl-3 pr-8 h-10 text-[14px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A] cursor-pointer"
+          >
+            <option value="all">All languages</option>
+            {uniqueLanguages.map((lang) => (
+              <option key={lang} value={lang}>
+                {formatLanguage(lang)}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
       {previewError && (
-        <div className="px-4 py-2 bg-red-50 text-[12px] text-[#B42318] border-b border-red-200">
+        <div className="p-3 bg-red-50 text-[13px] text-[#B42318] rounded-[6px] border border-red-200">
           {previewError}
         </div>
       )}
 
-      {/* Voice List */}
-      <div className="mx-4 mb-4 overflow-y-auto max-h-[520px] rounded-lg border border-[#E1E5EA] divide-y divide-[#EDF0F2]">
+      {/* Voice List matching 7.png */}
+      <div className="border border-[#DCE1E8] rounded-[8px] divide-y divide-[#EAECF0] overflow-hidden bg-white max-h-[380px] overflow-y-auto">
         {loadError ? (
           <div className="p-6 text-center text-[13px] text-[#B42318]">{loadError}</div>
         ) : filteredVoices.length === 0 ? (
@@ -210,7 +209,7 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
               <div
                 key={voice.id}
                 role="radio"
-                aria-checked={voiceId === voice.id}
+                aria-checked={isSelected}
                 tabIndex={0}
                 onClick={() => onChange(voice)}
                 onKeyDown={(e) => {
@@ -219,18 +218,16 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
                     onChange(voice);
                   }
                 }}
-                className={`min-h-[72px] px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                  isSelected
-                    ? "bg-[#FFF3ED]"
-                    : "hover:bg-[#F8F9FA]"
+                className={`p-4 flex items-start justify-between gap-4 cursor-pointer transition-colors ${
+                  isSelected ? "bg-[#FAFBFB]" : "hover:bg-[#F8F9FA]"
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Radio button */}
+                <div className="flex items-start gap-3.5 min-w-0">
+                  {/* Radio selection on left matching 7.png */}
                   <div
-                    className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                    className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors ${
                       isSelected
-                        ? "border-[#F15A24] bg-[#F15A24]"
+                        ? "border-[#FF571A] bg-[#FF571A]"
                         : "border-[#D0D5DD] bg-white"
                     }`}
                   >
@@ -238,34 +235,37 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
                   </div>
 
                   <div className="min-w-0">
-                    <span className="block text-[14px] font-semibold text-[#202125] leading-tight truncate">
+                    <span className="block text-[15px] font-semibold text-[#202125] leading-tight truncate">
                       {voice.label}
                     </span>
-                    <span className="block text-[12px] text-[#667085] leading-normal mt-1">
-                      {formatLanguage(voice.language)} · {voice.description}
+                    <span className="block text-[13px] text-[#667085] mt-0.5">
+                      {formatLanguage(voice.language)}
                     </span>
+                    <p className="text-[13px] text-[#667085] mt-1 leading-relaxed">
+                      {voice.description}
+                    </p>
                   </div>
                 </div>
 
-                {/* Preview Button */}
+                {/* Preview Button on right matching 7.png */}
                 <button
                   type="button"
                   onClick={(e) => void handlePreview(voice, e)}
                   title="Preview voice"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-[#344054] bg-white border border-[#E1E5EA] rounded hover:bg-[#F8F9FA] transition-colors shrink-0 shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] hover:bg-[#F8F9FA] transition-colors shrink-0 shadow-xs"
                 >
                   {isPlayingThis ? (
                     isLoadingPreview ? (
                       <span>Loading...</span>
                     ) : (
                       <>
-                        <Square className="w-2.5 h-2.5 fill-current text-[#F15A24]" />
+                        <Square className="w-3 h-3 fill-current text-[#FF571A]" />
                         <span>Stop</span>
                       </>
                     )
                   ) : (
                     <>
-                      <Play className="w-2.5 h-2.5 fill-current text-[#475467]" />
+                      <Play className="w-3 h-3 fill-current text-[#202125]" />
                       <span>Preview</span>
                     </>
                   )}
@@ -276,9 +276,10 @@ export function VoiceCatalogPicker({ workspaceId, voiceId, onChange }: Props) {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-3.5 bg-[#FAFBFB] border-t border-[#EDF0F2] text-[12px] text-[#667085]">
-        Publish to use the selected voice in live calls.
+      {/* Notice below voice list matching 7.png */}
+      <div className="flex items-center gap-2 text-[13px] text-[#667085] pt-1">
+        <FileText className="w-4 h-4 text-[#667085]" aria-hidden="true" />
+        <span>Save and publish to apply your voice selection.</span>
       </div>
     </div>
   );

@@ -54,7 +54,11 @@ export function createTurnsController(turnsService: TurnsService) {
       authHeaders["x-request-id"] = requestId;
 
       const stream = wantsEventStream(req);
-      const runTurn = (onToken?: (delta: string) => void) =>
+      const runTurn = (
+        onToken?: (delta: string) => void,
+        onToolStart?: (event: { name: string; args?: Record<string, unknown> }) => void,
+        onToolDone?: (event: { name: string; status: string; args?: Record<string, unknown>; error?: string }) => void,
+      ) =>
         turnsService.executeTurn({
           workspaceId,
           conversationId,
@@ -67,6 +71,8 @@ export function createTurnsController(turnsService: TurnsService) {
           deadlineMs: body.deadline_ms,
           callId: body.call_id,
           onToken,
+          onToolStart,
+          onToolDone,
         });
 
       if (!stream) {
@@ -95,11 +101,21 @@ export function createTurnsController(turnsService: TurnsService) {
       };
 
       try {
-        const result = await runTurn((delta) => {
-          openSse();
-          tokensStarted = true;
-          writeSse(res, "token", { delta });
-        });
+        const result = await runTurn(
+          (delta) => {
+            openSse();
+            tokensStarted = true;
+            writeSse(res, "token", { delta });
+          },
+          (toolStart) => {
+            openSse();
+            writeSse(res, "tool_start", toolStart);
+          },
+          (toolDone) => {
+            openSse();
+            writeSse(res, "tool_done", toolDone);
+          },
+        );
         openSse();
         if (result.deduplicated && result.assistant_message.text && !tokensStarted) {
           writeSse(res, "token", { delta: result.assistant_message.text });

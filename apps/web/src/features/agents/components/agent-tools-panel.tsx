@@ -1,7 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, Plus, Settings2, Wrench } from "lucide-react";
+import { useMemo, useState, type ComponentType } from "react";
+import {
+  Check,
+  ChevronDown,
+  Globe,
+  Grid,
+  List,
+  Plus,
+  Puzzle,
+  Search,
+  Sliders,
+  X,
+  XCircle,
+  FileText,
+} from "lucide-react";
 import type { AgentToolDefinition } from "../lib/types";
 import { BUILTIN_TOOLS, customToolToAgentTool } from "../lib/tools";
 import type { CustomToolItem } from "@/features/settings/lib/types";
@@ -9,7 +22,8 @@ import { CustomToolsModal } from "@/features/settings/components/custom-tools-mo
 import { AgentToolsManageDrawer } from "./agent-tools-manage-drawer";
 import { listSecrets } from "@/features/settings/lib/client";
 
-type ToolFilter = "all" | "builtin" | "custom";
+type CategoryFilter = "all" | "web" | "leads" | "custom";
+type StatusFilter = "all" | "attached" | "not_attached";
 
 type Props = {
   workspaceId: string;
@@ -22,51 +36,15 @@ type Props = {
   onCustomToolsChange: (tools: CustomToolItem[]) => void;
 };
 
-function ToolRow({
-  tool,
-  badge,
-  attached,
-  onToggle,
-}: {
-  tool: AgentToolDefinition;
-  badge: string;
-  attached: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-10 border px-3 py-2.5 transition-colors ${
-        attached ? "border-neutral-300 bg-neutral-50/80" : "border-border-faint bg-white"
-      }`}
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[11px] font-semibold text-accent-black">{tool.name}</span>
-          <span className="rounded-full border border-border-faint bg-neutral-50 px-1.5 py-0.5 text-[9px] font-semibold text-neutral-600">
-            {badge}
-          </span>
-          {attached && (
-            <span className="rounded-full border border-green-200 bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold text-green-700">
-              On agent
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 line-clamp-2 text-[11px] text-neutral-600">{tool.description}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`shrink-0 rounded-8 px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-          attached
-            ? "border border-border-faint bg-white text-neutral-700 hover:bg-neutral-50"
-            : "bg-accent-black text-white hover:bg-neutral-800"
-        }`}
-      >
-        {attached ? "Remove" : "Attach"}
-      </button>
-    </div>
-  );
-}
+// Friendly name & icon mapping matching 4.png specification
+const FRIENDLY_NAMES: Record<string, { label: string; icon: ComponentType<{ className?: string }> }> = {
+  web_scrape: { label: "Scrape a webpage", icon: Globe },
+  web_search: { label: "Search the web", icon: Globe },
+  leads_start_research: { label: "Start research", icon: Search },
+  leads_run_status: { label: "Check progress", icon: List },
+  leads_run_results: { label: "Get results", icon: FileText },
+  leads_cancel_run: { label: "Cancel research", icon: XCircle },
+};
 
 export function AgentToolsPanel({
   workspaceId,
@@ -78,22 +56,53 @@ export function AgentToolsPanel({
   customToolsError,
   onCustomToolsChange,
 }: Props) {
-  const [filter, setFilter] = useState<ToolFilter>("all");
-  const [builtinOpen, setBuiltinOpen] = useState(true);
-  const [customOpen, setCustomOpen] = useState(true);
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [manageOpen, setManageOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [secretNames, setSecretNames] = useState<string[]>([]);
 
-  const attachedCount = attachedTools.length;
-
+  // Format custom tools
   const customAgentTools = useMemo(
-    () => customTools.map((t) => ({ custom: t, tool: customToolToAgentTool(t) })),
+    () => customTools.map((t) => customToolToAgentTool(t)),
     [customTools],
   );
 
-  const showBuiltin = filter === "all" || filter === "builtin";
-  const showCustom = filter === "all" || filter === "custom";
+  // All available tools
+  const allTools = useMemo(() => {
+    return [...BUILTIN_TOOLS, ...customAgentTools];
+  }, [customAgentTools]);
+
+  // Counts for library categories
+  const webTools = useMemo(() => BUILTIN_TOOLS.filter((t) => t.type === "builtin_web"), []);
+  const leadTools = useMemo(() => BUILTIN_TOOLS.filter((t) => t.type === "builtin_leads"), []);
+
+  // Filtered tools based on category, status, and search query
+  const filteredTools = useMemo(() => {
+    return allTools.filter((tool) => {
+      // Category filter
+      if (category === "web" && tool.type !== "builtin_web") return false;
+      if (category === "leads" && tool.type !== "builtin_leads") return false;
+      if (category === "custom" && tool.type !== "http" && tool.type !== "mcp") return false;
+
+      // Status filter
+      const isAttached = attachedTools.some((t) => t.name === tool.name);
+      if (statusFilter === "attached" && !isAttached) return false;
+      if (statusFilter === "not_attached" && isAttached) return false;
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const friendly = (FRIENDLY_NAMES[tool.name]?.label || "").toLowerCase();
+        const techId = tool.name.toLowerCase();
+        const desc = (tool.description || "").toLowerCase();
+        return friendly.includes(q) || techId.includes(q) || desc.includes(q);
+      }
+
+      return true;
+    });
+  }, [allTools, category, statusFilter, searchQuery, attachedTools]);
 
   async function openQuickAdd() {
     if (secretNames.length === 0) {
@@ -104,160 +113,240 @@ export function AgentToolsPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-6 max-w-full">
+      {/* Header matching 4.png */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-accent-black">Tools & functions</h3>
-          <p className="mt-0.5 max-w-xl text-[11px] text-neutral-500 leading-relaxed">
-            Callable actions for chat, widget, and voice. Attach built-ins or workspace tools you
-            define.
+          <h2 className="text-[24px] font-semibold text-[#202125] leading-tight">Tools &amp; functions</h2>
+          <p className="mt-1 text-[14px] text-[#667085]">
+            Manage the actions available to your agent.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canManageCustomTools && (
-            <>
-              <button
-                type="button"
-                onClick={() => void openQuickAdd()}
-                className="inline-flex items-center gap-1.5 rounded-8 bg-accent-black px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-neutral-800"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add custom tool
-              </button>
-              <button
-                type="button"
-                onClick={() => setManageOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-8 border border-border-faint bg-white px-3 py-1.5 text-[11px] font-semibold text-accent-black hover:bg-neutral-50"
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                Manage tools
-              </button>
-            </>
-          )}
-        </div>
+
+        {/* Header Actions: Manage tools (outlined), Add custom tool (orange) */}
+        {canManageCustomTools && (
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setManageOpen(true)}
+              className="inline-flex items-center gap-2 h-10 px-4 text-[14px] font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] hover:bg-[#F8F9FA] transition-colors shadow-xs"
+            >
+              <Sliders className="w-3.5 h-3.5 text-[#667085]" />
+              <span>Manage tools</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void openQuickAdd()}
+              className="inline-flex items-center gap-2 h-10 px-4 text-[14px] font-medium text-white bg-[#FF571A] hover:bg-[#E04B14] rounded-[6px] transition-colors shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add custom tool</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {attachedCount > 0 && (
-        <div className="rounded-10 border border-border-faint bg-neutral-50/50 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-            Attached to this agent ({attachedCount})
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {attachedTools.map((t) => (
-              <span
-                key={t.name}
-                className="rounded-full border border-border-faint bg-white px-2 py-0.5 font-mono text-[10px] text-accent-black"
-              >
-                {t.name}
-              </span>
-            ))}
+      {/* One Unified Tool Browser matching 4.png */}
+      <div className="bg-white border border-[#DCE1E8] rounded-[8px] overflow-hidden shadow-xs flex flex-col md:flex-row min-h-[460px]">
+        {/* Left Category Rail (~230px wide desktop) */}
+        <div className="w-full md:w-[230px] border-b md:border-b-0 md:border-r border-[#EAECF0] p-4 flex flex-col shrink-0 bg-white">
+          <span className="text-[11px] font-semibold tracking-wider text-[#8B98A5] uppercase px-3 py-1">
+            LIBRARY
+          </span>
+
+          <div className="mt-2 space-y-1">
+            {/* All tools */}
+            <button
+              type="button"
+              onClick={() => setCategory("all")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "all"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Grid className="w-4 h-4 text-[#667085]" />
+                <span>All tools</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{allTools.length}</span>
+            </button>
+
+            {/* Web */}
+            <button
+              type="button"
+              onClick={() => setCategory("web")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "web"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Globe className="w-4 h-4 text-[#667085]" />
+                <span>Web</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{webTools.length}</span>
+            </button>
+
+            {/* Lead research */}
+            <button
+              type="button"
+              onClick={() => setCategory("leads")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "leads"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Search className="w-4 h-4 text-[#667085]" />
+                <span>Lead research</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{leadTools.length}</span>
+            </button>
+
+            <div className="pt-2 pb-1 border-t border-[#EAECF0] my-1" />
+
+            {/* Custom tools */}
+            <button
+              type="button"
+              onClick={() => setCategory("custom")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "custom"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Puzzle className="w-4 h-4 text-[#667085]" />
+                <span>Custom tools</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{customTools.length}</span>
+            </button>
           </div>
         </div>
-      )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-[11px] font-semibold text-neutral-500">Show</label>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as ToolFilter)}
-          className="rounded-8 border border-border-faint bg-white px-2.5 py-1.5 text-[11px] font-medium text-accent-black focus:border-neutral-400 focus:outline-hidden"
-        >
-          <option value="all">All tools</option>
-          <option value="builtin">Built-in only</option>
-          <option value="custom">Custom only</option>
-        </select>
-      </div>
-
-      {showBuiltin && (
-        <section className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setBuiltinOpen((o) => !o)}
-            className="flex w-full items-center justify-between rounded-8 py-1 text-left"
-          >
-            <span className="text-[11px] font-bold uppercase tracking-wide text-neutral-600">
-              Built-in ({BUILTIN_TOOLS.length})
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 text-neutral-400 transition-transform ${builtinOpen ? "" : "-rotate-90"}`}
-            />
-          </button>
-          {builtinOpen && (
-            <div className="space-y-1.5">
-              {BUILTIN_TOOLS.map((tool) => (
-                <ToolRow
-                  key={tool.name}
-                  tool={tool}
-                  badge={tool.type === "builtin_web" ? "WEB" : "LEADS"}
-                  attached={attachedTools.some((t) => t.name === tool.name)}
-                  onToggle={() => onToggle(tool)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {showCustom && (
-        <section className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setCustomOpen((o) => !o)}
-            className="flex w-full items-center justify-between rounded-8 py-1 text-left"
-          >
-            <span className="text-[11px] font-bold uppercase tracking-wide text-neutral-600">
-              Custom ({customTools.length})
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 text-neutral-400 transition-transform ${customOpen ? "" : "-rotate-90"}`}
-            />
-          </button>
-          {customOpen && (
-            <div className="space-y-1.5">
-              {customToolsLoading ? (
-                <div className="space-y-1.5 animate-pulse">
-                  <div className="h-12 rounded-10 bg-neutral-100" />
-                  <div className="h-12 rounded-10 bg-neutral-100" />
-                </div>
-              ) : customToolsError ? (
-                <p className="rounded-10 border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-600">
-                  {customToolsError}
-                </p>
-              ) : customAgentTools.length === 0 ? (
-                <div className="rounded-10 border border-dashed border-border-faint px-4 py-6 text-center">
-                  <Wrench className="mx-auto h-5 w-5 text-neutral-300" />
-                  <p className="mt-2 text-[11px] text-neutral-500">No custom tools in this workspace.</p>
-                  {canManageCustomTools && (
-                    <button
-                      type="button"
-                      onClick={() => void openQuickAdd()}
-                      className="mt-2 text-[11px] font-semibold text-accent-black underline-offset-2 hover:underline"
-                    >
-                      Add custom tool
-                    </button>
-                  )}
-                </div>
-              ) : (
-                customAgentTools.map(({ custom, tool }) => (
-                  <ToolRow
-                    key={custom.id}
-                    tool={tool}
-                    badge={custom.kind === "http" ? "HTTP" : "MCP"}
-                    attached={attachedTools.some((t) => t.name === tool.name)}
-                    onToggle={() => onToggle(tool)}
-                  />
-                ))
+        {/* Right Searchable Tools Pane */}
+        <div className="flex-1 flex flex-col min-w-0 bg-white">
+          {/* Toolbar: Search input & All statuses dropdown */}
+          <div className="p-4 border-b border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tools..."
+                className="w-full pl-9 pr-8 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[14px] text-[#202125] placeholder-[#98A2B3] focus:outline-none focus:border-[#FF571A] transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#202125]"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
-          )}
-        </section>
-      )}
 
-      <p className="flex items-start gap-2 rounded-10 border border-border-faint bg-neutral-50/60 px-3 py-2 text-[10px] text-neutral-600 leading-relaxed">
-        <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
-        Tools run in the runtime loop with idempotency auditing. HTTP auth uses secrets from the
-        vault.
-      </p>
+            <div className="relative shrink-0">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                aria-label="Filter by status"
+                className="appearance-none pl-3 pr-8 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[14px] text-[#202125] font-medium focus:outline-none focus:border-[#FF571A] cursor-pointer"
+              >
+                <option value="all">All statuses</option>
+                <option value="attached">Attached</option>
+                <option value="not_attached">Not attached</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* List of tools */}
+          <div className="flex-1 overflow-y-auto divide-y divide-[#EAECF0]">
+            {customToolsLoading && category === "custom" ? (
+              <div className="p-8 text-center text-[#667085] text-[14px]">Loading tools...</div>
+            ) : customToolsError && category === "custom" ? (
+              <div className="p-6 text-center text-[#B42318] text-[14px]">{customToolsError}</div>
+            ) : filteredTools.length === 0 ? (
+              <div className="p-12 text-center text-[#667085] text-[14px]">
+                No tools found matching your current filter.
+              </div>
+            ) : (
+              filteredTools.map((tool) => {
+                const isAttached = attachedTools.some((t) => t.name === tool.name);
+                const info = FRIENDLY_NAMES[tool.name] || { label: tool.name, icon: Puzzle };
+                const IconComponent = info.icon;
+
+                return (
+                  <div
+                    key={tool.name}
+                    className="p-4 sm:px-6 flex items-start justify-between gap-4 hover:bg-[#FAFBFB] transition-colors"
+                  >
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <div className="w-9 h-9 rounded-[6px] bg-[#F2F4F7] text-[#667085] flex items-center justify-center shrink-0 mt-0.5">
+                        <IconComponent className="w-4 h-4" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="text-[15px] font-semibold text-[#202125]">
+                            {info.label}
+                          </span>
+                          <span className="font-mono text-[12px] text-[#667085]">
+                            {tool.name}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[14px] text-[#667085] leading-relaxed">
+                          {tool.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 pt-0.5">
+                      {isAttached ? (
+                        <div className="flex items-center gap-2">
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[13px] font-medium text-[#168A45]">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            Attached
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onToggle(tool)}
+                            className="px-3 py-1.5 rounded-[6px] text-[13px] font-medium border border-[#DCE1E8] bg-white text-[#B42318] hover:bg-red-50 hover:border-red-200 transition-colors shadow-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onToggle(tool)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[13px] font-medium border border-[#DCE1E8] bg-white text-[#202125] hover:bg-[#F8F9FA] transition-colors shadow-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-[#667085]" />
+                          <span>Attach</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer inside card matching 4.png: "6 tools available" */}
+          <div className="px-6 py-3 border-t border-[#EAECF0] bg-white text-[13px] text-[#667085] shrink-0">
+            {filteredTools.length} {filteredTools.length === 1 ? "tool" : "tools"} available
+          </div>
+        </div>
+      </div>
 
       <CustomToolsModal
         open={quickAddOpen}
