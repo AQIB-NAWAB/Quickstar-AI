@@ -14,7 +14,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   listConversations,
   listMessages,
@@ -48,6 +48,7 @@ export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const lastFetchedSeqRef = useRef<Record<string, number>>({});
 
   // Determine active conversation ID from URL
   const activeId = useMemo(() => {
@@ -74,23 +75,28 @@ export function InboxSidebar({ workspaceId, isPreview = false }: Props) {
     setLiveCalls(live.calls ?? []);
     setLoading(false);
 
-    // Fetch latest message previews for first 15 conversations
-    const toFetch = convs.slice(0, 15);
-    const previews: Record<string, string> = {};
-    await Promise.all(
-      toFetch.map(async (c) => {
-        try {
-          const res = await listMessages(workspaceId, c.id, { afterSeq: Math.max(0, c.last_seq - 1), limit: 1 });
-          if (res.messages && res.messages.length > 0) {
-            previews[c.id] = res.messages[res.messages.length - 1]!.text;
+    // Fetch latest message previews only for conversations whose last_seq changed or missing
+    const toFetch = convs
+      .slice(0, 15)
+      .filter((c) => lastFetchedSeqRef.current[c.id] !== c.last_seq);
+    if (toFetch.length > 0) {
+      const previews: Record<string, string> = {};
+      await Promise.all(
+        toFetch.map(async (c) => {
+          try {
+            const res = await listMessages(workspaceId, c.id, { afterSeq: Math.max(0, c.last_seq - 1), limit: 1 });
+            if (res.messages && res.messages.length > 0) {
+              previews[c.id] = res.messages[res.messages.length - 1]!.text;
+            }
+            lastFetchedSeqRef.current[c.id] = c.last_seq;
+          } catch {
+            // ignore preview fetch errors
           }
-        } catch {
-          // ignore preview fetch errors
-        }
-      }),
-    );
-    if (Object.keys(previews).length > 0) {
-      setMessagePreviews((prev) => ({ ...prev, ...previews }));
+        }),
+      );
+      if (Object.keys(previews).length > 0) {
+        setMessagePreviews((prev) => ({ ...prev, ...previews }));
+      }
     }
   }, [workspaceId]);
 

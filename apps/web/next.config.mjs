@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@quickstart/contracts"],
+  allowedDevOrigins: ["localhost:3015", "127.0.0.1:3015", "localhost", "127.0.0.1"],
   async redirects() {
     return [
       {

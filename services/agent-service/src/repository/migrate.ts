@@ -9,6 +9,7 @@ const MIGRATIONS: { version: string; file: string }[] = [
   { version: "003_agent_tools", file: "003_agent_tools.sql" },
   { version: "004_agent_voice_settings", file: "004_agent_voice_settings.sql" },
   { version: "005_custom_tools", file: "005_custom_tools.sql" },
+  { version: "006_agent_canvas_graph", file: "006_agent_canvas_graph.sql" },
 ];
 
 function resolveMigrationSql(file: string): string {

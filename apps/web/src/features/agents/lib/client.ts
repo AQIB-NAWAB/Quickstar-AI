@@ -207,12 +207,42 @@ export async function createTestConversation(
   return { conversationId: body.conversation?.id };
 }
 
+export type TestTurnToolCall = {
+  name: string;
+  status: "succeeded" | "failed" | "pending" | "unknown";
+  args?: Record<string, unknown>;
+  error?: string;
+};
+
+export type TestTurnUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+};
+
+export type TestTurnCallbacks = {
+  onToken?: (delta: string) => void;
+  onToolStart?: (event: { name: string; args?: Record<string, unknown> }) => void;
+  onToolDone?: (event: TestTurnToolCall) => void;
+};
+
+export type TestTurnResult = {
+  assistantText?: string;
+  toolCalls?: TestTurnToolCall[];
+  usage?: TestTurnUsage;
+  error?: ApiError;
+};
+
 export async function executeTestTurn(
   workspaceId: string,
   conversationId: string,
   message: string,
-  onToken?: (delta: string) => void,
-): Promise<{ assistantText?: string; error?: ApiError }> {
+  callbacks?: ((delta: string) => void) | TestTurnCallbacks,
+): Promise<TestTurnResult> {
+  const onToken = typeof callbacks === "function" ? callbacks : callbacks?.onToken;
+  const onToolStart = typeof callbacks === "object" ? callbacks.onToolStart : undefined;
+  const onToolDone = typeof callbacks === "object" ? callbacks.onToolDone : undefined;
+
   const res = await fetch(
     `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/turns`,
     {
@@ -231,6 +261,7 @@ export async function executeTestTurn(
   if (!contentType.includes("text/event-stream") || !res.body) {
     const body = (await res.json().catch(() => ({}))) as {
       assistant_message?: { text: string };
+      turn?: { tool_calls?: TestTurnToolCall[]; usage?: TestTurnUsage; assistant_message?: { text?: string } };
       error?: ApiError;
     };
     if (!res.ok) {
@@ -241,13 +272,20 @@ export async function executeTestTurn(
         },
       };
     }
-    return { assistantText: body.assistant_message?.text };
+    return {
+      assistantText: body.assistant_message?.text ?? body.turn?.assistant_message?.text,
+      toolCalls: body.turn?.tool_calls,
+      usage: body.turn?.usage,
+    };
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let assistantText = "";
+  let toolCalls: TestTurnToolCall[] = [];
+  let usage: TestTurnUsage | undefined;
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -264,26 +302,77 @@ export async function executeTestTurn(
         else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
       }
       if (!dataLine) continue;
-      const data = JSON.parse(dataLine) as {
-        delta?: string;
-        message?: string;
-        turn?: { assistant_message?: { text?: string } };
-      };
-      if (eventName === "token" && data.delta) {
-        assistantText += data.delta;
-        onToken?.(data.delta);
-      } else if (eventName === "done" && data.turn?.assistant_message?.text && !assistantText) {
-        assistantText = data.turn.assistant_message.text;
-      } else if (eventName === "error") {
-        return {
-          error: { code: "STREAM_ERROR", message: data.message || "Turn stream failed" },
-          assistantText,
+      try {
+        const data = JSON.parse(dataLine) as {
+          delta?: string;
+          message?: string;
+          name?: string;
+          status?: "succeeded" | "failed" | "pending" | "unknown";
+          args?: Record<string, unknown>;
+          error?: string;
+          turn?: {
+            assistant_message?: { text?: string };
+            tool_calls?: TestTurnToolCall[];
+            usage?: TestTurnUsage;
+          };
         };
+
+        if (eventName === "token" && data.delta) {
+          assistantText += data.delta;
+          onToken?.(data.delta);
+        } else if (eventName === "tool_start" && data.name) {
+          const tc: TestTurnToolCall = {
+            name: data.name,
+            status: "pending",
+            args: data.args,
+          };
+          toolCalls.push(tc);
+          onToolStart?.({ name: data.name, args: data.args });
+        } else if (eventName === "tool_done" && data.name) {
+          const existing = toolCalls.find((t) => t.name === data.name && t.status === "pending");
+          if (existing) {
+            existing.status = data.status ?? "succeeded";
+            if (data.args) existing.args = data.args;
+            if (data.error) existing.error = data.error;
+          } else {
+            toolCalls.push({
+              name: data.name,
+              status: data.status ?? "succeeded",
+              args: data.args,
+              error: data.error,
+            });
+          }
+          onToolDone?.({
+            name: data.name,
+            status: data.status ?? "succeeded",
+            args: data.args,
+            error: data.error,
+          });
+        } else if (eventName === "done") {
+          if (data.turn?.assistant_message?.text && !assistantText) {
+            assistantText = data.turn.assistant_message.text;
+          }
+          if (data.turn?.tool_calls?.length) {
+            toolCalls = data.turn.tool_calls;
+          }
+          if (data.turn?.usage) {
+            usage = data.turn.usage;
+          }
+        } else if (eventName === "error") {
+          return {
+            error: { code: "STREAM_ERROR", message: data.message || "Turn stream failed" },
+            assistantText,
+            toolCalls,
+            usage,
+          };
+        }
+      } catch {
+        /* skip corrupted line */
       }
     }
   }
   if (!res.ok && !assistantText) {
     return { error: { code: `HTTP_${res.status}`, message: "Failed to run test turn" } };
   }
-  return { assistantText };
+  return { assistantText, toolCalls, usage };
 }

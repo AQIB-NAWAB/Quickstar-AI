@@ -10,8 +10,79 @@
   },
   "agent": {
     "name": "Demo Support Agent",
-    "instructions": "You are QuickStart's demo support agent for the website widget. Answer briefly in friendly conversational sentences (not bullet lists). Help with the embeddable chatbot product, pricing, and security.",
-    "model_settings": { "profile": "fake", "model_id": "fake" }
+    "instructions": "You are the official AI Support & Clinic Assistant for QuickStart AI and Dental Strivers.\n\nCORE ROLES:\n1. QuickStart AI Platform: Assist users with website chat widgets, voice calling agents, pricing, security, and setup.\n2. Dental Strivers Clinic: Provide clinic information, check available appointment slots, book appointments, and cancel bookings upon patient request.\n\nCOMMUNICATION RULES:\n- Conversational Prose: Answer in 1 to 3 friendly, concise sentences (under 90 words). Never output bulleted lists or menus unless explicitly requested.\n- Multilingual & Roman Urdu: Understand and respond naturally in English, Urdu, and Roman Urdu (e.g. 'haan', 'theek hai', 'booking karni hai', 'timing check karo').\n- Action Workflows:\n  - When asked about available appointment slots or timings, use the check_dental_slots tool.\n  - When booking an appointment, ensure you have the patient's name and their chosen slot time before invoking book_dental_slot. If they have not chosen a slot, present the available times and ask which one they prefer.\n  - Before cancelling an appointment, ask for the booking ID or patient name and ask for explicit confirmation.\n- Anti-Hallucination: If a lookup returns no available slots or zero records, state truthfully that no matching records were found. Never invent appointment slots or order IDs.",
+    "model_settings": { "profile": "fake", "model_id": "fake" },
+    "channels": {
+      "widget": { "enabled": true }
+    },
+    "tools": [
+      {
+        "id": "tool-dental-slots",
+        "type": "http",
+        "name": "check_dental_slots",
+        "description": "Check currently available dental appointment booking slots at Dental Strivers clinic.",
+        "method": "GET",
+        "base_url": "http://127.0.0.1:4000",
+        "allowed_hosts": ["127.0.0.1", "localhost"],
+        "path_template": "/api/slots"
+      },
+      {
+        "id": "tool-dental-book",
+        "type": "http",
+        "name": "book_dental_slot",
+        "description": "Book a dental appointment for a patient at Dental Strivers. Requires patient name and selected slot time.",
+        "method": "POST",
+        "base_url": "http://127.0.0.1:4000",
+        "allowed_hosts": ["127.0.0.1", "localhost"],
+        "path_template": "/api/book",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "Patient full name" },
+            "slot": { "type": "string", "description": "Selected appointment slot time, e.g. 'Tomorrow at 2:00 PM'" },
+            "email": { "type": "string", "description": "Patient contact email address" },
+            "service": { "type": "string", "description": "Requested dental service or consultation" }
+          },
+          "required": ["name", "slot"]
+        }
+      },
+      {
+        "id": "tool-dental-cancel",
+        "type": "http",
+        "name": "cancel_appointment",
+        "description": "Cancel an existing dental appointment. Requires booking ID or patient name.",
+        "method": "POST",
+        "base_url": "http://127.0.0.1:4000",
+        "allowed_hosts": ["127.0.0.1", "localhost"],
+        "path_template": "/api/cancel",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "booking_id": { "type": "string", "description": "Appointment booking ID, e.g. 'DS-901'" },
+            "name": { "type": "string", "description": "Patient full name" }
+          }
+        }
+      },
+      {
+        "id": "tool-dental-reschedule",
+        "type": "http",
+        "name": "reschedule_appointment",
+        "description": "Reschedule or change an existing dental appointment to a new time slot.",
+        "method": "POST",
+        "base_url": "http://127.0.0.1:4000",
+        "allowed_hosts": ["127.0.0.1", "localhost"],
+        "path_template": "/api/reschedule",
+        "parameters": {
+          "type": "object",
+          "required": ["new_slot"],
+          "properties": {
+            "booking_id": { "type": "string", "description": "Existing appointment booking ID, e.g. 'DS-618'" },
+            "name": { "type": "string", "description": "Patient full name" },
+            "new_slot": { "type": "string", "description": "The new appointment slot time to change to" }
+          }
+        }
+      }
+    ]
   },
   "secret": {
     "name": "demo/openai",

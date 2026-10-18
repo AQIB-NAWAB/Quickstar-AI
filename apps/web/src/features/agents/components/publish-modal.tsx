@@ -32,25 +32,25 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#101828]/40 animate-in fade-in duration-150">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="publish-modal-title"
-        className="w-full max-w-md rounded-[12px] border border-[#E1E5EA] bg-white p-6 shadow-xl relative"
+        className="w-full max-w-md rounded-[12px] border border-[#DCE1E8] bg-white p-6 shadow-xl relative animate-in zoom-in-95 duration-150"
       >
         <button
           type="button"
           onClick={onClose}
           disabled={loading}
-          className="absolute right-4 top-4 p-1.5 rounded-[6px] text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] transition-colors"
+          className="absolute right-4 top-4 p-1.5 rounded-[6px] text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FB] transition-colors"
           aria-label="Close dialog"
         >
           <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[8px] bg-[#FFF3ED] text-[#F15A24] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-[8px] bg-[#FFF6F2] text-[#FF571A] flex items-center justify-center shrink-0">
             <Rocket className="w-5 h-5" />
           </div>
           <div>
@@ -75,7 +75,7 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
             Publishing freezes an immutable snapshot of this agent&apos;s current prompt instructions,
             model parameters, and attached tools.
           </p>
-          <div className="p-3.5 rounded-[8px] bg-[#F8F9FA] border border-[#E1E5EA] space-y-1.5 text-[12px]">
+          <div className="p-3.5 rounded-[8px] bg-[#F8F9FB] border border-[#DCE1E8] space-y-1.5 text-[12px]">
             <div className="flex justify-between">
               <span className="text-[#667085]">Draft Version:</span>
               <span className="font-semibold text-[#202125] font-mono">v{agent.version}</span>
@@ -113,7 +113,7 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-[6px] text-[13px] font-medium text-[#202125] bg-white border border-[#E1E5EA] hover:bg-[#F8F9FA] transition-colors"
+            className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[#202125] bg-white border border-[#DCE1E8] hover:bg-[#F8F9FB] transition-colors"
           >
             Cancel
           </button>
@@ -121,7 +121,7 @@ export function PublishModal({ isOpen, onClose, onConfirm, agent, hasUnsavedChan
             type="button"
             onClick={handlePublish}
             disabled={loading || hasUnsavedChanges}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[#F15A24] text-white text-[13px] font-medium hover:bg-[#C94716] transition-colors shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#FF571A] text-white text-[13px] font-medium hover:bg-[#E04810] transition-colors shadow-sm disabled:opacity-50"
           >
             {loading ? (
               "Publishing..."

@@ -54,12 +54,12 @@ start_svc() {
     return 0
   fi
 
-  if [[ ! -f "$entry" ]]; then
+  if [[ ! -f "$entry" ]] || [[ "$name" == "runtime" ]]; then
     echo "  building ${name}…"
     pnpm --filter "$(jq -r .name "$ROOT/$dir/package.json")" build >>"$logfile" 2>&1 || true
   fi
 
-  if [[ "$name" == "conversation" ]]; then
+  if [[ "$name" == "conversation" || "$name" == "workflow" ]]; then
     env KAFKA_BROKERS="" node --env-file=.env "$entry" >>"$logfile" 2>&1 &
   else
     node --env-file=.env "$entry" >>"$logfile" 2>&1 &
@@ -95,6 +95,7 @@ pnpm --filter @quickstart/service-workspace migrate || true
 pnpm --filter @quickstart/service-agent migrate || true
 pnpm --filter @quickstart/service-conversation migrate || true
 pnpm --filter @quickstart/service-voice migrate || true
+pnpm --filter @quickstart/service-workflow migrate || true
 
 bold "3) Core Backend Services"
 start_svc identity services/identity-service "${IDENTITY_PORT:-3001}"
@@ -104,7 +105,16 @@ start_svc conversation services/conversation-service "${CONVERSATION_PORT:-3004}
 start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
 start_svc runtime services/runtime-service "${RUNTIME_PORT:-3006}"
 start_svc voice services/voice-service "${VOICE_PORT:-3008}"
+start_svc workflow services/workflow-service "${WORKFLOW_PORT:-3012}"
 start_svc gateway services/gateway-service "${GATEWAY_PORT:-3000}"
+
+if ! curl -sf "http://127.0.0.1:4000/api/slots" >/dev/null 2>&1; then
+  node fixtures/dental-clinic-portal/server.mjs >>"$LOG_DIR/clinic.log" 2>&1 &
+  CLINIC_PID=$!
+  echo "$CLINIC_PID" > "$LOG_DIR/clinic.pid"
+  PIDS+=("$CLINIC_PID")
+  echo "  started dental-clinic-portal (pid $CLINIC_PID) on :4000"
+fi
 
 bold "4) Demo Account Seed"
 node --env-file=.env scripts/seed-demo-account.mjs >/dev/null 2>&1 || true

@@ -182,12 +182,35 @@ async function main() {
         name: agent.name,
         instructions: agent.instructions,
         model_settings: agent.model_settings,
+        tools: agent.tools ?? [],
+        channels: agent.channels ?? { widget: { enabled: true } },
       },
     });
     agentRow = created.data.agent;
     console.log(`[seed] created agent ${agentRow.id}`);
   } else {
     console.log(`[seed] reuse agent ${agentRow.id}`);
+    if (agent.tools && (!agentRow.tools || agentRow.tools.length < agent.tools.length)) {
+      try {
+        const patchRes = await request(`${ws}/agents/${agentRow.id}`, {
+          method: "PATCH",
+          token,
+          body: {
+            expected_version: agentRow.version,
+            instructions: agent.instructions,
+            tools: agent.tools,
+            channels: agent.channels ?? { widget: { enabled: true } },
+          },
+        });
+        if (patchRes.data?.agent) {
+          agentRow = patchRes.data.agent;
+          console.log(`[seed] updated agent with production tools and instructions`);
+          agentRow.production_version_id = null;
+        }
+      } catch (err) {
+        console.log(`[seed] agent tools update skipped: ${err instanceof Error ? err.message : err}`);
+      }
+    }
   }
 
   let versionId = agentRow.production_version_id;

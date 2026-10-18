@@ -19,13 +19,9 @@ export const VOICE_TRANSFER_TOOL: AgentToolDefinition = {
 export function utteranceRequestsAction(text: string | undefined): boolean {
   const value = text?.trim() ?? "";
   if (!value) return false;
-  // Voice transcripts often phrase lookups naturally (“get the details of a
-  // post with id five”), while this path previously only recognized a small
-  // set of command-like phrases. Share the widget detector so text and voice
-  // turns expose the same configured lookup tools.
   return (
     visitorRequestsToolAction(value) ||
-    /\b(look\s*up|lookup|fetch|check (my|the|this|that)|find (my|the)|search for|scrape|create|update|delete|cancel|order status|post id|track my|book a|run the)\b|چیک کرو|ڈھونڈ|کینسل/i.test(
+    /\b(look\s*up|lookup|fetch|check (my|the|this|that|available|open)|find (my|the)|search for|scrape|create|update|delete|cancel|order status|post id|track my|book a|book an|book the|run the|slots|slot|appointment|appointments)\b|چیک کرو|ڈھونڈ|کینسل|بک کرو|بک کریں|\b(?:check karo|check karein|dekh ke batao|dhoondo|dhoondho|booking karni|book kar|book karein|cancel kar|cancel karein|slot check|appointment book)\b/i.test(
       value,
     )
   );
@@ -35,7 +31,7 @@ export function utteranceRequestsAction(text: string | undefined): boolean {
 export function visitorRequestsToolAction(text: string | undefined): boolean {
   const value = text?.trim() ?? "";
   if (!value) return false;
-  return /\b(?:look\s*up|lookup|search(?:\s+for)?|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get)\b.{0,70}\b(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\b|\b(?:create|update|delete|cancel|book|run)\s+(?:a|an|the|my|this|it)?\s*(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|it|this)\b|چیک کرو|ڈھونڈ|کینسل/i.test(
+  return /\b(?:look\s*up|lookup|search(?:\s+for)?|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get|tell)\b.{0,70}\b(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|slot|slots|appointment|appointments)\b|\b(?:create|update|delete|cancel|book|run|schedule)\s+(?:a|an|the|my|this|it)?\s*(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|slot|slots|appointment|appointments|it|this)\b|چیک کرو|ڈھونڈ|کینسل|بک کرو|بک کریں|کینسل کریں|\b(?:check karo|check karein|dekh ke batao|dhoondo|dhoondho|booking karni|book kar|book karein|cancel kar|cancel karein|slot check|appointment book)\b/i.test(
     value,
   ) ||
     /\b(?:details?|information)\s+(?:of|for|about)\s+(?:(?:the|a|an|my|this|that)\s+)?(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\b/i.test(
@@ -44,7 +40,7 @@ export function visitorRequestsToolAction(text: string | undefined): boolean {
 }
 
 export function assistantAskedForLookupTarget(text: string | undefined): boolean {
-  return /\b(?:which|what).{0,50}\b(?:post|order|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)(?:\s+id)?\b|\b(?:which|what).{0,40}\b(?:id|identifier|number)\b/i.test(
+  return /\b(?:which|what).{0,50}\b(?:post|order|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|slot|appointment)(?:\s+id)?\b|\b(?:which|what).{0,40}\b(?:id|identifier|number|time|slot)\b/i.test(
     text ?? "",
   ) ||
     /\b(?:share|provide|give|tell me)\b.{0,40}\b(?:the\s+)?(?:id|identifier|number)\b/i.test(
@@ -55,15 +51,16 @@ export function assistantAskedForLookupTarget(text: string | undefined): boolean
 export function visitorSuppliedIdentifier(text: string | undefined): boolean {
   const value = text ?? "";
   const numberWord =
-    "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty";
+    "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|aik|ek|do|teen|char|chaar|paanch|chheh|saat|aath|nau|das|dus";
   return new RegExp(
-    `^\\s*#?\\s*(?:\\d+|${numberWord})[.!?]?\\s*$|\\b(?:id|number)\\s*(?:(?:is|with|of|number)\\s*)?#?\\s*(?:\\d+[a-z0-9-]*|${numberWord})\\b|#\\s*\\d+\\b|\\b(?:post|order|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\\s+#?\\s*(?:\\d+|${numberWord})\\b`,
+    `^\\s*#?\\s*(?:\\d+|[۰-۹]+|${numberWord})[.!?]?\\s*$|\\b(?:id|number|no|number hai|id hai)\\s*(?:(?:is|with|of|number|hai)\\s*)?#?\\s*(?:\\d+[a-z0-9-]*|[۰-۹]+|${numberWord})\\b|#\\s*\\d+\\b|\\b(?:post|order|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer|slot)\\s+#?\\s*(?:\\d+|[۰-۹]+|${numberWord})\\b`,
     "i",
   ).test(value);
 }
 
 export function lookupRequestMissingIdentifier(text: string | undefined): boolean {
   const value = text ?? "";
+  if (/\b(?:slot|slots|available|appointment|schedule)\b/i.test(value)) return false;
   const isLookupVerb =
     /\b(?:look\s*up|lookup|search|fetch|retrieve|pull\s+up|track|query|check|show|see|open|get|details?|information)\b/i.test(
       value,
@@ -81,7 +78,7 @@ export function lookupRequestMissingIdentifier(text: string | undefined): boolea
 }
 
 export function assistantAskedForActionConfirmation(text: string | undefined): boolean {
-  return /\b(?:please\s+confirm|reply\s+yes\s+to|confirm\s+if\s+i\s+should|(?:should|shall)\s+i\s+(?:create|update|delete|cancel|start|go\s+ahead|proceed)|would\s+you\s+like\s+me\s+to\s+(?:create|update|delete|cancel|start|proceed|go\s+ahead)|do\s+you\s+want\s+me\s+to\s+(?:create|update|delete|cancel|start|proceed|go\s+ahead))\b/i.test(
+  return /\b(?:please\s+confirm|reply\s+yes\s+to|confirm\s+if\s+i\s+should|just\s+to\s+confirm|correct\?|(?:should|shall)\s+i\s+(?:create|update|delete|cancel|start|go\s+ahead|proceed|book)|would\s+you\s+like\s+me\s+to\s+(?:create|update|delete|cancel|start|proceed|go\s+ahead|book)|do\s+you\s+want\s+me\s+to\s+(?:create|update|delete|cancel|start|proceed|go\s+ahead|book))\b/i.test(
     text ?? "",
   );
 }
@@ -89,7 +86,7 @@ export function assistantAskedForActionConfirmation(text: string | undefined): b
 export function visitorWantsTeammate(text: string | undefined): boolean {
   const value = text?.trim() ?? "";
   if (!value) return false;
-  return /\b(talk|speak|switch|transfer|connect|hand)\b.{0,40}\b(human|person|teammate|representative|operator)\b|\b(human|live) (agent|person|support)\b|انسان سے بات|ساتھی سے بات|بندے سے بات/i.test(
+  return /\b(talk|speak|switch|transfer|connect|hand)\b.{0,40}\b(human|person|teammate|representative|operator|agent)\b|\b(human|live) (agent|person|support)\b|انسان سے بات|ساتھی سے بات|بندے سے بات|نمائندے سے بات|\b(bande|insan|human|representative|agent) se (baat|connect)\b/i.test(
     value,
   );
 }
@@ -104,31 +101,41 @@ export function spokenToolNudge(
   language: string | undefined,
   gender: "female" | "male" | "neutral" | undefined = "male",
 ): string {
-  const urdu = (language ?? "").toLowerCase().startsWith("ur");
+  const lang = (language ?? "").toLowerCase();
+  const urdu = lang.startsWith("ur");
   const feminine = gender === "female";
   if (toolName === VOICE_TRANSFER_TOOL_NAME) {
     return urdu
       ? feminine
         ? "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہی ہوں۔"
         : "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
-      : "Okay, I'm switching you to a teammate.";
+      : "Okay, I'm connecting you with a teammate right now.";
   }
   if (urdu) {
     return feminine ? "ٹھیک ہے، میں یہ چیک کر رہی ہوں۔" : "ٹھیک ہے، میں یہ چیک کر رہا ہوں۔";
   }
-  return "Let me check that for you.";
+  return "Checking that for you right now.";
 }
 
-/** Writes, starts, and cancels wait for a yes. Lookups the visitor already asked for do not. */
+/** Writes, starts, and cancels wait for a yes. Lookups and direct bookings the visitor already asked for do not. */
 export function toolChangesData(tool: AgentToolDefinition | undefined): boolean {
   if (!tool || tool.name === VOICE_TRANSFER_TOOL_NAME) return false;
+  const lowerName = tool.name.toLowerCase();
+  if (lowerName.includes("cancel") || lowerName.includes("delete") || lowerName.includes("remove")) return true;
+  if (tool.name === "book_dental_slot") return false;
   if (tool.type === "http" && tool.method !== "GET") return true;
   if (tool.type === "builtin_leads" && (tool.action === "start" || tool.action === "cancel")) return true;
   return false;
 }
 
+export function visitorWantsCancellation(text: string | undefined): boolean {
+  return /\b(cancel|cancellation|cancel appointment|cancel booking|appointment cancel|booking cancel|cancel my appointment|khatam|cancel kar do|cancel karni hai|cancel kardein|منسوخ|کینسل)\b/i.test(
+    text ?? "",
+  );
+}
+
 export function visitorConfirmed(text: string | undefined): boolean {
-  return /\b(yes|yeah|yep|sure|ok|okay|go ahead|please do|confirm|do it|haan|ji|ہاں|جی)\b/i.test(
+  return /\b(yes|yeah|yep|sure|ok|okay|go ahead|please do|confirm|do it|haan|han|haa|haanji|theek|thik|theek hai|thik hai|sahi hai|bilkul|kar do|kar dein|kardo|kardein|zaroor|chalega|ہاں|جی|جی ہاں|بالکل|ٹھیک ہے|ضرور)\b/i.test(
     text ?? "",
   );
 }
@@ -140,4 +147,5 @@ export const CONVERSATION_PRIORITY = [
   "If they asked for that action but one required detail is missing, ask one short question for that detail. Never open a normal conversation by asking which id they mean.",
   "Before a tool that creates, updates, deletes, starts, or cancels something, ask one short confirmation and wait for a yes. Do not call it until they agree.",
   "A read-only lookup they already asked for can run immediately. Do not say the function name. Never invent an id, and never reuse an id from an earlier turn unless they just referred to that same thing.",
+  "ANTI-HALLUCINATION GUARD (strict): When a tool lookup or knowledge query returns empty results, 'not found', or zero items, state clearly and truthfully that no matching records exist. NEVER fabricate, guess, or assume fake IDs, mock appointment slots, or false order confirmations.",
 ].join("\n");

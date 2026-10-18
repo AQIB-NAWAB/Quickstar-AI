@@ -42,14 +42,14 @@ export function InstructionsExpandModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="expanded-instructions-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[rgba(16,24,40,0.40)] animate-in fade-in duration-150"
     >
-      <div className="w-full max-w-[960px] h-[85vh] bg-white rounded-xl border border-[#E1E5EA] shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-[960px] h-[85vh] bg-white rounded-[12px] border border-[#DCE1E8] shadow-xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#EDF0F2] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-[#EAECF0] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
             <FileText className="w-4 h-4 text-[#667085]" />
-            <h2 id="expanded-instructions-title" className="text-[15px] font-semibold text-[#202125]">
+            <h2 id="expanded-instructions-title" className="text-[16px] font-semibold text-[#202125]">
               System instructions
             </h2>
           </div>
@@ -81,19 +81,19 @@ export function InstructionsExpandModal({
             value={instructions}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Tell your agent how to respond and what to focus on..."
-            className="w-full flex-1 p-4 text-[15px] leading-relaxed text-[#202125] bg-transparent resize-none focus:outline-hidden placeholder-[#98A2B3]"
+            className="w-full flex-1 p-4 text-[16px] leading-[26px] text-[#202125] bg-transparent resize-none focus:outline-none placeholder-[#98A2B3]"
           />
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-[#FAFBFB] border-t border-[#EDF0F2] flex items-center justify-between text-[12px] text-[#667085] shrink-0">
+        <div className="px-6 py-3 bg-[#FAFBFB] border-t border-[#EAECF0] flex items-center justify-between text-[13px] text-[#667085] shrink-0">
           <span>Plain text</span>
           <div className="flex items-center gap-4">
-            <span>~{estimatedTokens} tokens</span>
+            <span>~{estimatedTokens} tokens (estimated)</span>
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-[#202125] text-white font-medium rounded-md hover:bg-black transition-colors"
+              className="px-4 py-1.5 bg-[#202125] text-white font-medium rounded-[6px] hover:bg-black transition-colors"
             >
               Done
             </button>

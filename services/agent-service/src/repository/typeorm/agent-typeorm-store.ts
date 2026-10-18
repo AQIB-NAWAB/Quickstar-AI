@@ -36,6 +36,9 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
         channels: input.channels ?? defaultChannels,
         tools: input.tools ?? [],
         voice: input.voice ?? { ...DEFAULT_AGENT_VOICE_SETTINGS },
+        builderMode: input.builderMode ?? "legacy",
+        draftGraph: input.draftGraph ?? null,
+        graphSchemaVersion: 1,
         version: 1,
         productionVersionId: null,
         createdAt: now,
@@ -95,6 +98,10 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       if (input.channels !== undefined) entity.channels = input.channels;
       if (input.tools !== undefined) entity.tools = input.tools;
       if (input.voice !== undefined) entity.voice = input.voice;
+      if (input.builderMode !== undefined) entity.builderMode = input.builderMode;
+      if (input.draftGraph !== undefined) entity.draftGraph = input.draftGraph;
+      if (input.graphSchemaVersion !== undefined)
+        entity.graphSchemaVersion = input.graphSchemaVersion;
       entity.version = entity.version + 1;
       entity.updatedAt = new Date();
 
@@ -112,6 +119,43 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       }
     },
 
+    async updateGraph(
+      tenant: TenantContext,
+      agentId: string,
+      graph: import("@quickstart/contracts").AgentGraph,
+      expectedVersion: number,
+    settings: import("@quickstart/contracts").GraphDraftSettings = {},
+    ) {
+      const entity = await dataSource.manager.findOne(AgentEntity, {
+        where: { id: agentId, workspaceId: tenant.workspaceId },
+      });
+      if (!entity) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Agent not found",
+        });
+      }
+      if (entity.version !== expectedVersion) {
+        throw new AppError({
+          code: ErrorCode.CONFLICT,
+          message: "Draft was modified by another user or session; reload and retry",
+        });
+      }
+
+      const values = { draftGraph: graph, builderMode: "canvas" as const, graphSchemaVersion: graph.schema_version, version: expectedVersion + 1, updatedAt: new Date(),
+          ...(settings.instructions !== undefined ? { instructions: settings.instructions } : {}),
+          ...(settings.model_settings ? { modelSettings: settings.model_settings } : {}),
+          ...(settings.channels ? { channels: settings.channels } : {}),
+          ...(settings.voice ? { voice: settings.voice } : {}),
+      };
+      const changed = await dataSource.manager.update(AgentEntity,
+        { id: agentId, workspaceId: tenant.workspaceId, version: expectedVersion },
+        values as Parameters<typeof dataSource.manager.update<AgentEntity>>[2]);
+      if (!changed.affected) throw new AppError({ code: ErrorCode.CONFLICT, message: "Draft changed while saving. Your local changes have been kept." });
+      const updated = await dataSource.manager.findOneByOrFail(AgentEntity, { id: agentId, workspaceId: tenant.workspaceId });
+      return toAgent(updated);
+    },
+
     async deleteAgent(tenant: TenantContext, agentId: string) {
       const result = await dataSource.manager.delete(AgentEntity, {
         id: agentId,
@@ -124,7 +168,7 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
       tenant: TenantContext,
       agentId: string,
       baseVersion: number,
-      audit?: { requestId: string },
+      audit?: { requestId?: string; releaseNotes?: string },
     ) {
       return await dataSource.transaction(async (manager) => {
         const entity = await manager.findOne(AgentEntity, {
@@ -161,7 +205,8 @@ export function createTypeOrmAgentStore(dataSource: DataSource): AgentStore {
           workspaceId: tenant.workspaceId,
           agentId,
           releaseNumber,
-          snapshot: snapshotFromAgent(agent),
+          snapshot: snapshotFromAgent(agent, audit?.releaseNotes),
+          releaseNotes: audit?.releaseNotes ?? null,
           createdBy: tenant.actorId,
           createdAt: new Date(),
         });

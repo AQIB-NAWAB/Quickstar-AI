@@ -10,6 +10,7 @@ const MIGRATIONS = [
   { version: "004_tool_calls", file: "004_tool_calls.sql" },
   { version: "005_conversation_handoff", file: "005_conversation_handoff.sql" },
   { version: "006_event_platform", file: "006_event_platform.sql" },
+  { version: "007_flow_sessions_and_traces", file: "007_flow_sessions_and_traces.sql" },
 ] as const;
 
 export async function runConversationMigrations(pool: Pool): Promise<void> {

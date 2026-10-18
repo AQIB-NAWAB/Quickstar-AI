@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Bot, Send, Trash2, User, X } from "lucide-react";
 import { createTestConversation, executeTestTurn } from "../lib/client";
 import type { Agent } from "../lib/types";
+import { FormattedChatMessage } from "./formatted-chat-message";
 
 type Props = {
   isOpen: boolean;
@@ -203,7 +204,7 @@ export function TestChatDrawer({ isOpen, onClose, workspaceId, agent }: Props) {
                       : "bg-white border border-border-faint text-neutral-800 shadow-xs rounded-tl-xs"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  <FormattedChatMessage text={m.text} isUser={m.sender === "user"} />
                   <span
                     className={`block mt-1 text-[9px] ${
                       m.sender === "user" ? "text-neutral-400 text-right" : "text-neutral-400"

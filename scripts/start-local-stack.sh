@@ -91,6 +91,7 @@ bold "1) Data plane"
 docker compose up -d --wait
 
 bold "2) Migrations (shared Postgres)"
+pnpm --filter @quickstart/contracts build
 export DATABASE_URL="${DATABASE_URL:-postgresql://quickstart:quickstart@localhost:5433/quickstart}"
 make identity-migrate workspace-migrate agent-migrate conversation-migrate \
   web-fetch-migrate knowledge-migrate memory-migrate secrets-migrate \

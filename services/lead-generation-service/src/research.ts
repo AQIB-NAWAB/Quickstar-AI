@@ -12,6 +12,7 @@ import type { Store, Task } from "./store.js";
 import { responseText, retryAfterSeconds } from "./responses.js";
 import { domain } from "./domain.js";
 import { ResearchError } from "./research-error.js";
+import { repairAndParseJson } from "./lib/json-repair.js";
 export { ResearchError } from "./research-error.js";
 export type Page = { url: string; text: string };
 export interface ResearchProvider {
@@ -165,20 +166,11 @@ export class GatewayResearchProvider implements ResearchProvider {
       throw new ResearchError("INVALID_USAGE");
     await this.store.settle(usage, input + output);
     if (typeof r.content !== "string") throw new ResearchError("MODEL_INVALID_OUTPUT", true);
-    const cleaned = r.content.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-    try {
-      return JSON.parse(cleaned);
-    } catch {
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          return JSON.parse(match[0]);
-        } catch {
-          // fall through
-        }
-      }
-      throw new ResearchError("MODEL_INVALID_JSON", true);
+    const repaired = repairAndParseJson(r.content);
+    if (repaired != null) {
+      return repaired;
     }
+    throw new ResearchError("MODEL_INVALID_JSON", true);
   }
   async deliver(t: Task, payload: CampaignLeadDelivery) {
     if (!this.config.campaignUrl) throw new ResearchError("CAMPAIGN_NOT_CONFIGURED", true, 300);
@@ -536,8 +528,20 @@ export function qualify(
   const discoveredFields: Record<string, string> = {};
   if (r.discovered_fields && typeof r.discovered_fields === "object" && !Array.isArray(r.discovered_fields)) {
     for (const [k, v] of Object.entries(r.discovered_fields as Record<string, unknown>)) {
-      if (typeof k === "string" && k.trim() && typeof v === "string" && v.trim()) {
-        discoveredFields[k.trim().slice(0, 100)] = v.trim().slice(0, 500);
+      if (typeof k === "string" && k.trim() && v != null) {
+        let strVal = "";
+        if (typeof v === "string") {
+          strVal = v.trim();
+        } else if (typeof v === "number" || typeof v === "boolean") {
+          strVal = String(v);
+        } else if (Array.isArray(v)) {
+          strVal = v.map((item) => String(item).trim()).filter(Boolean).join(", ");
+        } else if (typeof v === "object") {
+          strVal = JSON.stringify(v);
+        }
+        if (strVal) {
+          discoveredFields[k.trim().slice(0, 100)] = strVal.slice(0, 500);
+        }
       }
     }
   }
@@ -720,7 +724,7 @@ export class ResearchAgent {
     }));
     const raw = await this.provider.json(
       t,
-      "Return {company_name,category,location,company_size,contact_role,email,phone,summary,fit_score:integer 0..100,fit_reasons:string[],discovered_fields:object with string key-values based on brief instructions or discovered attributes,target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field,value,source_url,quote}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. location_match is true when the found address is the target place or a more specific neighborhood, district, or area inside it: Gulberg, Lahore, Pakistan matches Lahore, Pakistan. A different city does not match, even in the same country. Reasons and summary are labelled AI assessments, not verified buying intent. For each verified field (especially company_name, location, email, phone), provide an evidence item with field set to that exact name and verbatim quote.",
+      "Return valid JSON object: {company_name:string,category:string,location:string,company_size:string|null,contact_role:string|null,email:string|null,phone:string|null,summary:string,fit_score:integer 0..100,fit_reasons:string[],discovered_fields:object with key-values (e.g. services, pricing, specialties, tech_stack),target_checks:{category_match:boolean,location_match:boolean,company_size_match:boolean,contact_role_match:boolean},evidence:[{field:string,value:string,source_url:string,quote:string}]}. Qualify against the supplied offering and target. False checks for unsupported criteria. location_match is true when the found address is the target place or a more specific neighborhood/district inside it. A different city does not match. For each verified field (especially company_name, location, email, phone), provide an evidence item with exact field name and verbatim quote from pages.",
       {
         business,
         business_research: profile.researched,

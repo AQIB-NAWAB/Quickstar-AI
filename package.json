@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --filter @quickstart/web dev",
     "build": "pnpm -r run build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
@@ -22,7 +23,8 @@
     "widget:real-llm": "node --env-file=.env scripts/configure-demo-agent-real-llm.mjs",
     "start:agent-inbox": "bash scripts/start-agent-inbox.sh",
     "stop:agent-inbox": "bash scripts/stop-agent-inbox.sh",
-    "start:workspaces": "bash scripts/start-workspaces.sh"
+    "start:workspaces": "bash scripts/start-workspaces.sh",
+    "clinic:portal": "node fixtures/dental-clinic-portal/server.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

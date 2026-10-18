@@ -163,6 +163,7 @@ export function createConversationsController(conversations: ConversationsServic
       const conversation = await conversations.requestVoiceAttention(
         tenant.workspaceId,
         conversationId,
+        req.body?.channel === "chat" ? "chat" : "voice",
       );
       sendPlatformJson(res, 200, {
         request_id: requestId,

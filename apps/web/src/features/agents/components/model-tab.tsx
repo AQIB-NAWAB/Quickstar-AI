@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  CheckCircle2,
   ChevronDown,
   Cpu,
   FileText,
-  HelpCircle,
+  Sliders,
 } from "lucide-react";
 
 type Props = {
@@ -69,8 +70,12 @@ export function ModelTab({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Compute slider fill percentage
+  const tempPercent = Math.min(Math.max((temperature / 1) * 100, 0), 100);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full">
+      {/* Title & Subtitle matching 3.png */}
       <div>
         <h2 className="text-[24px] font-semibold text-[#202125]">Model &amp; parameters</h2>
         <p className="mt-1 text-[14px] text-[#667085]">
@@ -78,154 +83,166 @@ export function ModelTab({
         </p>
       </div>
 
-      {/* Language Model Selector */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[14px] font-medium text-[#202125]">
-          <span>Language model</span>
-          <span title="Used for your agent's responses.">
-            <HelpCircle className="w-3.5 h-3.5 text-[#667085] cursor-help" />
-          </span>
+      {/* Full-width Language Model Card matching 3.png */}
+      <div className="bg-white border border-[#DCE1E8] rounded-[8px] overflow-hidden shadow-xs">
+        <div className="px-5 py-3 border-b border-[#EAECF0] flex items-center gap-2.5">
+          <FileText className="w-4 h-4 text-[#667085]" />
+          <span className="text-[14px] font-semibold text-[#202125]">Language model</span>
         </div>
 
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setDropdownOpen((v) => !v)}
-            aria-haspopup="listbox"
-            aria-expanded={dropdownOpen}
-            className="w-full flex items-center justify-between p-3.5 bg-white border border-[#E1E5EA] rounded-lg shadow-sm hover:border-[#CCD2D8] transition-colors text-left"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-md bg-[#202125] text-white flex items-center justify-center shrink-0">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[15px] font-semibold text-[#202125] truncate leading-tight">
-                  {selectedModel.name}
-                </span>
-                <span className="block text-[13px] text-[#667085] leading-tight mt-0.5">
-                  {selectedModel.provider}
-                </span>
-              </div>
-            </div>
-            <ChevronDown
-              className={`w-4 h-4 text-[#667085] shrink-0 transition-transform ${
-                dropdownOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="md:max-w-xs">
+            <label id="model-select-label" className="block text-[15px] font-semibold text-[#202125]">
+              Model
+            </label>
+            <p className="mt-0.5 text-[14px] text-[#667085]">
+              Used for your agent&apos;s responses.
+            </p>
+          </div>
 
-          {dropdownOpen && (
-            <div
-              role="listbox"
-              className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto bg-white border border-[#E1E5EA] rounded-lg shadow-xl py-1"
+          <div className="relative flex-1 max-w-[560px]" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setDropdownOpen((v) => !v)}
+              aria-labelledby="model-select-label"
+              aria-haspopup="listbox"
+              aria-expanded={dropdownOpen}
+              className="w-full flex items-center justify-between p-3.5 bg-white border border-[#DCE1E8] rounded-[8px] shadow-xs hover:border-[#B6C0C9] transition-colors text-left"
             >
-              {models.map((m) => {
-                const isSelected = m.id === model;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => {
-                      onChangeModel(m.id);
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between p-3 text-left transition-colors ${
-                      isSelected
-                        ? "bg-[#FFF3ED] text-[#F15A24] font-medium"
-                        : "hover:bg-[#F8F9FA] text-[#202125]"
-                    }`}
-                  >
-                    <div>
-                      <div className="text-[14px] font-medium leading-tight">{m.name}</div>
-                      <div className="text-[12px] text-[#667085] mt-0.5 leading-tight">{m.desc}</div>
-                    </div>
-                    <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-[#F2F4F7] text-[#344054]">
-                      {m.provider}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-[6px] bg-[#F2F4F7] border border-[#DCE1E8] text-[#202125] flex items-center justify-center shrink-0">
+                  <Cpu className="w-4 h-4 text-[#667085]" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-[15px] font-semibold text-[#202125] truncate leading-tight">
+                    {selectedModel.name}
+                  </span>
+                  <span className="block text-[13px] text-[#667085] leading-tight mt-0.5">
+                    {selectedModel.provider}
+                  </span>
+                </div>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-[#667085] shrink-0 transition-transform ${
+                  dropdownOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {dropdownOpen && (
+              <div
+                role="listbox"
+                className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-64 overflow-y-auto bg-white border border-[#DCE1E8] rounded-[8px] shadow-xl py-1"
+              >
+                {models.map((m) => {
+                  const isSelected = m.id === model;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        onChangeModel(m.id);
+                        setDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-3 text-left transition-colors ${
+                        isSelected
+                          ? "bg-[#FFF3ED] text-[#FF571A] font-medium"
+                          : "hover:bg-[#F8F9FA] text-[#202125]"
+                      }`}
+                    >
+                      <div>
+                        <div className="text-[14px] font-medium leading-tight">{m.name}</div>
+                        <div className="text-[12px] text-[#667085] mt-0.5 leading-tight">{m.desc}</div>
+                      </div>
+                      <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-[#F2F4F7] text-[#344054]">
+                        {m.provider}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-[13px] text-[#667085]">Used for your agent&apos;s responses.</p>
       </div>
 
-      {/* Response Settings Section */}
-      <div className="pt-6 border-t border-[#EDF0F2] space-y-5">
-        <h3 className="text-[22px] font-semibold text-[#202125]">Response settings</h3>
+      {/* Two Equal-Width Setting Cards with 20-24px gap matching 3.png */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        {/* Left Card: Temperature */}
+        <div className="bg-white border border-[#DCE1E8] rounded-[8px] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#667085]" />
+                <label htmlFor="temp-input" className="text-[15px] font-semibold text-[#202125]">
+                  Temperature
+                </label>
+              </div>
 
-        {/* Temperature */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <label htmlFor="temperature-number-input" className="text-[14px] font-medium text-[#202125]">
-                Temperature
-              </label>
-              <span title="Lower values give more consistent responses. Higher values produce more varied text.">
-                <HelpCircle className="w-3.5 h-3.5 text-[#667085] cursor-help" />
-              </span>
+              <input
+                id="temp-input"
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                value={temperature}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v >= 0 && v <= 1) {
+                    onChangeTemperature(v);
+                  }
+                }}
+                className="w-16 h-9 px-2 text-center text-[14px] font-mono font-medium text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A]"
+              />
             </div>
 
-            <input
-              id="temperature-number-input"
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              value={temperature}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v) && v >= 0 && v <= 1) {
-                  onChangeTemperature(v);
-                }
-              }}
-              className="w-[112px] h-11 px-3 py-1 text-[14px] text-center font-mono text-[#202125] bg-white border border-[#E1E5EA] rounded-md focus:outline-none focus:border-[#F15A24]"
-            />
+            <p className="mt-1.5 text-[14px] text-[#667085]">
+              Lower values give more consistent responses.
+            </p>
           </div>
 
-          <p className="text-[13px] text-[#667085]">Lower values give more consistent responses.</p>
+          <div className="space-y-3 pt-2">
+            {/* Custom Slider with orange active track */}
+            <div className="relative flex items-center">
+              <input
+                aria-label="Temperature slider"
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={temperature}
+                onChange={(e) => onChangeTemperature(parseFloat(e.target.value))}
+                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent focus:outline-none z-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[#FF571A] [&::-webkit-slider-thumb]:shadow-xs [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-[#FF571A]"
+                style={{
+                  background: `linear-gradient(to right, #FF571A 0%, #FF571A ${tempPercent}%, #EAECF0 ${tempPercent}%, #EAECF0 100%)`,
+                }}
+              />
+            </div>
 
-          {/* Range Slider */}
-          <div className="space-y-1.5">
-            <input
-              aria-label="Temperature"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={temperature}
-              onChange={(e) => onChangeTemperature(parseFloat(e.target.value))}
-              className="w-full accent-[#F15A24] cursor-pointer"
-            />
-
-            <div className="flex items-center justify-between text-[12px] text-[#7A808A]">
-              <div>
-                <span className="font-medium text-[#344054]">0</span>
-                <span className="block text-[11px]">More consistent</span>
-              </div>
-              <span className="font-medium text-[#344054]">0.5</span>
-              <div className="text-right">
-                <span className="font-medium text-[#344054]">1</span>
-                <span className="block text-[11px]">More varied</span>
-              </div>
+            <div className="flex items-center justify-between text-[13px] text-[#667085]">
+              <span>0 · Consistent</span>
+              <span>1 · Varied</span>
             </div>
           </div>
         </div>
 
-        {/* Maximum response tokens */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <label htmlFor="max-tokens-input" className="block text-[14px] font-medium text-[#202125]">
+        {/* Right Card: Maximum response tokens */}
+        <div className="bg-white border border-[#DCE1E8] rounded-[8px] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#667085]" />
+              <label htmlFor="max-tokens-input" className="text-[15px] font-semibold text-[#202125]">
                 Maximum response tokens
               </label>
-              <p className="text-[13px] text-[#667085] mt-0.5">The upper limit for a single reply.</p>
             </div>
+            <p className="mt-1.5 text-[14px] text-[#667085]">
+              The upper limit for a single reply.
+            </p>
+          </div>
 
+          <div className="space-y-2 pt-1">
             <input
               id="max-tokens-input"
               type="number"
@@ -239,21 +256,33 @@ export function ModelTab({
                   onChangeMaxTokens(v);
                 }
               }}
-              className="w-[180px] h-11 px-3 py-1.5 text-[14px] text-center font-mono text-[#202125] bg-white border border-[#E1E5EA] rounded-md focus:outline-none focus:border-[#F15A24]"
+              className="w-full h-10 px-3.5 text-[14px] font-mono text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A] transition-colors"
             />
+            <p className="text-[13px] text-[#667085]">A limit, not a target length.</p>
           </div>
-          <p className="text-[12px] text-[#7A808A]">A limit, not a target length.</p>
         </div>
       </div>
 
-      {/* Bottom Helper */}
-      <div className="pt-2 flex items-center gap-2 text-[13px] text-[#667085]">
-        <FileText className="w-3.5 h-3.5 text-[#667085]" aria-hidden="true" />
-        <span>
-          {isDirty
-            ? "Unsaved changes. Save your draft before publishing."
-            : "Saved to draft. Publish to apply these settings to your live agent."}
-        </span>
+      {/* Save-state strip below cards matching 3.png */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[13px]">
+        <div className="flex items-center gap-2">
+          {isDirty ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-[#F79009]" />
+              <span className="text-[#B54708] font-medium">Unsaved changes</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-[#168A45]" />
+              <span className="text-[#168A45] font-medium">All changes saved to draft</span>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-[#667085]">
+          <FileText className="w-4 h-4 text-[#667085]" aria-hidden="true" />
+          <span>Publish to update your live agent</span>
+        </div>
       </div>
     </div>
   );

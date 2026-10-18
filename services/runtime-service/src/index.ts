@@ -20,6 +20,10 @@ import { McpToolRunner } from "./services/mcp-tool-runner.js";
 import { ToolExecutor } from "./services/tool-executor.js";
 import { ToolLoop } from "./services/tool-loop.js";
 import { TurnsService } from "./services/turns.service.js";
+import { GraphNodeRegistry } from "./graph/registry.js";
+import { GraphSessionStore } from "./graph/session-store.js";
+import { GraphEngine } from "./graph/engine.js";
+import { GraphTurnsService } from "./services/graph-turns.service.js";
 
 export { SERVICE_NAME, createHttpServer } from "./http/create-server.js";
 
@@ -76,6 +80,21 @@ export async function main(): Promise<void> {
     secretsClient,
   );
   const toolLoop = new ToolLoop(modelGatewayClient, toolCallsClient, toolExecutor);
+
+  const redisClient = createRedisClient(config.redisUrl);
+  await redisClient.connect();
+  logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
+
+  const graphRegistry = new GraphNodeRegistry({
+    modelGateway: modelGatewayClient,
+    toolExecutor,
+    knowledgeClient,
+    conversationClient,
+  });
+  const sessionStore = new GraphSessionStore(redisClient);
+  const graphEngine = new GraphEngine(graphRegistry, sessionStore);
+  const graphTurnsService = new GraphTurnsService(agentClient, graphEngine, sessionStore);
+
   const turnsService = new TurnsService(
     agentClient,
     conversationClient,
@@ -83,11 +102,8 @@ export async function main(): Promise<void> {
     knowledgeClient,
     memoryClient,
     toolLoop,
+    graphEngine,
   );
-
-  const redisClient = createRedisClient(config.redisUrl);
-  await redisClient.connect();
-  logger.info("redis.connected", { url: config.redisUrl.replace(/:[^:@/]+@/, ":***@") });
 
   const workspaceAccess = createCachedWorkspaceAccessClient({
     redis: redisClient,
@@ -100,6 +116,7 @@ export async function main(): Promise<void> {
   const app = createHttpServer({
     logger,
     turnsService,
+    graphTurnsService,
     workspaceAccess,
     jwtSecret: config.jwtAccessSecret,
     internalToken: config.internalToken,

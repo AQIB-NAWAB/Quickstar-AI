@@ -11,7 +11,8 @@
   display: flex;
   flex-direction: column;
   margin: 0;
-  font-family: inherit;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  line-height: normal;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -88,7 +89,7 @@
   letter-spacing: 1.3px;
   margin-bottom: 19px;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .auth-scope .auth-scene-eyebrow-dot {
@@ -169,7 +170,7 @@
 }
 
 .auth-scope .auth-form-signup {
-  padding-top: 65px;
+  padding-top: 90px;
 }
 
 .auth-scope .auth-form-eyebrow {
@@ -245,9 +246,9 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  right: 8px;
-  width: 36px;
-  height: 36px;
+  right: 1px;
+  width: 44px;
+  height: 44px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -293,6 +294,7 @@
   border-radius: 7px;
   background: #ff571a;
   color: #ffffff;
+  font-family: Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   display: flex;
@@ -330,7 +332,7 @@
   font-size: 13px;
   text-align: center;
   color: #888888;
-  margin-top: 28px;
+  margin: 28px 0 13px;
 }
 
 .auth-scope .auth-alternate a {
@@ -516,7 +518,7 @@
   stroke: none;
   filter: blur(9px);
   opacity: var(--anatomy-halo-opacity);
-  transform: translateY(6px);
+  transform: translateY(3px);
 }
 
 .auth-scope .iso-line {
@@ -812,6 +814,7 @@
    ========================================================================== */
 @media (min-width: 1550px) {
   .auth-scope .auth-shell {
+    width: calc(100% - 48px);
     max-width: 1500px;
     margin: 24px auto;
   }
@@ -878,3 +881,74 @@
     animation: none;
   }
 }
+
+.auth-scope .auth-brand-lockup { display: block; width: 100%; height: auto; }
+
+/* Fit the auth scene to the available viewport, including browser zoom. */
+@media (min-width: 761px) {
+  .auth-scope .auth-shell {
+    --auth-frame-gap: 22px;
+    height: calc(100dvh - 2 * var(--auth-frame-gap));
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .auth-scope .auth-form-side {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .auth-scope .auth-scene-side {
+    min-height: 0;
+  }
+  .auth-scope .auth-intro {
+    flex: none;
+    margin-top: clamp(20px, calc(100dvh - 857px), 103px);
+  }
+  .auth-scope .auth-art-wrap {
+    flex: 1;
+    min-height: 0;
+    max-height: 430px;
+  }
+  .auth-scope .auth-art-wrap > svg {
+    height: 100%;
+    overflow: visible;
+  }
+}
+@media (min-width: 1550px) {
+  .auth-scope .auth-shell { --auth-frame-gap: 24px; }
+}
+@media (min-width: 761px) and (max-height: 850px) {
+  .auth-scope .auth-brand { top: 20px; }
+  .auth-scope .auth-form, .auth-scope .auth-form-signup { padding: 54px 0 12px; }
+  .auth-scope .auth-form-side { padding-top: 20px; padding-bottom: 16px; }
+  .auth-scope .auth-form-side::after { display: none; }
+  .auth-scope .auth-form-sub { margin-bottom: 24px; }
+  .auth-scope .auth-field { margin-bottom: 18px; }
+  .auth-scope .auth-alternate { margin-top: 22px; margin-bottom: 0; }
+  .auth-scope .auth-scene-side { padding-top: 24px; padding-bottom: 20px; }
+  .auth-scope .auth-art-wrap { margin-top: 20px; margin-bottom: 0; }
+}
+@media (min-width: 761px) and (max-height: 700px) {
+  .auth-scope .auth-form, .auth-scope .auth-form-signup { padding-top: 48px; padding-bottom: 0; }
+  .auth-scope .auth-form-eyebrow { margin-bottom: 10px; }
+  .auth-scope .auth-form-title { font-size: 28px; margin-bottom: 9px; }
+  .auth-scope .auth-form-sub { margin-bottom: 18px; }
+  .auth-scope .auth-field { margin-bottom: 13px; }
+  .auth-scope .auth-label { margin-bottom: 6px; }
+  .auth-scope .auth-input, .auth-scope .auth-btn-primary { height: 44px; }
+  .auth-scope .auth-alternate { margin-top: 17px; }
+  .auth-scope .auth-scene-title { font-size: 33px; }
+  .auth-scope .auth-scene-eyebrow { margin-bottom: 12px; }
+}
+.auth-scope .auth-art-wrap { cursor: default; }
+.auth-scope [data-work-key],
+.auth-scope [data-work-mouse],
+.auth-scope [data-key] { cursor: pointer; }
+.auth-scope [data-work-key]:hover .iso-top,
+.auth-scope [data-work-key][data-pressed="true"] .iso-top { fill: #ffdeca; }
+.auth-scope [data-work-mouse]:focus-visible { outline: none; }
+.auth-scope [data-work-mouse]:focus-visible .mouse-shell > .iso-edge { stroke: #ff571a; stroke-width: 1.3px; }
+.auth-scope .auth-locker-art { cursor: pointer; }
+.auth-scope .auth-scene-svg { width: 100%; height: 100%; }
+.auth-scope .auth-scene-svg > svg { width: 100%; height: 100%; }
+.auth-scope .auth-art-wrap:focus-visible { outline-offset: 2px; }
+.auth-scope [data-work-mouse]:focus { outline: none; }
