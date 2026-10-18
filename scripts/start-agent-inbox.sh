@@ -130,6 +130,7 @@ pnpm --filter @quickstart/service-agent migrate || true
 pnpm --filter @quickstart/service-conversation migrate || true
 pnpm --filter @quickstart/service-voice migrate || true
 pnpm --filter @quickstart/service-workflow migrate || true
+pnpm --filter @quickstart/service-memory migrate || true
 pnpm --filter @quickstart/service-lead-generation migrate || true
 
 bold "3) Core Backend Services"
@@ -140,6 +141,7 @@ start_svc conversation services/conversation-service "${CONVERSATION_PORT:-3004}
 start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
 start_svc runtime services/runtime-service "${RUNTIME_PORT:-3006}"
 start_svc voice services/voice-service "${VOICE_PORT:-3008}"
+start_svc memory services/memory-service "${MEMORY_PORT:-3010}"
 start_svc workflow services/workflow-service "${WORKFLOW_PORT:-3012}"
 start_lead_generation
 start_svc gateway services/gateway-service "${GATEWAY_PORT:-3000}"
