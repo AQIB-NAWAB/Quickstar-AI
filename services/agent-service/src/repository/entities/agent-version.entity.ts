@@ -18,7 +18,11 @@ export class AgentVersionEntity {
   @Column({ type: "jsonb" })
   snapshot!: AgentSnapshot;
 
+  @Column({ name: "release_notes", type: "text", nullable: true })
+  releaseNotes!: string | null;
+
   @Column({ name: "created_by", type: "varchar", length: 255 })
+
   createdBy!: string;
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })

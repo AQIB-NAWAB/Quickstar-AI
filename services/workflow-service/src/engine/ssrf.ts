@@ -1,39 +1,13 @@
+import http from "node:http";
+import https from "node:https";
+import { publicAddress } from "@quickstart/utilities";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "metadata.google.internal"]);
 
-function isPrivateIpv4(ip: string): boolean {
-  const parts = ip.split(".").map((p) => Number(p));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-    return true;
-  }
-  const [a, b] = parts;
-  if (a === 10) return true;
-  if (a === 127) return true;
-  if (a === 0) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-  return false;
-}
-
-function isPrivateIpv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  return (
-    normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:")
-  );
-}
-
 export function isBlockedIp(ip: string): boolean {
-  const version = isIP(ip);
-  if (version === 4) return isPrivateIpv4(ip);
-  if (version === 6) return isPrivateIpv6(ip);
-  return true;
+  return !publicAddress(ip);
 }
 
 export async function assertSafeWebhookUrl(
@@ -81,4 +55,53 @@ export async function assertSafeWebhookUrl(
     }
   }
   return parsed;
+}
+
+/** Revalidate DNS and pin approved answers into the actual socket; redirects are never followed. */
+export async function sendSafeWebhook(
+  url: URL,
+  options: { method: string; headers: Record<string, string>; body?: string; timeoutMs: number },
+): Promise<{ status: number; statusText: string; text: string }> {
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(host)
+    ? [{ address: host, family: isIP(host) }]
+    : await lookup(host, { all: true });
+  if (!addresses.length || addresses.some((r) => isBlockedIp(r.address)))
+    throw new Error("Webhook destination is not a public address");
+  return new Promise((resolve, reject) => {
+    const request = (url.protocol === "https:" ? https : http).request(
+      url,
+      {
+        method: options.method,
+        headers: { ...options.headers, "Accept-Encoding": "identity" },
+        signal: AbortSignal.timeout(options.timeoutMs),
+        lookup: (_host, opts, callback) => {
+          if (opts.all) callback(null, addresses as never);
+          else callback(null, addresses[0].address, addresses[0].family);
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        response.on("data", (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > 65536) {
+            response.destroy(new Error("Webhook response exceeds 64 KiB"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on("error", reject);
+        response.on("end", () =>
+          resolve({
+            status: response.statusCode ?? 500,
+            statusText: response.statusMessage ?? "",
+            text: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    request.on("error", reject);
+    request.end(options.body);
+  });
 }

@@ -220,6 +220,8 @@ function resolveChatModel(modelSettings: Record<string, unknown>): {
   return { profile: "fake", modelId: "fake" };
 }
 
+import type { GraphEngine } from "../graph/engine.js";
+
 export class TurnsService {
   private readonly widgetVersionCache = new Map<
     string,
@@ -233,6 +235,7 @@ export class TurnsService {
     private readonly knowledgeClient?: KnowledgeClient,
     private readonly memoryClient?: MemoryClient,
     private readonly toolLoop?: ToolLoop,
+    private readonly graphEngine?: GraphEngine,
   ) {}
 
   private async getWidgetVersion(
@@ -309,7 +312,7 @@ export class TurnsService {
       authHeaders,
     );
 
-    if (conversation.state === "human") {
+    if (conversation.state === "human" || conversation.state === "waiting") {
       throw new AppError({
         code: ErrorCode.CONFLICT,
         message: "Conversation is handled by a human agent; bot turns are disabled",
@@ -374,6 +377,10 @@ export class TurnsService {
           assistant_message: existingAsst,
         };
       }
+    }
+
+    if (version.snapshot.graph?.nodes.length && this.graphEngine) {
+      return this.executeGraphChannel({workspaceId,conversationId,agentId,version,text,idempotencyKey,requestId,userMessage:userMsgResult.message,authHeaders,channel:input.channel === "voice" ? "voice" : "chat",signal,internal:false,humanReleased:conversation.state === "bot",onToken});
     }
 
     // 6. Build chat messages from conversation history
@@ -696,7 +703,7 @@ export class TurnsService {
       requestId,
     );
 
-    if (conversation.state === "human" && channel === "widget") {
+    if ((conversation.state === "human" || conversation.state === "waiting") && channel === "widget") {
       const userMsgResult = await this.conversationClient.appendMessageWidget(
         workspaceId,
         conversationId,
@@ -720,7 +727,7 @@ export class TurnsService {
       };
     }
 
-    if (conversation.state === "human") {
+    if (conversation.state === "human" || conversation.state === "waiting") {
       throw new AppError({
         code: ErrorCode.CONFLICT,
         message: "Conversation is handled by a human agent; bot turns are disabled",
@@ -792,6 +799,10 @@ export class TurnsService {
           assistant_message: existingAsst,
         };
       }
+    }
+
+    if (version.snapshot.graph?.nodes.length && this.graphEngine) {
+      return this.executeGraphChannel({workspaceId,conversationId,agentId,version,text,idempotencyKey,requestId,userMessage:userMsgResult.message,channel:voiceTurn?"voice":"chat",signal,internal:true,humanReleased:conversation.state === "bot",onToken,allowTools});
     }
 
     // Retrieval and history are independent after the visitor message is
@@ -1083,4 +1094,25 @@ export class TurnsService {
       usage: completion.usage,
     };
   }
+  private async executeGraphChannel(input: {
+    workspaceId:string;conversationId:string;agentId:string;version:AgentVersionInfo;text?:string;idempotencyKey:string;requestId:string;
+    userMessage:MessageInfo;authHeaders?:Record<string,string>;channel:"chat"|"voice";signal?:AbortSignal;internal:boolean;humanReleased:boolean;onToken?:(text:string)=>void;allowTools?:boolean;
+  }): Promise<TurnResult> {
+    const {workspaceId,conversationId,agentId,version,requestId}=input;
+    const key=`${input.idempotencyKey}:asst`;
+    const result=await this.graphEngine!.executeTurn({workspaceId,agentId,conversationId,releaseId:version.id,idempotencyKey:input.idempotencyKey,graph:version.snapshot.graph!,channel:input.channel,isPreview:false,visitorMessage:input.text,authHeaders:input.authHeaders,requestId,abortSignal:input.signal,humanReleased:input.humanReleased,
+      agentDefaults:{instructions:version.snapshot.instructions,model_settings:version.snapshot.model_settings,tools:input.allowTools===false?[]:version.snapshot.tools??[]},
+      onHandoff:()=>this.conversationClient.requestGraphHandoff(workspaceId,conversationId,requestId,input.channel),
+    });
+    const text=result.messages.join("\n\n");
+    let message=input.userMessage;
+    if(text){
+      const payload={text,sender_type:"assistant",sender_id:result.sessionState.release_id??version.id,idempotency_key:key,metadata:{channel:input.channel,agent_version_id:result.sessionState.release_id??version.id}};
+      const appended=input.internal?await this.conversationClient.appendMessageWidget(workspaceId,conversationId,payload,requestId):await this.conversationClient.appendMessage(workspaceId,conversationId,payload,input.authHeaders??{});
+      message=appended.message;input.onToken?.(text);
+    }
+    if(result.status==="failed")throw new AppError({code:ErrorCode.UPSTREAM_UNAVAILABLE,message:[...result.trace.steps].reverse().find(e=>e.status==="failed")?.error??"The conversation flow could not complete."});
+    return {deduplicated:false,conversation_id:conversationId,agent_id:agentId,agent_version_id:result.sessionState.release_id??version.id,user_message:input.userMessage,assistant_message:message,handoff:result.status==="handed_off"||!text};
+  }
+
 }

@@ -38,8 +38,18 @@ export class AgentEntity {
   @Column({ name: "production_version_id", type: "uuid", nullable: true })
   productionVersionId!: string | null;
 
+  @Column({ name: "builder_mode", type: "varchar", length: 32, default: "legacy" })
+  builderMode!: "legacy" | "canvas";
+
+  @Column({ name: "draft_graph", type: "jsonb", nullable: true })
+  draftGraph!: import("@quickstart/contracts").AgentGraph | null;
+
+  @Column({ name: "graph_schema_version", type: "int", default: 1 })
+  graphSchemaVersion!: number;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
+
 
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" })
   updatedAt!: Date;

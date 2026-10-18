@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Play } from "lucide-react";
+import { ArrowLeft, Play, Sparkles } from "lucide-react";
 import type { Agent } from "../lib/types";
 
 type Props = {
@@ -94,6 +94,14 @@ export function EditorHeader({
 
         {/* Right Side: Action Buttons matching 2.png */}
         <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+          <Link
+            href={`/workspaces/${workspaceId}/agents/${agent.id}/canvas`}
+            className="inline-flex items-center gap-2 h-10 px-3.5 text-[14px] font-semibold text-[#FA5D19] bg-orange-50 border border-orange-200 rounded-[6px] hover:bg-orange-100 transition-colors shadow-xs"
+          >
+            <Sparkles className="w-4 h-4 text-[#FA5D19]" />
+            <span>Open Canvas</span>
+          </Link>
+
           <button
             type="button"
             onClick={onOpenTest}

@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import type { WorkflowAction } from "../domain/types.js";
 import type { WorkflowsRepository } from "../repository/workflows.repository.js";
-import { assertSafeWebhookUrl } from "./ssrf.js";
+import { assertSafeWebhookUrl, sendSafeWebhook } from "./ssrf.js";
 import { renderTemplate } from "./template.js";
 
 export type ActionExecutionContext = {
@@ -22,11 +22,6 @@ export type ActionResult = {
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === "string");
 }
 
 async function recordEffect(
@@ -52,124 +47,153 @@ async function executeWebhook(
   const config = action.config;
   const method = asString(config.method, "POST").toUpperCase();
   const url = asString(config.url);
-  const bodyTemplate = asString(config.body, "");
-  const authType = asString(config.authType, "none");
-  const secretName = asString(config.secretName);
+  const bodyTemplate = asString(config.body ?? config.body_template, "");
+  const authType = asString(config.authType ?? config.auth_type, "none");
+  const customHeaders = Array.isArray(config.headers)
+    ? Object.fromEntries(config.headers.map((h) => [h.key, h.value]))
+    : (config.headers as Record<string, string>) || {};
+  const queryParams = (config.query_params as Record<string, string>) || {};
+  const timeoutMs = Math.min(
+    60000,
+    Math.max(
+      100,
+      typeof config.timeout_seconds === "number"
+        ? config.timeout_seconds * 1000
+        : typeof config.timeout_ms === "number"
+          ? config.timeout_ms
+          : ctx.webhookTimeoutMs,
+    ),
+  );
+  if (config.connection_credential_id || authType !== "none")
+    throw new Error("Managed HTTP credential resolution is not configured; request was not sent.");
+  if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method))
+    throw new Error("Unsupported HTTP method");
 
-  const safeUrl = await assertSafeWebhookUrl(url, { allowHttp: ctx.allowHttpWebhooks });
-  const renderedBody = bodyTemplate ? renderTemplate(bodyTemplate, ctx.eventData) : "";
+  const targetUrl = new URL(url);
+  for (const [k, v] of Object.entries(queryParams)) {
+    if (k && v !== undefined) {
+      targetUrl.searchParams.set(k, renderTemplate(String(v), ctx.eventData));
+    }
+  }
+
+  const safeUrl = await assertSafeWebhookUrl(targetUrl.toString(), {
+    allowHttp: ctx.allowHttpWebhooks,
+  });
+  const renderedBody = bodyTemplate ? renderTemplate(bodyTemplate, ctx.eventData, true) : "";
+  if (renderedBody) JSON.parse(renderedBody);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-QuickStart-Event-Id": ctx.eventId,
     "X-QuickStart-Run-Id": ctx.runId,
   };
-  if (authType === "secret" && secretName) {
-    // Secrets vault resolution is Feature 16; v1 records the secret *name* only.
-    headers["X-QuickStart-Secret-Ref"] = secretName;
+
+  for (const [k, v] of Object.entries(customHeaders)) {
+    if (k && v !== undefined) {
+      if (
+        /^(authorization|cookie|proxy-authorization|host|content-length|transfer-encoding|connection)$/i.test(
+          k,
+        )
+      )
+        throw new Error("Use a managed credential for authentication");
+      headers[k] = renderTemplate(String(v), ctx.eventData);
+    }
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ctx.webhookTimeoutMs);
+  const claim = await recordEffect(ctx, action.id, "webhook", {
+    state: "dispatching",
+    method,
+    url: safeUrl.origin + safeUrl.pathname,
+  });
+  if (!claim.inserted)
+    throw new Error(
+      "This action was already dispatched or has an uncertain outcome; automatic resend is blocked.",
+    );
+  headers["Idempotency-Key"] = `${ctx.runId}:${action.id}`;
+  const startedAt = Date.now();
+  const response = await sendSafeWebhook(safeUrl, {
+    method,
+    headers,
+    body: method === "GET" ? undefined : renderedBody || undefined,
+    timeoutMs,
+  });
+  const text = response.text;
+  const durationMs = Date.now() - startedAt;
+  const truncated = text.length > 4_096 ? `${text.slice(0, 4_096)}…` : text;
+
+  let parsedJson: unknown = null;
   try {
-    const response = await fetch(safeUrl.toString(), {
-      method,
-      headers,
-      body: ["GET", "HEAD"].includes(method) ? undefined : renderedBody || undefined,
-      signal: controller.signal,
-      redirect: "error",
-    });
-    const text = await response.text();
-    const truncated = text.length > 4_096 ? `${text.slice(0, 4_096)}…` : text;
-    if (!response.ok) {
-      throw new Error(`Webhook returned HTTP ${response.status}: ${truncated}`);
-    }
-    const effect = await recordEffect(ctx, action.id, "webhook", {
-      method,
-      url: safeUrl.origin + safeUrl.pathname,
-      status: response.status,
-      secret_ref: authType === "secret" ? secretName || null : null,
-    });
-    return {
-      summary: `Webhook ${method} ${safeUrl.host} → ${response.status}`,
-      output: {
-        status: response.status,
-        body_preview: truncated,
-        duplicated: !effect.inserted,
-      },
-    };
-  } finally {
-    clearTimeout(timer);
+    parsedJson = JSON.parse(text);
+  } catch {
+    // not JSON
   }
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Webhook returned HTTP ${response.status}: ${truncated}`);
+  }
+
+  return {
+    summary: `Webhook ${method} ${safeUrl.host} → ${response.status} (${durationMs}ms)`,
+    output: {
+      status: response.status,
+      statusText: response.statusText,
+      duration_ms: durationMs,
+      body_preview: truncated,
+      body_json: parsedJson,
+      duplicated: false,
+    },
+  };
 }
 
 async function executeUpdateTags(
   action: WorkflowAction,
   ctx: ActionExecutionContext,
 ): Promise<ActionResult> {
-  const config = action.config;
-  const targetResource = asString(config.targetResource, "conversation");
-  const operation = asString(config.operation, "add");
-  const tags = asStringArray(config.tags);
-  const conversationId =
-    typeof ctx.eventData.conversation_id === "string" ? ctx.eventData.conversation_id : null;
-
-  const effect = await recordEffect(ctx, action.id, "update_tags", {
-    target_resource: targetResource,
-    operation,
-    tags,
-    conversation_id: conversationId,
-  });
-
-  return {
-    summary: `${operation} tags on ${targetResource}: ${tags.join(", ") || "(none)"}`,
-    output: { tags, operation, targetResource, duplicated: !effect.inserted },
-  };
+  void action;
+  void ctx;
+  throw new Error("Tag delivery is not connected to its owning service. No action was performed.");
 }
 
-async function executeEmail(
+async function executeNotification(
   action: WorkflowAction,
   ctx: ActionExecutionContext,
 ): Promise<ActionResult> {
-  const config = action.config;
-  const recipients = asStringArray(config.recipients);
-  const subject = renderTemplate(asString(config.subject), ctx.eventData);
-  const body = renderTemplate(asString(config.body), ctx.eventData);
-
-  const effect = await recordEffect(ctx, action.id, "email_notification", {
-    recipients,
-    subject,
-    body,
-    provider: "dev_record",
-  });
-
-  return {
-    summary: `Queued email to ${recipients.join(", ") || "(none)"}`,
-    output: { recipients, subject, duplicated: !effect.inserted },
-  };
+  void action;
+  void ctx;
+  throw new Error(
+    "Notification delivery is not connected to its owning service. No action was performed.",
+  );
 }
 
 async function executeHandoff(
   action: WorkflowAction,
   ctx: ActionExecutionContext,
 ): Promise<ActionResult> {
-  const config = action.config;
-  const destinationType = asString(config.destinationType, "human");
-  const destination = asString(config.destination);
-  const note = asString(config.note);
-  const conversationId =
-    typeof ctx.eventData.conversation_id === "string" ? ctx.eventData.conversation_id : null;
+  void action;
+  void ctx;
+  throw new Error(
+    "Operator queue handoff is not connected to its owning service. No action was performed.",
+  );
+}
 
-  const effect = await recordEffect(ctx, action.id, "agent_handoff", {
-    destination_type: destinationType,
-    destination,
-    note,
-    conversation_id: conversationId,
+async function executeLog(
+  action: WorkflowAction,
+  ctx: ActionExecutionContext,
+): Promise<ActionResult> {
+  const config = action.config;
+  const level = asString(config.level, "info").toLowerCase();
+  const rawMsg = asString(config.message ?? config.log_message, "Step executed");
+  const message = renderTemplate(rawMsg, ctx.eventData);
+
+  const effect = await recordEffect(ctx, action.id, "log", {
+    level,
+    message,
+    timestamp: new Date().toISOString(),
   });
 
   return {
-    summary: `Recorded handoff to ${destinationType}:${destination || "unset"}`,
-    output: { destinationType, destination, duplicated: !effect.inserted },
+    summary: `[${level.toUpperCase()}] ${message}`,
+    output: { level, message, duplicated: !effect.inserted },
   };
 }
 
@@ -183,9 +207,17 @@ export async function executeAction(
     case "update_tags":
       return executeUpdateTags(action, ctx);
     case "email_notification":
-      return executeEmail(action, ctx);
+    case "notification":
+      return executeNotification(action, ctx);
     case "agent_handoff":
       return executeHandoff(action, ctx);
+    case "log":
+      return executeLog(action, ctx);
+    case "end":
+      return {
+        summary: "Workflow ended normally",
+        output: { reason: action.config?.reason || "completed" },
+      };
     default:
       throw new Error(`Unsupported action kind: ${String((action as WorkflowAction).kind)}`);
   }

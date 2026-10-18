@@ -21,6 +21,9 @@ export function toAgent(entity: AgentEntity): Agent {
       : { ...DEFAULT_AGENT_VOICE_SETTINGS, ...(entity.voice ?? {}) },
     version: entity.version,
     productionVersionId: entity.productionVersionId ?? null,
+    builderMode: entity.builderMode ?? "legacy",
+    draftGraph: entity.draftGraph ?? null,
+    graphSchemaVersion: entity.graphSchemaVersion ?? 1,
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,
   };
@@ -39,6 +42,7 @@ export function toAgentVersion(entity: AgentVersionEntity): AgentVersion {
         ? snapshot.voice
         : { ...DEFAULT_AGENT_VOICE_SETTINGS, ...(snapshot.voice ?? {}) },
     },
+    releaseNotes: entity.releaseNotes ?? snapshot?.release_notes ?? null,
     createdBy: entity.createdBy,
     createdAt: entity.createdAt,
   };

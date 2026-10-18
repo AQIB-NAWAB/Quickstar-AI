@@ -10,6 +10,7 @@ import {
   Mic,
   MoreHorizontal,
   Play,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import type { Agent } from "../lib/types";
@@ -130,6 +131,14 @@ export function AgentCard({ agent, workspaceId, onTestAgent, onDeleteAgent }: Pr
               {menuOpen && (
                 <div className="absolute right-0 top-[calc(100%+4px)] z-20 w-44 rounded-lg border border-[#DCE1E8] bg-white py-1 shadow-lg">
                   <Link
+                    href={`/workspaces/${workspaceId}/agents/${agent.id}/canvas`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 text-[14px] text-[#FA5D19] font-medium hover:bg-orange-50 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 text-[#FA5D19]" />
+                    Open Canvas
+                  </Link>
+                  <Link
                     href={`/workspaces/${workspaceId}/agents/${agent.id}`}
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 text-[14px] text-[#202125] hover:bg-[#F8F9FA] transition-colors"
@@ -212,6 +221,14 @@ export function AgentCard({ agent, workspaceId, onTestAgent, onDeleteAgent }: Pr
               <Play className="w-3.5 h-3.5 fill-current text-[#202125]" />
               Test agent
             </button>
+
+            <Link
+              href={`/workspaces/${workspaceId}/agents/${agent.id}/canvas`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[14px] font-semibold text-[#FA5D19] bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-[6px] transition-colors shadow-xs"
+            >
+              <Sparkles className="w-4 h-4 text-[#FA5D19]" />
+              <span>Canvas</span>
+            </Link>
 
             <Link
               href={`/workspaces/${workspaceId}/agents/${agent.id}`}

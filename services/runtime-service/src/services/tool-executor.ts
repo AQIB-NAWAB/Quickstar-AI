@@ -135,7 +135,7 @@ export class ToolExecutor {
   private async executeHttp(
     tool: AgentToolDefinition & { type: "http" },
     args: Record<string, unknown>,
-    ctx: { workspaceId: string; requestId: string; timeoutMs: number },
+    ctx: { workspaceId: string; requestId: string; timeoutMs: number; toolCallKey: string },
   ): Promise<ToolExecutionResult> {
     const pathKeys = new Set<string>();
     if (tool.path_template) {
@@ -185,6 +185,7 @@ export class ToolExecutor {
 
     const headers: Record<string, string> = {
       ...(tool.headers ?? {}),
+      "Idempotency-Key": ctx.toolCallKey,
       ...(body ? { "content-type": "application/json" } : {}),
     };
     if (tool.auth?.type === "bearer_secret" && tool.auth.secret_name) {

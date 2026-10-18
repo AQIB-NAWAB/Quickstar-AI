@@ -107,21 +107,83 @@ export function createAgentsController(agents: AgentsService) {
       });
     }) as RequestHandler,
 
+    getGraph: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const agentId = routeParam(req.params.agentId);
+      const agent = await agents.getAgent(tenant, agentId);
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        graph: agent.draftGraph ?? null,
+        schema_version: agent.graphSchemaVersion ?? 1,
+        agent_version: agent.version,
+        draft_revision: agent.version,
+        builder_mode: agent.builderMode ?? "legacy",
+      });
+    }) as RequestHandler,
+
+    updateGraph: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const agentId = routeParam(req.params.agentId);
+      const body = req.body as {
+        graph?: import("@quickstart/contracts").AgentGraph;
+        expected_version?: number;
+        expected_revision?: number;
+        settings?: import("@quickstart/contracts").GraphDraftSettings;
+      };
+      const agent = await agents.updateGraph(
+        tenant,
+        agentId,
+        body.graph!,
+        Number(body.expected_version ?? body.expected_revision),
+        body.settings,
+      );
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        agent: toAgentJson(agent),
+        draft_revision: agent.version,
+        updated_at: agent.updatedAt.toISOString(),
+      });
+    }) as RequestHandler,
+
+    validateGraph: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const agentId = routeParam(req.params.agentId);
+      const body = req.body as {
+        graph?: import("@quickstart/contracts").AgentGraph;
+      };
+      const validation = await agents.validateGraph(tenant, agentId, body.graph!);
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        ...validation,
+      });
+    }) as RequestHandler,
+
     publishAgent: (async (req, res) => {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;
       const agentId = routeParam(req.params.agentId);
-      const body = req.body as { base_version?: number; version?: number };
-      const baseVersion = body.base_version ?? body.version;
+      const body = req.body as {
+        base_version?: number;
+        version?: number;
+        release_notes?: string;
+        expected_revision?: number;
+      };
+      const baseVersion = body.base_version ?? body.expected_revision ?? body.version;
 
       const result = await agents.publish(tenant, agentId, baseVersion as number, {
         requestId,
+        releaseNotes: body.release_notes,
       });
 
       sendPlatformJson(res, 201, {
         request_id: requestId,
         version: toAgentVersionJson(result.version),
         agent: toAgentJson(result.agent),
+        release_number: result.version.releaseNumber,
+        version_id: result.version.id,
       });
     }) as RequestHandler,
 
@@ -137,6 +199,8 @@ export function createAgentsController(agents: AgentsService) {
         request_id: requestId,
         version: toAgentVersionJson(result.version),
         agent: toAgentJson(result.agent),
+        release_number: result.version.releaseNumber,
+        version_id: result.version.id,
       });
     }) as RequestHandler,
 

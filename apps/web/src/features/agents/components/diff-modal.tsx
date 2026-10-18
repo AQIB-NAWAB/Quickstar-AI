@@ -420,9 +420,10 @@ export function DiffModal({
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[11px] font-bold bg-green-100 text-green-800">
                                 <Plus className="w-3 h-3" /> {tool.name}
                               </span>
-                              {tool.method && tool.path_template && (
+                              {"method" in tool && "path_template" in tool && Boolean((tool as { method?: string }).method) && (
                                 <span className="font-mono text-[11px] text-[#475467]">
-                                  {tool.method} {tool.path_template}
+                                  {(tool as { method?: string; path_template?: string }).method}{" "}
+                                  {(tool as { method?: string; path_template?: string }).path_template}
                                 </span>
                               )}
                             </div>

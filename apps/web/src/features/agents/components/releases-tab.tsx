@@ -337,9 +337,9 @@ export function ReleasesTab({
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-mono font-semibold text-[#202125]">⚡ {t.name}</span>
-                            {t.method && (
+                            {"method" in t && Boolean((t as { method?: string }).method) && (
                               <span className="font-mono text-[10px] uppercase font-bold text-[#667085]">
-                                {t.method}
+                                {(t as { method?: string }).method}
                               </span>
                             )}
                           </div>

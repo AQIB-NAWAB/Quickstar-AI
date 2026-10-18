@@ -71,6 +71,8 @@ export function AppShell({
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const isInbox = pathname.includes("/inbox");
+  const isCanvas = pathname.includes("/canvas");
+  const isFullScreen = isInbox || isCanvas;
   const base = `/workspaces/${workspaceId}`;
   const route = (path: string) => (isPreview ? `/preview/${path}` : `${base}/${path}`);
 
@@ -182,6 +184,26 @@ export function AppShell({
       breadcrumbSubChild = null; // child is populated with actual name in editor header if desired, or "Agents"
     }
   }
+
+  if (pathname.includes("/workflows")) return <div className="workspace-app flex h-[100dvh] overflow-hidden bg-[#FAFAFA] text-neutral-800">
+    <aside aria-label="Workspace navigation" className="hidden w-[210px] shrink-0 flex-col border-r border-[#E8E9EB] bg-white md:flex">
+      <Link href={route("agents")} className="px-5 py-5"><img src="/brand/quickstart-lockup-horizontal.svg" alt="QuickStart AI" className="h-9 w-auto max-w-[170px]"/></Link>
+      <div className="mx-3 rounded-lg border border-neutral-200 p-3 text-xs"><span className="text-neutral-500">Workspace</span><select aria-label="Switch workspace" value={workspaceId} onChange={e=>router.push(`/workspaces/${e.target.value}/workflows`)} className="mt-1 block w-full bg-white text-neutral-500">{workspaces.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
+      <nav className="mt-6 space-y-1 px-3 text-[13px]">{[{name:"Overview",path:"overview",icon:BarChart3},{name:"Agents",path:"agents",icon:AgentOutlineIcon},{name:"Inbox",path:"inbox",icon:MessageSquare},{name:"Knowledge",path:"knowledge",icon:BookOpen},{name:"Workflows",path:"workflows",icon:Workflow},{name:"Channels",path:"channels",icon:Cable},{name:"Releases",path:"agents",icon:FileText}].filter(n=>n.name!=="Overview"&&n.name!=="Releases").map(({name,path,icon:Icon})=><Link key={name} href={route(path)} aria-current={name==="Workflows"?"page":undefined} className={`flex items-center gap-3 rounded-lg px-3 py-3 ${name==="Workflows"?"bg-orange-50 text-[#FA5D19]":"hover:bg-neutral-50"}`}><Icon className="h-4 w-4"/>{name}</Link>)}</nav>
+      <p className="mt-7 px-6 text-[10px] uppercase text-neutral-500">Workspace</p><Link href={route("settings")} className="m-3 flex items-center gap-3 rounded-lg px-3 py-3 text-[13px]"><Settings className="h-4 w-4"/>Settings</Link>
+      <div className="mt-auto flex items-center gap-3 border-t p-4 text-xs"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100">{initials}</span><span className="truncate">{userEmail}</span></div>
+    </aside>
+    <main className={`min-w-0 flex-1 overflow-auto ${pathname.endsWith("/workflows")||pathname.endsWith("/new")||pathname.includes("/runs")?"p-8":""}`}>{children}</main>
+  </div>;
+
+  if (isCanvas) return <div className="workspace-app h-[100dvh] flex overflow-hidden bg-[#F9F9F9] text-[#262626]">
+    <aside aria-label="Workspace navigation" className="w-16 shrink-0 flex flex-col items-center gap-4 border-r border-[#EDEDED] bg-white py-4">
+      <Link href={route("agents")} title={workspaceName} className="h-8 w-8 rounded-lg bg-neutral-100 flex items-center justify-center text-xs font-semibold">{workspaceName.slice(0,2).toUpperCase()}</Link>
+      {[{icon:AgentOutlineIcon,label:"Agents",href:route("agents")},{icon:MessageSquare,label:"Inbox",href:route("inbox")},{icon:BookOpen,label:"Knowledge",href:route("knowledge")},{icon:Phone,label:"Voice",href:route("voice")},{icon:Workflow,label:"Workflows",href:route("workflows")}].map(({icon:Icon,label,href})=><Link key={label} href={href} aria-label={label} title={label} className={`p-3 rounded-lg ${label==="Agents"?"bg-[#FA5D19]/10 text-[#FA5D19]":"text-neutral-700 hover:bg-neutral-50"}`}><Icon className="w-5 h-5"/></Link>)}
+      <Link href={route("settings")} aria-label="Workspace settings" className="mt-auto p-3"><Settings className="w-5 h-5"/></Link>
+      <span title={userEmail} className="h-8 w-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs">{userEmail.slice(0,2).toUpperCase()}</span>
+    </aside><main className="flex-1 min-w-0 min-h-0 flex flex-col">{children}</main>
+  </div>;
 
   return (
     <NotificationsProvider workspaceId={workspaceId} isPreview={isPreview}>
@@ -472,13 +494,13 @@ export function AppShell({
           {/* Main Content Area */}
           <main
             className={`flex-1 min-w-0 flex flex-col ${
-              isInbox ? "overflow-hidden" : "overflow-y-auto"
+              isFullScreen ? "overflow-hidden" : "overflow-y-auto"
             }`}
           >
             <div
               className={
-                isInbox
-                  ? "flex-1 flex flex-col min-h-0 w-full"
+                isFullScreen
+                  ? "flex-1 flex flex-col min-h-0 w-full h-full"
                   : "p-4 sm:p-6 lg:p-8 max-w-[1586px] w-full mx-auto"
               }
             >

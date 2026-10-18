@@ -1,3 +1,5 @@
+import { bearerTokenFromHeader, verifyAccessToken } from "@quickstart/auth";
+import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
 import { createPlatformApp, type Application } from "@quickstart/http-server";
 import { createAgentsController } from "../controllers/agents.controller.js";
@@ -37,6 +39,16 @@ export function createHttpServer(options: CreateAgentHttpServerOptions): Applica
   const httpContext: AgentHttpContext = {
     readinessProbes: options.readinessProbes ?? [],
     authGuard,
+    graphAuthGuard: async (req, res, next) => {
+      try {
+        const token = bearerTokenFromHeader(req.headers.authorization);
+        if (!token || !jwtSecret) throw new AppError({ code: ErrorCode.UNAUTHORIZED, message: "A verified access token is required for canvas operations." });
+        const claims = await verifyAccessToken(token, jwtSecret);
+        res.locals.actorUserId = claims.sub;
+        if (res.locals.tenantContext) res.locals.tenantContext = { workspaceId: res.locals.tenantContext.workspaceId, actorId: claims.sub };
+        next();
+      } catch { next(new AppError({code:ErrorCode.UNAUTHORIZED,message:"Invalid or missing canvas access token."})); }
+    },
     internalAuth: createRequireInternalTokenMiddleware(options.internalToken),
     tenantMiddleware: [authGuard, tenantGuard],
     workspaceAccess,
