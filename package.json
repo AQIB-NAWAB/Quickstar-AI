@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @quickstart/web dev",
+    "dev:all": "bash scripts/start-agent-inbox.sh",
+    "start": "bash scripts/start-agent-inbox.sh",
     "build": "pnpm -r run build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
