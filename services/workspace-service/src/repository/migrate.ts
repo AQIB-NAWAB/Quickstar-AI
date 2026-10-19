@@ -6,7 +6,11 @@ import type { Pool } from "pg";
 const MIGRATIONS = [
   { version: "001_workspace_schema", file: "001_workspace_schema.sql" },
   { version: "002_publishable_keys", file: "002_publishable_keys.sql" },
+  { version: "003_workspace_integrations", file: "003_workspace_integrations.sql" },
+  { version: "004_workspace_notifications", file: "004_workspace_notifications.sql" },
+  { version: "005_webhook_subscriptions_and_deliveries", file: "005_webhook_subscriptions_and_deliveries.sql" },
 ] as const;
+
 
 export async function runWorkspaceMigrations(pool: Pool): Promise<void> {
   await pool.query(`

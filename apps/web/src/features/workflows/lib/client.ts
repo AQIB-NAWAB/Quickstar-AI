@@ -439,16 +439,3 @@ export async function getRunApi(
   if (error || !data?.run) return failResult(status, error);
   return toResult(status, mapRun(data.run));
 }
-
-export async function cancelRunApi(
-  workspaceId: string,
-  workflowId: string,
-  runId: string,
-): Promise<RepositoryResult<boolean>> {
-  const { status, data, error } = await bff<{ canceled?: boolean }>(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/runs/${encodeURIComponent(runId)}/cancel`,
-    { method: "POST" },
-  );
-  if (error) return failResult(status, error);
-  return toResult(status, Boolean(data?.canceled));
-}

@@ -58,7 +58,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = (p) => {
   useEffect(() => {
     if (nodeType !== "knowledge_search" || !p.workspaceId) return;
     const controller = new AbortController();
-    void listSources(p.workspaceId, 100, controller.signal)
+    void listSources(p.workspaceId, { limit: 100 }, controller.signal)
       .then((r) => {
         setSources(r.sources ?? []);
         setSourceError(r.error?.message ?? null);

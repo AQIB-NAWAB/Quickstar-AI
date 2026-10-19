@@ -71,3 +71,18 @@ This document records the exact backend capabilities, data contracts, and archit
   - `voice.calls:read`: View call logs and live dashboard.
   - `voice.transcripts:read`: Access conversational transcripts.
   - `voice.recordings:listen`: Authorize signed audio recording playback.
+
+---
+
+## 11. Implemented Endpoints & Additive Migrations (Suite Release)
+- **Summary KPIs:** `GET /v1/workspaces/:workspaceId/voice/inbound/summary` (proxied via `/api/workspaces/:workspaceId/voice/inbound/summary`) returning:
+  - `totalCalls`: Total historical CDR count.
+  - `liveCalls`: Active in-progress calls count.
+  - `avgDurationSeconds`: Arithmetic mean of completed call lengths.
+  - `p95TimeToFirstAudioMs`: 95th percentile latency from SIP connection to first audio output.
+- **Dual-Track Waveform:** `GET /v1/workspaces/:workspaceId/voice/inbound/:callId/waveform` returning:
+  - `agentPeaks`: 80-point normalized float array [0.0 - 1.0] for the agent channel.
+  - `callerPeaks`: 80-point normalized float array [0.0 - 1.0] for the caller channel.
+  - `stereo`: `true` (authoritative dual-channel attribution).
+- **Transcript Segments:** `GET /v1/workspaces/:workspaceId/voice/inbound/:callId/transcript` returning synchronized speech segments with millisecond offsets (`start_ms`, `end_ms`), speaker attribution (`agent` vs `user`), and confidence.
+- **Database Schema Migration:** `services/voice-service/migrations/006_call_waveform_peaks.sql` adding nullable `agent_peaks`, `caller_peaks`, `is_stereo`, and `disconnect_reason` columns to `voice_calls`.

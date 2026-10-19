@@ -1,4 +1,4 @@
-import type { ChatMessage, ModelReference, ModelToolDefinition } from "@quickstart/contracts";
+import type { ChatMessage, ModelToolDefinition } from "@quickstart/contracts";
 
 export type ProviderCallContext = {
   workspaceId: string;
@@ -23,12 +23,6 @@ export type ProviderCompletionOutput = {
 };
 
 export type ProviderStreamHandler = (delta: string) => void;
-
-export type ResolvedModelCall = {
-  profileId: string;
-  modelId: string;
-  reference: ModelReference;
-};
 
 export class ProviderError extends Error {
   readonly retryable: boolean;

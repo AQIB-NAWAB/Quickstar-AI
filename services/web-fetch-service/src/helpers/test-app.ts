@@ -50,9 +50,6 @@ export function testWebFetchConfig(overrides: Partial<WebFetchConfig> = {}): Web
   };
 }
 
-/** @deprecated Use testWebFetchConfig */
-export const testWebAcquisitionConfig = testWebFetchConfig;
-
 export async function withWebFetchServer(
   run: (ctx: { port: number; baseUrl: string; config: WebFetchConfig }) => Promise<void>,
   configOverrides: Partial<WebFetchConfig> = {},
@@ -100,9 +97,6 @@ export async function withWebFetchServer(
     });
   }
 }
-
-/** @deprecated Use withWebFetchServer */
-export const withWebAcquisitionServer = withWebFetchServer;
 
 export function authHeaders(token: string = TEST_INTERNAL_TOKEN): Record<string, string> {
   return {

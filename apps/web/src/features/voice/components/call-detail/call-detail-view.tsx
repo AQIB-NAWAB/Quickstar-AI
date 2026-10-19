@@ -158,6 +158,10 @@ export function CallDetailView({
             recordingOffsetMs={call.recordingOffsetMs ?? 0}
             callerRecordingOffsetMs={call.callerRecordingOffsetMs ?? 0}
             onTimeUpdate={setCurrentTime}
+            waveform={call.waveform}
+            transcript={call.transcript}
+            callId={call.id}
+            workspaceId={workspaceId}
           />
 
           <div className="h-px bg-border-faint" />

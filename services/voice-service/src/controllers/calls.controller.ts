@@ -18,11 +18,29 @@ export function createCallsController(
         state: typeof req.query.status === "string" ? req.query.status : undefined,
         limit: Number(req.query.limit ?? 50),
         cursor: typeof req.query.cursor === "string" ? req.query.cursor : undefined,
+        q: typeof req.query.q === "string" ? req.query.q : undefined,
+        agentId: typeof req.query.agent_id === "string" ? req.query.agent_id : undefined,
       });
       sendPlatformJson(res, 200, {
         request_id: requestIdFromResponse(res),
         calls: result.rows.map(toStaffCall),
         next_cursor: result.nextCursor,
+        total: result.total,
+      });
+    }) as RequestHandler,
+
+    summary: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const data = await calls.summary(workspaceId);
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        summary: {
+          total_inbound: data.totalInbound,
+          average_call_duration_seconds: data.averageCallDurationSeconds,
+          answer_rate: data.answerRate,
+          average_time_to_first_audio_ms: data.averageTimeToFirstAudioMs,
+          active_calls_count: data.activeCallsCount,
+        },
       });
     }) as RequestHandler,
 
@@ -68,6 +86,57 @@ export function createCallsController(
             is_additive: true,
           })),
           disposition: row.state,
+        },
+      });
+    }) as RequestHandler,
+
+    getTranscript: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const callId = routeParam(req.params.callId);
+      const row = await calls.get(workspaceId, callId);
+      if (!row || row.direction !== "inbound") {
+        sendPlatformJson(res, 404, {
+          request_id: requestIdFromResponse(res),
+          error: { code: "NOT_FOUND", message: "Call not found" },
+        });
+        return;
+      }
+      const transcript = await calls.listTranscript(workspaceId, callId);
+      const timings = await calls.listTimings(workspaceId, callId);
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        transcript,
+        processing_turns: timings.map((t) => ({
+          id: t.id,
+          turn_number: t.turn_number,
+          stt_ms: t.stt_ms,
+          llm_ms: t.runtime_ms,
+          tts_ms: t.tts_ms,
+          total_ms: t.total_ms,
+          is_additive: true,
+        })),
+      });
+    }) as RequestHandler,
+
+    getWaveform: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const callId = routeParam(req.params.callId);
+      const waveform = await calls.waveform(workspaceId, callId);
+      if (!waveform) {
+        sendPlatformJson(res, 404, {
+          request_id: requestIdFromResponse(res),
+          error: { code: "NOT_FOUND", message: "Waveform data not found" },
+        });
+        return;
+      }
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        waveform: {
+          agent_peaks: waveform.agentPeaks,
+          caller_peaks: waveform.callerPeaks,
+          duration_seconds: waveform.durationSeconds,
+          stereo: waveform.stereo,
+          sample_rate: waveform.sampleRate ?? 8000,
         },
       });
     }) as RequestHandler,

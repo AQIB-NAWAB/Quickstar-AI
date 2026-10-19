@@ -32,21 +32,6 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function getAgentGraph(
-  workspaceId: string,
-  agentId: string,
-): Promise<{
-  graph: AgentGraph | null;
-  draft_revision: number;
-  builder_mode: "legacy" | "canvas";
-}> {
-  const res = await fetch(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}/graph`,
-    { method: "GET" },
-  );
-  return handleResponse(res);
-}
-
 export async function saveAgentGraph(
   workspaceId: string,
   agentId: string,

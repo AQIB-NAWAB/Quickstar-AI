@@ -17,6 +17,12 @@ export const createCallsRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
     asyncHandler(callsCtrl.listInbound),
   );
   router.get(
+    "/v1/workspaces/:workspaceId/voice/inbound/summary",
+    ...tenant,
+    read,
+    asyncHandler(callsCtrl.summary),
+  );
+  router.get(
     "/v1/workspaces/:workspaceId/voice/inbound/live",
     ...tenant,
     read,
@@ -27,6 +33,18 @@ export const createCallsRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
     ...tenant,
     read,
     asyncHandler(callsCtrl.getInbound),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/voice/inbound/:callId/transcript",
+    ...tenant,
+    read,
+    asyncHandler(callsCtrl.getTranscript),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/voice/inbound/:callId/waveform",
+    ...tenant,
+    read,
+    asyncHandler(callsCtrl.getWaveform),
   );
   router.get(
     "/v1/workspaces/:workspaceId/voice/inbound/:callId/recording",

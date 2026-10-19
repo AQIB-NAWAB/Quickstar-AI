@@ -82,3 +82,13 @@ export async function ensureS3Bucket(config: S3ContentStoreConfig): Promise<void
 export function storageKeyForSource(workspaceId: string, sourceId: string, version: number): string {
   return `knowledge/${workspaceId}/${sourceId}/v${version}`;
 }
+
+export function rawStorageKeyForSource(
+  workspaceId: string,
+  sourceId: string,
+  version: number,
+  fileName: string,
+): string {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `knowledge/${workspaceId}/${sourceId}/raw/v${version}/${safeName}`;
+}

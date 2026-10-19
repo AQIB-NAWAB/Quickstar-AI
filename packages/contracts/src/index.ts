@@ -203,8 +203,6 @@ export {
   type GraphValidationOptions,
 } from "./agent-graph-validator.js";
 
-
-
 export { normalizeAgentGraph, graphOutputPorts, isAgentGraphShape } from "./agent-graph-normalize.js";
 
 export type { GraphDraftSettings } from "./agent-graph.js";
@@ -244,3 +242,40 @@ export { validateWorkflowGraph } from "./workflow-graph-validator.js";
 export { evaluateConditionGroup as evaluateWorkflowConditionGroup, compare as compareWorkflowCondition, getByPath as getWorkflowValue } from "./workflow-condition-evaluator.js";
 export { evaluateRule as evaluateWorkflowRule } from "./workflow-condition-evaluator.js";
 export { isWorkflowGraphShape, workflowOutputPorts } from "./workflow-graph-validator.js";
+
+export type {
+  AnalyticsSummary,
+  AnalyticsDailyTokenBucket,
+  AnalyticsDailyLatencyBucket,
+  AnalyticsServiceUsage,
+  AnalyticsResponse,
+} from "./analytics.js";
+
+export {
+  INTEGRATION_PROVIDERS,
+  INTEGRATION_CATEGORIES,
+  type IntegrationProvider,
+  type IntegrationCategory,
+  type IntegrationStatus,
+  type IntegrationCatalogItem,
+  type IntegrationAuthorizeResponse,
+  type IntegrationsListResponse,
+} from "./integrations.js";
+
+export type {
+  NotificationCategory,
+  NotificationSeverity,
+  NotificationSource,
+  WorkspaceNotificationItem,
+  NotificationsListResponse,
+  UnreadCountResponse,
+} from "./notifications.js";
+
+export type {
+  WebhookStatus,
+  WebhookEndpointItem,
+  WebhookDeliveryAttemptItem,
+  WebhookDeliveryItem,
+  WebhooksListResponse,
+  WebhookDeliveriesListResponse,
+} from "./webhooks.js";

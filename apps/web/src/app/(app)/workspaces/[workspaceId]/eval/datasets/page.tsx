@@ -18,24 +18,33 @@ export default async function WorkspaceDatasetsPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
   const repo = getEvaluationRepository(false);
 
-  const result = await repo.listDatasets(activeWorkspace.id);
+  const [datasetsResult, overviewResult] = await Promise.all([
+    repo.listDatasets(activeWorkspace.id),
+    repo.getOverview(activeWorkspace.id, "all").catch(() => null),
+  ]);
 
-  if (result.status !== "ready") {
+  if (datasetsResult.status !== "ready") {
     return (
       <div className="w-full">
         <EvaluationState
-          status={result.status}
-          message={result.message}
+          status={datasetsResult.status}
+          message={datasetsResult.message}
         />
       </div>
     );
   }
 
+  const summary =
+    overviewResult && overviewResult.status === "ready"
+      ? overviewResult.data.summary
+      : undefined;
+
   return (
     <div className="w-full">
       <DatasetList
         workspaceId={activeWorkspace.id}
-        datasets={result.data}
+        datasets={datasetsResult.data}
+        summary={summary}
         isPreview={false}
       />
     </div>

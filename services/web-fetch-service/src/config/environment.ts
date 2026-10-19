@@ -195,6 +195,3 @@ export function loadWebFetchConfig(): WebFetchConfig {
       process.env.USAGE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? internalToken,
   };
 }
-
-/** @deprecated Use loadWebFetchConfig */
-export const loadWebAcquisitionConfig = loadWebFetchConfig;

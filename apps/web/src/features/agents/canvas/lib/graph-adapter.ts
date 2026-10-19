@@ -1,12 +1,12 @@
 import { normalizeAgentGraph } from "@quickstart/contracts";
-import type { Node, Edge } from "@xyflow/react";
+
 import type {
   AgentGraph,
   AgentGraphEdge,
   AgentGraphNode,
   GraphValidationIssue,
 } from "@quickstart/contracts";
-import type { CanvasFlowNode, CanvasFlowEdge, CanvasNodeData } from "./types";
+import type { CanvasFlowNode, CanvasFlowEdge } from "./types";
 
 export function graphToFlowElements(
   graph: AgentGraph,

@@ -73,7 +73,7 @@ export async function startKnowledgeServer(): Promise<{ server: Server; shutdown
     });
   }
 
-  const sources = new SourcesService(repo, queue, contentStore);
+  const sources = new SourcesService(repo, queue, contentStore, opensearch);
   const retrieve = new RetrieveService(opensearch, embedder);
   const worker = startIngestWorker({
     config,

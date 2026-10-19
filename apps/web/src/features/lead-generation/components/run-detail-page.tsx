@@ -275,7 +275,6 @@ export function LeadGenerationRunDetailPage({
   const isCompletedWithErrors = run?.status === "completed_with_errors";
   const isCompleted = run?.status === "completed";
   const isFailed = run?.status === "failed";
-  const isCancelled = run?.status === "cancelled";
 
   // Category-derived heading
   const categories = run?.brief?.categories ?? [];

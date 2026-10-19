@@ -42,7 +42,7 @@ export class EvalWorker {
       const run = await this.repo.claimNextRun(this.options.workerId);
       if (!run) return;
       this.logger.info("eval.worker.claimed", { runId: run.id, workerId: this.options.workerId });
-      await this.service.processRun(run);
+      await this.service.processRun(run, this.options.workerId);
       this.logger.info("eval.worker.finished", { runId: run.id });
     } catch (err) {
       this.logger.error("eval.worker.tick_failed", {

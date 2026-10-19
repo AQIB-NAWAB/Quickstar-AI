@@ -7,5 +7,7 @@ export const createUsageProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => 
   const chain = createProtectedWorkspaceProxyChain(ctx, ctx.config.usageUrl);
   router.all("/v1/workspaces/:workspaceId/usage/*", ...chain);
   router.all("/v1/workspaces/:workspaceId/usage", ...chain);
+  router.all("/v1/workspaces/:workspaceId/analytics/*", ...chain);
+  router.all("/v1/workspaces/:workspaceId/analytics", ...chain);
   return router;
 };

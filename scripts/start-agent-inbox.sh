@@ -54,7 +54,14 @@ start_svc() {
     return 0
   fi
 
+  local needs_build=0
   if [[ ! -f "$entry" ]] || [[ "$name" == "runtime" ]]; then
+    needs_build=1
+  elif [[ -d "$ROOT/$dir/src" ]] && [[ -n $(find "$ROOT/$dir/src" -type f -newer "$entry" 2>/dev/null | head -n 1) ]]; then
+    needs_build=1
+  fi
+
+  if [[ "$needs_build" -eq 1 ]]; then
     echo "  building ${name}…"
     pnpm --filter "$(jq -r .name "$ROOT/$dir/package.json")" build >>"$logfile" 2>&1 || true
   fi
@@ -128,10 +135,18 @@ pnpm --filter @quickstart/service-identity migrate || true
 pnpm --filter @quickstart/service-workspace migrate || true
 pnpm --filter @quickstart/service-agent migrate || true
 pnpm --filter @quickstart/service-conversation migrate || true
+pnpm --filter @quickstart/service-web-fetch migrate || true
 pnpm --filter @quickstart/service-voice migrate || true
+pnpm --filter @quickstart/service-knowledge migrate || true
+pnpm --filter @quickstart/service-secrets migrate || true
 pnpm --filter @quickstart/service-workflow migrate || true
 pnpm --filter @quickstart/service-memory migrate || true
+pnpm --filter @quickstart/service-campaign migrate || true
+pnpm --filter @quickstart/service-lead migrate || true
 pnpm --filter @quickstart/service-lead-generation migrate || true
+pnpm --filter @quickstart/service-eval migrate || true
+pnpm --filter @quickstart/service-usage migrate || true
+pnpm --filter @quickstart/service-audit migrate || true
 
 bold "3) Core Backend Services"
 start_svc identity services/identity-service "${IDENTITY_PORT:-3001}"
@@ -140,9 +155,17 @@ start_svc agent services/agent-service "${AGENT_PORT:-3003}"
 start_svc conversation services/conversation-service "${CONVERSATION_PORT:-3004}"
 start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
 start_svc runtime services/runtime-service "${RUNTIME_PORT:-3006}"
+start_svc web-fetch services/web-fetch-service "${WEB_FETCH_PORT:-3007}"
 start_svc voice services/voice-service "${VOICE_PORT:-3008}"
+start_svc knowledge services/knowledge-service "${KNOWLEDGE_PORT:-3009}"
 start_svc memory services/memory-service "${MEMORY_PORT:-3010}"
+start_svc secrets services/secrets-service "${SECRETS_PORT:-3011}"
 start_svc workflow services/workflow-service "${WORKFLOW_PORT:-3012}"
+start_svc campaign services/campaign-service "${CAMPAIGN_PORT:-3013}"
+start_svc lead services/lead-service "${LEAD_PORT:-3014}"
+start_svc eval services/eval-service "${EVAL_PORT:-3016}"
+start_svc usage services/usage-service "${USAGE_PORT:-3017}"
+start_svc audit services/audit-service "${AUDIT_PORT:-3018}"
 start_lead_generation
 start_svc gateway services/gateway-service "${GATEWAY_PORT:-3000}"
 

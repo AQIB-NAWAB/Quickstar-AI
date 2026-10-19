@@ -10,6 +10,8 @@ import type {
   CampaignSchedule,
   CampaignStatus,
   CampaignSummary,
+  CampaignTimezoneMode,
+  CampaignsDirectorySummary,
   CampaignTarget,
   TargetStatus,
 } from "../domain/types.js";
@@ -21,6 +23,10 @@ type CampaignRow = {
   description: string | null;
   agent_id: string;
   agent_name: string;
+  caller_id?: string | null;
+  agent_version_id?: string | null;
+  timezone_mode?: "campaign" | "recipient_local";
+  weekdays?: string[] | string;
   status: CampaignStatus;
   audience_schema: AudienceFieldDef[] | string;
   schedule: CampaignSchedule | string;
@@ -31,6 +37,7 @@ type CampaignRow = {
   scheduled_start: Date | null;
   started_at: Date | null;
   completed_at: Date | null;
+  held_contacts_count?: number;
   created_at: Date;
   updated_at: Date;
 };
@@ -43,6 +50,10 @@ type TargetRow = {
   dial_normalized: string;
   display_name: string | null;
   email: string | null;
+  timezone?: string | null;
+  timezone_provenance?: "provided" | "inferred" | "unknown";
+  is_held?: boolean;
+  held_reason?: string | null;
   attributes: Record<string, string> | string;
   source_kind: "csv" | "lead" | "api";
   source_ref: string | null;
@@ -73,7 +84,7 @@ type AttemptRow = {
   error: { code: string; message: string } | string | null;
 };
 
-function parseJson<T>(value: T | string, fallback: T): T {
+function parseJson<T>(value: T | string | undefined | null, fallback: T): T {
   if (typeof value === "string") {
     try {
       return JSON.parse(value) as T;
@@ -92,6 +103,10 @@ function mapCampaign(row: CampaignRow): CampaignRecord {
     description: row.description,
     agentId: row.agent_id,
     agentName: row.agent_name,
+    callerId: row.caller_id ?? null,
+    agentVersionId: row.agent_version_id ?? null,
+    timezoneMode: row.timezone_mode ?? "campaign",
+    weekdays: parseJson(row.weekdays, ["mon", "tue", "wed", "thu", "fri"]),
     status: row.status,
     audienceSchema: parseJson(row.audience_schema, []),
     schedule: parseJson(row.schedule, {
@@ -112,6 +127,7 @@ function mapCampaign(row: CampaignRow): CampaignRecord {
     scheduledStart: row.scheduled_start,
     startedAt: row.started_at,
     completedAt: row.completed_at,
+    heldContactsCount: Number(row.held_contacts_count ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -126,6 +142,10 @@ function mapTarget(row: TargetRow): CampaignTarget {
     dialNormalized: row.dial_normalized,
     displayName: row.display_name,
     email: row.email,
+    timezone: row.timezone ?? null,
+    timezoneProvenance: row.timezone_provenance ?? "provided",
+    isHeld: Boolean(row.is_held),
+    heldReason: row.held_reason ?? null,
     attributes: parseJson(row.attributes, {}),
     sourceKind: row.source_kind,
     sourceRef: row.source_ref,
@@ -253,6 +273,10 @@ export class CampaignsRepository {
     description: string | null;
     agentId: string;
     agentName: string;
+    callerId?: string | null;
+    agentVersionId?: string | null;
+    timezoneMode?: CampaignTimezoneMode;
+    weekdays?: string[] | number[];
     status: CampaignStatus;
     audienceSchema: AudienceFieldDef[];
     schedule: CampaignSchedule;
@@ -264,9 +288,10 @@ export class CampaignsRepository {
     try {
       const result = await this.pool.query<CampaignRow>(
         `INSERT INTO campaigns (
-           workspace_id, name, description, agent_id, agent_name, status,
-           audience_schema, schedule, pacing, retry_policy, idempotency_key, scheduled_start
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12)
+           workspace_id, name, description, agent_id, agent_name, caller_id, agent_version_id,
+           timezone_mode, weekdays, status, audience_schema, schedule, pacing, retry_policy,
+           idempotency_key, scheduled_start
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15,$16)
          RETURNING *`,
         [
           input.workspaceId,
@@ -274,6 +299,10 @@ export class CampaignsRepository {
           input.description,
           input.agentId,
           input.agentName,
+          input.callerId ?? null,
+          input.agentVersionId ?? null,
+          input.timezoneMode ?? "campaign",
+          JSON.stringify(input.weekdays ?? ["mon", "tue", "wed", "thu", "fri"]),
           input.status,
           JSON.stringify(input.audienceSchema),
           JSON.stringify(input.schedule),
@@ -292,6 +321,199 @@ export class CampaignsRepository {
       }
       throw err;
     }
+  }
+
+  async directorySummary(workspaceId: string): Promise<CampaignsDirectorySummary> {
+    const attemptsRes = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text as count FROM campaign_attempts WHERE workspace_id = $1`,
+      [workspaceId],
+    );
+    const outboundAttemptsPlaced = Number(attemptsRes.rows[0]?.count ?? 0);
+
+    const contactRes = await this.pool.query<{
+      completed: string;
+      human_answered: string;
+      retry_completed: string;
+      retry_answered: string;
+    }>(
+      `SELECT
+        COUNT(*) FILTER (WHERE status IN ('answered','completed','failed','opted_out','no_answer','busy','voicemail'))::text as completed,
+        COUNT(*) FILTER (WHERE status IN ('answered','completed') AND outcome != 'voicemail')::text as human_answered,
+        COUNT(*) FILTER (WHERE attempts_count > 1)::text as retry_completed,
+        COUNT(*) FILTER (WHERE attempts_count > 1 AND status IN ('answered','completed') AND outcome != 'voicemail')::text as retry_answered
+       FROM campaign_targets
+       WHERE workspace_id = $1`,
+      [workspaceId],
+    );
+
+    const completed = Number(contactRes.rows[0]?.completed ?? 0);
+    const humanAnswered = Number(contactRes.rows[0]?.human_answered ?? 0);
+    const retryCompleted = Number(contactRes.rows[0]?.retry_completed ?? 0);
+    const retryAnswered = Number(contactRes.rows[0]?.retry_answered ?? 0);
+
+    const humanConnectionRate = completed > 0 ? Number(((humanAnswered / completed) * 100).toFixed(1)) : 0;
+    const retryConversionRate = retryCompleted > 0 ? Number(((retryAnswered / retryCompleted) * 100).toFixed(1)) : 0;
+
+    const activeRes = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text as count FROM campaign_targets WHERE workspace_id = $1 AND status = 'calling'`,
+      [workspaceId],
+    );
+    const activeChannels = Number(activeRes.rows[0]?.count ?? 0);
+
+    return {
+      outboundAttemptsPlaced,
+      humanConnectionRate,
+      activeChannels,
+      workspaceCapacity: 20,
+      retryConversionRate,
+    };
+  }
+
+  async isPhoneSuppressed(workspaceId: string, phoneNormalized: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `SELECT 1 FROM workspace_suppressions WHERE workspace_id = $1 AND phone_normalized = $2 LIMIT 1`,
+      [workspaceId, phoneNormalized],
+    );
+    return res.rows.length > 0;
+  }
+
+  async addSuppression(
+    workspaceId: string,
+    phoneNormalized: string,
+    reason = "opt_out",
+    source = "caller",
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO workspace_suppressions (workspace_id, phone_normalized, reason, source)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (workspace_id, phone_normalized) DO NOTHING`,
+      [workspaceId, phoneNormalized, reason, source],
+    );
+  }
+
+  async exportResults(workspaceId: string, campaignId: string): Promise<Array<Record<string, unknown>>> {
+    const { rows } = await this.pool.query<TargetRow & {
+      latest_attempt_status: string | null;
+      latest_attempt_outcome: string | null;
+      latest_attempt_duration: number | null;
+      latest_call_id: string | null;
+    }>(
+      `SELECT t.*,
+              a.status AS latest_attempt_status,
+              a.outcome AS latest_attempt_outcome,
+              a.duration_seconds AS latest_attempt_duration,
+              a.call_id AS latest_call_id
+       FROM campaign_targets t
+       LEFT JOIN LATERAL (
+         SELECT status, outcome, duration_seconds, call_id
+         FROM campaign_attempts
+         WHERE target_id = t.id
+         ORDER BY attempt_number DESC
+         LIMIT 1
+       ) a ON TRUE
+       WHERE t.workspace_id = $1 AND t.campaign_id = $2
+       ORDER BY t.created_at ASC`,
+      [workspaceId, campaignId],
+    );
+
+    return rows.map((r) => {
+      const attrs = parseJson(r.attributes, {});
+      return {
+        id: r.id,
+        phone: r.dial_normalized,
+        name: r.display_name ?? "",
+        email: r.email ?? "",
+        timezone: r.timezone ?? "",
+        status: r.status,
+        attempts_count: r.attempts_count,
+        latest_outcome: r.outcome ?? r.latest_attempt_outcome ?? "",
+        duration_seconds: r.latest_attempt_duration ?? 0,
+        call_id: r.latest_call_id ?? "",
+        created_at: r.created_at.toISOString(),
+        ...attrs,
+      };
+    });
+  }
+
+  async updateDraft(
+    workspaceId: string,
+    campaignId: string,
+    expectedVersion: number,
+    patch: {
+      name?: string;
+      description?: string | null;
+      agentId?: string;
+      agentName?: string;
+      callerId?: string | null;
+      agentVersionId?: string | null;
+      timezoneMode?: CampaignTimezoneMode;
+      weekdays?: string[] | number[];
+      schedule?: CampaignSchedule;
+      pacing?: CampaignPacing;
+      retryPolicy?: CampaignRetryPolicy;
+    },
+  ): Promise<CampaignRecord> {
+    const existing = await this.get(workspaceId, campaignId);
+    if (!existing) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Campaign not found" });
+    }
+    if (existing.status !== "draft" && existing.status !== "scheduled") {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Only draft or scheduled campaigns can be updated",
+      });
+    }
+
+    const { rows } = await this.pool.query<CampaignRow>(
+      `UPDATE campaigns
+       SET name = COALESCE($4, name),
+           description = COALESCE($5, description),
+           agent_id = COALESCE($6, agent_id),
+           agent_name = COALESCE($7, agent_name),
+           caller_id = COALESCE($8, caller_id),
+           agent_version_id = COALESCE($9, agent_version_id),
+           timezone_mode = COALESCE($10, timezone_mode),
+           weekdays = COALESCE($11::jsonb, weekdays),
+           schedule = COALESCE($12::jsonb, schedule),
+           pacing = COALESCE($13::jsonb, pacing),
+           retry_policy = COALESCE($14::jsonb, retry_policy),
+           version = version + 1,
+           updated_at = NOW()
+       WHERE id = $1 AND workspace_id = $2 AND version = $3 AND deleted_at IS NULL
+       RETURNING *`,
+      [
+        campaignId,
+        workspaceId,
+        expectedVersion,
+        patch.name ?? null,
+        patch.description !== undefined ? patch.description : null,
+        patch.agentId ?? null,
+        patch.agentName ?? null,
+        patch.callerId !== undefined ? patch.callerId : null,
+        patch.agentVersionId !== undefined ? patch.agentVersionId : null,
+        patch.timezoneMode ?? null,
+        patch.weekdays ? JSON.stringify(patch.weekdays) : null,
+        patch.schedule ? JSON.stringify(patch.schedule) : null,
+        patch.pacing ? JSON.stringify(patch.pacing) : null,
+        patch.retryPolicy ? JSON.stringify(patch.retryPolicy) : null,
+      ],
+    );
+
+    if (!rows[0]) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Campaign version conflict; refresh and retry",
+      });
+    }
+    return mapCampaign(rows[0]);
+  }
+
+  async deleteCampaign(workspaceId: string, campaignId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE campaigns SET deleted_at = NOW(), updated_at = NOW()
+       WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      [workspaceId, campaignId],
+    );
   }
 
   async updateStatus(
@@ -343,6 +565,10 @@ export class CampaignsRepository {
       dialNormalized: string;
       displayName: string | null;
       email: string | null;
+      timezone?: string | null;
+      timezoneProvenance?: string;
+      isHeld?: boolean;
+      heldReason?: string | null;
       attributes: Record<string, string>;
       sourceKind: "csv" | "lead" | "api";
       sourceRef: string | null;
@@ -353,12 +579,14 @@ export class CampaignsRepository {
     try {
       await client.query("BEGIN");
       let inserted = 0;
+      let heldCount = 0;
       for (const t of targets) {
         const result = await client.query(
           `INSERT INTO campaign_targets (
              workspace_id, campaign_id, dial_address, dial_normalized, display_name, email,
+             timezone, timezone_provenance, is_held, held_reason,
              attributes, source_kind, source_ref
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13)
            ON CONFLICT (campaign_id, dial_normalized) DO NOTHING`,
           [
             workspaceId,
@@ -367,12 +595,25 @@ export class CampaignsRepository {
             t.dialNormalized,
             t.displayName,
             t.email,
+            t.timezone ?? null,
+            t.timezoneProvenance ?? "provided",
+            Boolean(t.isHeld),
+            t.heldReason ?? null,
             JSON.stringify(t.attributes),
             t.sourceKind,
             t.sourceRef,
           ],
         );
         inserted += result.rowCount ?? 0;
+        if (t.isHeld && (result.rowCount ?? 0) > 0) {
+          heldCount++;
+        }
+      }
+      if (heldCount > 0) {
+        await client.query(
+          `UPDATE campaigns SET held_contacts_count = held_contacts_count + $3 WHERE id = $1 AND workspace_id = $2`,
+          [campaignId, workspaceId, heldCount],
+        );
       }
       await client.query("COMMIT");
       return inserted;
@@ -578,6 +819,7 @@ export class CampaignsRepository {
            WHERE c.status = 'running'
              AND c.deleted_at IS NULL
              AND t.status IN ('pending', 'retrying')
+             AND t.is_held = FALSE
              AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= NOW())
              AND (t.claimed_at IS NULL OR t.claimed_at < NOW() - INTERVAL '5 minutes')
              AND (
@@ -586,6 +828,12 @@ export class CampaignsRepository {
                WHERE active.campaign_id = t.campaign_id
                  AND active.status = 'calling'
              ) < COALESCE((c.pacing->>'maxConcurrentCalls')::int, 5)
+             AND (
+               SELECT COUNT(*)::int
+               FROM campaign_targets ws_active
+               WHERE ws_active.workspace_id = t.workspace_id
+                 AND ws_active.status = 'calling'
+             ) < 20
            ORDER BY t.next_attempt_at NULLS FIRST, t.created_at ASC
            FOR UPDATE OF t SKIP LOCKED
            LIMIT 1
@@ -693,6 +941,20 @@ export class CampaignsRepository {
            updated_at = NOW()
        WHERE id = $1`,
       [input.targetId, input.nextStatus, input.outcome, input.nextAttemptAt],
+    );
+  }
+
+  async markTargetHeld(targetId: string, reason: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE campaign_targets
+       SET is_held = TRUE,
+           held_reason = $2,
+           status = 'held',
+           claimed_at = NULL,
+           claimed_by = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [targetId, reason],
     );
   }
 

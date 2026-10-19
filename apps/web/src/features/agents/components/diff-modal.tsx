@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  ArrowRight,
-  Bot,
   CheckCircle2,
   FileText,
   GitCompare,
@@ -12,10 +10,8 @@ import {
   Minus,
   Plus,
   Sliders,
-  Volume2,
   Wrench,
   X,
-  Zap,
 } from "lucide-react";
 import { diffVersions } from "../lib/client";
 import type { AgentToolDefinition, AgentVersionDiff } from "../lib/types";

@@ -11,11 +11,7 @@ import {
   ShieldCheck,
   Zap,
 } from "lucide-react";
-import type {
-  WorkflowGraph,
-  WorkflowValidationResult,
-  WorkflowSimulationResult,
-} from "../../lib/types";
+import type { WorkflowValidationResult, WorkflowSimulationResult } from "../../lib/types";
 
 export type ReviewActivateDialogProps = {
   isOpen: boolean;

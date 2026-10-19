@@ -56,9 +56,6 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
-      tailwind-merge:
-        specifier: ^2.5.4
-        version: 2.6.1
     devDependencies:
       '@types/node':
         specifier: ^22.7.5
@@ -495,6 +492,9 @@ importers:
       '@quickstart/workspace-access':
         specifier: workspace:*
         version: link:../../packages/workspace-access
+      busboy:
+        specifier: ^1.6.0
+        version: 1.6.0
       pg:
         specifier: ^8.16.3
         version: 8.23.0
@@ -502,6 +502,9 @@ importers:
         specifier: ^4.7.1
         version: 4.7.1
     devDependencies:
+      '@types/busboy':
+        specifier: ^1.5.4
+        version: 1.5.5
       '@types/pg':
         specifier: ^8.15.5
         version: 8.23.1
@@ -1425,6 +1428,9 @@ packages:
 
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
+
+  '@types/busboy@1.5.5':
+    resolution: {integrity: sha512-IwqrfVFxWa23c4WeE7uZswssCqGfvnl5Q7b1pdshbT3HaQDa3UIbJx5BAxtcj9nZYX9tVDArM9TUv9SpvORbpQ==}
 
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
@@ -2682,9 +2688,6 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  tailwind-merge@2.6.1:
-    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
-
   tailwindcss@3.4.19:
     resolution: {integrity: sha512-3ofp+LL8E+pK/JuPLPggVAIaEuhvIz4qNcf3nA1Xn2o/7fb7s/TYpHhwGDv1ZU3PkBluUVaF8PyCHcm48cKLWQ==}
     engines: {node: '>=14.0.0'}
@@ -3553,6 +3556,10 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
+      '@types/node': 22.20.4
+
+  '@types/busboy@1.5.5':
+    dependencies:
       '@types/node': 22.20.4
 
   '@types/connect@3.4.38':
@@ -4822,8 +4829,6 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
-
-  tailwind-merge@2.6.1: {}
 
   tailwindcss@3.4.19:
     dependencies:

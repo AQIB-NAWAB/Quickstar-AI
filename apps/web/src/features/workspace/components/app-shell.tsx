@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   BookOpen,
-  Brain,
+  Database,
   ChevronDown,
   Code2,
   ClipboardList,
@@ -56,7 +56,6 @@ type NavSection = { label: string; items: NavItem[] };
 export function AppShell({
   workspaceId,
   workspaceName,
-  workspaceSlug,
   userEmail,
   workspaces,
   isPreview = false,
@@ -88,8 +87,9 @@ export function AppShell({
           match: "/eval",
         },
         { name: "Knowledge", href: route("knowledge"), icon: BookOpen, match: "/knowledge" },
-        { name: "Memory", href: route("memory"), icon: Brain, match: "/memory" },
+        { name: "Memory", href: route("memory"), icon: Database, match: "/memory" },
       ],
+
     },
     {
       label: "OPERATE",

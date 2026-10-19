@@ -117,10 +117,71 @@ export async function proxyBinaryToGateway(path: string, range?: string | null):
     return NextResponse.json(body, { status: upstream.status });
   }
   const headers = new Headers();
-  for (const name of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+  for (const name of ["content-type", "content-length", "content-range", "accept-ranges", "content-disposition"]) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
   }
   headers.set("Cache-Control", "private, no-store");
   return new NextResponse(upstream.body, { status: upstream.status, headers });
+}
+
+export async function proxyMultipartToGateway<T>(
+  path: string,
+  request: Request,
+): Promise<ProxyOk<T> | ProxyFail> {
+  let token = await getAccessTokenFromCookies();
+  if (!token || accessTokenNeedsRefresh(token, 30)) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) token = refreshed;
+  }
+  if (!token) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: { code: "UNAUTHORIZED", message: "Not signed in" } },
+        { status: 401 },
+      ),
+    };
+  }
+
+  const contentType = request.headers.get("content-type") || "";
+  const send = (accessToken: string) =>
+    fetch(`${gatewayBaseUrl()}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": contentType,
+      },
+      body: request.body,
+      // @ts-expect-error duplex is required in Node fetch for streaming bodies
+      duplex: "half",
+      cache: "no-store",
+    });
+
+  let upstream: Response;
+  try {
+    upstream = await send(token);
+    if (upstream.status === 401) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) upstream = await send(refreshed);
+    }
+  } catch {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: { code: "UPSTREAM_UNAVAILABLE", message: "Gateway is unavailable" } },
+        { status: 502 },
+      ),
+    };
+  }
+
+  const body = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!upstream.ok) {
+    return {
+      ok: false,
+      response: NextResponse.json(body, { status: upstream.status }),
+    };
+  }
+
+  return { ok: true, data: body as unknown as T, status: upstream.status };
 }

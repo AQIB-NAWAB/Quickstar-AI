@@ -12,7 +12,6 @@ import {
   RotateCcw,
   RotateCw,
   Send,
-  Sparkles,
 } from "lucide-react";
 import type { CanvasSaveState } from "../lib/types";
 

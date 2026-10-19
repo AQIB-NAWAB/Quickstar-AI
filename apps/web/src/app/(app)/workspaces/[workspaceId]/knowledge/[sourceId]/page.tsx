@@ -1,5 +1,5 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { SourceDetails } from "@/features/knowledge/components/source-details";
+import { redirect } from "next/navigation";
 
 type Props = {
   params: {
@@ -10,10 +10,5 @@ type Props = {
 
 export default async function WorkspaceKnowledgeSourceDetailPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
-
-  return (
-    <div className="w-full">
-      <SourceDetails workspaceId={activeWorkspace.id} sourceId={params.sourceId} />
-    </div>
-  );
+  redirect(`/workspaces/${activeWorkspace.id}/knowledge?source=${encodeURIComponent(params.sourceId)}`);
 }

@@ -15,6 +15,7 @@ import { ScheduleStep } from "./schedule-step";
 import { WizardStepper } from "./wizard-stepper";
 
 export function createDefaultDraft(): WizardDraft {
+  const today = new Date().toISOString().slice(0, 10);
   return {
     name: "",
     description: "",
@@ -37,11 +38,14 @@ export function createDefaultDraft(): WizardDraft {
     invalidCount: 0,
     duplicateCount: 0,
     schedule: {
-      startDate: "2026-10-13",
+      startDate: today,
       startTime: "09:00",
-      timezone: "UTC",
+      endDate: null,
+      timezone: "America/New_York",
+      timezoneMode: "recipient_local",
       dailyWindowFrom: "09:00",
       dailyWindowTo: "17:00",
+      weekdays: [1, 2, 3, 4, 5],
     },
     pacing: {
       maxConcurrentCalls: 10,

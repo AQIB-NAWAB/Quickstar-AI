@@ -1,19 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  X,
-  Play,
-  RotateCcw,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Copy,
-  Check,
-  ChevronRight,
-  Shield,
-  FileCode,
-} from "lucide-react";
+import { X, RotateCcw, CheckCircle2, AlertCircle, Copy, Check, ChevronRight } from "lucide-react";
 import type { WorkflowRun, StepRun } from "../lib/types";
 import { formatDuration, formatUtcDateTime } from "../lib/format";
 import { RunStatusBadge } from "./run-status-badge";

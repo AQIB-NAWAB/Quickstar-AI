@@ -27,12 +27,6 @@ export interface TelephonyProvider {
   attachMedia(providerCallSid: string, handler: TelephonyMediaHandler): Promise<void>;
 }
 
-export type ProviderHealth = {
-  id: string;
-  healthy: boolean;
-  reason?: string;
-};
-
 export type RouteDecision = {
   provider: TelephonyProvider;
   failoverFrom?: string;

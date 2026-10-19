@@ -2,20 +2,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Settings,
-  Play,
-  Save,
-  ShieldCheck,
-  Zap,
-  ListFilter,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  ChevronRight,
-  Plus,
-} from "lucide-react";
+import { Play, Eye } from "lucide-react";
 import type {
   WorkflowDefinition,
   WorkflowGraph,
@@ -166,8 +153,6 @@ export function WorkflowBuilder({
   runs,
   runsBaseUrl,
   backUrl,
-  builderUrl,
-  isPreview = false,
   isNew = false,
 }: WorkflowBuilderProps) {
   // Workflow state

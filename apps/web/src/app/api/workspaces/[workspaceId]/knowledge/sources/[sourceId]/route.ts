@@ -14,6 +14,22 @@ export async function GET(_request: Request, { params }: Params) {
   return NextResponse.json(result.data, { status: result.status });
 }
 
+export async function PATCH(request: Request, { params }: Params) {
+  const { workspaceId, sourceId } = params;
+  const body = await request.text();
+  const path = `/v1/workspaces/${encodeURIComponent(workspaceId)}/knowledge/sources/${encodeURIComponent(sourceId)}`;
+
+  const result = await proxyToGateway<Record<string, unknown>>(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  if (!result.ok) {
+    return result.response;
+  }
+  return NextResponse.json(result.data, { status: result.status });
+}
+
 export async function DELETE(_request: Request, { params }: Params) {
   const { workspaceId, sourceId } = params;
   const path = `/v1/workspaces/${encodeURIComponent(workspaceId)}/knowledge/sources/${encodeURIComponent(sourceId)}`;

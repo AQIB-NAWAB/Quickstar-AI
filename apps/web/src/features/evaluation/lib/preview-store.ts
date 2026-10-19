@@ -44,10 +44,10 @@ class EvaluationPreviewStore implements EvaluationRepository {
         agentName: "Support assistant",
         selectedDataset: selectedDs,
         scoringPolicy: "support-v1",
-        latestScore: latestRun ? latestRun.overallScore : 82,
+        latestScore: latestRun ? (latestRun.overallScore ?? latestRun.score ?? 82) : 82,
         scoreScale: 100,
-        passedCases: latestRun ? latestRun.passedCount : 8,
-        failedCases: latestRun ? latestRun.failedCount : 2,
+        passedCases: latestRun ? (latestRun.passedCount ?? 8) : 8,
+        failedCases: latestRun ? (latestRun.failedCount ?? 2) : 2,
         totalCases: selectedDs.caseCount,
         latestRun,
         comparison: [...SAMPLE_COMPARISON_POINTS],
@@ -93,9 +93,12 @@ class EvaluationPreviewStore implements EvaluationRepository {
     const newDs: EvaluationDataset = {
       id: `ds_${Math.random().toString(36).substring(2, 8)}`,
       workspaceId,
+      agentId: "all",
       name: data.name,
       description: data.description,
+      tags: [],
       revision: 1,
+      recordVersion: 1,
       caseCount: 0,
       updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
@@ -128,24 +131,34 @@ class EvaluationPreviewStore implements EvaluationRepository {
       } else {
         savedCase = {
           id: caseData.id,
+          workspaceId: _workspaceId,
           datasetId,
           name: caseData.name,
           input: caseData.input,
           expectedOutput: caseData.expectedOutput || "",
           expectedTools: caseData.expectedTools || [],
+          fixtureResponses: [],
+          tags: [],
+          recordVersion: 1,
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         cases.push(savedCase);
       }
     } else {
       savedCase = {
         id: `case_${Math.random().toString(36).substring(2, 7)}`,
+        workspaceId: _workspaceId,
         datasetId,
         name: caseData.name,
         input: caseData.input,
         expectedOutput: caseData.expectedOutput || "",
         expectedTools: caseData.expectedTools || [],
+        fixtureResponses: [],
+        tags: [],
+        recordVersion: 1,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       cases.push(savedCase);
     }
@@ -175,12 +188,17 @@ class EvaluationPreviewStore implements EvaluationRepository {
     const cases = this.casesByDataset.get(datasetId) || [];
     const added: EvaluationCase[] = newCases.map((c, i) => ({
       id: `case_import_${Date.now()}_${i}`,
+      workspaceId: _workspaceId,
       datasetId,
       name: c.name || `Imported case ${i + 1}`,
       input: c.input || "",
       expectedOutput: c.expectedOutput || "",
       expectedTools: c.expectedTools || [],
+      fixtureResponses: [],
+      tags: c.tags || [],
+      recordVersion: 1,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }));
 
     const combined = [...cases, ...added];

@@ -1,8 +1,9 @@
 import { SAMPLE_NOTIFICATIONS } from "./fixtures";
 import type {
-NotificationsRepository,
-RepositoryResult,
-WorkspaceNotification,
+  NotificationsListResult,
+  NotificationsRepository,
+  RepositoryResult,
+  WorkspaceNotification,
 } from "./types";
 
 type Listener = () => void;
@@ -33,24 +34,28 @@ class InMemoryNotificationsPreviewStore implements NotificationsRepository {
 
   async listNotifications(
     _workspaceId: string,
-    filter?: { unreadOnly?: boolean; type?: string },
+    filter?: { category?: string; unreadOnly?: boolean; limit?: number },
     _signal?: AbortSignal
-  ): Promise<RepositoryResult<WorkspaceNotification[]>> {
+  ): Promise<RepositoryResult<NotificationsListResult>> {
     void _workspaceId;
     void _signal;
     let result = [...this.notifications];
 
-    if (filter?.unreadOnly) {
+    if (filter?.unreadOnly || filter?.category === "unread") {
       result = result.filter((n) => n.readAt === null);
+    } else if (filter?.category && filter.category !== "all") {
+      result = result.filter((n) => n.category === filter.category);
     }
 
-    if (filter?.type && filter.type !== "all") {
-      result = result.filter((n) => n.type === filter.type);
-    }
+    const unreadCount = this.notifications.filter((n) => n.readAt === null).length;
 
     return {
       status: "ready",
-      data: result,
+      data: {
+        notifications: result,
+        unreadCount,
+        total: result.length,
+      },
     };
   }
 
@@ -85,17 +90,30 @@ class InMemoryNotificationsPreviewStore implements NotificationsRepository {
   }
 
   async markAllAsRead(
-    _workspaceId: string
+    _workspaceId: string,
+    category?: string
   ): Promise<RepositoryResult<{ count: number }>> {
     void _workspaceId;
     let count = 0;
     const now = new Date().toISOString();
     this.notifications.forEach((n) => {
-      if (n.readAt === null) {
+      if (n.readAt === null && (!category || category === "all" || n.category === category)) {
         n.readAt = now;
         count++;
       }
     });
+    this.notify();
+    return {
+      status: "ready",
+      data: { count },
+    };
+  }
+
+  async dismissRead(_workspaceId: string): Promise<RepositoryResult<{ count: number }>> {
+    void _workspaceId;
+    const initial = this.notifications.length;
+    this.notifications = this.notifications.filter((n) => n.readAt === null);
+    const count = initial - this.notifications.length;
     this.notify();
     return {
       status: "ready",

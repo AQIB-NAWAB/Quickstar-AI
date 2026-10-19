@@ -1,9 +1,9 @@
-import { DeveloperHome } from "@/features/developer/components/developer-home";
+import { IntegrationsDirectory } from "@/features/integrations/components/integrations-directory";
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
 
 export const metadata = {
   title: "Integrations — QuickStart AI",
-  description: "Connect to QuickStart AI through APIs, SDKs, and webhooks.",
+  description: "Connect your workspace with third-party tools, calendars, CRM, and voice providers.",
 };
 
 export default async function WorkspaceIntegrationsPage({
@@ -13,5 +13,10 @@ export default async function WorkspaceIntegrationsPage({
 }) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
 
-  return <DeveloperHome workspaceId={activeWorkspace.id} />;
+  return (
+    <IntegrationsDirectory
+      workspaceId={activeWorkspace.id}
+      workspaceName={activeWorkspace.name}
+    />
+  );
 }

@@ -99,3 +99,31 @@ This document records the exact backend capabilities, data contracts, and archit
   - `campaigns:create`
   - `campaigns:launch`
   - `campaigns:manage` (pause, resume, stop)
+
+---
+
+## 14. Implemented Endpoints & Additive Migrations (Suite Release)
+- **Directory Summary KPIs:** `GET /v1/workspaces/:workspaceId/campaigns/summary` returning:
+  - `totalCampaigns`: Count of all workspace campaigns.
+  - `runningCampaigns`: Currently active running campaigns.
+  - `pausedCampaigns`: Currently paused campaigns.
+  - `completedCampaigns`: Successfully completed campaigns.
+  - `totalDialedContacts`: Aggregated contacts completed across all campaigns.
+  - `activeConcurrencySlots`: Currently active concurrent calls across the workspace.
+  - `maxConcurrencySlots`: Workspace-level concurrency cap (default 20).
+- **Draft Management:**
+  - `PATCH /v1/workspaces/:workspaceId/campaigns/:campaignId`: Update draft name, description, callerId, schedule, pacing, retry policy, and audience targets.
+  - `DELETE /v1/workspaces/:workspaceId/campaigns/:campaignId`: Safely delete draft/stopped campaigns and associated targets.
+- **Audience & Results CSV Export:**
+  - `GET /v1/workspaces/:workspaceId/campaigns/:campaignId/export`: Streams full contact and attempt outcomes as an RFC-4180 CSV attachment with:
+    - UTF-8 BOM (`\uFEFF`) for seamless Excel compatibility.
+    - Formula injection defense (prefixes values starting with `=`, `+`, `-`, `@`, `\t`, `\r` with single quotes `'`).
+    - Contact ID, phone, name, email, timezone, target status, is_held, held_reason, attempts count, last attempt timestamp, outcome, callId, and recording duration.
+- **Database Schema Migration:** `services/campaign-service/migrations/002_campaign_scheduling_and_pacing.sql`:
+  - Added `caller_id`, `agent_version_id`, `timezone_mode`, `weekdays`, `held_contacts_count` to `campaigns`.
+  - Added `timezone`, `is_held`, `held_reason` to `campaign_targets`.
+  - Created `workspace_suppressions` table (`workspace_id`, `phone`, `reason`, `source`, `created_at`) with index on `(workspace_id, phone)`.
+- **Calling Window & Recipient Timezone Holding:**
+  - `services/campaign-service/src/utils/schedule-window.ts`: Evaluates IANA timezones, active weekdays, and daily calling window (`from` to `to`). Rejects unsupported overnight windows.
+  - In `recipient_local` mode, contacts missing a valid IANA timezone are transitioned to `is_held = true, held_reason = 'unknown_timezone'`, protecting compliance without stalling the rest of the campaign.
+  - Pre-call suppression check verifies `workspace_suppressions` immediately prior to placing every call.

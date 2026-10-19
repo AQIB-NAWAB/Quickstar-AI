@@ -1,31 +1,28 @@
 "use client";
 
 import {
-AlertCircle,
-Clock3,
-FileText,
-Info,
-MessageCircle,
-MousePointer2,
-Phone,
-RotateCcw,
+  AlertCircle,
+  Clock3,
+  Coins,
+  Database,
+  Info,
+  MessageSquare,
+  RotateCcw,
+  TrendingUp,
 } from "lucide-react";
-import { usePathname,useRouter,useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { useAnalyticsData } from "../hooks/use-analytics-data";
 import { createUnavailableDataSource } from "../lib/data-source";
 import { resolveDateRangeFromSearchParams } from "../lib/date-range";
-import { formatCompactNumber,formatExactNumber,formatSeconds } from "../lib/format";
+import { formatCompactNumber, formatExactNumber, formatSeconds } from "../lib/format";
 import type { AnalyticsDataSource } from "../lib/types";
 import { createUsageLedgerDataSource } from "../lib/usage-data-source";
-import { AcquisitionUsage } from "./acquisition-usage";
 import { AnalyticsDateRange } from "./analytics-date-range";
-import { ConversationVolumeChart } from "./conversation-volume-chart";
-import { MetricCard } from "./metric-card";
-import { ModelBreakdownChart } from "./model-breakdown-chart";
-import { PeakActivityChart } from "./peak-activity-chart";
-import { ResponseLatencyChart } from "./response-latency-chart";
-import { TokenConsumptionChart } from "./token-consumption-chart";
+import { ChartCard } from "./chart-card";
+import { LatencyConcurrencyChart } from "./charts/latency-concurrency-chart";
+import { StackedBars } from "./charts/stacked-bars";
+import { UsageByServiceTable } from "./usage-by-service-table";
 
 interface AnalyticsDashboardProps {
   workspaceId?: string;
@@ -50,7 +47,7 @@ export function AnalyticsDashboard({
     return resolveDateRangeFromSearchParams(rangeParam, fromParam, toParam);
   }, [searchParams]);
 
-  // Prefer usage ledger when workspace is known; charts that need rollups stay partial.
+  // Use authoritative usage & analytics data source when workspaceId is present
   const dataSource = useMemo(() => {
     if (propDataSource) return propDataSource;
     if (workspaceId) return createUsageLedgerDataSource(workspaceId);
@@ -62,7 +59,7 @@ export function AnalyticsDashboard({
     range,
   );
 
-  function handleSelectPreset(preset: "7d" | "30d") {
+  function handleSelectPreset(preset: "7d" | "30d" | "90d") {
     const params = new URLSearchParams(searchParams.toString());
     params.set("range", preset);
     params.delete("from");
@@ -86,28 +83,28 @@ export function AnalyticsDashboard({
 
   return (
     <div
-      className="w-full min-w-0 space-y-5 analytics-feature"
+      className="w-full min-w-0 space-y-6 analytics-feature"
       aria-busy={isLoading}
     >
-      {/* Page Header */}
+      {/* Page Header matching Image 1 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-accent-black">
-              Analytics & usage
+            <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-[#18181B]">
+              Analytics & Usage
             </h1>
             {isSampleDataBadge && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-heat-100 border border-orange-200">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-[#FF571A] border border-orange-200">
                 Sample data
               </span>
             )}
           </div>
-          <p className="text-xs sm:text-[13px] text-neutral-500">
-            Understand usage, activity, and response performance.
+          <p className="text-xs sm:text-[13px] text-[#71717A]">
+            Monitor token consumption, conversation throughput, latency trends, and estimated service costs.
           </p>
         </div>
 
-        {/* Date Range Selector */}
+        {/* Date Controls */}
         <AnalyticsDateRange
           range={range}
           onSelectPreset={handleSelectPreset}
@@ -117,15 +114,15 @@ export function AnalyticsDashboard({
 
       {/* Unavailable State Banner */}
       {isUnavailable && (
-        <div className="p-4 bg-neutral-50 border border-border-faint rounded-12 flex items-start gap-3">
+        <div className="p-4 bg-neutral-50 border border-[#EAECF0] rounded-12 flex items-start gap-3">
           <Info className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
-            <p className="text-xs font-semibold text-accent-black">
+            <p className="text-xs font-semibold text-[#18181B]">
               {message || "Analytics data is not available yet."}
             </p>
             <p className="text-xs text-neutral-500">
               {description ||
-                "This workspace's usage reporting is not connected. Telemetry ledger and usage metrics will activate with Feature 26."}
+                "This workspace's usage reporting is not connected. Telemetry ledger and usage metrics will activate once usage events are recorded."}
             </p>
           </div>
         </div>
@@ -152,157 +149,166 @@ export function AnalyticsDashboard({
         </div>
       )}
 
-      {/* Six Summary Metric Cards */}
-      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+      {/* Exactly Four KPI Cards (Image 1 / Image 7 Responsive 2x2 on tablet) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Total tokens */}
-        <MetricCard
-          label="Total tokens"
-          value={
-            summary?.totalTokens !== null && summary?.totalTokens !== undefined
-              ? formatCompactNumber(summary.totalTokens)
-              : "—"
-          }
-          subline={
-            summary?.inputTokens !== null &&
-            summary?.inputTokens !== undefined &&
-            summary?.outputTokens !== null &&
-            summary?.outputTokens !== undefined
-              ? `${formatCompactNumber(summary.inputTokens)} input · ${formatCompactNumber(
-                  summary.outputTokens,
-                )} output`
-              : "Input & output tokens"
-          }
-          icon={FileText}
-          isLoading={isLoading}
-        />
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-5 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[#71717A]">Total tokens</span>
+            <div className="w-9 h-9 rounded-8 bg-neutral-100 flex items-center justify-center text-neutral-600">
+              <Database className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-2xl sm:text-[28px] font-bold text-[#18181B] tracking-tight">
+              {summary?.totalTokens !== null && summary?.totalTokens !== undefined
+                ? formatCompactNumber(summary.totalTokens)
+                : "—"}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[#71717A] pt-1">
+              <span>
+                Input{" "}
+                <strong className="text-[#64748B] font-semibold">
+                  {summary?.inputTokens !== null && summary?.inputTokens !== undefined
+                    ? formatCompactNumber(summary.inputTokens)
+                    : "—"}
+                </strong>
+              </span>
+              <span>
+                Output{" "}
+                <strong className="text-[#FF571A] font-semibold">
+                  {summary?.outputTokens !== null && summary?.outputTokens !== undefined
+                    ? formatCompactNumber(summary.outputTokens)
+                    : "—"}
+                </strong>
+              </span>
+            </div>
+          </div>
+        </div>
 
         {/* 2. Conversations */}
-        <MetricCard
-          label="Conversations"
-          value={
-            summary?.conversations !== null && summary?.conversations !== undefined
-              ? formatExactNumber(summary.conversations)
-              : "—"
-          }
-          subline="Started in this period"
-          icon={MessageCircle}
-          isLoading={isLoading}
-        />
-
-        {/* 3. Response latency · P50 */}
-        <MetricCard
-          label="Response latency · P50"
-          value={
-            summary?.latencyP50Ms !== null && summary?.latencyP50Ms !== undefined
-              ? formatSeconds(summary.latencyP50Ms)
-              : "—"
-          }
-          subline="Median response time"
-          icon={Clock3}
-          isLoading={isLoading}
-        />
-
-        {/* 4. Response latency · P95 */}
-        <MetricCard
-          label="Response latency · P95"
-          value={
-            summary?.latencyP95Ms !== null && summary?.latencyP95Ms !== undefined
-              ? formatSeconds(summary.latencyP95Ms)
-              : "—"
-          }
-          subline="95th percentile"
-          icon={Clock3}
-          isLoading={isLoading}
-        />
-
-        {/* 5. Voice minutes */}
-        <MetricCard
-          label="Voice minutes"
-          value={
-            summary?.voiceMinutes !== null && summary?.voiceMinutes !== undefined
-              ? formatExactNumber(summary.voiceMinutes)
-              : "—"
-          }
-          subline={
-            summary?.voiceCalls !== null && summary?.voiceCalls !== undefined
-              ? `Across ${formatExactNumber(summary.voiceCalls)} calls`
-              : "Voice duration in minutes"
-          }
-          icon={Phone}
-          isLoading={isLoading}
-        />
-
-        {/* 6. Acquisition actions */}
-        <MetricCard
-          label="Acquisition actions"
-          value={
-            summary?.billableAcquisitionActions !== null &&
-            summary?.billableAcquisitionActions !== undefined
-              ? formatExactNumber(summary.billableAcquisitionActions)
-              : "—"
-          }
-          subline="Billable actions"
-          icon={MousePointer2}
-          isLoading={isLoading}
-        />
-      </div>
-
-      {/* Six Chart/Detail Panels in Three Rows */}
-      <div className="space-y-4">
-        {/* ROW 1: Token consumption (3:2 on desktop) & Model breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3 min-w-0">
-            <TokenConsumptionChart
-              data={data?.dailyTokens ?? []}
-              isLoading={isLoading}
-            />
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-5 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[#71717A]">Conversations</span>
+            <div className="w-9 h-9 rounded-8 bg-blue-50 flex items-center justify-center text-blue-600">
+              <MessageSquare className="w-4 h-4" />
+            </div>
           </div>
-          <div className="lg:col-span-2 min-w-0">
-            <ModelBreakdownChart
-              models={data?.models ?? []}
-              totalTokens={data?.summary?.totalTokens ?? undefined}
-              isLoading={isLoading}
-            />
+          <div className="space-y-1">
+            <div className="text-2xl sm:text-[28px] font-bold text-[#18181B] tracking-tight">
+              {summary?.conversations !== null && summary?.conversations !== undefined
+                ? formatExactNumber(summary.conversations)
+                : "—"}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs pt-1">
+              {summary?.conversationsTrendPct !== null && summary?.conversationsTrendPct !== undefined ? (
+                <span className="inline-flex items-center gap-1 text-[#027A48] font-medium">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>
+                    {summary.conversationsTrendPct >= 0 ? "+" : ""}
+                    {summary.conversationsTrendPct.toFixed(1)}% vs prior {range.preset}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[#71717A]">Across active threads</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* ROW 2: Conversation volume (3:2 on desktop) & Peak activity hours */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3 min-w-0">
-            <ConversationVolumeChart
-              data={data?.dailyConversations ?? []}
-              isLoading={isLoading}
-            />
+        {/* 3. Median latency */}
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-5 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[#71717A]">Median latency</span>
+            <div className="w-9 h-9 rounded-8 bg-neutral-100 flex items-center justify-center text-neutral-600">
+              <Clock3 className="w-4 h-4" />
+            </div>
           </div>
-          <div className="lg:col-span-2 min-w-0">
-            <PeakActivityChart
-              data={data?.hourlyConversations ?? []}
-              isLoading={isLoading}
-            />
+          <div className="space-y-1">
+            <div className="text-2xl sm:text-[28px] font-bold text-[#18181B] tracking-tight">
+              {summary?.latencyP50Ms !== null && summary?.latencyP50Ms !== undefined
+                ? `${summary.latencyP50Ms} ms`
+                : "—"}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-[#71717A] pt-1">
+              <span>p95</span>
+              <strong className="text-[#18181B] font-semibold">
+                {summary?.latencyP95Ms !== null && summary?.latencyP95Ms !== undefined
+                  ? formatSeconds(summary.latencyP95Ms)
+                  : "—"}
+              </strong>
+            </div>
           </div>
         </div>
 
-        {/* ROW 3: Response latency (equal width) & Acquisition usage */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="min-w-0">
-            <ResponseLatencyChart
-              data={data?.dailyLatency ?? []}
-              isLoading={isLoading}
-            />
+        {/* 4. Estimated spend */}
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-5 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[#71717A]">Estimated spend</span>
+            <div className="w-9 h-9 rounded-8 bg-neutral-100 flex items-center justify-center text-neutral-600">
+              <Coins className="w-4 h-4" />
+            </div>
           </div>
-          <div className="min-w-0">
-            <AcquisitionUsage
-              acquisitions={data?.acquisitions ?? []}
-              totalBillableActions={
-                data?.summary?.billableAcquisitionActions ?? undefined
-              }
-              voiceMinutes={data?.voice?.minutes}
-              voiceCalls={data?.voice?.calls}
-              isLoading={isLoading}
-            />
+          <div className="space-y-1">
+            <div className="text-2xl sm:text-[28px] font-bold text-[#18181B] tracking-tight">
+              {summary?.estimatedSpendUsd !== null && summary?.estimatedSpendUsd !== undefined
+                ? `$${summary.estimatedSpendUsd.toFixed(2)}`
+                : "—"}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[#71717A] pt-1">
+              <span>
+                Model{" "}
+                <strong className="text-[#18181B] font-semibold">
+                  {summary?.modelSpendUsd !== null && summary?.modelSpendUsd !== undefined
+                    ? `$${summary.modelSpendUsd.toFixed(2)}`
+                    : "—"}
+                </strong>
+              </span>
+              <span>
+                Voice{" "}
+                <strong className="text-[#18181B] font-semibold">
+                  {summary?.voiceSpendUsd !== null && summary?.voiceSpendUsd !== undefined
+                    ? `$${summary.voiceSpendUsd.toFixed(2)}`
+                    : "—"}
+                </strong>
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Two Side-by-Side Charts (Image 1 / Stacked on Tablet & Mobile Image 7) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Daily Token Consumption */}
+        <ChartCard
+          title="Daily token consumption"
+          legend={[
+            { label: "Input tokens", color: "#64748B" },
+            { label: "Output tokens", color: "#FF571A" },
+          ]}
+          isLoading={isLoading}
+        >
+          <StackedBars data={data?.dailyTokens ?? []} height={200} />
+        </ChartCard>
+
+        {/* Latency & Concurrency trend */}
+        <ChartCard
+          title="Latency & Concurrency trend"
+          legend={[
+            { label: "Latency (ms)", color: "#64748B" },
+            { label: "Concurrent turns", color: "#FF571A" },
+          ]}
+          isLoading={isLoading}
+        >
+          <LatencyConcurrencyChart data={data?.dailyLatency ?? []} height={200} />
+        </ChartCard>
+      </div>
+
+      {/* Usage by Service Table matching Image 1 */}
+      <UsageByServiceTable
+        items={data?.usageByService ?? []}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

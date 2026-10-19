@@ -39,11 +39,17 @@ async function openPglitePool(): Promise<SqlPool> {
   };
   const db = new PGlite();
   await db.waitReady;
-  const sql = readFileSync(
+  const sql1 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../migrations/001_eval.sql"),
     "utf8",
   ).replace(/CREATE EXTENSION[^;]+;/gi, "");
-  await db.exec(sql);
+  await db.exec(sql1);
+
+  const sql2 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../migrations/002_eval_suite_v2.sql"),
+    "utf8",
+  ).replace(/CREATE EXTENSION[^;]+;/gi, "");
+  await db.exec(sql2);
 
   return {
     query: (text, params) => db.query(text, params ?? []),
@@ -80,16 +86,19 @@ test("cap rejects extra case on run create", async () => {
   await withDb(async (service) => {
     const workspaceId = randomUUID();
     const agentId = randomUUID();
+    const dataset = await service.createDataset(workspaceId, { agent_id: agentId, name: "Default" });
     for (let i = 0; i < 4; i++) {
-      await service.createCase(workspaceId, agentId, {
+      await service.createCase(workspaceId, dataset.id, {
         input: `q${i}`,
         expected_output: `fake-reply:q${i}`,
       });
     }
     await assert.rejects(
       () =>
-        service.createRun(workspaceId, agentId, {
+        service.createRun(workspaceId, {
+          agent_id: agentId,
           agent_version_id: randomUUID(),
+          dataset_id: dataset.id,
         }),
       (err: unknown) => err instanceof AppError && /Case cap exceeded/.test(err.message),
     );
@@ -100,23 +109,30 @@ test("daily run cap rejects extra run", async () => {
   await withDb(async (service) => {
     const workspaceId = randomUUID();
     const agentId = randomUUID();
-    await service.createCase(workspaceId, agentId, {
+    const dataset = await service.createDataset(workspaceId, { agent_id: agentId, name: "Default" });
+    await service.createCase(workspaceId, dataset.id, {
       input: "hi",
       expected_output: "fake-reply:hi",
     });
     const versionId = randomUUID();
-    await service.createRun(workspaceId, agentId, {
+    await service.createRun(workspaceId, {
+      agent_id: agentId,
       agent_version_id: versionId,
+      dataset_id: dataset.id,
       idempotency_key: `r1-${randomUUID()}`,
     });
-    await service.createRun(workspaceId, agentId, {
+    await service.createRun(workspaceId, {
+      agent_id: agentId,
       agent_version_id: versionId,
+      dataset_id: dataset.id,
       idempotency_key: `r2-${randomUUID()}`,
     });
     await assert.rejects(
       () =>
-        service.createRun(workspaceId, agentId, {
+        service.createRun(workspaceId, {
+          agent_id: agentId,
           agent_version_id: versionId,
+          dataset_id: dataset.id,
           idempotency_key: `r3-${randomUUID()}`,
         }),
       (err: unknown) => err instanceof AppError && /Run cap exceeded/.test(err.message),
@@ -129,12 +145,15 @@ test("cross-workspace cannot read the report", async () => {
     const wsA = randomUUID();
     const wsB = randomUUID();
     const agentId = randomUUID();
-    await service.createCase(wsA, agentId, {
+    const dataset = await service.createDataset(wsA, { agent_id: agentId, name: "Default" });
+    await service.createCase(wsA, dataset.id, {
       input: "hello",
       expected_output: "fake-reply:hello",
     });
-    const { run } = await service.createRun(wsA, agentId, {
+    const { run } = await service.createRun(wsA, {
+      agent_id: agentId,
       agent_version_id: randomUUID(),
+      dataset_id: dataset.id,
     });
     await assert.rejects(
       () => service.getRun(wsB, run.id),
@@ -148,16 +167,19 @@ test("async processRun matches scripted fake-reply answers", async () => {
     const workspaceId = randomUUID();
     const agentId = randomUUID();
     const versionId = randomUUID();
-    await service.createCase(workspaceId, agentId, {
+    const dataset = await service.createDataset(workspaceId, { agent_id: agentId, name: "Default" });
+    await service.createCase(workspaceId, dataset.id, {
       input: "ping",
       expected_output: "fake-reply:ping",
     });
-    await service.createCase(workspaceId, agentId, {
+    await service.createCase(workspaceId, dataset.id, {
       input: "pong",
       expected_output: "fake-reply:pong",
     });
-    const { run } = await service.createRun(workspaceId, agentId, {
+    const { run } = await service.createRun(workspaceId, {
+      agent_id: agentId,
       agent_version_id: versionId,
+      dataset_id: dataset.id,
       idempotency_key: `async-${randomUUID()}`,
     });
     assert.equal(run.status, "queued");
@@ -184,18 +206,23 @@ test("idempotent run create returns first row", async () => {
   await withDb(async (service) => {
     const workspaceId = randomUUID();
     const agentId = randomUUID();
+    const dataset = await service.createDataset(workspaceId, { agent_id: agentId, name: "Default" });
     const key = `idem-${randomUUID()}`;
-    await service.createCase(workspaceId, agentId, {
+    await service.createCase(workspaceId, dataset.id, {
       input: "x",
       expected_output: "fake-reply:x",
     });
-    const first = await service.createRun(workspaceId, agentId, {
+    const first = await service.createRun(workspaceId, {
+      agent_id: agentId,
       agent_version_id: randomUUID(),
+      dataset_id: dataset.id,
       idempotency_key: key,
     });
     assert.equal(first.created, true);
-    const second = await service.createRun(workspaceId, agentId, {
+    const second = await service.createRun(workspaceId, {
+      agent_id: agentId,
       agent_version_id: randomUUID(),
+      dataset_id: dataset.id,
       idempotency_key: key,
     });
     assert.equal(second.created, false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity,ArrowLeft,Clock,Pause,Play,Square,Users } from "lucide-react";
+import { Activity, ArrowLeft, Clock, Download, Pause, Play, Square, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import type { CampaignDetail } from "../lib/types";
@@ -13,9 +13,11 @@ interface CampaignHeaderProps {
   campaignBaseUrl: string;
   backUrl: string;
   isPreview?: boolean;
+  onLaunch?: () => Promise<void> | void;
   onPause?: () => Promise<void> | void;
   onResume?: () => Promise<void> | void;
   onStop?: () => Promise<void> | void;
+  exportCsvUrl?: string;
 }
 
 export function CampaignHeader({
@@ -24,17 +26,21 @@ export function CampaignHeader({
   campaignBaseUrl,
   backUrl,
   isPreview = false,
+  onLaunch,
   onPause,
   onResume,
   onStop,
+  exportCsvUrl,
 }: CampaignHeaderProps) {
-  const [dialogAction, setDialogAction] = useState<"pause" | "resume" | "stop" | null>(null);
+  const [dialogAction, setDialogAction] = useState<"launch" | "pause" | "resume" | "stop" | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
 
   const { name, description, status, agentName, schedule, pacing, metrics } = campaign;
 
   async function handleConfirmAction() {
-    if (dialogAction === "pause" && onPause) {
+    if (dialogAction === "launch" && onLaunch) {
+      await onLaunch();
+    } else if (dialogAction === "pause" && onPause) {
       await onPause();
     } else if (dialogAction === "resume" && onResume) {
       await onResume();
@@ -82,6 +88,17 @@ export function CampaignHeader({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {(status === "draft" || status === "scheduled") && (
+            <button
+              type="button"
+              onClick={() => setDialogAction("launch")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-6 text-xs font-semibold bg-heat-100 hover:bg-[#e04e10] text-white shadow-xs transition-colors"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Launch</span>
+            </button>
+          )}
+
           {status === "running" && (
             <>
               <button
@@ -122,6 +139,19 @@ export function CampaignHeader({
                 <span>Stop</span>
               </button>
             </>
+          )}
+
+          {exportCsvUrl && (
+            <a
+              href={exportCsvUrl}
+              download
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-6 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-accent-black shadow-xs transition-colors"
+              title="Export results as CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </a>
           )}
         </div>
       </div>

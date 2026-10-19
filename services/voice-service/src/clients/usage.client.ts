@@ -50,8 +50,3 @@ export function createUsageIngestClient(opts: {
     },
   };
 }
-
-/** No-op client when USAGE_URL is unset (local unit tests). */
-export function createNoopUsageIngestClient(): UsageIngestClient {
-  return { emit: () => undefined };
-}

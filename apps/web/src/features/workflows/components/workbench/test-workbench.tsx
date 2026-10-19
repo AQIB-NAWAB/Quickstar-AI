@@ -1,19 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  X,
-  Play,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  ArrowRight,
-  Copy,
-  Check,
-  ChevronRight,
-  Braces,
-  RotateCcw,
-} from "lucide-react";
+import { X, Play, CheckCircle2, AlertCircle, Copy, Check, ChevronRight } from "lucide-react";
 import type { StepExecutionTrace, WorkflowSimulationResult } from "../../lib/types";
 
 export type TestWorkbenchProps = {

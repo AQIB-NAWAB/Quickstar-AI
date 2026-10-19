@@ -1,21 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Sparkles,
-  Plus,
-  ArrowRight,
-  X,
-  CheckCircle2,
-  Zap,
-  GitBranch,
-  Globe,
-  UserCheck,
-  Bell,
-  Tag,
-  Clock,
-  Layers,
-} from "lucide-react";
+import { Sparkles, Plus, ArrowRight, X, CheckCircle2, Layers } from "lucide-react";
 import type { WorkflowTemplateItem } from "../../lib/types";
 
 export type TemplateGalleryProps = {

@@ -1,5 +1,5 @@
 import { loadWorkspaceShell } from "@/lib/server/auth/session";
-import { MemoryFacts } from "@/features/knowledge/components/memory-facts";
+import { MemoryWorkspace } from "@/features/knowledge/components/memory/memory-workspace";
 
 type Props = { params: { workspaceId: string } };
 
@@ -8,7 +8,7 @@ export default async function WorkspaceMemoryPage({ params }: Props) {
 
   return (
     <div className="w-full">
-      <MemoryFacts key={activeWorkspace.id} workspaceId={activeWorkspace.id} />
+      <MemoryWorkspace key={activeWorkspace.id} workspaceId={activeWorkspace.id} />
     </div>
   );
 }

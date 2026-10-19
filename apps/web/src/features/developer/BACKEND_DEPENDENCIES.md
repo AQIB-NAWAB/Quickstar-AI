@@ -1,110 +1,56 @@
-# Developer Portal — Backend Dependencies & API Contracts
+# Developer Portal & Webhooks — Backend Dependencies & API Contracts
 
-This document outlines the contracts, specifications, and backend capabilities required to transition the Developer Portal and Webhook management features from frontend interfaces to fully integrated production services.
-
----
-
-## 1. OpenAPI Coverage Gaps
-
-The current `docs/api/openapi.yaml` represents a minimal gateway skeleton covering:
-- `/v1/register` (POST)
-- `/v1/login` (POST)
-- `/v1/me` (GET)
-- `/v1/orgs/{orgId}/workspaces` (GET, POST)
-- `/v1/workspaces/{workspaceId}/invites` (POST)
-- `/v1/workspaces/{workspaceId}/members/{userId}` (PATCH)
-
-### Critical Coverage Gaps:
-1. **Agents API:** No OpenAPI definitions exist for `/v1/workspaces/{workspaceId}/agents` (creation, compilation, publishing, tools).
-2. **Conversations & Messages:** No OpenAPI definitions exist for streaming conversation endpoints, message pagination, or thread control.
-3. **Knowledge & Ingestion:** Missing schema definitions for source uploads, ingestion status, and vector query endpoints.
-4. **Leads & Contacts:** No endpoints defined for lead ingestion or webhook push.
-5. **Campaigns & Voice:** Missing endpoints for outbound batches and Twilio/LiveKit SIP trunks.
+This document records the backend capabilities, contracts, and schema boundaries implemented for the Developer Portal, Interactive API Reference, Try-It Console, and Webhooks Management.
 
 ---
 
-## 2. Try-It Console Authentication & Transport
+## 1. Implementation Status
 
-- **Execution Boundary:** The frontend try-it console enforces strict constraints to prevent arbitrary SSRF or credential leakage.
-- **Base Gateway:** Defaults to `http://localhost:3000` (configurable via `NEXT_PUBLIC_GATEWAY_URL`). Must be constrained to allowed gateway origins.
-- **Authentication:**
-  - Token input is kept in component memory only (`useState`). Never persisted to `localStorage`, `sessionStorage`, or cookies.
-  - The skeleton security scheme requires `Bearer <jwt_token>`. Organization API keys (`qs_live_...`) require backend validation support before being enabled.
-- **Safety & Mutation Confirmation:**
-  - Read operations (`GET`) execute explicitly via the "Send request" button.
-  - Destructive or state-altering requests (`POST`, `PATCH`, `DELETE`) require explicit user confirmation to avoid unintended mutation of production data.
-
----
-
-## 3. TypeScript SDK Availability
-
-- As noted in `sdk/README.md`, an official `@quickstart/sdk` package is not yet published to npm.
-- **Current Guidance:** Provide server-side Node.js/TypeScript REST integration patterns using `fetch` with standard bearer authorization and structured error parsing.
-- **Future SDK Contract:** When generated, the SDK should support typed clients, automatic retry with exponential backoff for 429/503 responses, and streaming event generators.
-
----
-
-## 4. Webhook Management & Subscriptions
-
-### Registration Endpoint:
-- **Route:** `POST /v1/workspaces/{workspaceId}/webhooks`
-- **Request Payload:**
-  ```json
-  {
-    "url": "https://hooks.example.com/events",
-    "events": ["conversation.handed_off", "agent.published"],
-    "description": "Optional human label"
-  }
-  ```
-- **Response Contract (Copy-Once Secret):**
-  ```json
-  {
-    "id": "wh_7890",
-    "url": "https://hooks.example.com/events",
-    "events": ["conversation.handed_off", "agent.published"],
-    "status": "active",
-    "signingSecret": "whsec_live_9a7b3c...",
-    "createdAt": "2026-10-12T00:00:00.000Z"
-  }
-  ```
-- **Copy-Once Semantics:** The raw `signingSecret` is returned **only once** upon successful registration. Subsequent `GET /webhooks` queries MUST omit the secret or return only a redacted prefix (`whsec_...****`).
-
-### Event Catalog (Platform Events):
-- Defined in `packages/contracts/src/platform-events.ts`:
-  - `conversation.handed_off`
-  - `conversation.released`
-  - `message.appended`
-  - `agent.published`
+- **Status:** **IMPLEMENTED & CONNECTED**
+- **Owning Service:** `services/workspace-service` (:3012)
+- **Database Schema:** `services/workspace-service/migrations/005_webhook_subscriptions_and_deliveries.sql`
+- **Gateway Proxy:** `services/api-gateway/src/routes/proxy-workspace.routes.ts`
+- **Web BFF Routes:**
+  - `GET/POST /api/workspaces/:workspaceId/webhooks` -> `apps/web/src/app/api/workspaces/[workspaceId]/webhooks/route.ts`
+  - `PATCH/DELETE .../webhooks/:endpointId` -> `apps/web/src/app/api/workspaces/[workspaceId]/webhooks/[...path]/route.ts`
+  - `POST .../webhooks/:endpointId/rotate-secret` -> `.../[...path]/route.ts`
+  - `GET .../webhooks/:endpointId/deliveries` -> `.../[...path]/route.ts`
+  - `GET .../webhooks/:endpointId/deliveries/:deliveryId` -> `.../[...path]/route.ts`
+  - `POST .../webhooks/:endpointId/deliveries/:deliveryId/redrive` -> `.../[...path]/route.ts`
+- **Frontend Components:**
+  - API Reference 3-Column Layout & Try-It Console: `apps/web/src/features/developer/components/api-reference.tsx`
+  - Webhooks Directory: `apps/web/src/features/developer/components/webhook-list.tsx`
+  - Delivery Inspection Drawer: `apps/web/src/features/developer/components/delivery-detail.tsx`
+  - Webhook Registration Modal: `apps/web/src/features/developer/components/webhook-registration.tsx`
+  - Signing Secret Dialog: `apps/web/src/features/developer/components/signing-secret-dialog.tsx`
+  - Redrive Confirmation Dialog: `apps/web/src/features/developer/components/redrive-dialog.tsx`
 
 ---
 
-## 5. HMAC Signing Protocol
+## 2. Webhooks API Specification
 
-The webhook dispatch engine must implement canonical cryptographic verification:
-- **Header:** `X-QuickStart-Signature` (format: `t={timestamp},v1={hex_hmac}`)
-- **Timestamp Header:** Included in payload or header to prevent replay attacks (recommended window: 5 minutes / 300 seconds).
-- **Algorithm:** `HMAC-SHA256` using the raw UTF-8 request body bytes and the endpoint's signing secret.
-- **Verification Rule:** Consumers must use constant-time comparison (`crypto.timingSafeEqual`) to prevent timing side-channel attacks.
+### Endpoint Management
+- `GET /v1/workspaces/:workspaceId/webhooks`: Lists registered endpoints with status, last delivery outcome, consecutive failure count.
+- `POST /v1/workspaces/:workspaceId/webhooks`: Registers endpoint. Validates URL protocol & SSRF restrictions. Generates cryptographic `whsec_live_` secret returned once.
+- `PATCH /v1/workspaces/:workspaceId/webhooks/:endpointId`: Modifies URL, subscribed events, or status (`active`, `disabled`).
+- `DELETE /v1/workspaces/:workspaceId/webhooks/:endpointId`: Removes endpoint and cancels active retries.
+- `POST /v1/workspaces/:workspaceId/webhooks/:endpointId/rotate-secret`: Rotates signing secret, returning newly generated secret.
+
+### Delivery History & Redrive
+- `GET /v1/workspaces/:workspaceId/webhooks/:endpointId/deliveries`: Lists recent deliveries with HTTP status, latency, error reason.
+- `GET /v1/workspaces/:workspaceId/webhooks/:endpointId/deliveries/:deliveryId`: Returns complete delivery trace including request headers, payload, response headers, body snippet, and attempt history.
+- `POST /v1/workspaces/:workspaceId/webhooks/:endpointId/deliveries/:deliveryId/redrive`: Re-executes delivery with incremented attempt counter and HMAC signature generation.
 
 ---
 
-## 6. Delivery Diagnostics & Redrive Idempotency
+## 3. Cryptographic Signature & SSRF Defense
 
-### Delivery Trace Endpoint:
-- **Route:** `GET /v1/workspaces/{workspaceId}/webhooks/{webhookId}/deliveries/{deliveryId}`
-- **Metadata Returned:**
-  - `attempt`: Current attempt number (1-indexed).
-  - `httpStatus`: HTTP response status code (or `null` if network socket error).
-  - `latencyMs`: Request round-trip time in milliseconds.
-  - `request.headers`: Sanitized headers (authorization and secrets redacted).
-  - `request.body`: Exact event payload dispatched.
-  - `response.body`: Truncated response body (bounded to 16KB).
-  - `attemptsHistory`: Chronological array of previous delivery attempts.
+- **HMAC Scheme:** Stripe-compatible timestamped header `X-QuickStart-Signature: t={timestamp},v1={hmacSha256(secret, `${timestamp}.${rawBody}`)}`.
+- **SSRF Defense:** In production, rejects private network blocks (`127.0.0.1`, `localhost`, `::1`, `10.0.0.0/8`, `192.168.0.0/16`, AWS metadata `169.254.169.254`) and enforces HTTPS.
 
-### Redrive Contract:
-- **Route:** `POST /v1/workspaces/{workspaceId}/webhooks/{webhookId}/deliveries/{deliveryId}/redrive`
-- **Idempotency Header:** `Idempotency-Key: redrive_{deliveryId}_{timestamp}`
-- **Behavior:**
-  - Dispatches the exact original event payload with a new delivery attempt record.
-  - Does NOT mutate or delete earlier attempt logs.
-  - Destination endpoints must handle potential duplicate processing via their own event ID deduplication.
+---
+
+## 4. Interactive API Reference & Try-It Console
+
+- **Catalog:** `apps/web/src/features/developer/lib/openapi.ts` contains structured operations for Workspace, Agents, Conversations, Knowledge, Webhooks, Analytics, and Audit.
+- **Safety Boundary:** In-memory Bearer token state, interactive parameter and body editors, and modal confirmation guards for state-altering requests (`POST`, `PATCH`, `DELETE`).

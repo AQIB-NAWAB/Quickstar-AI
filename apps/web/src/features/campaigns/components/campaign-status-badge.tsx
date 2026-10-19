@@ -36,9 +36,9 @@ export function CampaignStatusBadge({
   if (norm === "paused") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 tracking-tight ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#FEF6EE] text-[#B54708] border border-[#FEDF89] tracking-tight ${className}`}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#B54708]" />
         <span>Paused</span>
       </span>
     );
@@ -86,13 +86,35 @@ export function ContactStatusBadge({
 }) {
   const norm = status.toLowerCase();
 
-  if (norm === "answered") {
+  if (norm === "answered" || norm === "completed") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-50/70 text-neutral-800 border border-orange-200/60 ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80 ${className}`}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-heat-100" />
-        <span>Answered</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span>Completed</span>
+      </span>
+    );
+  }
+
+  if (norm === "calling" || norm === "in_progress") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 ${className}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+        <span>Calling</span>
+      </span>
+    );
+  }
+
+  if (norm === "held") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FEF6EE] text-[#B54708] border border-[#FEDF89] ${className}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-[#B54708]" />
+        <span>Held</span>
       </span>
     );
   }
@@ -100,7 +122,7 @@ export function ContactStatusBadge({
   if (norm === "retrying") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-50/70 text-neutral-800 border border-orange-200/60 ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/70 ${className}`}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
         <span>Retrying</span>
@@ -108,13 +130,35 @@ export function ContactStatusBadge({
     );
   }
 
-  if (norm === "failed") {
+  if (norm === "no_answer") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200 ${className}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+        <span>No Answer</span>
+      </span>
+    );
+  }
+
+  if (norm === "busy") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200 ${className}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+        <span>Busy</span>
+      </span>
+    );
+  }
+
+  if (norm === "failed" || norm === "suppressed") {
     return (
       <span
         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-200/80 ${className}`}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-        <span>Failed</span>
+        <span>{norm === "suppressed" ? "Suppressed" : "Failed"}</span>
       </span>
     );
   }

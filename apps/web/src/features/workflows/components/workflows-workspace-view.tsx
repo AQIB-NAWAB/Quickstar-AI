@@ -22,7 +22,6 @@ import { TemplateGallery } from "./templates/template-gallery";
 import { WorkflowUnavailableState } from "./workflow-unavailable-state";
 import { ExecutionHistory } from "./execution-history";
 import { RunDetails } from "./run-details";
-import { WorkflowHeader } from "./workflow-header";
 
 type View =
   | { kind: "list" }

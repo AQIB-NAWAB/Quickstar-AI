@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Search, Copy, Check, ChevronRight, ChevronDown, Braces } from "lucide-react";
+import { X, Search, Copy, Check, Braces } from "lucide-react";
 
 export type VariablePickerDialogProps = {
   isOpen: boolean;
