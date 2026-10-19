@@ -110,5 +110,34 @@ export function createIntegrationsController(service: IntegrationsService) {
         integration: result,
       });
     }) as RequestHandler,
+
+    sync: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const provider = getProvider(req);
+      const body = (req.body ?? {}) as {
+        operation?: "manual_sync" | "test_connection" | "discover_resources";
+        resourceType?: string;
+        options?: Record<string, unknown>;
+      };
+      const result = await service.syncIntegration(workspaceId, provider, {
+        operation: body.operation || "manual_sync",
+        resourceType: body.resourceType,
+        options: body.options,
+      });
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        ...result,
+      });
+    }) as RequestHandler,
+
+    syncHistory: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const provider = getProvider(req);
+      const history = await service.listSyncHistory(workspaceId, provider);
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        history,
+      });
+    }) as RequestHandler,
   };
 }

@@ -17,12 +17,17 @@ const HOP_BY_HOP = new Set([
   "content-length",
 ]);
 
+const UNTRUSTED_INGRESS_HEADERS = new Set([
+  "x-quickstart-auth-context",
+  "x-quickstart-internal-token",
+]);
+
 function forwardRequestHeaders(req: Request, requestId: string, access?: VerifiedAccessToken, rawBearer?: string) {
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
     const lower = key.toLowerCase();
-    if (HOP_BY_HOP.has(lower)) continue;
+    if (HOP_BY_HOP.has(lower) || UNTRUSTED_INGRESS_HEADERS.has(lower)) continue;
     headers[key] = Array.isArray(value) ? value.join(", ") : value;
   }
   headers["x-request-id"] = requestId;
@@ -30,12 +35,18 @@ function forwardRequestHeaders(req: Request, requestId: string, access?: Verifie
     headers.authorization = `Bearer ${rawBearer}`;
   }
   if (access) {
-    headers[AUTH_CONTEXT_HEADER] = serializeAuthContext({
-      tenantId: access.org_id,
-      actorId: access.sub,
-      roles: [],
-      requestId,
-    });
+    const signingSecret = process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_ACCESS_SECRET;
+    headers[AUTH_CONTEXT_HEADER] = serializeAuthContext(
+      {
+        tenantId: access.org_id,
+        actorId: access.sub,
+        roles: [],
+        requestId,
+        principalType: access.isApiKey ? "api_key" : "staff",
+        orgId: access.org_id,
+      },
+      signingSecret,
+    );
   }
   return headers;
 }

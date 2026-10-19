@@ -12,6 +12,7 @@ export type DialResult = {
   status: CampaignAttempt["status"];
   outcome: string;
   callId: string | null;
+  providerCallSid?: string | null;
   durationSeconds: number | null;
   error?: { code: string; message: string } | null;
 };
@@ -195,6 +196,7 @@ export class CampaignDialer {
       status: result.status,
       outcome: result.outcome,
       callId: result.callId,
+      providerCallSid: result.providerCallSid,
       durationSeconds: result.durationSeconds,
       error: result.error ?? null,
     });

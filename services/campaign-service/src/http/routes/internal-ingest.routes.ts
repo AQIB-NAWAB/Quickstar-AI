@@ -12,5 +12,11 @@ export const createInternalIngestRoutes: RouteModule<CampaignHttpContext> = (ctx
     asyncHandler(ctrl.ingestLeadDelivery),
   );
 
+  router.post(
+    "/internal/v1/campaigns/attempts/reconcile",
+    ctx.internalAuth,
+    asyncHandler(ctrl.reconcileAttempt),
+  );
+
   return router;
 };

@@ -97,6 +97,7 @@ export type IdentityStore = {
   ): Promise<void>;
 
   listApiKeys(orgId: string): Promise<ApiKeyRecord[]>;
+  findApiKeyByPrefix(keyPrefix: string): Promise<ApiKeyRecord | null>;
   revokeApiKey(
     orgId: string,
     keyId: string,

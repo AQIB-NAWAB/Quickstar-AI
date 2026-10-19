@@ -213,5 +213,24 @@ export function createConversationsController(conversations: ConversationsServic
         tool_calls: list.map(toToolCallJson),
       });
     }) as RequestHandler,
+
+    updateTags: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as { tags?: string[]; mode?: "add" | "remove" | "replace" };
+
+      const tags = await conversations.updateTags(
+        tenant.workspaceId,
+        conversationId,
+        body?.tags ?? [],
+        body?.mode ?? "add",
+      );
+
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        tags,
+      });
+    }) as RequestHandler,
   };
 }

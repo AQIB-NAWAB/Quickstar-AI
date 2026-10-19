@@ -163,6 +163,8 @@ export type CampaignAttempt = {
   attemptNumber: number;
   idempotencyKey: string;
   callId: string | null;
+  providerCallSid?: string | null;
+  provider?: string;
   status: "answered" | "no_answer" | "busy" | "failed" | "in_progress" | "voicemail";
   outcome: string;
   startedAt: Date;

@@ -21,6 +21,9 @@ export type KnowledgeSource = {
   char_count: number;
   indexed_version: number;
   raw_storage_key: string | null;
+  extraction_status?: "pending" | "processing" | "completed" | "failed";
+  extraction_error?: string | null;
+  ocr_applied?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -53,6 +56,9 @@ const SELECT_COLUMNS = `id, workspace_id, name, kind, status, error_message, chu
   COALESCE(char_count, 0) AS char_count,
   COALESCE(indexed_version, 0) AS indexed_version,
   raw_storage_key,
+  COALESCE(extraction_status, 'completed') AS extraction_status,
+  extraction_error,
+  COALESCE(ocr_applied, false) AS ocr_applied,
   created_at::text, updated_at::text`;
 
 export class SourcesRepository {
@@ -387,5 +393,106 @@ export class SourcesRepository {
       [workspaceId, sourceId],
     );
     return result.rows[0] ?? null;
+  }
+
+  async enqueueExtraction(workspaceId: string, sourceId: string): Promise<string> {
+    const res = await this.pool.query<{ id: string }>(
+      `INSERT INTO knowledge_extraction_queue (workspace_id, source_id, status)
+       VALUES ($1, $2, 'queued')
+       RETURNING id`,
+      [workspaceId, sourceId],
+    );
+    return res.rows[0].id;
+  }
+
+  async claimExtractionJob(): Promise<{
+    id: string;
+    workspace_id: string;
+    source_id: string;
+    attempts: number;
+  } | null> {
+    const res = await this.pool.query<{
+      id: string;
+      workspace_id: string;
+      source_id: string;
+      attempts: number;
+    }>(
+      `UPDATE knowledge_extraction_queue
+       SET status = 'processing',
+           attempts = attempts + 1,
+           lease_expires_at = NOW() + INTERVAL '5 minutes',
+           updated_at = NOW()
+       WHERE id = (
+         SELECT id FROM knowledge_extraction_queue
+         WHERE status = 'queued'
+            OR (status = 'processing' AND lease_expires_at < NOW())
+         ORDER BY created_at ASC
+         LIMIT 1
+         FOR UPDATE SKIP LOCKED
+       )
+       RETURNING id, workspace_id, source_id, attempts`,
+    );
+    return res.rows[0] ?? null;
+  }
+
+  async completeExtractionJob(jobId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE knowledge_extraction_queue
+       SET status = 'completed',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [jobId],
+    );
+  }
+
+  async failExtractionJob(jobId: string, error: string, terminal: boolean): Promise<void> {
+    await this.pool.query(
+      `UPDATE knowledge_extraction_queue
+       SET status = $2,
+           error_message = $3,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [jobId, terminal ? "failed" : "queued", error],
+    );
+  }
+
+  async updateExtractionResult(
+    workspaceId: string,
+    sourceId: string,
+    input: {
+      status: "completed" | "failed";
+      contentText?: string | null;
+      storageKey?: string | null;
+      charCount?: number;
+      ocrApplied?: boolean;
+      error?: string | null;
+    },
+  ): Promise<KnowledgeSource> {
+    const res = await this.pool.query<KnowledgeSource>(
+      `UPDATE knowledge_sources
+       SET extraction_status = $3,
+           content_text = COALESCE($4, content_text),
+           storage_key = COALESCE($5, storage_key),
+           char_count = COALESCE($6, char_count),
+           ocr_applied = COALESCE($7, ocr_applied),
+           extraction_error = $8,
+           updated_at = NOW()
+       WHERE workspace_id = $1 AND id = $2
+       RETURNING ${SELECT_COLUMNS}`,
+      [
+        workspaceId,
+        sourceId,
+        input.status,
+        input.contentText ?? null,
+        input.storageKey ?? null,
+        input.charCount ?? null,
+        input.ocrApplied ?? null,
+        input.error ?? null,
+      ],
+    );
+    if (!res.rows[0]) {
+      throw new Error(`Source ${sourceId} not found`);
+    }
+    return res.rows[0];
   }
 }

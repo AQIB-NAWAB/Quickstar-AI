@@ -6,8 +6,12 @@ import type {
   IntegrationProvider,
   IntegrationsListResponse,
   IntegrationStatus,
+  IntegrationSyncRequest,
+  IntegrationSyncResult,
 } from "@quickstart/contracts";
-import type { IntegrationsRepository } from "../repository/integrations.repository.js";
+import type { IntegrationsRepository, SyncLogRow } from "../repository/integrations.repository.js";
+import { ProviderRegistry } from "../integrations/provider-registry.js";
+import { SecretsClient } from "../clients/secrets.client.js";
 
 const CATALOG_DEFINITIONS: Omit<IntegrationCatalogItem, "status">[] = [
   {
@@ -94,11 +98,26 @@ const CATALOG_DEFINITIONS: Omit<IntegrationCatalogItem, "status">[] = [
 ];
 
 export class IntegrationsService {
-  constructor(private readonly repo: IntegrationsRepository) {}
+  private readonly registry: ProviderRegistry;
+  private readonly secrets: SecretsClient;
+
+  constructor(
+    private readonly repo: IntegrationsRepository,
+    secretsClient?: SecretsClient,
+    registry?: ProviderRegistry,
+  ) {
+    this.registry = registry ?? new ProviderRegistry();
+    this.secrets =
+      secretsClient ??
+      new SecretsClient({
+        internalToken: process.env.WORKSPACE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? "internal-token",
+      });
+  }
 
   async listIntegrations(workspaceId: string): Promise<IntegrationsListResponse> {
     const existing = await this.repo.listByWorkspace(workspaceId);
     const existingMap = new Map(existing.map((e) => [e.provider, e]));
+    const capabilitiesMap = this.registry.listCapabilities();
 
     let connectedCount = 0;
     const catalog: IntegrationCatalogItem[] = CATALOG_DEFINITIONS.map((def) => {
@@ -111,11 +130,17 @@ export class IntegrationsService {
       return {
         ...def,
         status,
+        connectionId: persisted?.id ?? null,
         accountIdentifier: persisted?.account_identifier ?? null,
         accountEmail: persisted?.account_email ?? null,
+        accountName: persisted?.account_name ?? null,
         grantedScopes: persisted?.granted_scopes ?? [],
+        capabilities: capabilitiesMap[def.id],
         connectedAt: persisted?.connected_at ? persisted.connected_at.toISOString() : null,
         updatedAt: persisted?.updated_at ? persisted.updated_at.toISOString() : null,
+        lastVerifiedAt: persisted?.last_verified_at ? persisted.last_verified_at.toISOString() : null,
+        lastSyncAt: persisted?.last_sync_at ? persisted.last_sync_at.toISOString() : null,
+        lastError: persisted?.last_error ?? null,
       };
     });
 
@@ -141,6 +166,16 @@ export class IntegrationsService {
         label: "Telephony",
         count: catalog.filter((c) => c.category === "telephony").length,
       },
+      {
+        id: "productivity",
+        label: "Productivity",
+        count: catalog.filter((c) => c.category === "productivity").length,
+      },
+      {
+        id: "marketing",
+        label: "Marketing",
+        count: catalog.filter((c) => c.category === "marketing").length,
+      },
     ];
 
     return {
@@ -164,15 +199,22 @@ export class IntegrationsService {
 
     const persisted = await this.repo.getByProvider(workspaceId, provider);
     const status: IntegrationStatus = (persisted?.status as IntegrationStatus) ?? "not_connected";
+    const capabilities = this.registry.getAdapter(provider).capabilities;
 
     return {
       ...def,
       status,
+      connectionId: persisted?.id ?? null,
       accountIdentifier: persisted?.account_identifier ?? null,
       accountEmail: persisted?.account_email ?? null,
+      accountName: persisted?.account_name ?? null,
       grantedScopes: persisted?.granted_scopes ?? [],
+      capabilities,
       connectedAt: persisted?.connected_at ? persisted.connected_at.toISOString() : null,
       updatedAt: persisted?.updated_at ? persisted.updated_at.toISOString() : null,
+      lastVerifiedAt: persisted?.last_verified_at ? persisted.last_verified_at.toISOString() : null,
+      lastSyncAt: persisted?.last_sync_at ? persisted.last_sync_at.toISOString() : null,
+      lastError: persisted?.last_error ?? null,
     };
   }
 
@@ -181,6 +223,7 @@ export class IntegrationsService {
     userId: string,
     provider: IntegrationProvider,
     redirectUri: string,
+    options?: { scopes?: string[]; subdomain?: string },
   ): Promise<IntegrationAuthorizeResponse> {
     const def = CATALOG_DEFINITIONS.find((d) => d.id === provider);
     if (!def || def.connectionType !== "oauth") {
@@ -190,9 +233,10 @@ export class IntegrationsService {
       });
     }
 
+    const adapter = this.registry.getAdapter(provider);
     const stateToken = randomBytes(24).toString("hex");
     const codeVerifier = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes validity
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await this.repo.saveOAuthState({
       workspaceId,
@@ -204,26 +248,16 @@ export class IntegrationsService {
       expiresAt,
     });
 
-    let authUrl = "";
-    if (provider === "google_calendar") {
-      const clientId = process.env.GOOGLE_CLIENT_ID ?? "quickstart-calendar-client-id";
-      const scopes = (def.requiredScopes ?? []).join(" ");
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: "code",
-        scope: scopes,
-        state: stateToken,
-        access_type: "offline",
-        prompt: "consent",
-      });
-      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    } else {
-      authUrl = `https://auth.${provider}.com/oauth/authorize?state=${encodeURIComponent(stateToken)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-    }
+    const { url } = adapter.getAuthorizationUrl({
+      state: stateToken,
+      redirectUri,
+      codeVerifier,
+      scopes: options?.scopes,
+      subdomain: options?.subdomain,
+    });
 
     return {
-      authorization_url: authUrl,
+      authorization_url: url,
       state: stateToken,
       provider,
     };
@@ -235,6 +269,7 @@ export class IntegrationsService {
     provider: IntegrationProvider,
     code: string,
     state: string,
+    options?: { subdomain?: string },
   ): Promise<IntegrationCatalogItem> {
     const storedState = await this.repo.getOAuthState(state);
     if (!storedState) {
@@ -258,18 +293,42 @@ export class IntegrationsService {
     // Delete one-time state token
     await this.repo.deleteOAuthState(state);
 
-    const def = CATALOG_DEFINITIONS.find((d) => d.id === provider);
+    const adapter = this.registry.getAdapter(provider);
+    const tokenResult = await adapter.exchangeCode({
+      code,
+      redirectUri: storedState.redirect_uri,
+      codeVerifier: storedState.code_verifier ?? undefined,
+      subdomain: options?.subdomain,
+    });
 
-    // Save connection with verified account metadata
-    const accountEmail = `${provider}-integration@workspace.quickstart.ai`;
+    // Store encrypted credentials in secrets-service
+    await this.secrets.storeIntegrationSecret(workspaceId, provider, {
+      accessToken: tokenResult.accessToken,
+      refreshToken: tokenResult.refreshToken,
+      tokenType: tokenResult.tokenType,
+      expiresIn: tokenResult.expiresIn,
+      rawPayload: tokenResult.rawPayload,
+      storedAt: new Date().toISOString(),
+    });
+
+    const tokenExpiresAt = tokenResult.expiresIn
+      ? new Date(Date.now() + tokenResult.expiresIn * 1000)
+      : null;
+
     await this.repo.upsertConnection({
       workspaceId,
       provider,
       status: "connected",
-      accountIdentifier: `acc_${provider}_${workspaceId.slice(0, 8)}`,
-      accountEmail,
-      grantedScopes: def?.requiredScopes ?? [],
-      metadata: { connected_by_user_id: userId, code_received: Boolean(code) },
+      accountIdentifier: tokenResult.accountIdentifier,
+      accountEmail: tokenResult.accountEmail,
+      accountName: tokenResult.accountName,
+      providerAccountId: tokenResult.providerAccountId,
+      grantedScopes: tokenResult.grantedScopes,
+      tokenExpiresAt,
+      metadata: {
+        connected_by_user_id: userId,
+        has_refresh_token: Boolean(tokenResult.refreshToken),
+      },
     });
 
     return this.getIntegration(workspaceId, provider);
@@ -288,44 +347,154 @@ export class IntegrationsService {
       });
     }
 
-    if (provider === "twilio") {
-      const accountSid = credentials.accountSid?.trim();
-      const authToken = credentials.authToken?.trim();
-      if (!accountSid || !authToken) {
-        throw new AppError({
-          code: ErrorCode.VALIDATION_FAILED,
-          message: "Twilio Account SID and Auth Token are required.",
-        });
-      }
-
-      await this.repo.upsertConnection({
-        workspaceId,
-        provider,
-        status: "connected",
-        accountIdentifier: accountSid,
-        accountEmail: null,
-        metadata: {
-          account_sid_suffix: accountSid.slice(-4),
-          credential_configured_at: new Date().toISOString(),
-        },
-      });
-    } else {
-      await this.repo.upsertConnection({
-        workspaceId,
-        provider,
-        status: "connected",
-        metadata: { configured: true },
+    const adapter = this.registry.getAdapter(provider);
+    if (!adapter.verifyCredentials) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `Provider '${provider}' does not support credential submission.`,
       });
     }
 
+    // Verify real credentials with the provider
+    const verification = await adapter.verifyCredentials(credentials);
+
+    // Store encrypted credentials in secrets-service
+    await this.secrets.storeIntegrationSecret(workspaceId, provider, {
+      ...credentials,
+      verifiedAt: new Date().toISOString(),
+    });
+
+    await this.repo.upsertConnection({
+      workspaceId,
+      provider,
+      status: "connected",
+      accountIdentifier: verification.accountIdentifier,
+      accountEmail: verification.accountEmail,
+      accountName: verification.accountName,
+      providerAccountId: verification.providerAccountId,
+      grantedScopes: verification.grantedScopes ?? [],
+      metadata: verification.metadata ?? {},
+    });
+
     return this.getIntegration(workspaceId, provider);
+  }
+
+  async syncIntegration(
+    workspaceId: string,
+    provider: IntegrationProvider,
+    body: IntegrationSyncRequest,
+  ): Promise<IntegrationSyncResult> {
+    const connection = await this.repo.getByProvider(workspaceId, provider);
+    if (!connection || connection.status !== "connected") {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `Integration '${provider}' is not connected.`,
+      });
+    }
+
+    const adapter = this.registry.getAdapter(provider);
+    if (!adapter.syncResource) {
+      return {
+        success: true,
+        provider,
+        recordsSynced: 0,
+        durationMs: 0,
+        message: `Provider '${provider}' does not support resource synchronization.`,
+      };
+    }
+
+    // Retrieve decrypted token
+    const creds = await this.secrets.getIntegrationSecret(workspaceId, provider);
+    const token =
+      (creds?.accessToken as string) ||
+      (creds?.accountSid && creds?.authToken ? `${creds.accountSid}:${creds.authToken}` : "");
+
+    if (!token) {
+      throw new AppError({
+        code: ErrorCode.UNAUTHORIZED,
+        message: `Missing stored credentials for '${provider}'. Please reconnect.`,
+      });
+    }
+
+    const start = Date.now();
+    try {
+      const syncResult = await adapter.syncResource({
+        accessToken: token,
+        operation: body.operation,
+        resourceType: body.resourceType,
+        options: body.options,
+      });
+      const durationMs = Date.now() - start;
+
+      await this.repo.recordSyncLog({
+        workspaceId,
+        provider,
+        operation: body.operation,
+        status: "success",
+        recordsSynced: syncResult.recordsSynced,
+        durationMs,
+        metadata: syncResult.details ?? {},
+      });
+
+      return {
+        success: true,
+        provider,
+        recordsSynced: syncResult.recordsSynced,
+        durationMs,
+        resources: syncResult.resources,
+      };
+    } catch (err) {
+      const durationMs = Date.now() - start;
+      const errorMessage = err instanceof Error ? err.message : "Sync failed";
+
+      await this.repo.recordSyncLog({
+        workspaceId,
+        provider,
+        operation: body.operation,
+        status: "failed",
+        recordsSynced: 0,
+        durationMs,
+        errorMessage,
+      });
+
+      return {
+        success: false,
+        provider,
+        durationMs,
+        error: { code: "SYNC_FAILED", message: errorMessage },
+      };
+    }
+  }
+
+  async listSyncHistory(
+    workspaceId: string,
+    provider?: IntegrationProvider,
+  ): Promise<SyncLogRow[]> {
+    return this.repo.listSyncLogs(workspaceId, provider, 20);
   }
 
   async disconnect(
     workspaceId: string,
     provider: IntegrationProvider,
   ): Promise<IntegrationCatalogItem> {
+    const creds = await this.secrets.getIntegrationSecret(workspaceId, provider);
+    const token = creds?.accessToken as string | undefined;
+
+    const adapter = this.registry.getAdapter(provider);
+    if (token && adapter.revokeToken) {
+      try {
+        await adapter.revokeToken(token);
+      } catch {
+        // Best-effort remote revocation
+      }
+    }
+
+    // Delete credentials from secrets-service
+    await this.secrets.deleteIntegrationSecret(workspaceId, provider);
+
+    // Update connection status in database
     await this.repo.deleteConnection(workspaceId, provider);
+
     return this.getIntegration(workspaceId, provider);
   }
 }

@@ -9,6 +9,8 @@ const MIGRATIONS = [
   { version: "003_workspace_integrations", file: "003_workspace_integrations.sql" },
   { version: "004_workspace_notifications", file: "004_workspace_notifications.sql" },
   { version: "005_webhook_subscriptions_and_deliveries", file: "005_webhook_subscriptions_and_deliveries.sql" },
+  { version: "006_integration_credentials_and_sync", file: "006_integration_credentials_and_sync.sql" },
+  { version: "007_webhook_deliveries_queue", file: "007_webhook_deliveries_queue.sql" },
 ] as const;
 
 

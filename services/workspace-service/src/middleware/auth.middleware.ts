@@ -8,7 +8,11 @@ export function createAuthMiddleware(jwtSecret: string): RequestHandler {
       const requestId = requestIdFromResponse(res);
 
       // 1. Gateway internal header: x-quickstart-auth-context
-      const gatewayAuth = extractAuthContext(req.headers as Record<string, string | string[] | undefined>);
+      const internalSecret = process.env.INTERNAL_SERVICE_SECRET || jwtSecret;
+      const gatewayAuth = extractAuthContext(
+        req.headers as Record<string, string | string[] | undefined>,
+        internalSecret,
+      );
       if (gatewayAuth?.actorId) {
         res.locals.actorUserId = gatewayAuth.actorId;
         return next();

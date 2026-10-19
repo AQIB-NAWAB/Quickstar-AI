@@ -1,6 +1,7 @@
 import { createApiRouter, createServiceRouter, type Router } from "@quickstart/http-server";
 import type { UsageHttpContext } from "../context.js";
 import { createAnalyticsRoutes } from "./analytics.routes.js";
+import { createBillingRoutes } from "./billing.routes.js";
 import { createHealthRoutes } from "./health.routes.js";
 import { createUsageRoutes } from "./usage.routes.js";
 
@@ -8,6 +9,7 @@ const usageRouteModules = [
   createHealthRoutes,
   createUsageRoutes,
   createAnalyticsRoutes,
+  createBillingRoutes,
 ] as const;
 
 

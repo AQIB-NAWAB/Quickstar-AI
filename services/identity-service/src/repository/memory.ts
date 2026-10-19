@@ -150,6 +150,15 @@ export function createMemoryRepository(): IdentityStore {
       return [...apiKeys.values()].filter((k) => k.orgId === orgId && !k.revokedAt);
     },
 
+    async findApiKeyByPrefix(keyPrefix) {
+      for (const k of apiKeys.values()) {
+        if (k.keyPrefix === keyPrefix && !k.revokedAt) {
+          return k;
+        }
+      }
+      return null;
+    },
+
     async revokeApiKey(orgId, keyId, _audit) {
       const key = apiKeys.get(keyId);
       if (!key || key.orgId !== orgId || key.revokedAt) {

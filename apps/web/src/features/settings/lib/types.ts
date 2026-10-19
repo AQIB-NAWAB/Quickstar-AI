@@ -5,6 +5,7 @@ export type SettingsTab =
   | "account"
   | "general"
   | "members"
+  | "billing"
   | "api-keys"
   | "secrets"
   | "publishable-keys"

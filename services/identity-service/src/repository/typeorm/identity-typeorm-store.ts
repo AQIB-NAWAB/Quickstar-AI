@@ -172,6 +172,13 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
       return entities.map(toApiKeyRecord);
     },
 
+    async findApiKeyByPrefix(keyPrefix) {
+      const entity = await dataSource.manager.findOne(ApiKeyEntity, {
+        where: { keyPrefix, revokedAt: IsNull() },
+      });
+      return entity ? toApiKeyRecord(entity) : null;
+    },
+
     async revokeApiKey(orgId, keyId, audit) {
       return await dataSource.transaction(async (manager) => {
         const result = await manager.update(

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Bell, Mail, X, Braces, Play } from "lucide-react";
+import { Bell, Mail, X, Braces, Play, MessageSquare } from "lucide-react";
 import type { WorkflowNode } from "../../lib/types";
 
 export type NotificationInspectorProps = {
@@ -80,40 +80,62 @@ export const NotificationInspector: React.FC<NotificationInspectorProps> = ({
           />
         </div>
 
-        <p className="rounded-md bg-amber-50 p-3 text-amber-800">
-          Delivery integration is not connected. You can edit this draft and simulate it; activation
-          is blocked until delivery is available.
-        </p>
         {/* Delivery Mode Toggle */}
         <div className="space-y-1.5">
           <label className="font-semibold text-neutral-700">Delivery Channel</label>
-          <div className="grid grid-cols-2 gap-2 bg-neutral-100 p-1 rounded-lg">
+          <div className="grid grid-cols-3 gap-1.5 bg-neutral-100 p-1 rounded-lg">
             <button
               type="button"
               onClick={() => onUpdateConfig({ ...cfg, delivery: "email" })}
-              className={`py-1.5 px-3 rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors ${
+              className={`py-1.5 px-2 rounded-md font-medium text-xs flex items-center justify-center gap-1 transition-colors ${
                 delivery === "email"
                   ? "bg-white text-neutral-900 shadow-xs"
                   : "text-neutral-500 hover:text-neutral-900"
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
-              <span>Email Message</span>
+              <span>Email</span>
             </button>
             <button
               type="button"
               onClick={() => onUpdateConfig({ ...cfg, delivery: "inbox" })}
-              className={`py-1.5 px-3 rounded-md font-medium text-xs flex items-center justify-center gap-1.5 transition-colors ${
+              className={`py-1.5 px-2 rounded-md font-medium text-xs flex items-center justify-center gap-1 transition-colors ${
                 delivery === "inbox"
                   ? "bg-white text-neutral-900 shadow-xs"
                   : "text-neutral-500 hover:text-neutral-900"
               }`}
             >
               <Bell className="w-3.5 h-3.5" />
-              <span>Inbox Alert</span>
+              <span>In-App</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateConfig({ ...cfg, delivery: "slack" })}
+              className={`py-1.5 px-2 rounded-md font-medium text-xs flex items-center justify-center gap-1 transition-colors ${
+                delivery === "slack"
+                  ? "bg-white text-neutral-900 shadow-xs"
+                  : "text-neutral-500 hover:text-neutral-900"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Slack</span>
             </button>
           </div>
         </div>
+
+        {/* Slack Channel */}
+        {delivery === "slack" && (
+          <div className="space-y-1.5">
+            <label className="font-semibold text-neutral-700">Slack Channel or Webhook</label>
+            <input
+              type="text"
+              value={cfg.slack_channel || cfg.slackChannel || ""}
+              onChange={(e) => onUpdateConfig({ ...cfg, slack_channel: e.target.value })}
+              placeholder="#alerts or webhook URL"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-[#FA5D19]"
+            />
+          </div>
+        )}
 
         {/* Sender Email */}
         {delivery === "email" && (
@@ -123,6 +145,7 @@ export const NotificationInspector: React.FC<NotificationInspectorProps> = ({
               type="text"
               value={sender}
               onChange={(e) => onUpdateConfig({ ...cfg, sender: e.target.value })}
+              placeholder="notifications@quickstart.ai"
               className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-[#FA5D19]"
             />
           </div>

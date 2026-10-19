@@ -249,6 +249,8 @@ export type {
   AnalyticsDailyLatencyBucket,
   AnalyticsServiceUsage,
   AnalyticsResponse,
+  MetricCoverage,
+  MetricCoverageIndicators,
 } from "./analytics.js";
 
 export {
@@ -258,8 +260,12 @@ export {
   type IntegrationCategory,
   type IntegrationStatus,
   type IntegrationCatalogItem,
+  type IntegrationConnection,
+  type ProviderCapabilities,
   type IntegrationAuthorizeResponse,
   type IntegrationsListResponse,
+  type IntegrationSyncRequest,
+  type IntegrationSyncResult,
 } from "./integrations.js";
 
 export type {
@@ -279,3 +285,35 @@ export type {
   WebhooksListResponse,
   WebhookDeliveriesListResponse,
 } from "./webhooks.js";
+
+export type {
+  BillingPlanInterval,
+  BillingPlanTier,
+  BillingSubscriptionStatus,
+  BillingPlanFeature,
+  BillingPlan,
+  BillingSubscription,
+  BillingInvoice,
+  OrganizationEntitlements,
+  BillingSummaryResponse,
+  CreateCheckoutSessionRequest,
+  CreateCheckoutSessionResponse,
+  CreateCustomerPortalSessionRequest,
+  CreateCustomerPortalSessionResponse,
+  CancelSubscriptionRequest,
+} from "./billing.js";
+
+export type {
+  QueuePriority,
+  HandoffStatus,
+  OperatorQueue,
+  OperatorQueueMember,
+  ConversationHandoffRecord,
+  CreateQueueRequest,
+  UpdateQueueRequest,
+  EnqueueConversationRequest,
+  ClaimConversationRequest,
+  QueuesListResponse,
+} from "./operator-queues.js";
+
+

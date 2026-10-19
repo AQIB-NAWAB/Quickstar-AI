@@ -16,6 +16,8 @@ import {
 import { createConversationDataSource } from "./repository/typeorm/data-source.js";
 import { createTypeOrmConversationStore } from "./repository/typeorm/conversation-typeorm-store.js";
 import { ConversationsService } from "./services/conversations.service.js";
+import { OperatorQueuesRepository } from "./repository/operator-queues.repository.js";
+import { OperatorQueuesService } from "./services/operator-queues.service.js";
 import { createOutboxPublisher } from "./events/outbox-publisher.js";
 import { createPlatformEventConsumer } from "./events/platform-consumer.js";
 
@@ -62,9 +64,14 @@ export async function startConversationServer(): Promise<{
     },
   ];
 
+  const eventPool = new pg.Pool({ connectionString: config.databaseUrl });
+  const operatorQueuesRepo = new OperatorQueuesRepository(eventPool);
+  const operatorQueues = new OperatorQueuesService(operatorQueuesRepo);
+
   const app = createHttpServer({
     logger,
     conversations,
+    operatorQueues,
     jwtSecret: config.jwtAccessSecret,
     internalToken: config.internalToken,
     workspaceAccess,
@@ -80,7 +87,6 @@ export async function startConversationServer(): Promise<{
 
   logger.info("listening", { port: config.port, service: SERVICE_NAME });
 
-  const eventPool = new pg.Pool({ connectionString: config.databaseUrl });
   let outboxPublisher: ReturnType<typeof createOutboxPublisher> | null = null;
   let platformConsumer: ReturnType<typeof createPlatformEventConsumer> | null = null;
 

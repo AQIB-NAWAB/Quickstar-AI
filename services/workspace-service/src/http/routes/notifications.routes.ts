@@ -50,5 +50,20 @@ export const createNotificationsRoutes: RouteModule<WorkspaceHttpContext> = (ctx
     asyncHandler(notificationsCtrl.markAsRead),
   );
 
+  // Create notification
+  router.post(
+    "/v1/workspaces/:workspaceId/notifications",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(notificationsCtrl.create),
+  );
+
+  // Internal create notification endpoint (for workflow actions and service events)
+  router.post(
+    "/internal/v1/workspaces/:workspaceId/notifications",
+    ctx.internalAuth,
+    asyncHandler(notificationsCtrl.create),
+  );
+
   return router;
 };

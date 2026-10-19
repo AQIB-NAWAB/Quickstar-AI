@@ -4,6 +4,9 @@ export type WorkflowConfig = {
   redisUrl: string;
   jwtAccessSecret: string;
   workspaceUrl: string;
+  conversationUrl: string;
+  secretsUrl: string;
+  leadUrl: string;
   httpRequestTimeoutMs: number;
   membershipCacheTtlSec: number;
   membershipCacheNegativeTtlSec: number;
@@ -39,6 +42,9 @@ export function loadWorkflowConfig(): WorkflowConfig {
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     jwtAccessSecret,
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
+    conversationUrl: (process.env.CONVERSATION_URL ?? "http://127.0.0.1:3003").replace(/\/$/, ""),
+    secretsUrl: (process.env.SECRETS_URL ?? "http://127.0.0.1:3006").replace(/\/$/, ""),
+    leadUrl: (process.env.LEAD_URL ?? "http://127.0.0.1:3008").replace(/\/$/, ""),
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     membershipCacheTtlSec: Number(process.env.MEMBERSHIP_CACHE_TTL_SEC ?? 60),
     membershipCacheNegativeTtlSec: Number(process.env.MEMBERSHIP_CACHE_NEGATIVE_TTL_SEC ?? 30),

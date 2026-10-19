@@ -514,6 +514,16 @@ export class CampaignsService {
     );
   }
 
+  async reconcileAttempt(input: {
+    providerCallSid: string;
+    status: CampaignAttempt["status"];
+    durationSeconds?: number;
+    hangupCause?: string;
+    amdResult?: string;
+  }): Promise<CampaignAttempt | null> {
+    return this.repo.reconcileAttemptByCallSid(input);
+  }
+
   private async requireCampaign(workspaceId: string, campaignId: string): Promise<CampaignRecord> {
     const campaign = await this.repo.get(workspaceId, campaignId);
     if (!campaign) {

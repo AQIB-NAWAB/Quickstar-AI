@@ -58,5 +58,21 @@ export const createIntegrationsRoutes: RouteModule<WorkspaceHttpContext> = (ctx)
     asyncHandler(integrationsCtrl.disconnect),
   );
 
+  // Sync / Discover resources
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/:provider/sync",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.sync),
+  );
+
+  // Sync History
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/:provider/history",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.syncHistory),
+  );
+
   return router;
 };

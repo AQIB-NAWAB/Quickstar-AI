@@ -291,31 +291,144 @@ export class WebhooksRepository {
     );
   }
 
-  async updateEndpointHealth(
-    webhookId: string,
-    lastDeliveryStatus: number,
-    consecutiveFailuresIncrement: boolean,
-  ): Promise<void> {
-    if (consecutiveFailuresIncrement) {
-      await this.pool.query(
-        `UPDATE webhook_endpoints
-         SET last_delivery_at = now(),
-             last_delivery_status = $2,
-             consecutive_failures = consecutive_failures + 1,
-             status = CASE WHEN consecutive_failures + 1 >= 5 THEN 'failing' ELSE status END
-         WHERE id = $1`,
-        [webhookId, lastDeliveryStatus],
-      );
-    } else {
-      await this.pool.query(
-        `UPDATE webhook_endpoints
-         SET last_delivery_at = now(),
-             last_delivery_status = $2,
-             consecutive_failures = 0,
-             status = 'active'
-         WHERE id = $1`,
-        [webhookId, lastDeliveryStatus],
-      );
-    }
+  async findActiveEndpointsForEvent(workspaceId: string, eventType: string): Promise<WebhookEndpointRow[]> {
+    const res = await this.pool.query<WebhookEndpointRow>(
+      `SELECT * FROM webhook_endpoints
+       WHERE workspace_id = $1
+         AND status = 'active'
+         AND ($2 = ANY(events) OR '*' = ANY(events))`,
+      [workspaceId, eventType],
+    );
+    return res.rows;
+  }
+
+  async enqueueDelivery(params: {
+    webhookId: string;
+    workspaceId: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+    canonicalEventId?: string | null;
+    nextAttemptAt?: Date;
+  }): Promise<WebhookDeliveryRow | null> {
+    const res = await this.pool.query<WebhookDeliveryRow>(
+      `INSERT INTO webhook_deliveries (
+         webhook_id, workspace_id, event_type, payload, canonical_event_id,
+         status, attempts_count, next_attempt_at, fencing_token, created_at
+       ) VALUES ($1, $2, $3, $4, $5, 'pending', 0, $6, 1, now())
+       ON CONFLICT (webhook_id, canonical_event_id) WHERE canonical_event_id IS NOT NULL DO NOTHING
+       RETURNING *`,
+      [
+        params.webhookId,
+        params.workspaceId,
+        params.eventType,
+        params.payload,
+        params.canonicalEventId ?? null,
+        params.nextAttemptAt ?? new Date(),
+      ],
+    );
+    return res.rows[0] ?? null;
+  }
+
+  async claimDeliveries(
+    limit: number,
+    workerId: string,
+    leaseDurationSeconds = 30,
+  ): Promise<Array<WebhookDeliveryRow & { url: string; signing_secret: string }>> {
+    const res = await this.pool.query<WebhookDeliveryRow & { url: string; signing_secret: string }>(
+      `WITH claimable AS (
+         SELECT d.id
+         FROM webhook_deliveries d
+         JOIN webhook_endpoints e ON d.webhook_id = e.id
+         WHERE (d.status = 'pending' OR (d.status = 'running' AND d.lease_expires_at < now()))
+           AND d.next_attempt_at <= now()
+           AND e.status != 'disabled'
+         ORDER BY d.next_attempt_at ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+       )
+       UPDATE webhook_deliveries d
+       SET status = 'running',
+           lease_owner = $2,
+           lease_expires_at = now() + make_interval(secs => $3),
+           fencing_token = d.fencing_token + 1
+       FROM claimable c
+       JOIN webhook_endpoints e ON d.webhook_id = e.id
+       WHERE d.id = c.id
+       RETURNING d.*, e.url, e.signing_secret`,
+      [limit, workerId, leaseDurationSeconds],
+    );
+    return res.rows;
+  }
+
+  async completeDelivery(
+    deliveryId: string,
+    fencingToken: number,
+    httpStatus: number,
+    latencyMs: number,
+  ): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = 'success',
+           completed_at = now(),
+           last_http_status = $3,
+           last_latency_ms = $4,
+           last_error = NULL,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           attempts_count = attempts_count + 1
+       WHERE id = $1 AND fencing_token = $2`,
+      [deliveryId, fencingToken, httpStatus, latencyMs],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async retryDelivery(
+    deliveryId: string,
+    fencingToken: number,
+    nextAttemptAt: Date,
+    httpStatus: number | null,
+    latencyMs: number,
+    error: string,
+  ): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = 'pending',
+           next_attempt_at = $3,
+           last_http_status = $4,
+           last_latency_ms = $5,
+           last_error = $6,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           attempts_count = attempts_count + 1
+       WHERE id = $1 AND fencing_token = $2`,
+      [deliveryId, fencingToken, nextAttemptAt, httpStatus, latencyMs, error],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async deadLetterDelivery(
+    deliveryId: string,
+    fencingToken: number,
+    reason: string,
+    httpStatus: number | null,
+    latencyMs: number,
+    error: string,
+  ): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = 'failed',
+           dead_letter_reason = $3,
+           last_http_status = $4,
+           last_latency_ms = $5,
+           last_error = $6,
+           completed_at = now(),
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           attempts_count = attempts_count + 1
+       WHERE id = $1 AND fencing_token = $2`,
+      [deliveryId, fencingToken, reason, httpStatus, latencyMs, error],
+    );
+    return (res.rowCount ?? 0) > 0;
   }
 }
+

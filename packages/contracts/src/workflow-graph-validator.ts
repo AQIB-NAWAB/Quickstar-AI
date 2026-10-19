@@ -195,26 +195,6 @@ export function validateWorkflowGraph(
   // 4. Per-node validation
   for (const node of graph.nodes) {
     const cfg = (node.config || {}) as Record<string, unknown>;
-
-    if (["agent_handoff", "notification", "update_tags"].includes(node.type))
-      blockers.push({
-        code: "ACTION_INTEGRATION_UNAVAILABLE",
-        severity: "error",
-        node_id: node.id,
-        message: `${node.name}: real domain delivery is not connected. Simulation is available, activation is blocked.`,
-      });
-    if (
-      node.type === "webhook" &&
-      (cfg.connection_credential_id ||
-        (cfg.auth_type && cfg.auth_type !== "none") ||
-        (cfg.authType && cfg.authType !== "none"))
-    )
-      blockers.push({
-        code: "CREDENTIAL_RESOLUTION_UNAVAILABLE",
-        severity: "error",
-        node_id: node.id,
-        message: "Managed credential resolution must be connected before this request can run.",
-      });
     const required =
       node.type === "trigger"
         ? ["received"]

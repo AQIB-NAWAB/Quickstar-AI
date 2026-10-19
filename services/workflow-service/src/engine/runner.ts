@@ -10,6 +10,11 @@ export type RunnerOptions = {
   logger: Logger;
   allowHttpWebhooks: boolean;
   webhookTimeoutMs: number;
+  workspaceUrl?: string;
+  conversationUrl?: string;
+  secretsUrl?: string;
+  leadUrl?: string;
+  internalToken?: string;
 };
 
 export class WorkflowRunner {
@@ -251,6 +256,11 @@ export class WorkflowRunner {
               eventData,
               allowHttpWebhooks: this.options.allowHttpWebhooks,
               webhookTimeoutMs: this.options.webhookTimeoutMs,
+              workspaceUrl: this.options.workspaceUrl,
+              conversationUrl: this.options.conversationUrl,
+              secretsUrl: this.options.secretsUrl,
+              leadUrl: this.options.leadUrl,
+              internalToken: this.options.internalToken,
             });
 
             summary = result.summary;
@@ -468,6 +478,11 @@ export class WorkflowRunner {
             eventData,
             allowHttpWebhooks: this.options.allowHttpWebhooks,
             webhookTimeoutMs: this.options.webhookTimeoutMs,
+            workspaceUrl: this.options.workspaceUrl,
+            conversationUrl: this.options.conversationUrl,
+            secretsUrl: this.options.secretsUrl,
+            leadUrl: this.options.leadUrl,
+            internalToken: this.options.internalToken,
           });
           await repo.upsertStep(execClient, {
             runId,

@@ -34,6 +34,7 @@ import { createWidgetVoiceLiveController } from "./controllers/widget-voice-live
 import { WidgetVoiceLiveSessionManager } from "./widget-voice/session-manager.js";
 import { createCampaignsController } from "./controllers/campaigns.controller.js";
 import { createTelephonyController } from "./controllers/telephony.controller.js";
+import { setupTwilioMediaStreamServer } from "./telephony/media-stream-server.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 
 export async function startVoiceServer(): Promise<{
@@ -292,9 +293,19 @@ export async function startVoiceServer(): Promise<{
   });
   logger.info("listening", { port: config.port, service: SERVICE_NAME });
 
+  const mediaStreamServer = setupTwilioMediaStreamServer({
+    server,
+    callsRepo,
+    recordings,
+    liveSessionManager: widgetVoiceLive,
+    usageIngest,
+    logger,
+  });
+
   const shutdown = async () => {
     stopFishCallSync?.();
     orchestrator.setDraining(true);
+    await mediaStreamServer.close().catch(() => undefined);
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });

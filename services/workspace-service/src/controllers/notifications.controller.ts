@@ -89,5 +89,29 @@ export function createNotificationsController(service: NotificationsService) {
         ...result,
       });
     }) as RequestHandler,
+
+    create: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const body = req.body ?? {};
+      const notification = await service.createNotification({
+        workspaceId,
+        recipientUserId: body.recipientUserId ?? body.recipient_user_id,
+        category: body.category,
+        severity: body.severity,
+        type: body.type,
+        title: body.title,
+        description: body.description,
+        sourceType: body.sourceType ?? body.source_type,
+        sourceId: body.sourceId ?? body.source_id,
+        sourceName: body.sourceName ?? body.source_name,
+        actionUrl: body.actionUrl ?? body.action_url,
+        actionLabel: body.actionLabel ?? body.action_label,
+        deduplicationKey: body.deduplicationKey ?? body.deduplication_key,
+      });
+      sendPlatformJson(res, 201, {
+        request_id: requestIdFromResponse(res),
+        notification,
+      });
+    }) as RequestHandler,
   };
 }

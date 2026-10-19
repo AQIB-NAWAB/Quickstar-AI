@@ -71,5 +71,18 @@ export const createConversationsRoutes: RouteModule<ConversationHttpContext> = (
     asyncHandler(conversationsCtrl.listToolCalls),
   );
 
+  router.patch(
+    "/v1/workspaces/:workspaceId/conversations/:conversationId/tags",
+    ...chain,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.CONVERSATION_PARTICIPATE),
+    asyncHandler(conversationsCtrl.updateTags),
+  );
+
+  router.patch(
+    "/internal/v1/workspaces/:workspaceId/conversations/:conversationId/tags",
+    ctx.internalAuth,
+    asyncHandler(conversationsCtrl.updateTags),
+  );
+
   return router;
 };

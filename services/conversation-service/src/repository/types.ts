@@ -68,4 +68,10 @@ export interface ConversationStore {
     conversationId: string,
     turnIdempotencyKey: string,
   ): Promise<ToolCall[]>;
+  updateTags(
+    workspaceId: string,
+    conversationId: string,
+    tags: string[],
+    mode?: "add" | "remove" | "replace",
+  ): Promise<string[]>;
 }

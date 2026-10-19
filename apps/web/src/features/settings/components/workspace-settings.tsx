@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { SettingsTabs } from "./settings-tabs";
 import { GeneralSettings } from "./general-settings";
 import { MembersSettings } from "./members-settings";
+import { BillingSettings } from "./billing-settings";
 import { ApiKeysSettings } from "./api-keys-settings";
 import { SecretsSettings } from "./secrets-settings";
 import { PublishableKeysSettings } from "./publishable-keys-settings";
@@ -145,6 +146,14 @@ export function WorkspaceSettings({
               canInvite={permissions.canInvite}
               canUpdateRole={permissions.canUpdateRole}
               canRemoveMember={permissions.canRemoveMember}
+            />
+          )}
+
+          {activeTab === "billing" && (
+            <BillingSettings
+              workspaceId={workspace.id}
+              orgId={workspace.orgId}
+              canManage={currentUser.role === "owner" || currentUser.role === "admin"}
             />
           )}
 
