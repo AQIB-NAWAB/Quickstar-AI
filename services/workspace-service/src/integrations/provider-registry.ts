@@ -681,7 +681,7 @@ export class ProviderRegistry {
           },
         };
       },
-      async syncResource({ accessToken, operation }: ProviderSyncParams): Promise<ProviderSyncResult> {
+      async syncResource({ accessToken }: ProviderSyncParams): Promise<ProviderSyncResult> {
         // Here accessToken stores "accountSid:authToken"
         const [accountSid, authToken] = accessToken.split(":");
         if (!accountSid || !authToken) return { recordsSynced: 0 };

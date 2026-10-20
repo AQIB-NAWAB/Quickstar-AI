@@ -3,8 +3,11 @@ export {
   extractAuthContext,
   parseAuthContextHeader,
   serializeAuthContext,
+  signAuthContext,
+  verifyAuthContext,
   type AuthContext,
   type AuthContextPayload,
+  type AuthContextParseOptions,
   type TenantContext,
 } from "./context.js";
 export {

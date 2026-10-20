@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAccessTokenFromCookies } from "../gateway/fetch";
 import {
   fetchMe,
@@ -26,14 +26,19 @@ export async function loadWorkspaceShell(workspaceId: string): Promise<{
   if (!me) {
     redirect("/login");
   }
-  const orgId = me.organizations[0]?.id;
-  if (!orgId) {
-    redirect("/login");
+  if (!me.organizations || me.organizations.length === 0) {
+    notFound();
   }
-  const workspaces = await listOrgWorkspaces(accessToken, orgId);
+
+  // Fetch workspaces across all authorized organizations the user belongs to
+  const workspaceLists = await Promise.all(
+    me.organizations.map((org) => listOrgWorkspaces(accessToken, org.id)),
+  );
+  const workspaces = workspaceLists.flat();
+
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId);
   if (!activeWorkspace) {
-    redirect("/login");
+    notFound();
   }
   return { accessToken, me, workspaces, activeWorkspace };
 }

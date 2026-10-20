@@ -301,6 +301,12 @@ export type {
   CreateCustomerPortalSessionRequest,
   CreateCustomerPortalSessionResponse,
   CancelSubscriptionRequest,
+  BillingReservation,
+  AcquireReservationRequest,
+  AcquireReservationResponse,
+  CommitReservationRequest,
+  BillingCredit,
+  SpendControls,
 } from "./billing.js";
 
 export type {

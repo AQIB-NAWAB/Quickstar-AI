@@ -127,6 +127,8 @@ export function createTelephonyController(
 
       const isTwilioVoiceWebhook =
         providerId === "twilio" &&
+        !params.utterance_text &&
+        !body.utterance_text &&
         Boolean(req.headers["x-twilio-signature"] || req.headers["content-type"]?.includes("x-www-form-urlencoded"));
 
       if (isTwilioVoiceWebhook) {
@@ -164,8 +166,16 @@ export function createTelephonyController(
 </Response>`;
 
         res.status(200);
-        res.setHeader("Content-Type", "text/xml");
-        res.send(twiml);
+        if (typeof (res as any).setHeader === "function") {
+          (res as any).setHeader("Content-Type", "text/xml");
+        } else if (typeof (res as any).set === "function") {
+          (res as any).set("Content-Type", "text/xml");
+        }
+        if (typeof (res as any).send === "function") {
+          (res as any).send(twiml);
+        } else {
+          res.json({ twiml });
+        }
         return;
       }
 
@@ -296,10 +306,11 @@ export function createTelephonyController(
               idempotency_key: `telephony:${workspaceId}:${callId}:completed`,
               request_id: callSid,
               source_id: callId,
+            });
           }
 
           // Reconcile attempt in campaign-service if linked by providerCallSid
-          const campaignUrl = process.env.CAMPAIGN_SERVICE_URL ?? "http://127.0.0.1:3010";
+          const campaignUrl = process.env.CAMPAIGN_SERVICE_URL ?? "http://127.0.0.1:3013";
           const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? "internal-dev-token";
           const mappedStatus =
             eventType === "completed"

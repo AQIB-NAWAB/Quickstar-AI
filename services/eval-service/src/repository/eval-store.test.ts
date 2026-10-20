@@ -51,6 +51,12 @@ async function openPglitePool(): Promise<SqlPool> {
   ).replace(/CREATE EXTENSION[^;]+;/gi, "");
   await db.exec(sql2);
 
+  const sql3 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../migrations/003_eval_gates_and_unavailability.sql"),
+    "utf8",
+  ).replace(/CREATE EXTENSION[^;]+;/gi, "");
+  await db.exec(sql3);
+
   return {
     query: (text, params) => db.query(text, params ?? []),
     connect: async () => ({

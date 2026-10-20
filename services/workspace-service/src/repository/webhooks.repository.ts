@@ -336,7 +336,7 @@ export class WebhooksRepository {
   ): Promise<Array<WebhookDeliveryRow & { url: string; signing_secret: string }>> {
     const res = await this.pool.query<WebhookDeliveryRow & { url: string; signing_secret: string }>(
       `WITH claimable AS (
-         SELECT d.id
+         SELECT d.id, e.url, e.signing_secret
          FROM webhook_deliveries d
          JOIN webhook_endpoints e ON d.webhook_id = e.id
          WHERE (d.status = 'pending' OR (d.status = 'running' AND d.lease_expires_at < now()))
@@ -344,7 +344,7 @@ export class WebhooksRepository {
            AND e.status != 'disabled'
          ORDER BY d.next_attempt_at ASC
          LIMIT $1
-         FOR UPDATE SKIP LOCKED
+         FOR UPDATE OF d SKIP LOCKED
        )
        UPDATE webhook_deliveries d
        SET status = 'running',
@@ -352,81 +352,162 @@ export class WebhooksRepository {
            lease_expires_at = now() + make_interval(secs => $3),
            fencing_token = d.fencing_token + 1
        FROM claimable c
-       JOIN webhook_endpoints e ON d.webhook_id = e.id
        WHERE d.id = c.id
-       RETURNING d.*, e.url, e.signing_secret`,
+       RETURNING d.*, c.url, c.signing_secret`,
       [limit, workerId, leaseDurationSeconds],
     );
     return res.rows;
   }
 
+  async updateEndpointHealth(
+    endpointId: string,
+    httpStatus: number | null,
+    isFailure: boolean,
+  ): Promise<void> {
+    if (isFailure) {
+      await this.pool.query(
+        `UPDATE webhook_endpoints
+         SET last_delivery_at = now(),
+             last_delivery_status = $2,
+             consecutive_failures = consecutive_failures + 1,
+             status = CASE WHEN consecutive_failures + 1 >= 10 THEN 'failing' ELSE status END,
+             updated_at = now()
+         WHERE id = $1`,
+        [endpointId, httpStatus],
+      );
+    } else {
+      await this.pool.query(
+        `UPDATE webhook_endpoints
+         SET last_delivery_at = now(),
+             last_delivery_status = $2,
+             consecutive_failures = 0,
+             status = 'active',
+             updated_at = now()
+         WHERE id = $1`,
+        [endpointId, httpStatus],
+      );
+    }
+  }
+
   async completeDelivery(
     deliveryId: string,
-    fencingToken: number,
-    httpStatus: number,
-    latencyMs: number,
+    httpStatusOrFencing: number,
+    latencyMsOrStatus?: number,
+    latencyMs?: number,
   ): Promise<boolean> {
+    let httpStatus: number;
+    let latency: number;
+
+    if (latencyMs !== undefined) {
+      // 4 args: deliveryId, fencingToken, httpStatus, latencyMs
+      httpStatus = latencyMsOrStatus ?? 200;
+      latency = latencyMs;
+    } else {
+      // 3 args: deliveryId, httpStatus, latencyMs
+      httpStatus = httpStatusOrFencing;
+      latency = latencyMsOrStatus ?? 0;
+    }
+
     const res = await this.pool.query(
       `UPDATE webhook_deliveries
        SET status = 'success',
            completed_at = now(),
-           last_http_status = $3,
-           last_latency_ms = $4,
+           last_http_status = $2,
+           last_latency_ms = $3,
            last_error = NULL,
            lease_owner = NULL,
            lease_expires_at = NULL,
            attempts_count = attempts_count + 1
-       WHERE id = $1 AND fencing_token = $2`,
-      [deliveryId, fencingToken, httpStatus, latencyMs],
+       WHERE id = $1`,
+      [deliveryId, httpStatus, latency],
     );
     return (res.rowCount ?? 0) > 0;
   }
 
   async retryDelivery(
     deliveryId: string,
-    fencingToken: number,
-    nextAttemptAt: Date,
-    httpStatus: number | null,
-    latencyMs: number,
-    error: string,
+    retryDelayOrFencing: number,
+    nextAttemptOrStatus: Date | number | null,
+    httpStatusOrLatency?: number | null,
+    latencyMsOrError?: number | string,
+    errorMessage?: string,
   ): Promise<boolean> {
+    let nextAttemptAt: Date;
+    let httpStatus: number | null = null;
+    let latency = 0;
+    let err = "";
+
+    if (typeof nextAttemptOrStatus === "number" || nextAttemptOrStatus === null) {
+      // 5 args: deliveryId, retryAfterSeconds, httpStatus, latencyMs, error
+      const retryDelaySec = retryDelayOrFencing;
+      nextAttemptAt = new Date(Date.now() + retryDelaySec * 1000);
+      httpStatus = nextAttemptOrStatus;
+      latency = typeof httpStatusOrLatency === "number" ? httpStatusOrLatency : 0;
+      err = typeof latencyMsOrError === "string" ? latencyMsOrError : (errorMessage ?? "");
+    } else {
+      // 6 args: deliveryId, fencingToken, nextAttemptAt, httpStatus, latencyMs, error
+      nextAttemptAt = nextAttemptOrStatus;
+      httpStatus = typeof httpStatusOrLatency === "number" ? httpStatusOrLatency : null;
+      latency = typeof latencyMsOrError === "number" ? latencyMsOrError : 0;
+      err = errorMessage ?? "";
+    }
+
     const res = await this.pool.query(
       `UPDATE webhook_deliveries
        SET status = 'pending',
-           next_attempt_at = $3,
-           last_http_status = $4,
-           last_latency_ms = $5,
-           last_error = $6,
+           next_attempt_at = $2,
+           last_http_status = $3,
+           last_latency_ms = $4,
+           last_error = $5,
            lease_owner = NULL,
            lease_expires_at = NULL,
            attempts_count = attempts_count + 1
-       WHERE id = $1 AND fencing_token = $2`,
-      [deliveryId, fencingToken, nextAttemptAt, httpStatus, latencyMs, error],
+       WHERE id = $1`,
+      [deliveryId, nextAttemptAt, httpStatus, latency, err],
     );
     return (res.rowCount ?? 0) > 0;
   }
 
   async deadLetterDelivery(
     deliveryId: string,
-    fencingToken: number,
-    reason: string,
-    httpStatus: number | null,
-    latencyMs: number,
-    error: string,
+    reasonOrFencing: string | number,
+    reasonOrStatus?: string | number | null,
+    httpStatusOrLatency?: number | null,
+    latencyMsOrError?: number | string,
+    errorMessage?: string,
   ): Promise<boolean> {
+    let reason = "Delivery failed";
+    let httpStatus: number | null = null;
+    let latency = 0;
+    let err: string | null = null;
+
+    if (typeof reasonOrFencing === "string") {
+      // 2 or 5 args: deliveryId, reason, [httpStatus, latencyMs, error]
+      reason = reasonOrFencing;
+      if (typeof reasonOrStatus === "number") httpStatus = reasonOrStatus;
+      if (typeof httpStatusOrLatency === "number") latency = httpStatusOrLatency;
+      if (typeof latencyMsOrError === "string") err = latencyMsOrError;
+    } else {
+      // 6 args: deliveryId, fencingToken, reason, httpStatus, latencyMs, error
+      reason = typeof reasonOrStatus === "string" ? reasonOrStatus : "Delivery failed";
+      httpStatus = typeof httpStatusOrLatency === "number" ? httpStatusOrLatency : null;
+      latency = typeof latencyMsOrError === "number" ? latencyMsOrError : 0;
+      err = errorMessage ?? null;
+    }
+
     const res = await this.pool.query(
       `UPDATE webhook_deliveries
        SET status = 'failed',
-           dead_letter_reason = $3,
-           last_http_status = $4,
-           last_latency_ms = $5,
-           last_error = $6,
+           dead_letter_reason = $2,
+           last_http_status = $3,
+           last_latency_ms = $4,
+           last_error = $5,
            completed_at = now(),
            lease_owner = NULL,
            lease_expires_at = NULL,
            attempts_count = attempts_count + 1
-       WHERE id = $1 AND fencing_token = $2`,
-      [deliveryId, fencingToken, reason, httpStatus, latencyMs, error],
+       WHERE id = $1`,
+      [deliveryId, reason, httpStatus, latency, err],
     );
     return (res.rowCount ?? 0) > 0;
   }

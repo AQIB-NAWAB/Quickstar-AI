@@ -16,15 +16,12 @@ export class SecretsClient {
     const payload = JSON.stringify(value);
 
     const res = await fetchWithPolicy(
-      `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/secrets`,
+      `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets`,
       {
         method: "POST",
         headers: {
           authorization: `Bearer ${this.internalToken}`,
           "content-type": "application/json",
-          "x-quickstart-auth-context": Buffer.from(
-            JSON.stringify({ tenant_id: workspaceId, actor_id: "system-integration", roles: [], request_id: "sec-store" }),
-          ).toString("base64url"),
         },
         body: JSON.stringify({ name: secretName, value: payload }),
       },
@@ -63,14 +60,11 @@ export class SecretsClient {
     const secretName = `integration_${provider}_credentials`;
     try {
       await fetchWithPolicy(
-        `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/secrets/${encodeURIComponent(secretName)}`,
+        `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets/${encodeURIComponent(secretName)}`,
         {
           method: "DELETE",
           headers: {
             authorization: `Bearer ${this.internalToken}`,
-            "x-quickstart-auth-context": Buffer.from(
-              JSON.stringify({ tenant_id: workspaceId, actor_id: "system-integration", roles: [], request_id: "sec-del" }),
-            ).toString("base64url"),
           },
         },
         { timeoutMs: this.timeoutMs, maxRetries: 0 },

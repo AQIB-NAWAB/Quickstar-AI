@@ -36,6 +36,8 @@ function forwardRequestHeaders(req: Request, requestId: string, access?: Verifie
   }
   if (access) {
     const signingSecret = process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_ACCESS_SECRET;
+    const rawWorkspace = req.params?.workspaceId;
+    const workspaceId = Array.isArray(rawWorkspace) ? rawWorkspace[0] : rawWorkspace;
     headers[AUTH_CONTEXT_HEADER] = serializeAuthContext(
       {
         tenantId: access.org_id,
@@ -44,6 +46,9 @@ function forwardRequestHeaders(req: Request, requestId: string, access?: Verifie
         requestId,
         principalType: access.isApiKey ? "api_key" : "staff",
         orgId: access.org_id,
+        workspaceId,
+        aud: "quickstart-internal",
+        email: access.email,
       },
       signingSecret,
     );

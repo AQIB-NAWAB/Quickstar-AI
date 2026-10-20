@@ -66,6 +66,8 @@ type RunRow = {
   passed_count: number;
   failed_count: number;
   errored_count: number;
+  unavailable_count?: number;
+  unavailable_reason?: string | null;
   average_latency_ms: string | number | null;
   total_cost: string | number | null;
   token_usage: unknown;
@@ -97,6 +99,7 @@ type ResultRow = {
   scoring_method: string;
   failure_reason: string | null;
   execution_error: string | null;
+  scorer_unavailable?: boolean;
   latency_ms: string | number | null;
   token_usage: unknown;
   error: string | null;
@@ -195,6 +198,8 @@ function mapRun(row: RunRow): EvalRun {
     passedCount: Number(row.passed_count ?? 0),
     failedCount: Number(row.failed_count ?? 0),
     erroredCount: Number(row.errored_count ?? 0),
+    unavailableCount: Number(row.unavailable_count ?? 0),
+    unavailableReason: row.unavailable_reason ?? null,
     averageLatencyMs: toNumber(row.average_latency_ms),
     totalCost: toNumber(row.total_cost),
     tokenUsage: (row.token_usage as EvalRun["tokenUsage"]) ?? null,
@@ -228,6 +233,7 @@ function mapResult(row: ResultRow): EvalCaseResult {
     scoringMethod: (row.scoring_method as ScoringMethod) ?? "exact_match",
     failureReason: row.failure_reason,
     executionError: row.execution_error,
+    scorerUnavailable: Boolean(row.scorer_unavailable),
     latencyMs: toNumber(row.latency_ms),
     tokenUsage: (row.token_usage as EvalCaseResult["tokenUsage"]) ?? null,
     error: row.error,
@@ -1082,6 +1088,7 @@ export class EvalRepository {
     scoringMethod: ScoringMethod;
     failureReason: string | null;
     executionError: string | null;
+    scorerUnavailable?: boolean;
     latencyMs: number | null;
     tokenUsage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
   }): Promise<void> {
@@ -1089,8 +1096,8 @@ export class EvalRepository {
       `INSERT INTO eval_case_results (
          run_id, case_id, workspace_id, case_name, input, expected_output, actual_output,
          expected_tools, actual_tools, passed, score, scoring_method, failure_reason,
-         execution_error, latency_ms, token_usage, error, created_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())`,
+         execution_error, scorer_unavailable, latency_ms, token_usage, error, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())`,
       [
         input.runId,
         input.caseId,
@@ -1106,6 +1113,7 @@ export class EvalRepository {
         input.scoringMethod,
         input.failureReason,
         input.executionError,
+        input.scorerUnavailable ?? false,
         input.latencyMs,
         JSON.stringify(input.tokenUsage ?? null),
         input.executionError,
@@ -1122,6 +1130,8 @@ export class EvalRepository {
       passedCount: number;
       failedCount: number;
       erroredCount: number;
+      unavailableCount?: number;
+      unavailableReason?: string | null;
       averageLatencyMs?: number | null;
       totalCost?: number | null;
       tokenUsage?: unknown;
@@ -1135,10 +1145,12 @@ export class EvalRepository {
            passed_count = $5,
            failed_count = $6,
            errored_count = $7,
-           average_latency_ms = $8,
-           total_cost = $9,
-           token_usage = $10,
-           error = $11,
+           unavailable_count = $8,
+           unavailable_reason = $9,
+           average_latency_ms = $10,
+           total_cost = $11,
+           token_usage = $12,
+           error = $13,
            finished_at = NOW(),
            lease_expires_at = NULL,
            updated_at = NOW()
@@ -1152,6 +1164,8 @@ export class EvalRepository {
         patch.passedCount,
         patch.failedCount,
         patch.erroredCount,
+        patch.unavailableCount ?? 0,
+        patch.unavailableReason ?? null,
         patch.averageLatencyMs ?? null,
         patch.totalCost ?? null,
         JSON.stringify(patch.tokenUsage ?? null),
@@ -1165,6 +1179,38 @@ export class EvalRepository {
       return mapRun(fallback.rows[0]);
     }
     return mapRun(result.rows[0]);
+  }
+
+  async recordGateAudit(input: {
+    workspaceId: string;
+    agentId: string;
+    agentVersionId: string;
+    gatePassed: boolean;
+    blocked: boolean;
+    reasons: string[];
+    overridden: boolean;
+    overrideActorId?: string | null;
+    overrideReason?: string | null;
+    metrics: Record<string, unknown>;
+  }): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO eval_gate_audits (
+         workspace_id, agent_id, agent_version_id, gate_passed, blocked,
+         reasons, overridden, override_actor_id, override_reason, metrics, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+      [
+        input.workspaceId,
+        input.agentId,
+        input.agentVersionId,
+        input.gatePassed,
+        input.blocked,
+        input.reasons,
+        input.overridden,
+        input.overrideActorId ?? null,
+        input.overrideReason ?? null,
+        JSON.stringify(input.metrics),
+      ],
+    );
   }
 
   /* ========================================================================== */

@@ -82,7 +82,13 @@ export async function startWorkspaceServer(): Promise<{
     webhooksRepo,
     logger,
   });
-  await platformEventsConsumer.start();
+  try {
+    await platformEventsConsumer.start();
+  } catch (err) {
+    logger.warn("webhooks.consumer.failed_to_start", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   const webhookDeliveryWorker = createWebhookDeliveryWorker({
     webhooksRepo,

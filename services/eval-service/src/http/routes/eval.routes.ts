@@ -140,6 +140,20 @@ export const createEvalRoutes: RouteModule<EvalHttpContext> = (ctx) => {
     asyncHandler(ctrl.getComparison),
   );
 
+  /* Promotion & Regression Gates */
+  router.post(
+    "/v1/workspaces/:workspaceId/eval/gates/check",
+    ...chain,
+    read,
+    asyncHandler(ctrl.checkPromotionGate),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/agents/:agentId/eval/gates/check",
+    ...chain,
+    read,
+    asyncHandler(ctrl.checkPromotionGate),
+  );
+
   /* Legacy agent-scoped endpoints for backward compatibility */
   router.get(
     "/v1/workspaces/:workspaceId/agents/:agentId/eval/cases",

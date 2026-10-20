@@ -166,13 +166,11 @@ export class SourcesService {
 
     let extractionText: string | null = null;
     let charCount = 0;
-    let ocrApplied = false;
 
     try {
       const extraction = await extractDocumentText(input.buffer, fileName, input.mimeType);
       extractionText = extraction.text;
       charCount = extraction.charCount;
-      ocrApplied = Boolean(extraction.ocrApplied);
     } catch (err: unknown) {
       if (!isRichDoc) {
         throw err;
@@ -427,7 +425,7 @@ export class SourcesService {
     return { ready_count: count };
   }
 
-  private async enqueueIngest(workspaceId: string, source: KnowledgeSource): Promise<void> {
+  async enqueueIngest(workspaceId: string, source: KnowledgeSource): Promise<void> {
     await this.queue.send({
       action: "ingest",
       source_id: source.id,

@@ -1,3 +1,4 @@
+import { AppError, ErrorCode } from "@quickstart/errors";
 import { requestIdFromResponse, sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
 import type { WorkspaceRole } from "../domain/permissions.js";
 import type { MembersService } from "../services/members.service.js";
@@ -48,10 +49,25 @@ export function createMembersController(members: MembersService) {
       const tenant = res.locals.tenantContext!;
       const targetUserId = routeParam(req.params.userId);
 
-      await members.removeMember(tenant, targetUserId);
+      await members.removeMember(tenant, targetUserId, { requestId });
       sendPlatformJson(res, 200, {
         request_id: requestId,
         removed: true,
+      });
+    }) as RequestHandler,
+
+    transferOwnership: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const body = req.body as { newOwnerUserId: string };
+
+      const result = await members.transferOwnership(tenant, body.newOwnerUserId, {
+        requestId,
+      });
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        previous_owner: result.previousOwner,
+        new_owner: result.newOwner,
       });
     }) as RequestHandler,
 
@@ -88,6 +104,52 @@ export function createMembersController(members: MembersService) {
       sendPlatformJson(res, 200, {
         request_id: requestId,
         deleted: true,
+      });
+    }) as RequestHandler,
+
+    resendInvite: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const inviteId = routeParam(req.params.inviteId);
+
+      const result = await members.resendInvite(tenant, inviteId);
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        invite: result.invite,
+        raw_token: result.rawToken,
+      });
+    }) as RequestHandler,
+
+    verifyInvite: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+
+      const result = await members.verifyInviteToken(token);
+      sendPlatformJson(res, result.valid ? 200 : 400, {
+        request_id: requestId,
+        ...result,
+      });
+    }) as RequestHandler,
+
+    acceptInvite: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const body = req.body as { token: string };
+      const actorId = res.locals.actorUserId || res.locals.accessToken?.sub || res.locals.tenantContext?.actorId;
+      const actorEmail = res.locals.actorEmail || res.locals.accessToken?.email;
+
+      if (!actorId || !actorEmail) {
+        throw new AppError({
+          code: ErrorCode.UNAUTHORIZED,
+          message: "Authentication with verified email required to accept invitation",
+        });
+      }
+
+      const result = await members.acceptInvite(body.token, { id: actorId, email: actorEmail }, { requestId });
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        workspace: result.workspace,
+        membership: result.membership,
+        previous_role: result.previousRole,
       });
     }) as RequestHandler,
   };

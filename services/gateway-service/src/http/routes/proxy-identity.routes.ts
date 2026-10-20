@@ -31,10 +31,16 @@ export const createIdentityProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) 
   router.post("/v1/login", publicProxy(ctx));
   router.post("/v1/refresh", publicProxy(ctx));
   router.post("/v1/logout", publicProxy(ctx));
+  router.post("/v1/auth/forgot-password", publicProxy(ctx));
+  router.post("/v1/forgot-password", publicProxy(ctx));
+  router.post("/v1/auth/reset-password", publicProxy(ctx));
+  router.post("/v1/reset-password", publicProxy(ctx));
 
   router.get("/v1/me", ...protectedProxy(ctx));
   router.get("/v1/organizations", ...protectedProxy(ctx));
+  router.post("/v1/organizations", ...protectedProxy(ctx));
   router.get("/v1/organizations/:orgId", ...protectedProxy(ctx));
+  router.patch("/v1/organizations/:orgId", ...protectedProxy(ctx));
   router.post("/v1/organizations/:orgId/api-keys", ...protectedProxy(ctx));
   router.get("/v1/organizations/:orgId/api-keys", ...protectedProxy(ctx));
   router.delete("/v1/organizations/:orgId/api-keys/:keyId", ...protectedProxy(ctx));

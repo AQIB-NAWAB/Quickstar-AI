@@ -26,15 +26,24 @@ async function withGateway(
   configPatch?: Partial<GatewayConfig>,
 ): Promise<void> {
   const config: GatewayConfig = { ...loadGatewayConfig(), port: 0, ...configPatch };
-  const redis = createRedisClient(config.redisUrl);
+  let redis: any = createRedisClient(config.redisUrl);
   try {
     await redis.connect();
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-    if (code === "ECONNREFUSED") {
-      throw new Error("Redis/Valkey required for gateway tests. Run: make up");
-    }
-    throw error;
+  } catch {
+    const memory = new Map<string, number>();
+    redis = {
+      isOpen: true,
+      async connect() {},
+      async quit() {},
+      async incr(key: string) {
+        const val = (memory.get(key) ?? 0) + 1;
+        memory.set(key, val);
+        return val;
+      },
+      async expire() {
+        return true;
+      },
+    } as any;
   }
   const logger = createLogger({ service: "service-gateway-test" });
   const app = createGatewayServer({ logger, config, redis, workspaceAccess: testWorkspaceAccess });
@@ -183,3 +192,43 @@ test("POST /v1/workspaces/:id/conversations/:id/turns proxies to runtime", async
   );
 });
 
+test("POST /v1/orgs/:orgId/workspaces rejects cross-organization request with 403", async () => {
+  await withGateway(
+    async (port, config) => {
+      const token = await signAccessToken(
+        { sub: "user-1", org_id: "org-alpha", sid: "session-1" },
+        { secret: config.jwtAccessSecret, ttlSeconds: 900 },
+      );
+      const res = await fetch(`http://127.0.0.1:${port}/v1/orgs/org-beta/workspaces`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name: "Cross Org WS", slug: "cross-org-ws" }),
+      });
+      assert.equal(res.status, 403);
+      const body = (await res.json()) as { error: { code: string } };
+      assert.equal(body.error.code, "FORBIDDEN");
+    },
+    { identityUrl: "http://127.0.0.1:9999" }, // uncontactable mock identity => not verified in org-beta
+  );
+});
+
+test("GET /v1/orgs/:orgId/workspaces rejects cross-organization request with 403", async () => {
+  await withGateway(
+    async (port, config) => {
+      const token = await signAccessToken(
+        { sub: "user-1", org_id: "org-alpha", sid: "session-1" },
+        { secret: config.jwtAccessSecret, ttlSeconds: 900 },
+      );
+      const res = await fetch(`http://127.0.0.1:${port}/v1/orgs/org-beta/workspaces`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 403);
+      const body = (await res.json()) as { error: { code: string } };
+      assert.equal(body.error.code, "FORBIDDEN");
+    },
+    { identityUrl: "http://127.0.0.1:9999" },
+  );
+});

@@ -8,7 +8,7 @@ import { LockerIllustration } from "../illustrations/locker-illustration";
 import "@/features/auth/styles/auth.css";
 
 export interface AuthLayoutProps {
-  variant: "login" | "register";
+  variant: "login" | "register" | "forgot-password" | "reset-password" | "invite";
   title?: string;
   subtitle?: string;
   children: ReactNode;
@@ -22,19 +22,19 @@ export function AuthLayout({
 }: AuthLayoutProps) {
   const isRegister = variant === "register";
 
-  const formEyebrow = "QuickStart workspace";
-  const formTitle = title ?? (isRegister ? "Create your account" : "Welcome back");
-  const formSubtitle =
+  let formEyebrow = "QuickStart workspace";
+  let formTitle = title ?? (isRegister ? "Create your account" : "Welcome back");
+  let formSubtitle =
     subtitle ??
     (isRegister
       ? "Set up your organization and first workspace."
       : "Sign in to your QuickStart workspace.");
 
-  const sceneEyebrow = isRegister
+  let sceneEyebrow = isRegister
     ? "YOUR BUSINESS, CONNECTED"
     : "YOUR QUICKSTART WORKSPACE";
 
-  const sceneHeading = isRegister ? (
+  let sceneHeading = isRegister ? (
     <>
       Your next chapter
       <br />
@@ -48,7 +48,7 @@ export function AuthLayout({
     </>
   );
 
-  const sceneParagraph = isRegister ? (
+  let sceneParagraph = isRegister ? (
     <>
       A workspace for your agents, your knowledge
       <br />
@@ -62,7 +62,7 @@ export function AuthLayout({
     </>
   );
 
-  const alternateRow = isRegister ? (
+  let alternateRow = isRegister ? (
     <p className="auth-alternate">
       Already have an account?{" "}
       <Link href="/login">Sign in</Link>
@@ -73,6 +73,83 @@ export function AuthLayout({
       <Link href="/register">Create an account</Link>
     </p>
   );
+
+  if (variant === "forgot-password") {
+    formEyebrow = "Account recovery";
+    formTitle = title ?? "Reset your password";
+    formSubtitle = subtitle ?? "Enter your email address to receive a secure recovery link.";
+    sceneEyebrow = "SECURE ACCESS";
+    sceneHeading = (
+      <>
+        Recover your
+        <br />
+        account safely.
+      </>
+    );
+    sceneParagraph = (
+      <>
+        We will send an encrypted, single-use link
+        <br />
+        to securely reset your password.
+      </>
+    );
+    alternateRow = (
+      <p className="auth-alternate">
+        Remember your password?{" "}
+        <Link href="/login">Sign in</Link>
+      </p>
+    );
+  } else if (variant === "reset-password") {
+    formEyebrow = "Account recovery";
+    formTitle = title ?? "Choose a new password";
+    formSubtitle = subtitle ?? "Enter a strong replacement password for your account.";
+    sceneEyebrow = "SECURE ACCESS";
+    sceneHeading = (
+      <>
+        Protect your
+        <br />
+        workspace.
+      </>
+    );
+    sceneParagraph = (
+      <>
+        Resetting your password securely revokes
+        <br />
+        previous active sessions.
+      </>
+    );
+    alternateRow = (
+      <p className="auth-alternate">
+        Back to{" "}
+        <Link href="/login">Sign in</Link>
+      </p>
+    );
+  } else if (variant === "invite") {
+    formEyebrow = "Workspace invitation";
+    formTitle = title ?? "Join your team";
+    formSubtitle = subtitle ?? "You have been invited to collaborate on QuickStart AI.";
+    sceneEyebrow = "TEAM COLLABORATION";
+    sceneHeading = (
+      <>
+        Welcome to
+        <br />
+        the team.
+      </>
+    );
+    sceneParagraph = (
+      <>
+        Build, operate, and deploy AI agents
+        <br />
+        together with your organization.
+      </>
+    );
+    alternateRow = (
+      <p className="auth-alternate">
+        Need to sign in as a different user?{" "}
+        <Link href="/login">Sign in</Link>
+      </p>
+    );
+  }
 
   return (
     <div className="auth-page auth-scope">

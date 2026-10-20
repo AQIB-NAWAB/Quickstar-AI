@@ -81,7 +81,7 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
   const {
     server,
     callsRepo,
-    recordings,
+    recordings: _recordings,
     liveSessionManager,
     usageIngest,
     logger,
@@ -168,12 +168,6 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
                 workspaceId,
                 conversationId,
                 actorId: `caller-${callSid.slice(-6)}`,
-                telephony: {
-                  providerCallSid: callSid,
-                  streamSid,
-                  direction: "inbound",
-                  callId,
-                },
               });
 
               // Start recording
@@ -181,8 +175,8 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
 
               // Subscribe to live audio emitted from the AI agent
               unsubscribeLive = liveSessionManager.subscribe(liveSessionId, (event) => {
-                if (event.type === "audio" && event.pcm_b64) {
-                  const pcm = Buffer.from(event.pcm_b64, "base64");
+                if (event.type === "audio" && event.data) {
+                  const pcm = Buffer.from(event.data, "base64");
                   const mulawB64 = pcm16ToTwilioMulawBase64(pcm, 16000);
                   audioSequence++;
 
@@ -207,7 +201,7 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
                       }),
                     );
                   }
-                } else if (event.type === "interrupted") {
+                } else if (event.type === "interrupt") {
                   // User interrupted the model -> clear Twilio's audio buffer
                   if (ws.readyState === WebSocket.OPEN) {
                     ws.send(

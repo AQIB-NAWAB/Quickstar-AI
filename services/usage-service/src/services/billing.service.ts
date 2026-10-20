@@ -1,19 +1,22 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type {
-  BillingInvoice,
+  AcquireReservationRequest,
+  AcquireReservationResponse,
+  BillingCredit,
   BillingPlan,
-  BillingPlanInterval,
   BillingPlanTier,
   BillingSubscription,
   BillingSubscriptionStatus,
   BillingSummaryResponse,
   CancelSubscriptionRequest,
+  CommitReservationRequest,
   CreateCheckoutSessionRequest,
   CreateCheckoutSessionResponse,
   CreateCustomerPortalSessionRequest,
   CreateCustomerPortalSessionResponse,
   OrganizationEntitlements,
+  SpendControls,
 } from "@quickstart/contracts";
 import type { BillingRepository } from "../repository/billing.repository.js";
 
@@ -168,28 +171,42 @@ export class BillingService {
       DEFAULT_PLANS[0];
 
     const periodStart = new Date(sub.currentPeriodStart);
-    const usage = await this.repo.getMonthlyUsage(orgId, periodStart);
-    const invoices = await this.repo.listInvoices(orgId, 5);
+    const [usage, activeTokensReserved, activeVoiceReserved, invoices] =
+      await Promise.all([
+        this.repo.getMonthlyUsage(orgId, periodStart),
+        this.repo.getActiveReservationsSum(orgId, "tokens"),
+        this.repo.getActiveReservationsSum(orgId, "voice"),
+        this.repo.listInvoices(orgId, 5),
+      ]);
 
     const isDelinquent = sub.status === "past_due" || sub.status === "unpaid";
+    const gracePeriodEndsAt = isDelinquent
+      ? new Date(new Date(sub.currentPeriodEnd).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+    const isPastGrace = Boolean(
+      gracePeriodEndsAt && Date.now() > new Date(gracePeriodEndsAt).getTime(),
+    );
+
+    const totalTokensEffective = usage.monthlyTokensUsed + activeTokensReserved;
+    const totalVoiceEffective = usage.voiceMinutesUsed + activeVoiceReserved;
 
     const entitlements: OrganizationEntitlements = {
       orgId,
       planTier: sub.planTier,
       status: sub.status,
-      canCreateAgent: sub.status === "active" || sub.status === "trialing",
-      canCreateWorkspace: sub.planTier !== "free",
-      canMakeOutboundCalls: sub.status === "active" && !isDelinquent,
+      canCreateAgent: (sub.status === "active" || sub.status === "trialing") && !isPastGrace,
+      canCreateWorkspace: sub.planTier !== "free" && !isPastGrace,
+      canMakeOutboundCalls: (sub.status === "active" || sub.status === "trialing") && !isPastGrace,
       canUseCustomTools: sub.planTier === "growth" || sub.planTier === "enterprise",
       canExportData: sub.status === "active",
       maxAgents: currentPlan.limits.maxAgents,
       currentAgentsCount: 1, // baseline
       monthlyTokensQuota: currentPlan.limits.monthlyTokens,
-      monthlyTokensUsed: usage.monthlyTokensUsed,
+      monthlyTokensUsed: totalTokensEffective,
       voiceMinutesQuota: currentPlan.limits.voiceMinutes,
-      voiceMinutesUsed: usage.voiceMinutesUsed,
+      voiceMinutesUsed: totalVoiceEffective,
       isDelinquent,
-      gracePeriodEndsAt: isDelinquent ? sub.currentPeriodEnd : null,
+      gracePeriodEndsAt,
     };
 
     return {
@@ -204,6 +221,147 @@ export class BillingService {
         ? "Stripe API keys are not configured. Running in sandbox simulated billing mode."
         : undefined,
     };
+  }
+
+  async acquireReservation(
+    req: AcquireReservationRequest,
+  ): Promise<AcquireReservationResponse> {
+    const sub = await this.repo.getSubscription(req.orgId);
+    const plan =
+      DEFAULT_PLANS.find((p) => p.id === sub?.planId || p.tier === sub?.planTier) ??
+      DEFAULT_PLANS[0];
+
+    // Canceled subscription blocks new usage reservations
+    if (sub?.status === "canceled") {
+      return { granted: false, reason: "SUBSCRIPTION_CANCELED" };
+    }
+
+    // Delinquency check: block work if delinquent beyond 7-day grace period
+    const isDelinquent = sub?.status === "past_due" || sub?.status === "unpaid";
+    if (isDelinquent && sub) {
+      const gracePeriodEnd = new Date(
+        new Date(sub.currentPeriodEnd).getTime() + 7 * 24 * 60 * 60 * 1000,
+      );
+      if (Date.now() > gracePeriodEnd.getTime()) {
+        return { granted: false, reason: "DELINQUENT_PAYMENT" };
+      }
+    }
+
+    const periodStart = sub
+      ? new Date(sub.currentPeriodStart)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [usage, activeReserved, spendControls] = await Promise.all([
+      this.repo.getMonthlyUsage(req.orgId, periodStart),
+      this.repo.getActiveReservationsSum(req.orgId, req.kind),
+      this.repo.getSpendControls(req.orgId),
+    ]);
+
+    const quota = req.kind === "tokens" ? plan.limits.monthlyTokens : plan.limits.voiceMinutes;
+    const currentUsed = req.kind === "tokens" ? usage.monthlyTokensUsed : usage.voiceMinutesUsed;
+    const totalEffective = currentUsed + activeReserved;
+
+    // Check quota limits
+    if (quota !== null && totalEffective + req.estimatedUnits > quota) {
+      if (!spendControls.overageAllowed) {
+        return {
+          granted: false,
+          reason: "QUOTA_EXCEEDED",
+          currentUsage: {
+            used: currentUsed,
+            quota,
+            reserved: activeReserved,
+          },
+        };
+      }
+    }
+
+    const { reservation } = await this.repo.createReservation({
+      orgId: req.orgId,
+      workspaceId: req.workspaceId,
+      kind: req.kind,
+      unitsReserved: req.estimatedUnits,
+      idempotencyKey: req.idempotencyKey,
+      timeoutSeconds: req.timeoutSeconds,
+    });
+
+    return {
+      granted: true,
+      reservationId: reservation.id,
+      expiresAt: reservation.expiresAt,
+      currentUsage: {
+        used: currentUsed,
+        quota: quota ?? 0,
+        reserved: activeReserved + req.estimatedUnits,
+      },
+    };
+  }
+
+  async commitReservation(req: CommitReservationRequest): Promise<{ committed: boolean }> {
+    const committed = await this.repo.commitReservation(req.reservationId);
+    return { committed };
+  }
+
+  async releaseReservation(reservationId: string): Promise<{ released: boolean }> {
+    const released = await this.repo.releaseReservation(reservationId);
+    return { released };
+  }
+
+  async checkLimit(
+    orgId: string,
+    limitType: "workspaces" | "agents",
+    currentCount: number,
+  ): Promise<{ allowed: boolean; maxAllowed: number; currentCount: number; planTier: string }> {
+    const sub = await this.repo.getSubscription(orgId);
+    const plan =
+      DEFAULT_PLANS.find((p) => p.id === sub?.planId || p.tier === sub?.planTier) ??
+      DEFAULT_PLANS[0];
+    const maxAllowed =
+      limitType === "workspaces" ? plan.limits.maxWorkspaces : plan.limits.maxAgents;
+    const allowed = currentCount < maxAllowed;
+    return {
+      allowed,
+      maxAllowed,
+      currentCount,
+      planTier: plan.tier,
+    };
+  }
+
+  async addCredit(
+    orgId: string,
+    amountCents: number,
+    reason: string,
+    actorUserId?: string | null,
+    idempotencyKey?: string,
+  ): Promise<BillingCredit> {
+    const key = idempotencyKey || `credit_${orgId}_${Date.now()}`;
+    const { credit } = await this.repo.addCredit({
+      orgId,
+      amountCents: Math.round(amountCents),
+      reason,
+      actorUserId,
+      idempotencyKey: key,
+    });
+    return credit;
+  }
+
+  async listCredits(orgId: string, limit = 50): Promise<BillingCredit[]> {
+    return this.repo.listCredits(orgId, limit);
+  }
+
+  async getSpendControls(orgId: string): Promise<SpendControls> {
+    return this.repo.getSpendControls(orgId);
+  }
+
+  async upsertSpendControls(
+    orgId: string,
+    input: {
+      hardSpendCapCents?: number | null;
+      warningThresholdPercent?: number;
+      overageAllowed?: boolean;
+    },
+  ): Promise<SpendControls> {
+    return this.repo.upsertSpendControls({ orgId, ...input });
   }
 
   async createCheckoutSession(
@@ -392,8 +550,25 @@ export class BillingService {
     return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(signature, "utf8"));
   }
 
-  async handleStripeWebhook(event: Record<string, unknown>): Promise<{ handled: boolean; event: string }> {
+  async handleStripeWebhook(
+    event: Record<string, unknown>,
+  ): Promise<{ handled: boolean; event: string; deduplicated?: boolean }> {
     const eventType = String(event.type ?? "");
+    const eventId = String(event.id ?? "");
+    const eventCreatedAt = event.created ? new Date(Number(event.created) * 1000) : new Date();
+
+    // Idempotency: duplicate events return immediately without corrupting state
+    if (eventId) {
+      const recordResult = await this.repo.recordStripeWebhookEvent(
+        eventId,
+        eventType,
+        eventCreatedAt,
+      );
+      if (!recordResult.inserted) {
+        return { handled: true, event: eventType, deduplicated: true };
+      }
+    }
+
     const data = (event.data as { object?: Record<string, unknown> })?.object ?? {};
 
     switch (eventType) {
@@ -403,8 +578,11 @@ export class BillingService {
           data.client_reference_id ??
           "",
         );
-        const planId = String((data.metadata as Record<string, unknown>)?.plan_id ?? "plan_starter");
-        const planTier = (data.metadata as Record<string, unknown>)?.plan_tier as BillingPlanTier ?? "starter";
+        const planId = String(
+          (data.metadata as Record<string, unknown>)?.plan_id ?? "plan_starter",
+        );
+        const planTier =
+          ((data.metadata as Record<string, unknown>)?.plan_tier as BillingPlanTier) ?? "starter";
         const stripeCustomerId = String(data.customer ?? "");
         const stripeSubId = String(data.subscription ?? "");
 
@@ -442,6 +620,7 @@ export class BillingService {
           currentPeriodStart,
           currentPeriodEnd,
           cancelAtPeriodEnd,
+          eventCreatedAt,
         });
         return { handled: true, event: eventType };
       }
@@ -453,6 +632,7 @@ export class BillingService {
           planId: "plan_free",
           planTier: "free",
           canceledAt: new Date(),
+          eventCreatedAt,
         });
         return { handled: true, event: eventType };
       }
@@ -478,17 +658,17 @@ export class BillingService {
             status,
             invoicePdfUrl: data.invoice_pdf ? String(data.invoice_pdf) : null,
             hostedInvoiceUrl: data.hosted_invoice_url ? String(data.hosted_invoice_url) : null,
-            periodStart: data.period_start ? new Date(Number(data.period_start) * 1000) : new Date(),
+            periodStart: data.period_start
+              ? new Date(Number(data.period_start) * 1000)
+              : new Date(),
             periodEnd: data.period_end ? new Date(Number(data.period_end) * 1000) : new Date(),
             paidAt: eventType === "invoice.paid" ? new Date() : null,
           });
 
-          if (eventType === "invoice.payment_failed") {
-            await this.repo.upsertSubscription({
-              ...sub,
-              currentPeriodStart: new Date(sub.currentPeriodStart),
-              currentPeriodEnd: new Date(sub.currentPeriodEnd),
+          if (eventType === "invoice.payment_failed" && sub.stripeSubscriptionId) {
+            await this.repo.updateSubscriptionByStripeId(sub.stripeSubscriptionId, {
               status: "past_due",
+              eventCreatedAt,
             });
           }
         }

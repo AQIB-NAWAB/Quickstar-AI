@@ -41,6 +41,15 @@ export type ApiKeyRecord = {
   createdAt: Date;
 };
 
+export type PasswordResetRecord = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+};
+
 export type IdentityStore = {
   createUserWithOrg(input: {
     userId: string;
@@ -56,6 +65,12 @@ export type IdentityStore = {
   listOrganizationsForUser(userId: string): Promise<OrganizationRecord[]>;
   getMembership(orgId: string, userId: string): Promise<MembershipRecord | null>;
   getOrganization(orgId: string): Promise<OrganizationRecord | null>;
+  createOrganization(input: {
+    orgId: string;
+    name: string;
+    userId: string;
+  }): Promise<OrganizationRecord>;
+  updateOrganization(orgId: string, name: string): Promise<OrganizationRecord | null>;
 
   insertRefreshToken(record: {
     id: string;
@@ -83,6 +98,19 @@ export type IdentityStore = {
   >;
   revokeRefreshToken(id: string): Promise<void>;
   revokeSessionTokens(sessionId: string): Promise<void>;
+  revokeAllUserTokens(userId: string): Promise<void>;
+
+  createPasswordReset(record: {
+    id: string;
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<void>;
+  findPasswordResetByHash(tokenHash: string): Promise<PasswordResetRecord | null>;
+  consumePasswordReset(
+    tokenHash: string,
+    newPasswordHash: string,
+  ): Promise<{ success: boolean; userId?: string }>;
 
   createApiKey(
     record: {

@@ -1,99 +1,107 @@
-import type { Request, Response } from "express";
+import { requestIdFromResponse, sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
 import { AppError, ErrorCode } from "@quickstart/errors";
+import type { QueuePriority } from "@quickstart/contracts";
 import type { OperatorQueuesService } from "../services/operator-queues.service.js";
 
 export function createOperatorQueuesController(service: OperatorQueuesService) {
   return {
-    async listQueues(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
+    listQueues: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
       const queues = await service.listQueues(workspaceId);
-      res.json({ data: queues, total: queues.length });
-    },
+      sendPlatformJson(res, 200, { data: queues, total: queues.length });
+    }) as RequestHandler,
 
-    async getQueue(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queueId = req.params.queueId as string;
+    getQueue: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const queueId = String(req.params.queueId ?? "");
       const queue = await service.getQueue(workspaceId, queueId);
-      res.json({ data: queue });
-    },
+      sendPlatformJson(res, 200, { data: queue });
+    }) as RequestHandler,
 
-    async createQueue(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queue = await service.createQueue(workspaceId, req.body ?? {});
-      res.status(201).json({ data: queue });
-    },
+    createQueue: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const queue = await service.createQueue(workspaceId, body as never);
+      sendPlatformJson(res, 201, { data: queue });
+    }) as RequestHandler,
 
-    async updateQueue(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queueId = req.params.queueId as string;
-      const queue = await service.updateQueue(workspaceId, queueId, req.body ?? {});
-      res.json({ data: queue });
-    },
+    updateQueue: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const queueId = String(req.params.queueId ?? "");
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const queue = await service.updateQueue(workspaceId, queueId, body as never);
+      sendPlatformJson(res, 200, { data: queue });
+    }) as RequestHandler,
 
-    async deleteQueue(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queueId = req.params.queueId as string;
+    deleteQueue: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const queueId = String(req.params.queueId ?? "");
       await service.deleteQueue(workspaceId, queueId);
-      res.status(204).send();
-    },
+      sendPlatformJson(res, 200, { ok: true });
+    }) as RequestHandler,
 
-    async enqueueConversation(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queueId = (req.params.queueId || req.body?.queueId) as string;
-      const conversationId = (req.params.conversationId || req.body?.conversationId) as string;
+    enqueueConversation: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const queueId = String(req.params.queueId || body?.queueId || "");
+      const conversationId = String(req.params.conversationId || body?.conversationId || "");
 
       if (!conversationId) {
         throw new AppError({
           code: ErrorCode.VALIDATION_FAILED,
           message: "conversationId is required",
+          requestId: requestIdFromResponse(res),
         });
       }
 
       const record = await service.enqueueConversation(workspaceId, {
         conversationId,
         queueId,
-        priority: req.body?.priority,
-        reason: req.body?.reason,
-        internalNote: req.body?.internalNote,
-        visitorMessage: req.body?.visitorMessage,
-        workflowRunId: req.body?.workflowRunId,
+        priority: body?.priority as QueuePriority | undefined,
+        reason: body?.reason as string | undefined,
+        internalNote: body?.internalNote as string | undefined,
+        visitorMessage: body?.visitorMessage as string | undefined,
+        workflowRunId: body?.workflowRunId as string | undefined,
       });
 
-      res.status(201).json({ data: record });
-    },
+      sendPlatformJson(res, 201, { data: record });
+    }) as RequestHandler,
 
-    async listQueueItems(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const queueId = req.params.queueId as string | undefined;
-      const status = req.query.status as string | undefined;
+    listQueueItems: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const queueId = req.params.queueId ? String(req.params.queueId) : undefined;
+      const status = req.query.status ? String(req.query.status) : undefined;
       const items = await service.listQueueItems(workspaceId, queueId, status);
-      res.json({ data: items, total: items.length });
-    },
+      sendPlatformJson(res, 200, { data: items, total: items.length });
+    }) as RequestHandler,
 
-    async claimItem(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const itemId = req.params.itemId as string;
-      const operatorId = (req.body?.operatorId || (req as unknown as { auth?: { sub?: string } }).auth?.sub) as string;
+    claimItem: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const itemId = String(req.params.itemId ?? "");
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const operatorId = String(body?.operatorId || res.locals?.actorUserId || "");
 
       if (!operatorId) {
         throw new AppError({
           code: ErrorCode.VALIDATION_FAILED,
           message: "operatorId is required to claim conversation",
+          requestId: requestIdFromResponse(res),
         });
       }
 
       const item = await service.claimConversation(workspaceId, itemId, operatorId);
-      res.json({ data: item });
-    },
+      sendPlatformJson(res, 200, { data: item });
+    }) as RequestHandler,
 
-    async resolveItem(req: Request, res: Response): Promise<void> {
-      const workspaceId = req.params.workspaceId as string;
-      const itemId = req.params.itemId as string;
-      const returnToBot = Boolean(req.body?.returnToBot);
+    resolveItem: (async (req, res) => {
+      const workspaceId = String(req.params.workspaceId ?? "");
+      const itemId = String(req.params.itemId ?? "");
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const returnToBot = Boolean(body?.returnToBot);
 
       const item = await service.resolveConversation(workspaceId, itemId, returnToBot);
-      res.json({ data: item });
-    },
+      sendPlatformJson(res, 200, { data: item });
+    }) as RequestHandler,
   };
 }
 

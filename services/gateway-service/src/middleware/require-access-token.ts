@@ -104,7 +104,9 @@ export function createRequireAccessTokenMiddleware(
         res.locals.accessToken = {
           sub: data.createdBy ?? data.keyId ?? "api-key-principal",
           org_id: data.orgId,
-          email: "api-key@machine.quickstart.ai",
+          sid: `api-key-${data.keyId ?? "session"}`,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+          iat: Math.floor(Date.now() / 1000),
           isApiKey: true,
           keyId: data.keyId,
         };

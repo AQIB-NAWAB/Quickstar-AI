@@ -6,7 +6,7 @@ import {
   type OcrEngine,
 } from "../lib/extract.js";
 import type { SourcesRepository } from "../repository/sources.repository.js";
-import { storageKeyForSource } from "../services/sources.service.js";
+import { storageKeyForSource } from "../lib/content-store.js";
 
 export type ExtractionWorkerOptions = {
   pollIntervalMs?: number;
@@ -78,7 +78,7 @@ export class ExtractionWorker {
     attempts: number;
   }): Promise<void> {
     try {
-      const source = await this.repo.getSource(job.workspace_id, job.source_id);
+      const source = await this.repo.get(job.workspace_id, job.source_id);
       if (!source) {
         await this.repo.completeExtractionJob(job.id);
         return;

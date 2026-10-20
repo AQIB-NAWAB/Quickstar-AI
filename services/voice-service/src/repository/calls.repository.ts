@@ -459,7 +459,7 @@ export class MemoryCallsRepository implements CallsRepository {
       agent_version_id: input.agentVersionId ?? null,
       direction: input.direction,
       state: "ringing",
-      voice_mode: input.voiceMode,
+      voice_mode: input.voiceMode ?? "cascade",
       telephony_provider: input.telephonyProvider,
       caller: input.caller ?? null,
       callee: input.callee ?? null,

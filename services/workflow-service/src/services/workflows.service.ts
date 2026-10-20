@@ -284,8 +284,11 @@ export class WorkflowsService {
       search?: string;
       limit?: number;
       offset?: number;
+      cursor?: string;
+      from?: string;
+      to?: string;
     },
-  ): Promise<{ runs: WorkflowRunRecord[]; total: number }> {
+  ): Promise<{ runs: WorkflowRunRecord[]; total: number; nextCursor?: string | null }> {
     return this.repo.listRuns(workspaceId, workflowId, options);
   }
 
@@ -295,6 +298,32 @@ export class WorkflowsService {
       throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Workflow run not found" });
     }
     return run;
+  }
+
+  async replayRun(
+    workspaceId: string,
+    workflowId: string,
+    runId: string,
+    actorUserId?: string,
+    options?: { definitionSnapshot?: Record<string, unknown>; versionId?: string },
+  ): Promise<WorkflowRunRecord> {
+    return this.repo.replayRun(workspaceId, workflowId, runId, actorUserId, options);
+  }
+
+  async recoverAbandonedRuns(
+    workspaceId: string,
+    workerId = "recovery-worker",
+    leaseTtlMs = 30000,
+  ): Promise<{ recoveredCount: number; runIds: string[] }> {
+    const abandoned = await this.repo.findAbandonedRuns(workspaceId);
+    const recoveredRunIds: string[] = [];
+    for (const item of abandoned) {
+      const claim = await this.repo.claimAbandonedRun(workspaceId, item.id, workerId, leaseTtlMs);
+      if (claim.claimed) {
+        recoveredRunIds.push(item.id);
+      }
+    }
+    return { recoveredCount: recoveredRunIds.length, runIds: recoveredRunIds };
   }
 
   async cancelRun(workspaceId: string, runId: string): Promise<boolean> {

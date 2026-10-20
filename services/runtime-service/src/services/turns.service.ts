@@ -653,6 +653,45 @@ export class TurnsService {
     );
 
     const modelSettings = version.snapshot.model_settings ?? {};
+
+    // For canvas graph agents, execute through the actual GraphEngine runtime
+    if (version.snapshot.graph?.nodes?.length && this.graphEngine) {
+      const graphResult = await this.graphEngine.executeTurn({
+        workspaceId: input.workspaceId,
+        agentId: input.agentId,
+        conversationId: `eval-${input.requestId}`,
+        releaseId: version.id,
+        idempotencyKey: input.idempotencyKey,
+        graph: version.snapshot.graph,
+        channel: "chat",
+        isPreview: true,
+        visitorMessage: input.text,
+        requestId: input.requestId,
+        agentDefaults: {
+          instructions: version.snapshot.instructions,
+          model_settings: version.snapshot.model_settings,
+          tools: input.allowTools === false ? [] : (version.snapshot.tools ?? []),
+        },
+      });
+
+      const latencyMs = Date.now() - startTime;
+      const text = graphResult.messages.join("\n\n");
+      const executedCalls = graphResult.trace.steps
+        .filter((s) => s.node_type === "http_request" || s.node_type === "knowledge_search")
+        .map((s) => ({
+          name: s.node_name || s.node_id,
+          arguments: s.inputs as Record<string, unknown> | undefined,
+          status: s.status === "completed" ? "succeeded" : "failed",
+        }));
+
+      return {
+        assistant_text: text,
+        agent_version_id: version.id,
+        tool_calls: executedCalls,
+        latency_ms: latencyMs,
+        token_usage: null,
+      };
+    }
     const { profile, modelId } = resolveChatModel(modelSettings);
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : 0;

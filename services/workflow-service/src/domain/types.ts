@@ -158,6 +158,10 @@ export type WorkflowRunRecord = {
   handledErrors: boolean;
   stepRuns: StepRunRecord[];
   definitionSnapshot?: Record<string, unknown> | null;
+  eventId?: string;
+  triggerEventType?: string;
+  eventPayload?: Record<string, unknown>;
+  leaseToken?: string | null;
 };
 
 /**

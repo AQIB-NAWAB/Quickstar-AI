@@ -37,6 +37,8 @@ export function toWorkspaceInvite(entity: WorkspaceInviteEntity): WorkspaceInvit
     tokenHash: entity.tokenHash,
     invitedBy: entity.invitedBy,
     expiresAt: entity.expiresAt,
+    acceptedAt: entity.acceptedAt,
+    acceptedBy: entity.acceptedBy,
     createdAt: entity.createdAt,
   };
 }

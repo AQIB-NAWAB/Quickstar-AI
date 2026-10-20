@@ -1,5 +1,5 @@
 import { WORKSPACE_PERMISSIONS, type CampaignLeadDelivery } from "@quickstart/contracts";
-import { sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
+import { sendPlatformJson, requestIdFromResponse, type RequestHandler } from "@quickstart/http-server";
 import type {
   CampaignAttempt,
   CampaignDetail,

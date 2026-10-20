@@ -66,7 +66,7 @@ start_svc() {
     pnpm --filter "$(jq -r .name "$ROOT/$dir/package.json")" build >>"$logfile" 2>&1 || true
   fi
 
-  if [[ "$name" == "conversation" || "$name" == "workflow" ]]; then
+  if [[ "$name" == "conversation" || "$name" == "workflow" || "$name" == "workspace" ]]; then
     env KAFKA_BROKERS="" node --env-file=.env "$entry" >>"$logfile" 2>&1 &
   else
     node --env-file=.env "$entry" >>"$logfile" 2>&1 &
@@ -183,6 +183,7 @@ node --env-file=.env scripts/seed-demo-account.mjs >/dev/null 2>&1 || true
 bold "5) Starting Frontend (apps/web on port 3015)"
 echo "--------------------------------------------------------"
 echo "  Frontend URL:     http://localhost:3015"
+echo "  Workspace Panel:  http://localhost:3015/workspaces"
 echo "  Demo Credentials: quickstart@gmail.com / password"
 echo "  Press Ctrl+C at any time to STOP all backends & frontend"
 echo "--------------------------------------------------------"

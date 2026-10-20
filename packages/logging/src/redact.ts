@@ -8,6 +8,11 @@ const SENSITIVE_KEYS = new Set([
   "access_token",
   "refresh_token",
   "cookie",
+  "x-quickstart-auth-context",
+  "x-quickstart-internal-token",
+  "x-api-key",
+  "x-publishable-key",
+  "client_secret",
 ]);
 
 const REDACTED = "[REDACTED]";

@@ -8,6 +8,7 @@ const MIGRATION_FILES = [
   "001_usage.sql",
   "002_analytics_rollups.sql",
   "003_organization_billing_and_subscriptions.sql",
+  "004_billing_enforcement_and_reservations.sql",
 ] as const;
 
 export async function runUsageMigrations(pool: Pool): Promise<void> {

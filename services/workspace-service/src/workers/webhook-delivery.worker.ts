@@ -39,7 +39,7 @@ export function createWebhookDeliveryWorker(options: WebhookDeliveryWorkerOption
     processing = true;
 
     try {
-      const deliveries = await webhooksRepo.claimDeliveries(workerId, batchSize, leaseSeconds);
+      const deliveries = await webhooksRepo.claimDeliveries(batchSize, workerId, leaseSeconds);
       if (deliveries.length === 0) {
         return;
       }
@@ -47,6 +47,7 @@ export function createWebhookDeliveryWorker(options: WebhookDeliveryWorkerOption
       await Promise.all(
         deliveries.map(async (delivery) => {
           const attemptNumber = delivery.attempts_count + 1;
+          const maxAttempts = 5;
           const endpoint = await webhooksRepo.getEndpoint(delivery.workspace_id, delivery.webhook_id);
 
           if (!endpoint || endpoint.status === "disabled") {
@@ -86,7 +87,7 @@ export function createWebhookDeliveryWorker(options: WebhookDeliveryWorkerOption
 
             latencyMs = Math.round(performance.now() - start);
             httpStatus = res.status;
-            res.headers.forEach((v, k) => {
+            res.headers.forEach((v: string, k: string) => {
               responseHeaders[k] = v;
             });
             responseBody = await res.text().catch(() => "");
@@ -128,19 +129,19 @@ export function createWebhookDeliveryWorker(options: WebhookDeliveryWorkerOption
           } else {
             await webhooksRepo.updateEndpointHealth(endpoint.id, httpStatus ?? 500, true);
 
-            if (attemptNumber < delivery.max_attempts) {
+            if (attemptNumber < maxAttempts) {
               const backoffSec = Math.min(3600, Math.pow(2, attemptNumber) * 15);
               await webhooksRepo.retryDelivery(
                 delivery.id,
                 backoffSec,
                 httpStatus,
                 latencyMs,
-                error,
+                error ?? "Retry scheduled",
               );
               logger.warn("webhooks.worker.delivery_retrying", {
                 deliveryId: delivery.id,
                 attemptNumber,
-                maxAttempts: delivery.max_attempts,
+                maxAttempts,
                 backoffSec,
                 error,
               });

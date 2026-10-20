@@ -72,6 +72,15 @@ export function LoginForm() {
           placeholder="Enter your password"
         />
 
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px", marginBottom: "18px" }}>
+          <a
+            href="/forgot-password"
+            style={{ fontSize: "12px", color: "#666", textDecoration: "none", fontWeight: 500 }}
+          >
+            Forgot password?
+          </a>
+        </div>
+
         {error ? (
           <p role="alert" className="auth-error">
             {error}

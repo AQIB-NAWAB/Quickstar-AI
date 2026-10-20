@@ -15,6 +15,7 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     httpRateLimitWindowMs: 60_000,
     httpRateLimitMax: 10_000,
     httpAuthRateLimitMax: 10_000,
+    appUrl: "http://localhost:3015",
     ...overrides,
   };
 }

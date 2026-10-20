@@ -119,3 +119,46 @@ export async function sendSafeWebhook(
     request.end();
   });
 }
+
+export type SafeFetchResponse = {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  headers: Map<string, string>;
+  text: () => Promise<string>;
+  json: () => Promise<unknown>;
+};
+
+export async function safeFetch(
+  rawUrl: string,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    timeoutMs?: number;
+  } = {},
+): Promise<SafeFetchResponse> {
+  const url = await assertSafeWebhookUrl(rawUrl, {
+    allowHttp: process.env.NODE_ENV !== "production" || process.env.WORKFLOW_WEBHOOK_ALLOW_HTTP === "true",
+  });
+  const res = await sendSafeWebhook(url, {
+    method: options.method ?? "POST",
+    headers: options.headers ?? {},
+    body: options.body,
+    timeoutMs: options.timeoutMs ?? 10_000,
+  });
+
+  const headersMap = new Map<string, string>();
+  for (const [k, v] of Object.entries(res.headers)) {
+    headersMap.set(k.toLowerCase(), v);
+  }
+
+  return {
+    ok: res.status >= 200 && res.status < 300,
+    status: res.status,
+    statusText: res.statusText,
+    headers: headersMap,
+    text: async () => res.text,
+    json: async () => JSON.parse(res.text),
+  };
+}

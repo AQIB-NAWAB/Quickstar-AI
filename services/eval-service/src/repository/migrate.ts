@@ -7,6 +7,7 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migra
 const MIGRATION_FILES = [
   "001_eval.sql",
   "002_eval_suite_v2.sql",
+  "003_eval_gates_and_unavailability.sql",
 ] as const;
 
 export async function runEvalMigrations(pool: Pool): Promise<void> {

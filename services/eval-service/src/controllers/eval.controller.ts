@@ -413,6 +413,39 @@ export function createEvalController(evals: EvalService) {
       sendPlatformJson(res, 200, { comparison: toApiComparison(comparison) });
     }) as RequestHandler,
 
+    /* Promotion & Regression Gates */
+    checkPromotionGate: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const agentId = routeParam(
+        req.params.agentId ?? (body.agent_id as string) ?? (body.agentId as string),
+      );
+      const candidateVersionId = String(
+        body.candidate_version_id ?? body.candidateVersionId ?? "",
+      );
+      const baselineVersionId =
+        body.baseline_version_id ?? body.baselineVersionId
+          ? String(body.baseline_version_id ?? body.baselineVersionId)
+          : undefined;
+      const gateConfig = (body.gate_config ?? body.gateConfig) as any;
+      const override = body.override as any;
+
+      const actorUserId = res.locals.actorUserId as string | undefined;
+      if (override?.approved && !override.actorUserId && actorUserId) {
+        override.actorUserId = actorUserId;
+      }
+
+      const gateResult = await evals.evaluatePromotionGate(workspaceId, {
+        agentId,
+        candidateVersionId,
+        baselineVersionId,
+        gateConfig,
+        override,
+      });
+
+      sendPlatformJson(res, 200, { gate: gateResult });
+    }) as RequestHandler,
+
     /* Legacy endpoints */
     legacyListCases: (async (req, res) => {
       const workspaceId = routeParam(req.params.workspaceId);

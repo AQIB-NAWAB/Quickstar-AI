@@ -227,7 +227,15 @@ export class ApiIntegrationsRepository implements IntegrationsRepository {
         return { status: "error", message: body.error?.message ?? "Sync operation failed" };
       }
 
-      return { status: "ready", data: body };
+      return {
+        status: "ready",
+        data: {
+          success: Boolean(body.success ?? true),
+          recordsSynced: body.recordsSynced,
+          durationMs: body.durationMs,
+          resources: body.resources,
+        },
+      };
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       return { status: "error", message: err instanceof Error ? err.message : "Network error" };

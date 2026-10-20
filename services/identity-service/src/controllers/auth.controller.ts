@@ -67,3 +67,32 @@ export async function handleLogout(
   await auth.logout({ refreshToken: body.refresh_token, sessionId });
   sendNoContent(res);
 }
+
+export async function handleForgotPassword(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+  auth: AuthService,
+): Promise<void> {
+  const body = await readJsonBody<{ email?: string; redirect_origin?: string; redirectOrigin?: string }>(req);
+  const result = await auth.requestPasswordReset({
+    email: body.email ?? "",
+    redirectOrigin: body.redirect_origin ?? body.redirectOrigin,
+  });
+  sendJson(res, 200, { request_id: requestId, ...result });
+}
+
+export async function handleResetPassword(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+  auth: AuthService,
+): Promise<void> {
+  const body = await readJsonBody<{ token?: string; new_password?: string; newPassword?: string }>(req);
+  const result = await auth.consumePasswordReset({
+    token: body.token ?? "",
+    newPassword: body.new_password ?? body.newPassword ?? "",
+  });
+  sendJson(res, 200, { request_id: requestId, ...result });
+}
+

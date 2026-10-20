@@ -6,11 +6,8 @@ import {
   ArrowRight,
   Check,
   CreditCard,
-  Download,
   ExternalLink,
   Loader2,
-  ShieldCheck,
-  Zap,
 } from "lucide-react";
 import type { BillingPlan, BillingSummaryResponse } from "@quickstart/contracts";
 import {
@@ -26,7 +23,7 @@ interface BillingSettingsProps {
   canManage?: boolean;
 }
 
-export function BillingSettings({ workspaceId, orgId, canManage = true }: BillingSettingsProps) {
+export function BillingSettings({ workspaceId: _workspaceId, orgId, canManage = true }: BillingSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<BillingSummaryResponse | null>(null);

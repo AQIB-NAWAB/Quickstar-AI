@@ -271,7 +271,7 @@ export class WebhooksService {
 
       latencyMs = Math.round(performance.now() - start);
       httpStatus = res.status;
-      res.headers.forEach((v, k) => {
+      res.headers.forEach((v: string, k: string) => {
         responseHeaders[k] = v;
       });
       responseBody = await res.text().catch(() => "");
@@ -307,7 +307,7 @@ export class WebhooksService {
       await this.repo.updateEndpointHealth(endpoint.id, httpStatus, false);
     } else {
       await this.repo.updateEndpointHealth(endpoint.id, httpStatus ?? 500, true);
-      await this.repo.retryDelivery(delivery.id, 60, httpStatus, latencyMs, error);
+      await this.repo.retryDelivery(delivery.id, 60, httpStatus, latencyMs, error ?? "");
     }
 
     const updated = await this.repo.getDelivery(workspaceId, deliveryId);

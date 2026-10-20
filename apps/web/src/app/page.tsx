@@ -1,44 +1,20 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { COOKIE_ACCESS } from "@/lib/server/auth/cookies";
+import { LandingView } from "@/features/marketing/components/landing-view";
 
-import "./landing.css";
+type Props = {
+  searchParams?: { [key: string]: string | string[] | undefined };
+};
 
-import { BrandCompanion } from "@/components/brand/brand-companion";
-import { CtaBanner } from "@/features/marketing/components/cta-banner";
-import { FeatureGrid } from "@/features/marketing/components/feature-grid";
-import { Footer } from "@/features/marketing/components/footer";
-import { Hero } from "@/features/marketing/components/hero";
-import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section";
-import { Navbar } from "@/features/marketing/components/navbar";
-import { PricingSection } from "@/features/marketing/components/pricing-section";
-import { SocialProof } from "@/features/marketing/components/social-proof";
+export default function HomePage({ searchParams }: Props) {
+  // If user is already authenticated and didn't explicitly request ?landing=1, take them to the workspace panel
+  const showLanding = searchParams?.landing === "1" || searchParams?.marketing === "1";
+  const token = cookies().get(COOKIE_ACCESS)?.value;
 
-export default function HomePage() {
-  return (
-    <div className="landing-page relative min-h-screen flex flex-col bg-background-base">
-      <Navbar />
+  if (token && !showLanding) {
+    redirect("/workspaces");
+  }
 
-      <main className="flex-1">
-        {/* 1. Hero Section */}
-        <Hero />
-
-        {/* 2. Social Proof */}
-        <SocialProof />
-
-        {/* 3. How It Works: From your information to a working agent */}
-        <HowItWorksSection />
-
-        {/* 4. Platform Capabilities: Built for your team */}
-        <FeatureGrid />
-
-        {/* 5. Plans & Pricing */}
-        <PricingSection />
-
-        {/* 6. Closing Call-to-Action Banner */}
-        <CtaBanner />
-      </main>
-
-      <Footer />
-      <BrandCompanion />
-    </div>
-  );
+  return <LandingView />;
 }

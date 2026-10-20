@@ -21,13 +21,15 @@ src/
     marketing/components/       # Landing page sections (public)
   components/
     brand/                      # Logo + companion (marketing + app shell)
-    ui/                         # Shared controls (dialogs, pagination, date pickers, …)
+    ui/                         # Design system (Button, Input, …)
   lib/
+    client/                     # Browser-side helpers (gateway fetch)
     server/
       auth/                     # Cookies, JWT, session (server only)
       gateway/                  # Server fetch + BFF proxy to port 3000
       workspace/                # Workspace list/create helpers
     marketing/                    # Landing-only (avatar motion, hairline)
+    utils.ts
   middleware.ts
 ```
 

@@ -1,9 +1,12 @@
 import type { Pool } from "pg";
 import type {
+  BillingCredit,
   BillingInvoice,
   BillingPlanTier,
+  BillingReservation,
   BillingSubscription,
   BillingSubscriptionStatus,
+  SpendControls,
 } from "@quickstart/contracts";
 
 type SubscriptionRow = {
@@ -79,6 +82,68 @@ function mapInvoice(row: InvoiceRow): BillingInvoice {
     periodEnd: row.period_end.toISOString(),
     paidAt: row.paid_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
+  };
+}
+
+type ReservationRow = {
+  id: string;
+  org_id: string;
+  workspace_id: string;
+  kind: string;
+  units_reserved: string;
+  status: string;
+  expires_at: Date;
+  created_at: Date;
+};
+
+type CreditRow = {
+  id: string;
+  org_id: string;
+  amount_cents: string;
+  reason: string;
+  actor_user_id: string | null;
+  created_at: Date;
+};
+
+type SpendControlsRow = {
+  org_id: string;
+  hard_spend_cap_cents: string | null;
+  warning_threshold_percent: number;
+  overage_allowed: boolean;
+  updated_at: Date;
+};
+
+function mapReservation(row: ReservationRow): BillingReservation {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    workspaceId: row.workspace_id,
+    kind: row.kind as "tokens" | "voice",
+    unitsReserved: Number(row.units_reserved),
+    status: row.status as BillingReservation["status"],
+    expiresAt: row.expires_at.toISOString(),
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapCredit(row: CreditRow): BillingCredit {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    amountCents: Number(row.amount_cents),
+    reason: row.reason,
+    actorUserId: row.actor_user_id,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapSpendControls(row: SpendControlsRow): SpendControls {
+  return {
+    orgId: row.org_id,
+    hardSpendCapCents: row.hard_spend_cap_cents !== null ? Number(row.hard_spend_cap_cents) : null,
+    warningThresholdPercent: row.warning_threshold_percent,
+    overageAllowed: row.overage_allowed,
+    updatedAt: row.updated_at.toISOString(),
   };
 }
 
@@ -176,6 +241,7 @@ export class BillingRepository {
       canceledAt?: Date | null;
       defaultPaymentMethodLast4?: string | null;
       defaultPaymentMethodBrand?: string | null;
+      eventCreatedAt?: Date | null;
     },
   ): Promise<BillingSubscription | null> {
     const res = await this.pool.query<SubscriptionRow>(
@@ -189,8 +255,10 @@ export class BillingRepository {
            canceled_at = COALESCE($8, canceled_at),
            default_payment_method_last4 = COALESCE($9, default_payment_method_last4),
            default_payment_method_brand = COALESCE($10, default_payment_method_brand),
+           last_stripe_event_created_at = COALESCE($11, last_stripe_event_created_at),
            updated_at = NOW()
        WHERE stripe_subscription_id = $1
+         AND ($11::timestamptz IS NULL OR last_stripe_event_created_at IS NULL OR last_stripe_event_created_at <= $11::timestamptz)
        RETURNING *`,
       [
         stripeSubId,
@@ -203,6 +271,7 @@ export class BillingRepository {
         updates.canceledAt ?? null,
         updates.defaultPaymentMethodLast4 ?? null,
         updates.defaultPaymentMethodBrand ?? null,
+        updates.eventCreatedAt ?? null,
       ],
     );
     return res.rows[0] ? mapSubscription(res.rows[0]) : null;
@@ -275,7 +344,7 @@ export class BillingRepository {
          COALESCE(SUM(CASE WHEN kind = 'model' THEN units ELSE 0 END), 0)::text AS tokens,
          COALESCE(SUM(CASE WHEN kind = 'voice' THEN units ELSE 0 END), 0)::text AS minutes
        FROM usage_entries
-       WHERE org_id = $1
+       WHERE (org_id = $1 OR detail->>'org_id' = $1::text)
          AND created_at >= $2`,
       [orgId, since.toISOString()],
     );
@@ -285,4 +354,206 @@ export class BillingRepository {
       voiceMinutesUsed: Math.round(Number(row?.minutes ?? 0)),
     };
   }
+
+  async recordStripeWebhookEvent(
+    eventId: string,
+    eventType: string,
+    eventCreatedAt: Date,
+  ): Promise<{ inserted: boolean }> {
+    const res = await this.pool.query(
+      `INSERT INTO stripe_webhook_events (event_id, event_type, event_created_at, status)
+       VALUES ($1, $2, $3, 'processed')
+       ON CONFLICT (event_id) DO NOTHING
+       RETURNING event_id`,
+      [eventId, eventType, eventCreatedAt],
+    );
+    return { inserted: (res.rowCount ?? 0) > 0 };
+  }
+
+  async getActiveReservationsSum(
+    orgId: string,
+    kind: "tokens" | "voice",
+  ): Promise<number> {
+    const res = await this.pool.query<{ total: string }>(
+      `SELECT COALESCE(SUM(units_reserved), 0)::text AS total
+       FROM usage_reservations
+       WHERE org_id = $1 AND kind = $2 AND status = 'active' AND expires_at > NOW()`,
+      [orgId, kind],
+    );
+    return Math.round(Number(res.rows[0]?.total ?? 0));
+  }
+
+  async createReservation(input: {
+    orgId: string;
+    workspaceId: string;
+    kind: "tokens" | "voice";
+    unitsReserved: number;
+    idempotencyKey: string;
+    timeoutSeconds?: number;
+  }): Promise<{ reservation: BillingReservation; created: boolean }> {
+    const timeoutSeconds = Math.max(10, Math.min(300, input.timeoutSeconds ?? 60));
+    const res = await this.pool.query<ReservationRow>(
+      `INSERT INTO usage_reservations (
+         org_id, workspace_id, kind, units_reserved, status, expires_at, idempotency_key
+       ) VALUES ($1, $2, $3, $4, 'active', NOW() + ($5 || ' seconds')::interval, $6)
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING *`,
+      [
+        input.orgId,
+        input.workspaceId,
+        input.kind,
+        input.unitsReserved,
+        timeoutSeconds,
+        input.idempotencyKey,
+      ],
+    );
+
+    if (res.rows[0]) {
+      return { reservation: mapReservation(res.rows[0]), created: true };
+    }
+
+    const existing = await this.pool.query<ReservationRow>(
+      `SELECT * FROM usage_reservations WHERE idempotency_key = $1`,
+      [input.idempotencyKey],
+    );
+    if (!existing.rows[0]) {
+      throw new Error("Failed to create or retrieve reservation");
+    }
+    return { reservation: mapReservation(existing.rows[0]), created: false };
+  }
+
+  async commitReservation(reservationId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE usage_reservations
+       SET status = 'committed', updated_at = NOW()
+       WHERE id = $1 AND status = 'active'`,
+      [reservationId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async releaseReservation(reservationId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE usage_reservations
+       SET status = 'released', updated_at = NOW()
+       WHERE id = $1 AND status = 'active'`,
+      [reservationId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async cleanupExpiredReservations(): Promise<number> {
+    const res = await this.pool.query(
+      `UPDATE usage_reservations
+       SET status = 'expired', updated_at = NOW()
+       WHERE status = 'active' AND expires_at < NOW()`,
+    );
+    return res.rowCount ?? 0;
+  }
+
+  async getCreditsRemainingCents(orgId: string): Promise<number> {
+    const res = await this.pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount_cents), 0)::text AS balance
+       FROM billing_credits_ledger
+       WHERE org_id = $1`,
+      [orgId],
+    );
+    return Math.round(Number(res.rows[0]?.balance ?? 0));
+  }
+
+  async addCredit(input: {
+    orgId: string;
+    amountCents: number;
+    reason: string;
+    actorUserId?: string | null;
+    idempotencyKey: string;
+  }): Promise<{ credit: BillingCredit; created: boolean }> {
+    const res = await this.pool.query<CreditRow>(
+      `INSERT INTO billing_credits_ledger (
+         org_id, amount_cents, reason, actor_user_id, idempotency_key
+       ) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING *`,
+      [
+        input.orgId,
+        input.amountCents,
+        input.reason,
+        input.actorUserId ?? null,
+        input.idempotencyKey,
+      ],
+    );
+
+    if (res.rows[0]) {
+      return { credit: mapCredit(res.rows[0]), created: true };
+    }
+
+    const existing = await this.pool.query<CreditRow>(
+      `SELECT * FROM billing_credits_ledger WHERE idempotency_key = $1`,
+      [input.idempotencyKey],
+    );
+    if (!existing.rows[0]) {
+      throw new Error("Failed to insert or fetch credit ledger entry");
+    }
+    return { credit: mapCredit(existing.rows[0]), created: false };
+  }
+
+  async listCredits(orgId: string, limit = 50): Promise<BillingCredit[]> {
+    const res = await this.pool.query<CreditRow>(
+      `SELECT * FROM billing_credits_ledger
+       WHERE org_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [orgId, limit],
+    );
+    return res.rows.map(mapCredit);
+  }
+
+  async getSpendControls(orgId: string): Promise<SpendControls> {
+    const res = await this.pool.query<SpendControlsRow>(
+      `SELECT * FROM billing_spend_controls WHERE org_id = $1 LIMIT 1`,
+      [orgId],
+    );
+    if (res.rows[0]) {
+      return mapSpendControls(res.rows[0]);
+    }
+    return {
+      orgId,
+      hardSpendCapCents: null,
+      warningThresholdPercent: 80,
+      overageAllowed: true,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async upsertSpendControls(input: {
+    orgId: string;
+    hardSpendCapCents?: number | null;
+    warningThresholdPercent?: number;
+    overageAllowed?: boolean;
+  }): Promise<SpendControls> {
+    const current = await this.getSpendControls(input.orgId);
+    const hardSpendCapCents =
+      input.hardSpendCapCents !== undefined ? input.hardSpendCapCents : current.hardSpendCapCents;
+    const warningThresholdPercent =
+      input.warningThresholdPercent !== undefined
+        ? input.warningThresholdPercent
+        : current.warningThresholdPercent;
+    const overageAllowed =
+      input.overageAllowed !== undefined ? input.overageAllowed : current.overageAllowed;
+
+    const res = await this.pool.query<SpendControlsRow>(
+      `INSERT INTO billing_spend_controls (
+         org_id, hard_spend_cap_cents, warning_threshold_percent, overage_allowed, updated_at
+       ) VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (org_id) DO UPDATE SET
+         hard_spend_cap_cents = EXCLUDED.hard_spend_cap_cents,
+         warning_threshold_percent = EXCLUDED.warning_threshold_percent,
+         overage_allowed = EXCLUDED.overage_allowed,
+         updated_at = NOW()
+       RETURNING *`,
+      [input.orgId, hardSpendCapCents, warningThresholdPercent, overageAllowed],
+    );
+    return mapSpendControls(res.rows[0]);
+  }
 }
+

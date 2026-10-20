@@ -31,75 +31,87 @@ export function createPlatformEventsConsumer(options: PlatformEventsConsumerOpti
         return;
       }
 
-      kafka = new Kafka({
-        clientId: "quickstart-workspace-webhooks",
-        brokers,
-        logLevel: logLevel.ERROR,
-      });
+      try {
+        kafka = new Kafka({
+          clientId: "quickstart-workspace-webhooks",
+          brokers,
+          retry: { retries: 2 },
+          logLevel: logLevel.ERROR,
+        });
 
-      consumer = kafka.consumer({ groupId });
-      await consumer.connect();
-      await consumer.subscribe({ topic: PLATFORM_EVENTS_TOPIC, fromBeginning: false });
+        consumer = kafka.consumer({ groupId });
+        await consumer.connect();
+        await consumer.subscribe({ topic: PLATFORM_EVENTS_TOPIC, fromBeginning: false });
 
-      await consumer.run({
-        eachMessage: async ({ message }) => {
-          if (!message.value) return;
+        await consumer.run({
+          eachMessage: async ({ message }) => {
+            if (!message.value) return;
 
-          let envelope: PlatformEventEnvelope;
-          try {
-            envelope = JSON.parse(message.value.toString()) as PlatformEventEnvelope;
-          } catch (err) {
-            logger.warn("webhooks.consumer.invalid_json", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            return;
-          }
-
-          if (!isPlatformEventType(envelope.type) || !envelope.event_id || !envelope.workspace_id) {
-            logger.warn("webhooks.consumer.invalid_envelope", {
-              type: envelope?.type,
-              eventId: envelope?.event_id,
-              workspaceId: envelope?.workspace_id,
-            });
-            return;
-          }
-
-          try {
-            const endpoints = await webhooksRepo.findActiveEndpointsForEvent(
-              envelope.workspace_id,
-              envelope.type,
-            );
-
-            if (endpoints.length === 0) {
+            let envelope: PlatformEventEnvelope;
+            try {
+              envelope = JSON.parse(message.value.toString()) as PlatformEventEnvelope;
+            } catch (err) {
+              logger.warn("webhooks.consumer.invalid_json", {
+                error: err instanceof Error ? err.message : String(err),
+              });
               return;
             }
 
-            for (const ep of endpoints) {
-              const dedupKey = `${envelope.workspace_id}:${envelope.event_id}:${ep.id}`;
-              await webhooksRepo.enqueueDelivery({
-                webhookId: ep.id,
-                workspaceId: envelope.workspace_id,
-                eventType: envelope.type,
-                payload: envelope as unknown as Record<string, unknown>,
-                deduplicationKey: dedupKey,
+            if (!isPlatformEventType(envelope.type) || !envelope.event_id || !envelope.workspace_id) {
+              logger.warn("webhooks.consumer.invalid_envelope", {
+                type: envelope?.type,
+                eventId: envelope?.event_id,
+                workspaceId: envelope?.workspace_id,
               });
+              return;
             }
 
-            logger.info("webhooks.consumer.deliveries_enqueued", {
-              eventType: envelope.type,
-              eventId: envelope.event_id,
-              endpointCount: endpoints.length,
-            });
-          } catch (err) {
-            logger.error("webhooks.consumer.enqueue_error", {
-              error: err instanceof Error ? err.message : String(err),
-              eventId: envelope.event_id,
-            });
-          }
-        },
-      });
+            try {
+              const endpoints = await webhooksRepo.findActiveEndpointsForEvent(
+                envelope.workspace_id,
+                envelope.type,
+              );
 
-      logger.info("webhooks.consumer.started", { topic: PLATFORM_EVENTS_TOPIC, groupId });
+              if (endpoints.length === 0) {
+                return;
+              }
+
+              for (const ep of endpoints) {
+                const dedupKey = `${envelope.workspace_id}:${envelope.event_id}:${ep.id}`;
+                await webhooksRepo.enqueueDelivery({
+                  webhookId: ep.id,
+                  workspaceId: envelope.workspace_id,
+                  eventType: envelope.type,
+                  payload: envelope as unknown as Record<string, unknown>,
+                  canonicalEventId: dedupKey,
+                });
+              }
+
+              logger.info("webhooks.consumer.deliveries_enqueued", {
+                eventType: envelope.type,
+                eventId: envelope.event_id,
+                endpointCount: endpoints.length,
+              });
+            } catch (err) {
+              logger.error("webhooks.consumer.enqueue_error", {
+                error: err instanceof Error ? err.message : String(err),
+                eventId: envelope.event_id,
+              });
+            }
+          },
+        });
+
+        logger.info("webhooks.consumer.started", { topic: PLATFORM_EVENTS_TOPIC, groupId });
+      } catch (err) {
+        logger.warn("webhooks.consumer.unavailable", {
+          detail: "Kafka broker unreachable; webhook platform events consumer idle",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (consumer) {
+          await consumer.disconnect().catch(() => undefined);
+          consumer = null;
+        }
+      }
     },
 
     async stop() {

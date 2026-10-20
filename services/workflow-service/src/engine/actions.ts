@@ -229,10 +229,7 @@ async function executeUpdateTags(
     .filter(Boolean);
 
   if (resolvedTags.length === 0 && mode !== "replace") {
-    return {
-      summary: "Update tags skipped: no tags provided",
-      output: { mode, tags: [] },
-    };
+    throw new Error("No tags provided for tag update. No action was performed.");
   }
 
   // Determine target: lead or conversation
@@ -240,8 +237,17 @@ async function executeUpdateTags(
   if (!target) {
     if (ctx.eventData.lead_id || ctx.eventData.leadId || config.lead_id || config.leadId) {
       target = "lead";
-    } else {
+    } else if (
+      ctx.eventData.conversation_id ||
+      ctx.eventData.conversationId ||
+      config.conversation_id ||
+      config.conversationId
+    ) {
       target = "conversation";
+    } else {
+      throw new Error(
+        "Target conversation or lead ID could not be resolved from event or config. No action was performed.",
+      );
     }
   }
 
@@ -251,7 +257,7 @@ async function executeUpdateTags(
       ctx.eventData.lead_id ?? ctx.eventData.leadId ?? config.lead_id ?? config.leadId,
     );
     if (!targetId) {
-      throw new Error("Target lead ID could not be resolved from event or config");
+      throw new Error("Target lead ID could not be resolved from event or config. No action was performed.");
     }
 
     const leadUrl = ctx.leadUrl || "http://127.0.0.1:3008";
@@ -266,7 +272,7 @@ async function executeUpdateTags(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Failed to update lead tags: HTTP ${res.status} ${errText}`);
+      throw new Error(`Failed to update lead tags: HTTP ${res.status} ${errText}. No action was performed.`);
     }
 
     await recordEffect(ctx, action.id, "update_tags", {
@@ -288,7 +294,7 @@ async function executeUpdateTags(
         config.conversationId,
     );
     if (!targetId) {
-      throw new Error("Target conversation ID could not be resolved from event or config");
+      throw new Error("Target conversation ID could not be resolved from event or config. No action was performed.");
     }
 
     const convUrl = ctx.conversationUrl || "http://127.0.0.1:3003";
@@ -306,7 +312,7 @@ async function executeUpdateTags(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Failed to update conversation tags: HTTP ${res.status} ${errText}`);
+      throw new Error(`Failed to update conversation tags: HTTP ${res.status} ${errText}. No action was performed.`);
     }
 
     await recordEffect(ctx, action.id, "update_tags", {
@@ -340,17 +346,20 @@ async function executeNotification(
     const slackChannel = asString(config.slack_channel ?? config.slackChannel, "#general");
     const webhookUrl = asString(config.slack_webhook_url ?? config.slackWebhookUrl);
 
-    if (webhookUrl) {
-      const safeUrl = await assertSafeWebhookUrl(webhookUrl, { allowHttp: false });
-      await sendSafeWebhook(safeUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channel: slackChannel,
-          text: `*${title}*\n${message}`,
-        }),
-      });
+    if (!webhookUrl) {
+      throw new Error("Slack webhook URL is required for Slack notification delivery. No action was performed.");
     }
+
+    const safeUrl = await assertSafeWebhookUrl(webhookUrl, { allowHttp: false });
+    await sendSafeWebhook(safeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel: slackChannel,
+        text: `*${title}*\n${message}`,
+      }),
+      timeoutMs: 10_000,
+    });
 
     await recordEffect(ctx, action.id, "notification", {
       delivery: "slack",
@@ -366,11 +375,17 @@ async function executeNotification(
   }
 
   // Default: in_app notification via workspace-service
-  const wsUrl = ctx.workspaceUrl || "http://127.0.0.1:3002";
+  const wsUrl = ctx.workspaceUrl;
+  if (!wsUrl && !ctx.internalToken) {
+    throw new Error(
+      "Notification delivery is not connected to workspace service. No action was performed.",
+    );
+  }
+  const resolvedWsUrl = wsUrl || "http://127.0.0.1:3002";
   const dedupKey = `wf_notif:${ctx.runId}:${action.id}`;
 
   try {
-    await fetch(`${wsUrl}/internal/v1/workspaces/${ctx.workspaceId}/notifications`, {
+    const res = await fetch(`${resolvedWsUrl}/internal/v1/workspaces/${ctx.workspaceId}/notifications`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -387,8 +402,16 @@ async function executeNotification(
         deduplicationKey: dedupKey,
       }),
     });
+    if (!res.ok) {
+      throw new Error(`Failed to deliver in-app notification: HTTP ${res.status}. No action was performed.`);
+    }
   } catch (err) {
-    // If notification service HTTP is unreachable, record side effect and proceed
+    if (err instanceof Error && err.message.includes("No action was performed")) {
+      throw err;
+    }
+    throw new Error(
+      `Notification delivery failed to connect to owning service: ${err instanceof Error ? err.message : String(err)}. No action was performed.`,
+    );
   }
 
   await recordEffect(ctx, action.id, "notification", {
@@ -425,7 +448,7 @@ async function executeHandoff(
   );
 
   if (!conversationId) {
-    throw new Error("Conversation ID not found in event context for agent handoff");
+    throw new Error("Conversation ID not found in event context for agent handoff. No action was performed.");
   }
 
   const convUrl = ctx.conversationUrl || "http://127.0.0.1:3003";

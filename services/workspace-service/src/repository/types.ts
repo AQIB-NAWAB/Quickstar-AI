@@ -49,9 +49,29 @@ export interface WorkspaceStore {
     updatedByUserId: string,
     audit?: { requestId: string; previousRole?: WorkspaceRole },
   ): Promise<WorkspaceMembership>;
-  removeMember(tenant: TenantContext, targetUserId: string): Promise<boolean>;
+  removeMember(
+    tenant: TenantContext,
+    targetUserId: string,
+    audit?: { requestId: string; actorUserId: string },
+  ): Promise<boolean>;
+  transferOwnership(
+    tenant: TenantContext,
+    newOwnerUserId: string,
+    currentOwnerUserId: string,
+    audit?: { requestId: string },
+  ): Promise<{ previousOwner: WorkspaceMembership; newOwner: WorkspaceMembership }>;
 
   createInvite(tenant: TenantContext, input: CreateInviteInput): Promise<WorkspaceInvite>;
   listInvites(tenant: TenantContext): Promise<WorkspaceInvite[]>;
+  getInviteById(tenant: TenantContext, inviteId: string): Promise<WorkspaceInvite | null>;
+  findInviteByHash(tokenHash: string): Promise<{ invite: WorkspaceInvite; workspace: Workspace } | null>;
+  resendInvite(tenant: TenantContext, inviteId: string, newTokenHash: string, newExpiresAt: Date): Promise<WorkspaceInvite>;
   deleteInvite(tenant: TenantContext, inviteId: string): Promise<boolean>;
+  acceptInvite(
+    tokenHash: string,
+    acceptingUserId: string,
+    acceptingEmail: string,
+    audit?: { requestId: string },
+  ): Promise<{ workspace: Workspace; membership: WorkspaceMembership; previousRole?: string }>;
 }
+

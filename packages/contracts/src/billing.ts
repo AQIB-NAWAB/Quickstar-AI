@@ -139,3 +139,59 @@ export type CancelSubscriptionRequest = {
   orgId: string;
   immediately?: boolean;
 };
+
+export type BillingReservation = {
+  id: string;
+  orgId: string;
+  workspaceId: string;
+  kind: "tokens" | "voice";
+  unitsReserved: number;
+  status: "active" | "committed" | "released" | "expired";
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type AcquireReservationRequest = {
+  orgId: string;
+  workspaceId: string;
+  kind: "tokens" | "voice";
+  estimatedUnits: number;
+  idempotencyKey: string;
+  timeoutSeconds?: number;
+};
+
+export type AcquireReservationResponse = {
+  granted: boolean;
+  reservationId?: string;
+  expiresAt?: string;
+  reason?: "QUOTA_EXCEEDED" | "DELINQUENT_PAYMENT" | "HARD_SPEND_CAP_REACHED" | "SUBSCRIPTION_CANCELED";
+  currentUsage?: {
+    used: number;
+    quota: number;
+    reserved: number;
+  };
+};
+
+export type CommitReservationRequest = {
+  reservationId: string;
+  actualUnits: number;
+  idempotencyKey: string;
+};
+
+export type BillingCredit = {
+  id: string;
+  orgId: string;
+  amountCents: number;
+  reason: string;
+  actorUserId: string | null;
+  createdAt: string;
+};
+
+export type SpendControls = {
+  orgId: string;
+  hardSpendCapCents: number | null;
+  warningThresholdPercent: number;
+  overageAllowed: boolean;
+  updatedAt: string;
+};
+

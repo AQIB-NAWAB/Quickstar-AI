@@ -18,6 +18,7 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     httpRequestTimeoutMs: 30_000,
     httpRateLimitWindowMs: 60_000,
     httpRateLimitMax: 10_000,
+    kafkaBrokers: [],
     ...overrides,
   };
 }
@@ -37,12 +38,14 @@ export async function createTestToken(
   userId: string,
   orgId: string = "00000000-0000-0000-0000-000000000001",
   jwtSecret: string = "test-secret-at-least-32-characters-long!!",
+  email?: string,
 ): Promise<string> {
   return signAccessToken(
     {
       sub: userId,
       org_id: orgId,
       sid: "session-test",
+      email,
     },
     {
       secret: jwtSecret,
@@ -59,7 +62,7 @@ export async function withWorkspaceServer(
     publishableKeysMemory: MemoryPublishableKeysStore;
     config: ServiceConfig;
     jwtSecret: string;
-    createToken: (userId: string, orgId?: string) => Promise<string>;
+    createToken: (userId: string, orgId?: string, email?: string) => Promise<string>;
   }) => Promise<void>,
   existingStore?: MemoryWorkspaceStore,
 ): Promise<void> {
@@ -88,8 +91,8 @@ export async function withWorkspaceServer(
       publishableKeysMemory,
       config,
       jwtSecret: config.jwtAccessSecret,
-      createToken: (userId: string, orgId?: string) =>
-        createTestToken(userId, orgId, config.jwtAccessSecret),
+      createToken: (userId: string, orgId?: string, email?: string) =>
+        createTestToken(userId, orgId, config.jwtAccessSecret, email),
     });
   } finally {
     await new Promise<void>((resolve, reject) => {

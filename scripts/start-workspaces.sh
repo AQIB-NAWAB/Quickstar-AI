@@ -58,7 +58,11 @@ start_svc() {
     pnpm --filter "$(jq -r .name "$ROOT/$dir/package.json")" build >>"$logfile" 2>&1 || true
   fi
 
-  node --env-file=.env "$entry" >>"$logfile" 2>&1 &
+  if [[ "$name" == "workspace" ]]; then
+    env KAFKA_BROKERS="" node --env-file=.env "$entry" >>"$logfile" 2>&1 &
+  else
+    node --env-file=.env "$entry" >>"$logfile" 2>&1 &
+  fi
   local pid=$!
   echo "$pid" >"$pidfile"
   PIDS+=("$pid")

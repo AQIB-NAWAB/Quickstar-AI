@@ -1,6 +1,11 @@
 export type EvalRunStatus = "queued" | "running" | "completed" | "failed";
 
-export type ScoringMethod = "exact_match" | "semantic_similarity" | "tool_trace";
+export type ScoringMethod =
+  | "exact_match"
+  | "semantic_similarity"
+  | "tool_trace"
+  | "retrieval_relevance"
+  | "safety_refusal";
 
 export type ExpectedToolCall = {
   name: string;
@@ -21,6 +26,11 @@ export type EvalPolicy = {
     requireOrder?: boolean;
     allowUnexpectedTools?: boolean;
     model?: string;
+    maxLatencyMs?: number;
+    maxFailureRatePercent?: number;
+    forbiddenTools?: string[];
+    expectedKeywords?: string[];
+    expectedRefusal?: boolean;
     [key: string]: unknown;
   };
   scorerVersion: string;
@@ -88,6 +98,8 @@ export type EvalRun = {
   passedCount: number;
   failedCount: number;
   erroredCount: number;
+  unavailableCount?: number;
+  unavailableReason?: string | null;
   averageLatencyMs: number | null;
   totalCost: number | null;
   tokenUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
@@ -119,6 +131,7 @@ export type EvalCaseResult = {
   scoringMethod: ScoringMethod;
   failureReason: string | null;
   executionError: string | null;
+  scorerUnavailable?: boolean;
   latencyMs: number | null;
   tokenUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
   error: string | null;
@@ -182,4 +195,41 @@ export type EvalSummary = {
   activeTestCases: number;
   regressionsFlagged: number;
   period: string;
+};
+
+export type EvaluationGateCheckRequest = {
+  agentId: string;
+  candidateVersionId: string;
+  baselineVersionId?: string | null;
+  gateConfig?: {
+    minPassRatePercent?: number; // default 90%
+    maxRegressedCases?: number; // default 0
+    maxAverageLatencyMs?: number;
+    requireRecentEval?: boolean;
+    disallowUnavailableScorers?: boolean;
+  };
+  override?: {
+    approved: boolean;
+    reason: string;
+    actorUserId: string;
+  };
+};
+
+export type EvaluationGateCheckResponse = {
+  passed: boolean;
+  blocked: boolean;
+  reasons: string[];
+  metrics?: {
+    candidatePassRatePercent: number | null;
+    candidateRunId: string | null;
+    regressedCasesCount: number;
+    averageLatencyMs: number | null;
+    unavailableCasesCount: number;
+  };
+  overridden: boolean;
+  overrideAudit?: {
+    actorUserId: string;
+    reason: string;
+    timestamp: string;
+  };
 };

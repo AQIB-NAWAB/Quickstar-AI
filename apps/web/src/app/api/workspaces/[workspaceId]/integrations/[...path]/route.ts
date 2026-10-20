@@ -36,8 +36,7 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!result.ok) {
-      const msg = (result.data as any)?.error?.message || "Failed to complete provider authorization";
-      targetUrl.searchParams.set("error", msg);
+      targetUrl.searchParams.set("error", "Failed to complete provider authorization");
       return NextResponse.redirect(targetUrl.toString());
     }
 

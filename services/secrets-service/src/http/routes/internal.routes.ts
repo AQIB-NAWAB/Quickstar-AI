@@ -13,5 +13,19 @@ export const createInternalRoutes: RouteModule<SecretsHttpContext> = (ctx) => {
     asyncHandler(ctrl.reveal),
   );
 
+  // Internal-only: store encrypted secret from trusted services. Guarded by internal bearer token only.
+  router.post(
+    "/internal/workspaces/:workspaceId/secrets",
+    ctx.internalAuth,
+    asyncHandler(ctrl.create),
+  );
+
+  // Internal-only: delete secret from trusted services. Guarded by internal bearer token only.
+  router.delete(
+    "/internal/workspaces/:workspaceId/secrets/:name",
+    ctx.internalAuth,
+    asyncHandler(ctrl.deleteByName),
+  );
+
   return router;
 };
