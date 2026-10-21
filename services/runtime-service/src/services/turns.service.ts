@@ -5,6 +5,7 @@ import type { ConversationClient, MessageInfo } from "../clients/conversation.cl
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { MemoryClient } from "../clients/memory.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
+import { repairAndParseJson } from "../lib/json-repair.js";
 import type { ToolExecutionSummary, ToolLoop } from "./tool-loop.js";
 import {
   assistantAskedForActionConfirmation,
@@ -413,7 +414,7 @@ export class TurnsService {
     }
     if (knowledgeContext) {
       systemParts.push(
-        `Knowledge base (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
+        `Use the following knowledge snippets when answering (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
       );
     }
 
@@ -619,39 +620,161 @@ export class TurnsService {
 
   /**
    * Eval harness path — pin a frozen published version (not production pointer).
-   * Creates an ephemeral conversation, runs one turn, returns assistant text.
+   * Runs in an isolated ephemeral execution context with fixture tool support.
    */
   async executeEvalTurn(input: {
     workspaceId: string;
     agentId: string;
     agentVersionId: string;
     text: string;
+    fixtures?: Array<{
+      toolName: string;
+      matchArgs?: Record<string, unknown>;
+      response: Record<string, unknown>;
+    }>;
+    allowTools?: boolean;
     idempotencyKey: string;
     requestId: string;
     deadlineMs?: number;
-  }): Promise<TurnResult & { assistant_text: string }> {
-    const conversation = await this.conversationClient.createConversationWidget(
+  }): Promise<{
+    assistant_text: string;
+    agent_version_id: string;
+    tool_calls: Array<{ name: string; arguments?: Record<string, unknown>; status: string }>;
+    latency_ms: number;
+    token_usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
+    deduplicated?: boolean;
+  }> {
+    const startTime = Date.now();
+    const version = await this.getWidgetVersion(
       input.workspaceId,
-      { agent_id: input.agentId, subject_key: `eval:${input.agentVersionId}` },
+      input.agentId,
+      input.agentVersionId,
       input.requestId,
     );
 
-    const result = await this.executeInternalChannelTurn({
-      workspaceId: input.workspaceId,
-      conversationId: conversation.id,
-      text: input.text,
-      idempotencyKey: input.idempotencyKey,
-      actorId: "eval-harness",
-      requestId: input.requestId,
-      channel: "widget",
-      allowTools: false,
-      agentVersionId: input.agentVersionId,
-      deadlineMs: input.deadlineMs,
-    });
+    const modelSettings = version.snapshot.model_settings ?? {};
+    const { profile, modelId } = resolveChatModel(modelSettings);
+    const temperature =
+      typeof modelSettings.temperature === "number" ? modelSettings.temperature : 0;
+    const maxTokens =
+      typeof modelSettings.max_tokens === "number" && modelSettings.max_tokens > 0
+        ? modelSettings.max_tokens
+        : 250;
 
+    const systemParts: string[] = [];
+    if (version.snapshot.instructions) {
+      systemParts.push(version.snapshot.instructions);
+    }
+
+    if (this.knowledgeClient && input.text) {
+      try {
+        const chunks = await this.knowledgeClient.retrieve(input.workspaceId, input.text, input.requestId, 3);
+        if (chunks.length > 0) {
+          const knowledgeContext = chunks.map((c) => c.text).join("\n\n").slice(0, MAX_RETRIEVAL_CHARS);
+          systemParts.push(`Knowledge base:\n\n${knowledgeContext}`);
+        }
+      } catch {
+        // Fall back gracefully
+      }
+    }
+
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemParts.join("\n\n") },
+      { role: "user", content: input.text },
+    ];
+
+    const agentTools = version.snapshot.tools ?? [];
+    const allowTools = input.allowTools ?? true;
+    const modelTools = allowTools && agentTools.length > 0
+      ? agentTools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        }))
+      : undefined;
+
+    const executedCalls: Array<{ name: string; arguments?: Record<string, unknown>; status: string }> = [];
+    let assistantText = "";
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+
+    for (let round = 0; round < 5; round++) {
+      const completion = await this.modelGatewayClient.complete({
+        workspace_id: input.workspaceId,
+        request_id: input.requestId,
+        model: { profile, model_id: modelId },
+        messages,
+        tools: modelTools,
+        temperature,
+        max_tokens: maxTokens,
+      });
+
+      if (completion.usage) {
+        totalPromptTokens += completion.usage.input_tokens ?? 0;
+        totalCompletionTokens += completion.usage.output_tokens ?? 0;
+      }
+
+      if (completion.finish_reason !== "tool_calls" || !completion.tool_calls?.length) {
+        assistantText = completion.content ?? "";
+        break;
+      }
+
+      messages.push({
+        role: "assistant",
+        content: completion.content ?? "",
+        tool_calls: completion.tool_calls,
+      });
+
+      for (const call of completion.tool_calls) {
+        const rawCallArgs = call.arguments ?? {};
+        const parsedArgs =
+          typeof rawCallArgs.raw === "string"
+            ? repairAndParseJson(rawCallArgs.raw)
+            : rawCallArgs;
+
+        executedCalls.push({
+          name: call.name,
+          arguments: parsedArgs,
+          status: "succeeded",
+        });
+
+        const matchingFixture = (input.fixtures ?? []).find((f) => {
+          if (f.toolName !== call.name) return false;
+          if (f.matchArgs && Object.keys(f.matchArgs).length > 0) {
+            for (const [k, v] of Object.entries(f.matchArgs)) {
+              if (parsedArgs[k] !== v) return false;
+            }
+          }
+          return true;
+        });
+
+        const fixtureResult = matchingFixture?.response ?? {
+          ok: true,
+          status: "fixture_executed",
+          tool: call.name,
+        };
+
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          name: call.name,
+          content: JSON.stringify(fixtureResult),
+        });
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
     return {
-      ...result,
-      assistant_text: result.assistant_message.text,
+      assistant_text: assistantText,
+      agent_version_id: version.id,
+      tool_calls: executedCalls,
+      latency_ms: latencyMs,
+      token_usage: {
+        prompt_tokens: totalPromptTokens,
+        completion_tokens: totalCompletionTokens,
+        total_tokens: totalPromptTokens + totalCompletionTokens,
+      },
+      deduplicated: false,
     };
   }
 
@@ -887,7 +1010,7 @@ export class TurnsService {
     }
     if (knowledgeContext) {
       systemParts.push(
-        `Knowledge base (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
+        `Use the following knowledge snippets when answering (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
       );
     }
 

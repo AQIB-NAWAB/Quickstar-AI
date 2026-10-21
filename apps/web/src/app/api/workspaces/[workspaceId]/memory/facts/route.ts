@@ -16,6 +16,22 @@ export async function GET(request: Request, { params }: Params) {
   return NextResponse.json(result.data, { status: result.status });
 }
 
+export async function POST(request: Request, { params }: Params) {
+  const { workspaceId } = params;
+  const body = await request.text();
+  const path = `/v1/workspaces/${encodeURIComponent(workspaceId)}/memory/facts`;
+
+  const result = await proxyToGateway<Record<string, unknown>>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  if (!result.ok) {
+    return result.response;
+  }
+  return NextResponse.json(result.data, { status: result.status });
+}
+
 export async function DELETE(request: Request, { params }: Params) {
   const { workspaceId } = params;
   const url = new URL(request.url);

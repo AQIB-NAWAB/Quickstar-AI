@@ -3,18 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight,
-  Building2,
-  Calendar,
-  Layers,
-  LogOut,
-  Plus,
-  Search,
-  Settings,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Calendar, Layers, LogOut, Plus, Search, Settings } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { CreateWorkspaceDialog } from "./create-workspace-dialog";
 import type { OrganizationItem, WorkspaceItem } from "../lib/types";

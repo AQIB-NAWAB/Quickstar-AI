@@ -314,6 +314,94 @@ class InMemoryCampaignPreviewStore implements CampaignRepository {
     this.campaigns.set(campaignId, campaign);
     return { status: "ready", data: JSON.parse(JSON.stringify(campaign)) };
   }
+
+  async launchCampaign(
+    _workspaceId: string,
+    campaignId: string,
+    version?: number,
+  ): Promise<RepositoryResult<CampaignDetail>> {
+    void _workspaceId;
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      return { status: "not_found", message: "Campaign not found" };
+    }
+    if (version !== undefined && campaign.version !== undefined && campaign.version !== version) {
+      return { status: "conflict", message: "Campaign was updated elsewhere." };
+    }
+    campaign.status = "running";
+    campaign.version = (campaign.version ?? 0) + 1;
+    this.campaigns.set(campaignId, campaign);
+    return { status: "ready", data: JSON.parse(JSON.stringify(campaign)) };
+  }
+
+  async updateDraft(
+    _workspaceId: string,
+    campaignId: string,
+    draft: Partial<WizardDraft>,
+    version?: number,
+  ): Promise<RepositoryResult<CampaignDetail>> {
+    void _workspaceId;
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) {
+      return { status: "not_found", message: "Campaign not found" };
+    }
+    if (version !== undefined && campaign.version !== undefined && campaign.version !== version) {
+      return { status: "conflict", message: "Campaign was updated elsewhere." };
+    }
+    if (draft.name) campaign.name = draft.name;
+    if (draft.description !== undefined) campaign.description = draft.description;
+    if (draft.agentId) campaign.agentId = draft.agentId;
+    if (draft.agentName) campaign.agentName = draft.agentName;
+    if (draft.schedule) campaign.schedule = { ...campaign.schedule, ...draft.schedule };
+    if (draft.pacing) campaign.pacing = { ...campaign.pacing, ...draft.pacing };
+    if (draft.retryPolicy) campaign.retryPolicy = { ...campaign.retryPolicy, ...draft.retryPolicy };
+    campaign.version = (campaign.version ?? 0) + 1;
+    this.campaigns.set(campaignId, campaign);
+    return { status: "ready", data: JSON.parse(JSON.stringify(campaign)) };
+  }
+
+  async deleteCampaign(
+    _workspaceId: string,
+    campaignId: string,
+  ): Promise<RepositoryResult<void>> {
+    void _workspaceId;
+    this.campaigns.delete(campaignId);
+    return { status: "ready", data: undefined };
+  }
+
+  async getDirectorySummary(
+    _workspaceId: string,
+    _signal?: AbortSignal,
+  ): Promise<RepositoryResult<import("./types").CampaignsDirectorySummary>> {
+    void _workspaceId;
+    void _signal;
+    const all = Array.from(this.campaigns.values());
+    const active = all.filter((c) => c.status === "running").length;
+    const scheduled = all.filter((c) => c.status === "scheduled").length;
+    const paused = all.filter((c) => c.status === "paused").length;
+    const completed = all.filter((c) => c.status === "completed").length;
+    const totalContacts = all.reduce((sum, c) => sum + (c.eligibleContacts || 0), 0);
+    const activeCalls = all.reduce((sum, c) => sum + (c.metrics?.activeCalls || 0), 0);
+    return {
+      status: "ready",
+      data: {
+        totalCampaigns: all.length,
+        activeCampaigns: active,
+        scheduledCampaigns: scheduled,
+        pausedCampaigns: paused,
+        completedCampaigns: completed,
+        totalContacts,
+        overallAnswerRate: 68,
+        activeCallsCount: activeCalls,
+        workspaceCapacity: 20,
+        retryConversionRate: 42,
+      },
+    };
+  }
+
+  getExportCsvUrl(workspaceId: string, campaignId: string): string {
+    return `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/export`;
+  }
 }
 
 export const campaignPreviewStore = new InMemoryCampaignPreviewStore();

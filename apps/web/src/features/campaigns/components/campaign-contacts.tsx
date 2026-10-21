@@ -54,6 +54,7 @@ export function CampaignContacts({
             <option value="answered">Answered</option>
             <option value="retrying">Retrying</option>
             <option value="pending">Pending</option>
+            <option value="held">Held</option>
             <option value="failed">Failed</option>
             <option value="opted_out">Opted out</option>
           </select>
@@ -71,6 +72,7 @@ export function CampaignContacts({
             <thead>
               <tr className="border-b border-border-faint bg-neutral-50/50 text-neutral-400 font-medium">
                 <th className="py-2.5 px-4 font-medium">Contact</th>
+                <th className="py-2.5 px-4 font-medium">Timezone</th>
                 <th className="py-2.5 px-4 font-medium">Status</th>
                 <th className="py-2.5 px-4 font-medium">Attempts</th>
                 <th className="py-2.5 px-4 font-medium">Last attempt (UTC)</th>
@@ -81,7 +83,7 @@ export function CampaignContacts({
             <tbody className="divide-y divide-border-faint text-neutral-700">
               {filteredContacts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-neutral-400 italic">
+                  <td colSpan={7} className="py-12 text-center text-neutral-400 italic">
                     No contacts found.
                   </td>
                 </tr>
@@ -98,8 +100,18 @@ export function CampaignContacts({
                         </p>
                       </div>
                     </td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-neutral-500">
+                      {contact.timezone || "—"}
+                    </td>
                     <td className="py-3 px-4">
-                      <ContactStatusBadge status={contact.status} />
+                      <div className="flex flex-col items-start gap-1">
+                        <ContactStatusBadge status={contact.isHeld ? "held" : contact.status} />
+                        {contact.isHeld && contact.heldReason && (
+                          <span className="text-[10px] text-amber-700 font-mono">
+                            {contact.heldReason}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 font-mono">
                       {contact.attemptsCount}
@@ -115,7 +127,7 @@ export function CampaignContacts({
                         href={`${campaignBaseUrl}/contacts/${encodeURIComponent(contact.id)}`}
                         className="font-medium text-heat-100 hover:underline"
                       >
-                        View history
+                        Inspect
                       </Link>
                     </td>
                   </tr>

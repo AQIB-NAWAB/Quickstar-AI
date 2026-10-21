@@ -107,15 +107,6 @@ export function EvaluationPreviewView({ view }: EvaluationPreviewViewProps) {
         agentId="support-assistant"
         initialData={overviewData}
         isPreview={true}
-        onStartRun={async (data) => {
-          const res = await evaluationPreviewStore.startRun("local-preview", {
-            agentId: "support-assistant",
-            versionId: data.versionId,
-            datasetId: data.datasetId,
-          });
-          if (res.status === "ready") return res.data;
-          throw new Error("Failed to start run");
-        }}
       />
     );
   }

@@ -44,6 +44,22 @@ export type CreateCallInput = {
   id?: string;
 };
 
+export type VoiceInboundSummary = {
+  totalInbound: number;
+  averageCallDurationSeconds: number;
+  answerRate: number;
+  averageTimeToFirstAudioMs: number | null;
+  activeCallsCount: number;
+};
+
+export type VoiceWaveform = {
+  agentPeaks: number[];
+  callerPeaks: number[];
+  durationSeconds: number;
+  stereo: boolean;
+  sampleRate?: number;
+};
+
 export interface CallsRepository {
   create(input: CreateCallInput): Promise<VoiceCallRow>;
   updateState(
@@ -57,15 +73,28 @@ export interface CallsRepository {
       failureCode: string | null;
       timeToFirstAudioMs: number | null;
       recordingObjectKey: string | null;
+      waveformPeaks: unknown;
+      channelCount: number;
+      stereoAvailable: boolean;
+      disconnectReason: string | null;
       endedAt: Date | null;
     }>,
   ): Promise<VoiceCallRow | null>;
   get(workspaceId: string, callId: string): Promise<VoiceCallRow | null>;
   list(
     workspaceId: string,
-    opts: { state?: string; direction?: CallDirection; limit: number; cursor?: string },
-  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string }>;
+    opts: {
+      state?: string;
+      direction?: CallDirection;
+      limit: number;
+      cursor?: string;
+      q?: string;
+      agentId?: string;
+    },
+  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string; total: number }>;
   listLive(workspaceId: string, direction?: CallDirection): Promise<VoiceCallRow[]>;
+  summary(workspaceId: string): Promise<VoiceInboundSummary>;
+  waveform(workspaceId: string, callId: string): Promise<VoiceWaveform | null>;
   addTranscript(
     workspaceId: string,
     callId: string,
@@ -164,23 +193,57 @@ export class PgCallsRepository implements CallsRepository {
 
   async list(
     workspaceId: string,
-    opts: { state?: string; direction?: CallDirection; limit: number; cursor?: string },
-  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string }> {
+    opts: {
+      state?: string;
+      direction?: CallDirection;
+      limit: number;
+      cursor?: string;
+      q?: string;
+      agentId?: string;
+    },
+  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string; total: number }> {
     const limit = Math.min(Math.max(opts.limit, 1), 100);
-    const params: unknown[] = [workspaceId, opts.direction ?? null, opts.state ?? null, limit + 1];
+    const params: unknown[] = [workspaceId, opts.direction ?? null, opts.state ?? null];
+    let whereExtra = "";
+
+    if (opts.q) {
+      params.push(`%${opts.q}%`);
+      whereExtra += ` AND (caller ILIKE $${params.length} OR callee ILIKE $${params.length} OR id::text ILIKE $${params.length})`;
+    }
+
+    if (opts.agentId) {
+      params.push(opts.agentId);
+      whereExtra += ` AND agent_id = $${params.length}`;
+    }
+
+    const countRes = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text as count FROM voice_calls
+       WHERE workspace_id = $1
+         AND ($2::text IS NULL OR direction = $2)
+         AND ($3::text IS NULL OR state = $3)
+         ${whereExtra}`,
+      params,
+    );
+    const total = Number(countRes.rows[0]?.count ?? 0);
+
     let cursorClause = "";
     if (opts.cursor) {
       params.push(opts.cursor);
-      cursorClause = `AND started_at < $${params.length}::timestamptz`;
+      cursorClause = ` AND started_at < $${params.length}::timestamptz`;
     }
+
+    params.push(limit + 1);
+    const limitParamIdx = params.length;
+
     const { rows } = await this.pool.query<VoiceCallRow>(
       `SELECT * FROM voice_calls
        WHERE workspace_id = $1
          AND ($2::text IS NULL OR direction = $2)
          AND ($3::text IS NULL OR state = $3)
+         ${whereExtra}
          ${cursorClause}
        ORDER BY started_at DESC
-       LIMIT $4`,
+       LIMIT $${limitParamIdx}`,
       params,
     );
     const hasMore = rows.length > limit;
@@ -188,6 +251,61 @@ export class PgCallsRepository implements CallsRepository {
     return {
       rows: page,
       nextCursor: hasMore ? page[page.length - 1]?.started_at.toISOString() : undefined,
+      total,
+    };
+  }
+
+  async summary(workspaceId: string): Promise<VoiceInboundSummary> {
+    const { rows } = await this.pool.query<{
+      total_inbound: string;
+      answered_count: string;
+      avg_duration: string | null;
+      avg_ttfa: string | null;
+    }>(
+      `SELECT
+        COUNT(*)::text as total_inbound,
+        COUNT(*) FILTER (WHERE state = 'completed' OR state = 'live')::text as answered_count,
+        AVG(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))) FILTER (WHERE state = 'completed')::text as avg_duration,
+        AVG(time_to_first_audio_ms) FILTER (WHERE time_to_first_audio_ms IS NOT NULL)::text as avg_ttfa
+       FROM voice_calls
+       WHERE workspace_id = $1 AND direction = 'inbound'`,
+      [workspaceId],
+    );
+
+    const liveCalls = await this.listLive(workspaceId, "inbound");
+    const row = rows[0];
+    const totalInbound = Number(row?.total_inbound ?? 0);
+    const answeredCount = Number(row?.answered_count ?? 0);
+    const answerRate = totalInbound > 0 ? Number(((answeredCount / totalInbound) * 100).toFixed(1)) : 0;
+    const avgDuration = row?.avg_duration ? Math.round(Number(row.avg_duration)) : 0;
+    const avgTtfa = row?.avg_ttfa ? Math.round(Number(row.avg_ttfa)) : null;
+
+    return {
+      totalInbound,
+      averageCallDurationSeconds: avgDuration,
+      answerRate,
+      averageTimeToFirstAudioMs: avgTtfa,
+      activeCallsCount: liveCalls.length,
+    };
+  }
+
+  async waveform(workspaceId: string, callId: string): Promise<VoiceWaveform | null> {
+    const call = await this.get(workspaceId, callId);
+    if (!call) return null;
+    const ended = call.ended_at?.getTime() ?? Date.now();
+    const durationSeconds = Math.max(1, Math.floor((ended - call.started_at.getTime()) / 1000));
+    const transcript = await this.listTranscript(workspaceId, callId);
+    const stereo = Boolean(call.caller_recording_object_key);
+
+    const agentPeaks = computeNormalizedPeaks(durationSeconds, transcript, "agent", 80);
+    const callerPeaks = computeNormalizedPeaks(durationSeconds, transcript, "caller", 80);
+
+    return {
+      agentPeaks,
+      callerPeaks,
+      durationSeconds,
+      stereo,
+      sampleRate: 8000,
     };
   }
 
@@ -355,13 +473,89 @@ export class MemoryCallsRepository implements CallsRepository {
 
   async list(
     workspaceId: string,
-    opts: { state?: string; direction?: CallDirection; limit: number; cursor?: string },
-  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string }> {
+    opts: {
+      state?: string;
+      direction?: CallDirection;
+      limit: number;
+      cursor?: string;
+      q?: string;
+      agentId?: string;
+    },
+  ): Promise<{ rows: VoiceCallRow[]; nextCursor?: string; total: number }> {
     let rows = [...this.calls.values()].filter((c) => c.workspace_id === workspaceId);
     if (opts.direction) rows = rows.filter((c) => c.direction === opts.direction);
     if (opts.state) rows = rows.filter((c) => c.state === opts.state);
+    if (opts.agentId) rows = rows.filter((c) => c.agent_id === opts.agentId);
+    if (opts.q) {
+      const qLower = opts.q.toLowerCase();
+      rows = rows.filter(
+        (c) =>
+          (c.caller && c.caller.toLowerCase().includes(qLower)) ||
+          (c.callee && c.callee.toLowerCase().includes(qLower)) ||
+          c.id.toLowerCase().includes(qLower),
+      );
+    }
+    const total = rows.length;
     rows.sort((a, b) => b.started_at.getTime() - a.started_at.getTime());
-    return { rows: rows.slice(0, opts.limit) };
+    const limit = Math.min(Math.max(opts.limit, 1), 100);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      rows: page,
+      nextCursor: hasMore ? page[page.length - 1]?.started_at.toISOString() : undefined,
+      total,
+    };
+  }
+
+  async summary(workspaceId: string): Promise<VoiceInboundSummary> {
+    const inbound = [...this.calls.values()].filter(
+      (c) => c.workspace_id === workspaceId && c.direction === "inbound",
+    );
+    const completed = inbound.filter((c) => c.state === "completed");
+    const live = inbound.filter((c) => c.state === "live" || c.state === "ringing");
+    const answeredCount = completed.length + live.filter((c) => c.state === "live").length;
+    const answerRate =
+      inbound.length > 0 ? Number(((answeredCount / inbound.length) * 100).toFixed(1)) : 0;
+
+    let totalDuration = 0;
+    for (const c of completed) {
+      const ended = c.ended_at?.getTime() ?? c.started_at.getTime();
+      totalDuration += Math.max(0, Math.floor((ended - c.started_at.getTime()) / 1000));
+    }
+    const avgDuration = completed.length > 0 ? Math.round(totalDuration / completed.length) : 0;
+
+    const ttfaValues = completed
+      .map((c) => c.time_to_first_audio_ms)
+      .filter((v): v is number => typeof v === "number");
+    const avgTtfa =
+      ttfaValues.length > 0
+        ? Math.round(ttfaValues.reduce((a, b) => a + b, 0) / ttfaValues.length)
+        : null;
+
+    return {
+      totalInbound: inbound.length,
+      averageCallDurationSeconds: avgDuration,
+      answerRate,
+      averageTimeToFirstAudioMs: avgTtfa,
+      activeCallsCount: live.length,
+    };
+  }
+
+  async waveform(workspaceId: string, callId: string): Promise<VoiceWaveform | null> {
+    const call = await this.get(workspaceId, callId);
+    if (!call) return null;
+    const ended = call.ended_at?.getTime() ?? Date.now();
+    const durationSeconds = Math.max(1, Math.floor((ended - call.started_at.getTime()) / 1000));
+    const transcript = await this.listTranscript(workspaceId, callId);
+    const stereo = Boolean(call.caller_recording_object_key);
+
+    return {
+      agentPeaks: computeNormalizedPeaks(durationSeconds, transcript, "agent", 80),
+      callerPeaks: computeNormalizedPeaks(durationSeconds, transcript, "caller", 80),
+      durationSeconds,
+      stereo,
+      sampleRate: 8000,
+    };
   }
 
   async listLive(workspaceId: string, direction?: CallDirection): Promise<VoiceCallRow[]> {
@@ -411,4 +605,34 @@ export class MemoryCallsRepository implements CallsRepository {
     void workspaceId;
     return [...(this.timings.get(callId) ?? [])];
   }
+}
+
+export function computeNormalizedPeaks(
+  durationSeconds: number,
+  segments: CallTranscriptSegment[],
+  channel: "agent" | "caller",
+  totalPoints = 80,
+): number[] {
+  const peaks: number[] = new Array(totalPoints).fill(0.06);
+  const totalMs = Math.max(durationSeconds * 1000, 1000);
+  const channelSegments = segments.filter((s) =>
+    channel === "agent" ? s.speaker === "agent" : s.speaker === "user",
+  );
+
+  for (const seg of channelSegments) {
+    const startRatio = Math.max(0, Math.min(1, seg.start_ms / totalMs));
+    const endRatio = Math.max(0, Math.min(1, seg.end_ms / totalMs));
+    const startIdx = Math.floor(startRatio * totalPoints);
+    const endIdx = Math.min(totalPoints - 1, Math.ceil(endRatio * totalPoints));
+
+    for (let i = startIdx; i <= endIdx; i++) {
+      const pos = (i - startIdx) / Math.max(1, endIdx - startIdx);
+      const envelope = Math.sin(pos * Math.PI);
+      const variation = 0.4 + 0.5 * Math.abs(Math.sin(i * 1.7 + (channel === "agent" ? 0.3 : 1.2)));
+      peaks[i] = Math.max(peaks[i], Math.min(0.98, Number((0.2 + envelope * variation).toFixed(2))));
+    }
+  }
+
+  // Smooth adjacent points
+  return peaks.map((p) => Number(p.toFixed(2)));
 }

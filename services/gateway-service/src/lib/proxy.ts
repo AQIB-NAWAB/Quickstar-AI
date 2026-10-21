@@ -53,18 +53,26 @@ export async function proxyToUpstream(
   const method = req.method;
   const headers = forwardRequestHeaders(req, requestId, options.access, options.rawBearer);
 
-  let body: string | undefined;
-  if (method !== "GET" && method !== "HEAD" && req.body !== undefined && req.body !== null) {
-    body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-    if (!headers["content-type"]) {
-      headers["content-type"] = "application/json";
+  let body: any = undefined;
+  let duplex: string | undefined = undefined;
+  const isMultipart = Boolean(headers["content-type"]?.includes("multipart/form-data"));
+
+  if (method !== "GET" && method !== "HEAD") {
+    if (isMultipart) {
+      body = req;
+      duplex = "half";
+    } else if (req.body !== undefined && req.body !== null) {
+      body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      if (!headers["content-type"]) {
+        headers["content-type"] = "application/json";
+      }
     }
   }
 
   try {
     const upstream = await fetchWithPolicy(
       url,
-      { method, headers, body },
+      { method, headers, body, ...(duplex ? { duplex } : {}) } as RequestInit,
       { timeoutMs: options.timeoutMs, maxRetries: 0 },
     );
 
@@ -117,6 +125,10 @@ export async function proxyToUpstream(
     res.status(upstream.status);
     if (contentType) {
       res.setHeader("content-type", contentType);
+    }
+    const contentDisposition = upstream.headers.get("content-disposition");
+    if (contentDisposition) {
+      res.setHeader("content-disposition", contentDisposition);
     }
     res.setHeader("x-request-id", requestId);
     res.send(responseText);

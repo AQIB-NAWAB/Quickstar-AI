@@ -36,9 +36,12 @@ export interface CallActivityBucket {
 export interface CampaignSchedule {
   startDate: string; // YYYY-MM-DD
   startTime: string; // HH:mm
-  timezone: string; // "UTC"
+  endDate?: string | null; // YYYY-MM-DD
+  timezone: string; // "UTC" or IANA identifier
+  timezoneMode?: "fixed" | "recipient" | "recipient_local";
   dailyWindowFrom: string; // "09:00"
   dailyWindowTo: string; // "17:00"
+  weekdays?: number[]; // [1, 2, 3, 4, 5]
 }
 
 export interface CampaignPacing {
@@ -59,14 +62,30 @@ export interface CampaignSummary {
   description: string | null;
   agentId: string;
   agentName: string;
+  callerId?: string | null;
+  agentVersionId?: string | null;
   status: CampaignStatus;
   eligibleContacts: number;
   completedContacts: number;
+  heldContactsCount?: number;
   answerRate: number | null; // e.g. 75 for 75%
   scheduledStart: string | null; // ISO UTC
   createdAt: string;
   updatedAt: string;
   version?: number;
+}
+
+export interface CampaignsDirectorySummary {
+  totalCampaigns: number;
+  activeCampaigns: number;
+  scheduledCampaigns: number;
+  pausedCampaigns: number;
+  completedCampaigns: number;
+  totalContacts: number;
+  overallAnswerRate: number;
+  activeCallsCount: number;
+  workspaceCapacity: number;
+  retryConversionRate: number;
 }
 
 export type AudienceFieldRole = "dial" | "identity" | "contact_email" | "custom";
@@ -94,6 +113,10 @@ export interface CampaignContact {
   name: string | null;
   phone: string;
   email: string | null;
+  timezone?: string | null;
+  timezoneProvenance?: string | null;
+  isHeld?: boolean;
+  heldReason?: string | null;
   /** Arbitrary mapped CSV/API fields (not limited to fixed columns). */
   customFields?: Record<string, string>;
   attributes?: Record<string, string>;
@@ -155,6 +178,8 @@ export interface WizardDraft {
   description: string;
   agentId: string;
   agentName: string;
+  callerId?: string;
+  agentVersionId?: string;
   /** When "none", audience is saved without dialable phones (no outbound calls). */
   telephonyMode: CampaignTelephonyMode;
   audienceSource: "csv" | "saved_list" | "lead_run";
@@ -188,6 +213,7 @@ export interface WizardDraft {
     phone: string;
     name?: string | null;
     email?: string | null;
+    timezone?: string;
     attributes: Record<string, string>;
     sourceRef?: string | null;
   }[];
@@ -208,69 +234,94 @@ export type RepositoryResult<T> =
   | { status: "error"; message: string };
 
 export interface CampaignRepository {
+  getDirectorySummary(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<CampaignsDirectorySummary>>;
+
   listCampaigns(
     workspaceId: string,
     filters?: { q?: string; status?: string },
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<CampaignSummary[]>>;
 
   getCampaign(
     workspaceId: string,
     campaignId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<CampaignDetail>>;
 
   listContacts(
     workspaceId: string,
     campaignId: string,
     filters?: { q?: string; status?: string },
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<CampaignContact[]>>;
 
   getContact(
     workspaceId: string,
     campaignId: string,
     contactId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<{ contact: CampaignContact; attempts: ContactAttempt[] }>>;
 
   listAttempts(
     workspaceId: string,
     campaignId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<ContactAttempt[]>>;
 
   listOutboundCalls(
     workspaceId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<OutboundCall[]>>;
 
   getOutboundCall(
     workspaceId: string,
     callId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<RepositoryResult<OutboundCall>>;
 
   saveDraft(
     workspaceId: string,
-    draft: WizardDraft
+    draft: WizardDraft,
   ): Promise<RepositoryResult<CampaignSummary>>;
+
+  updateDraft(
+    workspaceId: string,
+    campaignId: string,
+    draft: Partial<WizardDraft>,
+    version?: number,
+  ): Promise<RepositoryResult<CampaignDetail>>;
+
+  deleteCampaign(
+    workspaceId: string,
+    campaignId: string,
+  ): Promise<RepositoryResult<void>>;
+
+  launchCampaign(
+    workspaceId: string,
+    campaignId: string,
+    version?: number,
+  ): Promise<RepositoryResult<CampaignDetail>>;
 
   pauseCampaign(
     workspaceId: string,
     campaignId: string,
-    version?: number
+    version?: number,
   ): Promise<RepositoryResult<CampaignDetail>>;
 
   resumeCampaign(
     workspaceId: string,
     campaignId: string,
-    version?: number
+    version?: number,
   ): Promise<RepositoryResult<CampaignDetail>>;
 
   stopCampaign(
     workspaceId: string,
     campaignId: string,
-    version?: number
+    version?: number,
   ): Promise<RepositoryResult<CampaignDetail>>;
+
+  getExportCsvUrl(workspaceId: string, campaignId: string): string;
 }

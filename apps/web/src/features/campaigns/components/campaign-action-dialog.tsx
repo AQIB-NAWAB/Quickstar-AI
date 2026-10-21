@@ -5,7 +5,7 @@ import { useState } from "react";
 
 interface CampaignActionDialogProps {
   open: boolean;
-  actionType: "pause" | "resume" | "stop";
+  actionType: "pause" | "resume" | "stop" | "launch";
   campaignName: string;
   onConfirm: () => Promise<void> | void;
   onClose: () => void;
@@ -25,6 +25,7 @@ export function CampaignActionDialog({
 
   const isStop = actionType === "stop";
   const isResume = actionType === "resume";
+  const isLaunch = actionType === "launch";
 
   const canConfirm = !isStop || stopConfirmInput.trim() === campaignName.trim();
 
@@ -46,7 +47,14 @@ export function CampaignActionDialog({
   let btnText = "Pause campaign";
   let btnClass = "bg-amber-600 hover:bg-amber-700 text-white";
 
-  if (isResume) {
+  if (isLaunch) {
+    title = "Launch campaign?";
+    desc = "Launching will start scheduling and dialing contacts according to your calling window, weekdays, and pacing limits.";
+    Icon = Play;
+    iconBg = "bg-orange-100 text-heat-100";
+    btnText = "Launch campaign";
+    btnClass = "bg-heat-100 hover:bg-[#e04e10] text-white";
+  } else if (isResume) {
     title = "Resume campaign?";
     desc = "Resuming will start dialing queued contacts according to your configured concurrency and pacing limits.";
     Icon = Play;

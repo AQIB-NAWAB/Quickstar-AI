@@ -47,9 +47,12 @@ export function addUtcDays(dateStr: string, days: number): string {
   return `${year}-${month}-${day}`;
 }
 
-export function computePresetRange(preset: "7d" | "30d", baseToday?: string): DateRange {
+export function computePresetRange(
+  preset: "7d" | "30d" | "90d",
+  baseToday?: string,
+): DateRange {
   const today = baseToday || getUtcTodayDateString();
-  const daysOffset = preset === "7d" ? -6 : -29;
+  const daysOffset = preset === "7d" ? -6 : preset === "30d" ? -29 : -89;
   const from = addUtcDays(today, daysOffset);
 
   return {
@@ -159,6 +162,14 @@ export function resolveDateRangeFromSearchParams(
     return computePresetRange("7d", baseToday);
   }
 
+  if (rangeParam === "30d") {
+    return computePresetRange("30d", baseToday);
+  }
+
+  if (rangeParam === "90d") {
+    return computePresetRange("90d", baseToday);
+  }
+
   if (rangeParam === "custom" && fromParam && toParam) {
     const validation = validateCustomDateRange(fromParam, toParam, baseToday);
     if (validation.valid) {
@@ -171,6 +182,6 @@ export function resolveDateRangeFromSearchParams(
     }
   }
 
-  // Default to 30d
-  return computePresetRange("30d", baseToday);
+  // Default to 7d (matching Image 1)
+  return computePresetRange("7d", baseToday);
 }

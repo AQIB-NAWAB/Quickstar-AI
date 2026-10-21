@@ -36,6 +36,8 @@ export async function startEvalServer(): Promise<{
     maxCasesPerRun: config.maxCasesPerRun,
     maxRunsPerWorkspacePerDay: config.maxRunsPerWorkspacePerDay,
     caseTimeoutMs: config.caseTimeoutMs,
+    openaiApiKey: config.openaiApiKey,
+    embeddingProvider: config.embeddingProvider,
   });
 
   const redisClient = createRedisClient(config.redisUrl);

@@ -17,7 +17,19 @@ export interface OpenApiOperation {
   description?: string;
   tags: string[];
   security?: string[];
+  requiredPermission?: string;
   parameters?: OpenApiParameter[];
+  requestBody?: {
+    description?: string;
+    required?: boolean;
+    schema?: Record<string, unknown>;
+    example?: Record<string, unknown>;
+  };
+  responseExample?: {
+    status: number;
+    description?: string;
+    body: Record<string, unknown>;
+  };
   hasSpecCoverage: boolean;
 }
 
@@ -30,6 +42,8 @@ export interface WebhookEndpoint {
   events: string[];
   status: WebhookStatus;
   lastDeliveryAt: string | null;
+  lastDeliveryStatus?: number | null;
+  consecutiveFailures?: number;
   createdAt: string;
 }
 
@@ -108,4 +122,14 @@ export interface WebhooksRepository {
     webhookId: string,
     deliveryId: string
   ): Promise<RepositoryResult<WebhookDelivery>>;
+
+  rotateSecret?(
+    workspaceId: string,
+    webhookId: string
+  ): Promise<RepositoryResult<{ signingSecret: string }>>;
+
+  deleteEndpoint?(
+    workspaceId: string,
+    webhookId: string
+  ): Promise<RepositoryResult<{ success: boolean }>>;
 }

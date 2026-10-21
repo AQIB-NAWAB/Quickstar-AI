@@ -1,22 +1,33 @@
 "use client";
 
 import {
-AlertTriangle,
-Bell,
-Check,
-CheckCheck,
-Info,
-PhoneCall,
-UserCheck,
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  CheckCheck,
+  CreditCard,
+  ExternalLink,
+  Info,
+  PhoneCall,
+  Shield,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useNotifications } from "../context/notifications-context";
-import type { NotificationType } from "../lib/types";
+import type { NotificationCategory, NotificationSeverity } from "../lib/types";
 
 interface NotificationCenterProps {
   workspaceId: string;
   isPreview?: boolean;
 }
+
+const CATEGORY_TABS: { id: NotificationCategory; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "voice_campaigns", label: "Voice Campaigns" },
+  { id: "system_security", label: "System & Security" },
+  { id: "billing", label: "Billing & Usage" },
+];
 
 export function NotificationCenter({
   isPreview = false,
@@ -24,215 +35,232 @@ export function NotificationCenter({
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } =
     useNotifications();
 
-  const [filterTab, setFilterTab] = useState<"all" | "unread">("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<NotificationCategory>("all");
 
   const filtered = notifications.filter((n) => {
-    if (filterTab === "unread" && n.readAt !== null) return false;
-    if (typeFilter !== "all" && n.type !== typeFilter) return false;
+    if (activeTab === "unread") return n.readAt === null;
+    if (activeTab !== "all") return n.category === activeTab;
     return true;
   });
 
-  function renderTypeIcon(type: NotificationType) {
-    switch (type) {
-      case "ingest_failed":
-        return <AlertTriangle className="w-4 h-4 text-red-600" />;
-      case "usage_threshold":
-        return <Bell className="w-4 h-4 text-heat-100" />;
-      case "campaign_attention":
-        return <PhoneCall className="w-4 h-4 text-red-600" />;
-      case "member_joined":
-        return <UserCheck className="w-4 h-4 text-neutral-500" />;
+  function getCategoryCount(cat: NotificationCategory) {
+    if (cat === "all") return notifications.length;
+    if (cat === "unread") return notifications.filter((n) => n.readAt === null).length;
+    return notifications.filter((n) => n.category === cat).length;
+  }
+
+  function renderSeverityIcon(severity: NotificationSeverity, category: NotificationCategory) {
+    if (category === "voice_campaigns") {
+      return (
+        <div className="w-8 h-8 rounded-full bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] flex items-center justify-center shrink-0">
+          <PhoneCall className="w-4 h-4" />
+        </div>
+      );
+    }
+    if (category === "billing") {
+      return (
+        <div className="w-8 h-8 rounded-full bg-[#FFF4ED] border border-[#FEDF89] text-[#B54708] flex items-center justify-center shrink-0">
+          <CreditCard className="w-4 h-4" />
+        </div>
+      );
+    }
+    if (category === "system_security") {
+      return (
+        <div className="w-8 h-8 rounded-full bg-[#EFF8FF] border border-[#B2DDFF] text-[#175CD3] flex items-center justify-center shrink-0">
+          <Shield className="w-4 h-4" />
+        </div>
+      );
+    }
+
+    switch (severity) {
+      case "error":
+        return (
+          <div className="w-8 h-8 rounded-full bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] flex items-center justify-center shrink-0">
+            <AlertCircle className="w-4 h-4" />
+          </div>
+        );
+      case "warning":
+        return (
+          <div className="w-8 h-8 rounded-full bg-[#FFF4ED] border border-[#FEDF89] text-[#B54708] flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+        );
+      case "success":
+        return (
+          <div className="w-8 h-8 rounded-full bg-[#E9F9EF] border border-[#A6F4C5] text-[#027A48] flex items-center justify-center shrink-0">
+            <Check className="w-4 h-4" />
+          </div>
+        );
       default:
-        return <Info className="w-4 h-4 text-neutral-400" />;
+        return (
+          <div className="w-8 h-8 rounded-full bg-[#F8F9FB] border border-[#EAECF0] text-[#71717A] flex items-center justify-center shrink-0">
+            <Info className="w-4 h-4" />
+          </div>
+        );
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Header matching Image 4 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-accent-black">
-              Notification center
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-bold tracking-tight text-[#18181B]">
+              Notifications
             </h1>
             {unreadCount !== null && unreadCount > 0 && (
-              <span className="text-[11px] font-semibold font-mono px-2 py-0.5 rounded-full bg-orange-50 text-heat-100 border border-orange-200">
+              <span className="text-[11px] font-semibold font-mono px-2.5 py-0.5 rounded-full bg-[#FFF4ED] text-[#FF571A] border border-[#FEDF89]">
                 {unreadCount} unread
               </span>
             )}
+            {isPreview && (
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-[#FF571A] border border-orange-200">
+                Sample preview
+              </span>
+            )}
           </div>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Notifications do not modify audit records.
+          <p className="text-xs text-[#71717A] mt-1">
+            Stay updated on workspace activity, voice campaigns, and critical system alerts.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          {/* Type filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            aria-label="Filter by notification type"
-            className="text-xs bg-white border border-neutral-200 rounded-8 px-2.5 py-1.5 text-accent-black focus:outline-none focus:ring-1 focus:ring-heat-100 shadow-xs"
-          >
-            <option value="all">All types</option>
-            <option value="ingest_failed">Ingest failure</option>
-            <option value="usage_threshold">Usage threshold</option>
-            <option value="campaign_attention">Campaign attention</option>
-            <option value="member_joined">Member joined</option>
-          </select>
-
-          {/* Filter Pills */}
-          <div className="flex items-center p-0.5 bg-neutral-100 rounded-8 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setFilterTab("all")}
-              className={`px-3 py-1 rounded-6 transition-colors ${
-                filterTab === "all"
-                  ? "bg-heat-100 text-white font-semibold shadow-xs"
-                  : "text-neutral-600 hover:text-accent-black"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab("unread")}
-              className={`px-3 py-1 rounded-6 transition-colors ${
-                filterTab === "unread"
-                  ? "bg-heat-100 text-white font-semibold shadow-xs"
-                  : "text-neutral-600 hover:text-accent-black"
-              }`}
-            >
-              Unread
-            </button>
-          </div>
-
-          {/* Mark all as read button */}
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => markAllAsRead()}
             disabled={unreadCount === 0 || unreadCount === null}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-heat-100 bg-white hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed text-heat-100 text-xs font-semibold rounded-8 shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#EAECF0] bg-white hover:bg-[#F8F9FB] disabled:opacity-40 disabled:cursor-not-allowed text-[#18181B] text-xs font-semibold rounded-8 shadow-xs transition-colors"
           >
-            <CheckCheck className="w-3.5 h-3.5 text-neutral-500" />
+            <CheckCheck className="w-3.5 h-3.5 text-[#71717A]" />
             <span>Mark all as read</span>
           </button>
         </div>
       </div>
 
-      {/* Notifications Table */}
+      {/* Category Filter Tabs matching Image 4 */}
+      <div className="flex items-center gap-1.5 border-b border-[#EAECF0] overflow-x-auto pb-px">
+        {CATEGORY_TABS.map((tab) => {
+          const count = getCategoryCount(tab.id);
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
+                isActive
+                  ? "border-[#FF571A] text-[#FF571A]"
+                  : "border-transparent text-[#71717A] hover:text-[#18181B]"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {count > 0 && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                    isActive
+                      ? "bg-[#FFF4ED] text-[#FF571A]"
+                      : "bg-[#EAECF0] text-[#52525B]"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Notifications List */}
       {loading ? (
-        <div className="bg-white border border-border-faint rounded-12 p-8 shadow-xs space-y-3">
-          <div className="h-4 bg-neutral-100 rounded-4 w-1/4 animate-pulse" />
-          <div className="h-12 bg-neutral-50 rounded-8 w-full animate-pulse" />
-          <div className="h-12 bg-neutral-50 rounded-8 w-full animate-pulse" />
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-8 shadow-xs space-y-3">
+          <div className="h-4 bg-[#F8F9FB] rounded-4 w-1/4 animate-pulse" />
+          <div className="h-16 bg-[#F8F9FB] rounded-8 w-full animate-pulse" />
+          <div className="h-16 bg-[#F8F9FB] rounded-8 w-full animate-pulse" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white border border-border-faint rounded-12 p-12 shadow-xs text-center space-y-2">
-          <Check className="w-8 h-8 text-emerald-600 mx-auto" />
-          <h2 className="text-sm font-bold text-accent-black">You&apos;re all caught up.</h2>
-          <p className="text-xs text-neutral-500">
-            {filterTab === "unread"
+        <div className="bg-white border border-[#EAECF0] rounded-12 p-12 shadow-xs text-center space-y-2">
+          <Check className="w-8 h-8 text-[#027A48] mx-auto" />
+          <h2 className="text-sm font-bold text-[#18181B]">You&apos;re all caught up!</h2>
+          <p className="text-xs text-[#71717A]">
+            {activeTab === "unread"
               ? "There are no unread notifications for this workspace."
-              : "No notifications found matching the selected filter."}
+              : "No notifications found in this category."}
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-border-faint rounded-12 overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-border-faint bg-neutral-50/60 text-[11px] font-semibold text-neutral-500 ">
-                  <th className="py-2.5 px-3 text-center w-12">Type</th>
-                  <th className="py-2.5 px-4 min-w-[240px]">Notification</th>
-                  <th className="py-2.5 px-4">Source</th>
-                  <th className="py-2.5 px-3">Time</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-faint">
-                {filtered.map((item) => {
-                  const isUnread = item.readAt === null;
+        <div className="bg-white border border-[#EAECF0] rounded-12 divide-y divide-[#EAECF0] overflow-hidden shadow-xs">
+          {filtered.map((item) => {
+            const isUnread = item.readAt === null;
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className={`transition-colors ${
-                        isUnread ? "bg-orange-50/20 hover:bg-orange-50/40" : "hover:bg-neutral-50/50"
-                      }`}
+            return (
+              <div
+                key={item.id}
+                className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                  isUnread
+                    ? "bg-[#FFF4ED]/30 hover:bg-[#FFF4ED]/50"
+                    : "hover:bg-[#F8F9FB]"
+                }`}
+              >
+                {/* Left: Icon & Text */}
+                <div className="flex items-start gap-3.5 min-w-0">
+                  {renderSeverityIcon(item.severity, item.category)}
+
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-xs text-[#18181B]">
+                        {item.title}
+                      </span>
+                      {isUnread && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FF571A] shrink-0" />
+                      )}
+                      <span className="text-[10px] text-[#71717A] font-mono">
+                        &middot; {item.timeAgoLabel || "Recent"}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#52525B] leading-relaxed break-words">
+                      {item.description}
+                    </p>
+
+                    {item.source && (
+                      <div className="text-[10px] font-mono text-[#71717A]">
+                        Source: {item.source.name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  {item.actionUrl && (
+                    <Link
+                      href={item.actionUrl}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-[#F8F9FB] border border-[#EAECF0] text-[#18181B] rounded-8 text-xs font-semibold shadow-xs transition-colors"
                     >
-                      <td className="py-3 px-3 text-center">
-                        <div className="w-7 h-7 rounded-full bg-neutral-50 border border-neutral-200/80 flex items-center justify-center mx-auto">
-                          {renderTypeIcon(item.type)}
-                        </div>
-                      </td>
+                      <span>{item.actionLabel || "View"}</span>
+                      <ExternalLink className="w-3 h-3 text-[#71717A]" />
+                    </Link>
+                  )}
 
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-accent-black">
-                          {item.title}
-                        </div>
-                        <div className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                          {item.description}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="text-neutral-700 font-medium">
-                          {item.source.name}
-                        </div>
-                        <div className="text-[11px] font-mono text-neutral-400">
-                          {item.source.id}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 whitespace-nowrap text-neutral-500 text-[11px]">
-                        {item.timeAgoLabel}
-                      </td>
-
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        {isUnread ? (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-heat-100">
-                            <span className="w-1.5 h-1.5 rounded-full bg-heat-100" />
-                            <span>Unread</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
-                            <span>Read</span>
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        {isUnread ? (
-                          <button
-                            type="button"
-                            onClick={() => markAsRead(item.id)}
-                            className="px-2.5 py-1 border border-heat-100 bg-white hover:bg-orange-50 text-heat-100 rounded-6 text-xs font-semibold shadow-xs transition-colors"
-                          >
-                            Mark as read
-                          </button>
-                        ) : (
-                          <span className="px-2.5 py-1 text-neutral-400 text-xs font-medium cursor-default">
-                            Read
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer note */}
-          <div className="px-4 py-3 border-t border-border-faint bg-neutral-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-neutral-500">
-            <span>Bell badge reflects unread notifications for the current workspace.</span>
-            {isPreview && <span>All records are illustrative sample data.</span>}
-          </div>
+                  {isUnread ? (
+                    <button
+                      type="button"
+                      onClick={() => markAsRead(item.id)}
+                      className="px-2.5 py-1 text-xs font-medium text-[#71717A] hover:text-[#18181B] hover:bg-white rounded-6 transition-colors border border-transparent hover:border-[#EAECF0]"
+                    >
+                      Mark read
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-[#71717A] font-medium px-2 py-1">
+                      Read
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

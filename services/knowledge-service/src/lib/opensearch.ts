@@ -3,10 +3,21 @@ import type { KnowledgeConfig } from "../config/environment.js";
 export type ChunkDocument = {
   workspace_id: string;
   source_id: string;
+  source_version: number;
   chunk_id: string;
   chunk_index: number;
   text: string;
+  start_char: number | null;
+  end_char: number | null;
   vector: number[];
+};
+
+export type PublicChunkItem = {
+  id: string;
+  chunk_index: number;
+  text: string;
+  start_char: number | null;
+  end_char: number | null;
 };
 
 export class OpenSearchClient {
@@ -30,8 +41,11 @@ export class OpenSearchClient {
           properties: {
             workspace_id: { type: "keyword" },
             source_id: { type: "keyword" },
+            source_version: { type: "integer" },
             chunk_id: { type: "keyword" },
             chunk_index: { type: "integer" },
+            start_char: { type: "integer" },
+            end_char: { type: "integer" },
             text: { type: "text" },
             vector: { type: "knn_vector", dimension: this.dimensions },
           },
@@ -43,7 +57,30 @@ export class OpenSearchClient {
     }
   }
 
-  async deleteBySource(workspaceId: string, sourceId: string): Promise<void> {
+  async deleteBySource(workspaceId: string, sourceId: string, version?: number): Promise<void> {
+    const index = this.config.opensearchIndex;
+    const filters: Record<string, unknown>[] = [
+      { term: { workspace_id: workspaceId } },
+      { term: { source_id: sourceId } },
+    ];
+    if (version !== undefined) {
+      filters.push({ term: { source_version: version } });
+    }
+
+    await fetch(`${this.config.opensearchUrl}/${index}/_delete_by_query?refresh=true`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query: {
+          bool: {
+            filter: filters,
+          },
+        },
+      }),
+    });
+  }
+
+  async deleteOlderVersions(workspaceId: string, sourceId: string, currentVersion: number): Promise<void> {
     const index = this.config.opensearchIndex;
     await fetch(`${this.config.opensearchUrl}/${index}/_delete_by_query?refresh=true`, {
       method: "POST",
@@ -54,6 +91,7 @@ export class OpenSearchClient {
             filter: [
               { term: { workspace_id: workspaceId } },
               { term: { source_id: sourceId } },
+              { range: { source_version: { lt: currentVersion } } },
             ],
           },
         },
@@ -66,18 +104,143 @@ export class OpenSearchClient {
       return;
     }
     const index = this.config.opensearchIndex;
-    const body = docs.flatMap((doc) => [
-      JSON.stringify({ index: { _index: index, _id: doc.chunk_id } }),
-      JSON.stringify(doc),
-    ]);
+    const bodyLines: string[] = [];
+    for (const doc of docs) {
+      bodyLines.push(JSON.stringify({ index: { _index: index, _id: doc.chunk_id } }));
+      bodyLines.push(JSON.stringify(doc));
+    }
+
     const res = await fetch(`${this.config.opensearchUrl}/_bulk?refresh=true`, {
       method: "POST",
       headers: { "content-type": "application/x-ndjson" },
-      body: `${body.join("\n")}\n`,
+      body: `${bodyLines.join("\n")}\n`,
     });
+
     if (!res.ok) {
-      throw new Error(`OpenSearch bulk index failed: ${res.status}`);
+      throw new Error(`OpenSearch bulk index HTTP failed: ${res.status}`);
     }
+
+    // Explicit item-level verification
+    const bulkResponse = (await res.json().catch(() => ({}))) as {
+      errors?: boolean;
+      items?: Array<Record<string, { error?: { reason?: string; type?: string }; status?: number }>>;
+    };
+
+    if (bulkResponse.errors && Array.isArray(bulkResponse.items)) {
+      const failedItems = bulkResponse.items
+        .map((item) => {
+          const action = Object.values(item)[0];
+          return action?.error ? `${action.status}: ${action.error.reason || action.error.type}` : null;
+        })
+        .filter(Boolean);
+      throw new Error(`OpenSearch bulk indexing item failures: ${failedItems.slice(0, 3).join("; ")}`);
+    }
+  }
+
+  async listSourceChunks(
+    workspaceId: string,
+    sourceId: string,
+    version?: number,
+    limit: number = 20,
+    cursor?: string,
+  ): Promise<{
+    chunk_count: number;
+    chunks: PublicChunkItem[];
+    next_cursor: string | null;
+  }> {
+    const index = this.config.opensearchIndex;
+    const boundedLimit = Math.min(Math.max(limit, 1), 100);
+
+    const filters: Record<string, unknown>[] = [
+      { term: { workspace_id: workspaceId } },
+      { term: { source_id: sourceId } },
+    ];
+    if (version !== undefined && version > 0) {
+      filters.push({ term: { source_version: version } });
+    }
+
+    let searchAfter: [number, string] | undefined;
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as [number, string];
+        if (Array.isArray(decoded) && decoded.length === 2) {
+          searchAfter = decoded;
+        }
+      } catch {
+        // ignore invalid cursor
+      }
+    }
+
+    const searchQuery: Record<string, unknown> = {
+      size: boundedLimit + 1,
+      _source: ["chunk_id", "chunk_index", "text", "start_char", "end_char"],
+      query: {
+        bool: {
+          filter: filters,
+        },
+      },
+      sort: [
+        { chunk_index: { order: "asc" } },
+        { chunk_id: { order: "asc" } },
+      ],
+      track_total_hits: true,
+    };
+
+    if (searchAfter) {
+      searchQuery.search_after = searchAfter;
+    }
+
+    const res = await fetch(`${this.config.opensearchUrl}/${index}/_search`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(searchQuery),
+    });
+
+    if (!res.ok) {
+      // If index doesn't exist yet or query fails, return empty
+      return { chunk_count: 0, chunks: [], next_cursor: null };
+    }
+
+    const data = (await res.json().catch(() => ({}))) as {
+      hits?: {
+        total?: { value: number } | number;
+        hits?: Array<{
+          _source: ChunkDocument;
+          sort?: [number, string];
+        }>;
+      };
+    };
+
+    const totalValue =
+      typeof data.hits?.total === "number"
+        ? data.hits.total
+        : data.hits?.total?.value ?? 0;
+
+    const rawHits = data.hits?.hits ?? [];
+    const hasMore = rawHits.length > boundedLimit;
+    const hits = hasMore ? rawHits.slice(0, boundedLimit) : rawHits;
+
+    const chunks: PublicChunkItem[] = hits.map((h) => ({
+      id: h._source.chunk_id,
+      chunk_index: h._source.chunk_index,
+      text: h._source.text,
+      start_char: typeof h._source.start_char === "number" ? h._source.start_char : null,
+      end_char: typeof h._source.end_char === "number" ? h._source.end_char : null,
+    }));
+
+    let nextCursor: string | null = null;
+    if (hasMore && hits.length > 0) {
+      const lastHit = hits[hits.length - 1];
+      if (lastHit.sort) {
+        nextCursor = Buffer.from(JSON.stringify(lastHit.sort)).toString("base64url");
+      }
+    }
+
+    return {
+      chunk_count: totalValue,
+      chunks,
+      next_cursor: nextCursor,
+    };
   }
 
   async search(workspaceId: string, queryText: string, vector: number[], limit: number) {

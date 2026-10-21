@@ -1,15 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
-import type {
-  AgentGraph,
-  AgentGraphEdge,
-  AgentGraphNode,
-  GraphNodeType,
-  GraphSessionState,
-  GraphTraceEvent,
-  GraphExecutionTrace,
-  GraphValidationIssue,
-  NodeConfigMap,
-} from "@quickstart/contracts";
+import type { GraphNodeType, NodeConfigMap } from "@quickstart/contracts";
 
 export type CanvasSaveState = "saved" | "saving" | "unsaved" | "error" | "conflict";
 
@@ -38,21 +28,3 @@ export type CanvasFlowEdge = Edge<{
 
 export type WorkbenchTab = "chat" | "voice";
 export type InspectorTab = "node" | "agent";
-
-export type CanvasEditorContextType = {
-  workspaceId: string;
-  agentId: string;
-  agentName: string;
-  draftRevision: number;
-  publishedReleaseNumber: number | null;
-  saveState: CanvasSaveState;
-  selectedNodeId: string | null;
-  selectedEdgeId: string | null;
-  validationIssues: GraphValidationIssue[];
-  previewSessionId: string | null;
-  activeTrace: GraphExecutionTrace | null;
-  isWorkbenchOpen: boolean;
-  workbenchTab: WorkbenchTab;
-  inspectorTab: InspectorTab;
-  isLibraryOpen: boolean;
-};

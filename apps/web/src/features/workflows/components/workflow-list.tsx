@@ -2,23 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Play,
-  History,
-  Sparkles,
-  Zap,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  ArrowUpRight,
-  TrendingUp,
-  MoreVertical,
-  Layers,
-  ChevronRight,
-} from "lucide-react";
+import { Plus, Search, Trash2, History, Sparkles, ArrowUpRight } from "lucide-react";
 import type { WorkflowListItem, WorkflowStatsData } from "../lib/types";
 import { formatUtcDateTime } from "../lib/format";
 import { WorkflowStatusBadge } from "./workflow-status-badge";

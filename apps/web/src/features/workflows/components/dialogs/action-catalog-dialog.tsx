@@ -11,7 +11,6 @@ import {
   FileText,
   Flag,
   Search,
-  Check,
   ArrowRight,
 } from "lucide-react";
 import type { WorkflowNodeType } from "../../lib/types";

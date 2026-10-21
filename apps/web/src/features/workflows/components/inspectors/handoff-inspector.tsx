@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { UserCheck, X, Users, AlertCircle, MessageSquare, Braces, Play } from "lucide-react";
+import { UserCheck, X, Braces, Play } from "lucide-react";
 import type { WorkflowNode } from "../../lib/types";
 
 export type HandoffInspectorProps = {

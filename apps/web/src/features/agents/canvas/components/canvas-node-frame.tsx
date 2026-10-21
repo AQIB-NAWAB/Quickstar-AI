@@ -34,7 +34,6 @@ export const CanvasNodeFrame: React.FC<CanvasNodeFrameProps> = memo(
     hasErrors,
     errorMessage,
     isExecuting,
-    executionStatus,
     onDuplicate,
     onDelete,
     children,

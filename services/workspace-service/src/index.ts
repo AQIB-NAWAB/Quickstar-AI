@@ -11,8 +11,12 @@ import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 import { createWorkspaceDataSource } from "./repository/typeorm/data-source.js";
 import { PublishableKeysRepository } from "./repository/publishable-keys.repository.js";
 import { publishableKeysPortFromPg } from "./repository/publishable-keys-port.js";
+import { IntegrationsRepository } from "./repository/integrations.repository.js";
+import { NotificationsRepository } from "./repository/notifications.repository.js";
+import { WebhooksRepository } from "./repository/webhooks.repository.js";
 import { createTypeOrmWorkspaceStore } from "./repository/typeorm/workspace-typeorm-store.js";
 import { createWorkspaceServices } from "./services/index.js";
+
 
 export async function startWorkspaceServer(): Promise<{
   server: Server;
@@ -41,7 +45,11 @@ export async function startWorkspaceServer(): Promise<{
 
   const pgPool = new pg.Pool({ connectionString: config.databaseUrl });
   const publishableKeysPort = publishableKeysPortFromPg(new PublishableKeysRepository(pgPool));
-  const services = createWorkspaceServices(store, publishableKeysPort, redisClient);
+  const integrationsRepo = new IntegrationsRepository(pgPool);
+  const notificationsRepo = new NotificationsRepository(pgPool);
+  const webhooksRepo = new WebhooksRepository(pgPool);
+  const services = createWorkspaceServices(store, publishableKeysPort, redisClient, integrationsRepo, notificationsRepo, webhooksRepo);
+
   const readinessProbes = [
     async () => {
       await dataSource.query("SELECT 1");

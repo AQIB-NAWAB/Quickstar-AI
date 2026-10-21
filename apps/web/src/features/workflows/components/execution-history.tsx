@@ -1,18 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
-import {
-  History,
-  Search,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  RotateCcw,
-  Zap,
-  TrendingUp,
-  Filter,
-} from "lucide-react";
+
+import { Search, RotateCcw } from "lucide-react";
 import { formatDuration, formatUtcDateTime } from "../lib/format";
 import type { WorkflowRun } from "../lib/types";
 import { RunDetails } from "./run-details";
@@ -30,7 +20,6 @@ export interface ExecutionHistoryProps {
 
 export function ExecutionHistory({
   runs,
-  runsBaseUrl,
   isRecent = false,
   onViewAll,
   initialSelectedRunId = null,

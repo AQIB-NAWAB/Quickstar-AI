@@ -6,6 +6,7 @@ import type {
   TargetStatus,
 } from "../domain/types.js";
 import type { CampaignsRepository } from "../repository/campaigns.repository.js";
+import { evaluateCallingWindow } from "../utils/schedule-window.js";
 
 export type DialResult = {
   status: CampaignAttempt["status"];
@@ -111,6 +112,50 @@ export class CampaignDialer {
         nextStatus: "pending",
         outcome: "released",
         nextAttemptAt: null,
+      });
+      return;
+    }
+
+    if (target.isHeld) {
+      return;
+    }
+
+    const windowEval = evaluateCallingWindow(campaign.schedule, target.timezone);
+    if (!windowEval.inWindow) {
+      if (windowEval.held) {
+        await this.repo.markTargetHeld(target.id, windowEval.heldReason || "unknown_timezone");
+        this.logger.warn("campaign.dialer.target_held", {
+          targetId: target.id,
+          campaignId: campaign.id,
+          reason: windowEval.heldReason,
+        });
+        return;
+      }
+
+      await this.repo.completeTargetAttempt({
+        targetId: target.id,
+        nextStatus: "pending",
+        outcome: "outside_window",
+        nextAttemptAt: windowEval.nextWindowOpenAt ?? new Date(Date.now() + 5 * 60_000),
+      });
+      return;
+    }
+
+    const isSuppressed = await this.repo.isPhoneSuppressed(
+      target.workspaceId,
+      target.dialNormalized,
+    );
+    if (isSuppressed) {
+      await this.repo.completeTargetAttempt({
+        targetId: target.id,
+        nextStatus: "failed",
+        outcome: "suppressed",
+        nextAttemptAt: null,
+      });
+      this.logger.info("campaign.dialer.target_suppressed", {
+        targetId: target.id,
+        campaignId: campaign.id,
+        phone: target.dialNormalized,
       });
       return;
     }

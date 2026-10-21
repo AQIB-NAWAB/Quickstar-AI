@@ -1,6 +1,7 @@
 import { asyncHandler, createServiceRouter, type RouteModule } from "@quickstart/http-server";
 import {
   CAMPAIGN_CONTROL,
+  CAMPAIGN_DELETE,
   CAMPAIGN_EDIT,
   CAMPAIGN_READ,
   createCampaignsController,
@@ -15,7 +16,14 @@ export const createCampaignsRoutes: RouteModule<CampaignHttpContext> = (ctx) => 
   const read = requireWorkspacePermission(ctx.workspaceAccess, CAMPAIGN_READ);
   const edit = requireWorkspacePermission(ctx.workspaceAccess, CAMPAIGN_EDIT);
   const control = requireWorkspacePermission(ctx.workspaceAccess, CAMPAIGN_CONTROL);
+  const del = requireWorkspacePermission(ctx.workspaceAccess, CAMPAIGN_DELETE);
 
+  router.get(
+    "/v1/workspaces/:workspaceId/campaigns/summary",
+    ...chain,
+    read,
+    asyncHandler(ctrl.summary),
+  );
   router.get("/v1/workspaces/:workspaceId/campaigns", ...chain, read, asyncHandler(ctrl.list));
   router.post("/v1/workspaces/:workspaceId/campaigns", ...chain, edit, asyncHandler(ctrl.create));
   router.get(
@@ -23,6 +31,30 @@ export const createCampaignsRoutes: RouteModule<CampaignHttpContext> = (ctx) => 
     ...chain,
     read,
     asyncHandler(ctrl.get),
+  );
+  router.patch(
+    "/v1/workspaces/:workspaceId/campaigns/:campaignId",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.updateDraft),
+  );
+  router.delete(
+    "/v1/workspaces/:workspaceId/campaigns/:campaignId",
+    ...chain,
+    del,
+    asyncHandler(ctrl.delete),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/campaigns/:campaignId/metrics",
+    ...chain,
+    read,
+    asyncHandler(ctrl.metrics),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/campaigns/:campaignId/export",
+    ...chain,
+    read,
+    asyncHandler(ctrl.exportResults),
   );
   router.post(
     "/v1/workspaces/:workspaceId/campaigns/:campaignId/targets/import",

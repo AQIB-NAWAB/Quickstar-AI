@@ -12,7 +12,9 @@ import { loadUsageConfig } from "./config/environment.js";
 import { createAuthMiddleware } from "./middleware/auth.middleware.js";
 import { createRequireInternalTokenMiddleware } from "./middleware/require-internal-token.js";
 import { requireTenantContext } from "./middleware/tenant.middleware.js";
+import { AnalyticsRepository } from "./repository/analytics.repository.js";
 import { UsageRepository } from "./repository/usage.repository.js";
+import { AnalyticsService } from "./services/analytics.service.js";
 import { UsageService } from "./services/usage.service.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 
@@ -27,6 +29,9 @@ export async function startUsageServer(): Promise<{
   const pool = new Pool({ connectionString: config.databaseUrl });
   const repo = new UsageRepository(pool);
   const usage = new UsageService(repo, config.prices);
+  const analyticsRepo = new AnalyticsRepository(pool);
+  const analytics = new AnalyticsService(analyticsRepo);
+
 
   const redisClient = createRedisClient(config.redisUrl);
   await redisClient.connect();
@@ -55,6 +60,7 @@ export async function startUsageServer(): Promise<{
     internalAuth: createRequireInternalTokenMiddleware(config.internalToken),
     workspaceAccess,
     usage,
+    analytics,
   });
 
   const server: Server = await new Promise((resolve) => {

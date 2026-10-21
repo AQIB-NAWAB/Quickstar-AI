@@ -1,9 +1,27 @@
 import { randomUUID } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
-import type { EvalCase, EvalCaseResult, EvalRun } from "../domain/types.js";
+import type {
+  ComparisonCategoryItem,
+  EvalCase,
+  EvalCaseResult,
+  EvalComparison,
+  EvalDataset,
+  EvalPolicy,
+  EvalRun,
+  EvalSummary,
+  ExpectedToolCall,
+  FixtureResponse,
+  ScoringMethod,
+} from "../domain/types.js";
 import type { EvalRepository } from "../repository/eval.repository.js";
 import type { RuntimeEvalClient } from "../clients/runtime.client.js";
-import { meanScorePercent, scoreExactMatch } from "../utils/score.js";
+import {
+  deterministicVector,
+  meanScorePercent,
+  scoreExactMatch,
+  scoreSemanticSimilarity,
+  scoreToolTrace,
+} from "../utils/score.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,6 +30,8 @@ export type EvalServiceLimits = {
   maxCasesPerRun: number;
   maxRunsPerWorkspacePerDay: number;
   caseTimeoutMs: number;
+  openaiApiKey?: string;
+  embeddingProvider?: "openai" | "fake";
 };
 
 export class EvalService {
@@ -21,59 +41,278 @@ export class EvalService {
     private readonly limits: EvalServiceLimits,
   ) {}
 
-  createCase(
+  /* ========================================================================== */
+  /* Datasets                                                                   */
+  /* ========================================================================== */
+
+  async createDataset(
     workspaceId: string,
-    agentId: string,
-    body: { name?: string; input: string; expected_output?: string; expectedOutput?: string },
-  ): Promise<EvalCase> {
+    body: {
+      agent_id?: string;
+      agentId?: string;
+      name: string;
+      description?: string;
+      tags?: string[];
+    },
+  ): Promise<EvalDataset> {
+    const agentId = (body.agent_id ?? body.agentId ?? "").trim();
     if (!UUID_RE.test(agentId)) {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "agent_id must be a UUID" });
     }
-    const input = body.input?.trim() ?? "";
-    const expected =
-      (body.expected_output ?? body.expectedOutput ?? "").toString().trim();
-    if (!input || !expected) {
-      throw new AppError({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: "input and expected_output are required",
-      });
+    const name = (body.name ?? "").trim();
+    if (!name) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "name is required" });
     }
-    return this.repo.createCase(workspaceId, agentId, {
-      name: body.name,
-      input,
-      expectedOutput: expected,
+    return this.repo.createDataset(workspaceId, agentId, {
+      name,
+      description: body.description,
+      tags: body.tags,
     });
   }
 
-  listCases(workspaceId: string, agentId: string): Promise<EvalCase[]> {
-    return this.repo.listCases(workspaceId, agentId);
+  async listDatasets(
+    workspaceId: string,
+    query: {
+      agent_id?: string;
+      agentId?: string;
+      search?: string;
+      sort?: "updated" | "cases" | "pass_rate";
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ datasets: EvalDataset[]; total: number }> {
+    return this.repo.listDatasets(workspaceId, {
+      agentId: query.agent_id ?? query.agentId,
+      search: query.search,
+      sort: query.sort,
+      limit: query.limit,
+      offset: query.offset,
+    });
   }
+
+  async getDataset(workspaceId: string, datasetId: string): Promise<EvalDataset> {
+    if (!UUID_RE.test(datasetId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "datasetId must be a UUID" });
+    }
+    const dataset = await this.repo.getDataset(workspaceId, datasetId);
+    if (!dataset) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Dataset not found" });
+    }
+    return dataset;
+  }
+
+  async updateDataset(
+    workspaceId: string,
+    datasetId: string,
+    body: {
+      name?: string;
+      description?: string | null;
+      tags?: string[];
+      expected_record_version?: number;
+      expectedRecordVersion?: number;
+    },
+  ): Promise<EvalDataset> {
+    if (!UUID_RE.test(datasetId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "datasetId must be a UUID" });
+    }
+    return this.repo.updateDataset(workspaceId, datasetId, {
+      name: body.name,
+      description: body.description,
+      tags: body.tags,
+      expectedRecordVersion: body.expected_record_version ?? body.expectedRecordVersion,
+    });
+  }
+
+  async archiveDataset(workspaceId: string, datasetId: string): Promise<void> {
+    if (!UUID_RE.test(datasetId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "datasetId must be a UUID" });
+    }
+    const success = await this.repo.archiveDataset(workspaceId, datasetId);
+    if (!success) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Dataset not found or already archived" });
+    }
+  }
+
+  /* ========================================================================== */
+  /* Test Cases                                                                 */
+  /* ========================================================================== */
+
+  async createCase(
+    workspaceId: string,
+    datasetId: string,
+    body: {
+      name?: string;
+      input: string;
+      expected_output?: string;
+      expectedOutput?: string;
+      expected_tools?: ExpectedToolCall[];
+      expectedTools?: ExpectedToolCall[];
+      fixture_responses?: FixtureResponse[];
+      fixtureResponses?: FixtureResponse[];
+      tags?: string[];
+    },
+  ): Promise<EvalCase> {
+    const dataset = await this.getDataset(workspaceId, datasetId);
+    const input = (body.input ?? "").trim();
+    if (!input) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "input is required" });
+    }
+    const expectedOutput = (body.expected_output ?? body.expectedOutput ?? "").trim();
+    const expectedTools = body.expected_tools ?? body.expectedTools ?? [];
+    const fixtureResponses = body.fixture_responses ?? body.fixtureResponses ?? [];
+
+    return this.repo.createCase(workspaceId, datasetId, dataset.agentId, {
+      name: body.name,
+      input,
+      expectedOutput,
+      expectedTools,
+      fixtureResponses,
+      tags: body.tags,
+    });
+  }
+
+  async listCases(
+    workspaceId: string,
+    datasetId: string,
+    options: { search?: string; tag?: string; offset?: number; limit?: number } = {},
+  ): Promise<{ cases: EvalCase[]; total: number }> {
+    await this.getDataset(workspaceId, datasetId);
+    return this.repo.listCasesByDataset(workspaceId, datasetId, options);
+  }
+
+  async getCase(workspaceId: string, datasetId: string, caseId: string): Promise<EvalCase> {
+    if (!UUID_RE.test(caseId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "caseId must be a UUID" });
+    }
+    const testCase = await this.repo.getCase(workspaceId, datasetId, caseId);
+    if (!testCase) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Case not found" });
+    }
+    return testCase;
+  }
+
+  async updateCase(
+    workspaceId: string,
+    datasetId: string,
+    caseId: string,
+    body: {
+      name?: string;
+      input?: string;
+      expected_output?: string;
+      expectedOutput?: string;
+      expected_tools?: ExpectedToolCall[];
+      expectedTools?: ExpectedToolCall[];
+      fixture_responses?: FixtureResponse[];
+      fixtureResponses?: FixtureResponse[];
+      tags?: string[];
+      expected_record_version?: number;
+      expectedRecordVersion?: number;
+    },
+  ): Promise<EvalCase> {
+    await this.getDataset(workspaceId, datasetId);
+    return this.repo.updateCase(workspaceId, datasetId, caseId, {
+      name: body.name,
+      input: body.input,
+      expectedOutput: body.expected_output ?? body.expectedOutput,
+      expectedTools: body.expected_tools ?? body.expectedTools,
+      fixtureResponses: body.fixture_responses ?? body.fixtureResponses,
+      tags: body.tags,
+      expectedRecordVersion: body.expected_record_version ?? body.expectedRecordVersion,
+    });
+  }
+
+  async deleteCase(workspaceId: string, datasetId: string, caseId: string): Promise<void> {
+    await this.getDataset(workspaceId, datasetId);
+    const deleted = await this.repo.deleteCase(workspaceId, datasetId, caseId);
+    if (!deleted) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Case not found" });
+    }
+  }
+
+  async importCases(
+    workspaceId: string,
+    datasetId: string,
+    body: {
+      cases: Array<{
+        name?: string;
+        input: string;
+        expected_output?: string;
+        expectedOutput?: string;
+        expected_tools?: ExpectedToolCall[];
+        expectedTools?: ExpectedToolCall[];
+        fixture_responses?: FixtureResponse[];
+        fixtureResponses?: FixtureResponse[];
+        tags?: string[];
+      }>;
+    },
+  ): Promise<{ importedCount: number; newRevision: number }> {
+    const dataset = await this.getDataset(workspaceId, datasetId);
+    const rawCases = Array.isArray(body.cases) ? body.cases : [];
+    if (rawCases.length === 0) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "cases array cannot be empty" });
+    }
+    if (rawCases.length > 1000) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Maximum 1,000 cases per import" });
+    }
+
+    const validatedCases = rawCases.map((c, index) => {
+      const input = (c.input ?? "").trim();
+      if (!input) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: `Row ${index + 1}: input is required`,
+        });
+      }
+      return {
+        name: (c.name ?? "").trim() || `Imported case ${index + 1}`,
+        input,
+        expectedOutput: (c.expected_output ?? c.expectedOutput ?? "").trim(),
+        expectedTools: c.expected_tools ?? c.expectedTools ?? [],
+        fixtureResponses: c.fixture_responses ?? c.fixtureResponses ?? [],
+        tags: c.tags ?? [],
+      };
+    });
+
+    return this.repo.batchImportCases(workspaceId, datasetId, dataset.agentId, validatedCases);
+  }
+
+  /* ========================================================================== */
+  /* Runs                                                                       */
+  /* ========================================================================== */
 
   async createRun(
     workspaceId: string,
-    agentId: string,
     body: {
+      agent_id?: string;
+      agentId?: string;
       agent_version_id?: string;
       agentVersionId?: string;
+      dataset_id?: string;
+      datasetId?: string;
+      expected_dataset_revision?: number;
+      expectedDatasetRevision?: number;
       case_ids?: string[];
       caseIds?: string[];
+      policy?: {
+        method?: ScoringMethod;
+        config?: Record<string, unknown>;
+        scorer_version?: string;
+      };
+      fixture_config?: Record<string, unknown>;
       idempotency_key?: string | null;
       idempotencyKey?: string | null;
     },
   ): Promise<{ run: EvalRun; created: boolean }> {
+    const agentId = (body.agent_id ?? body.agentId ?? "").trim();
     if (!UUID_RE.test(agentId)) {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "agent_id must be a UUID" });
     }
     const agentVersionId = (body.agent_version_id ?? body.agentVersionId ?? "").trim();
     if (!UUID_RE.test(agentVersionId)) {
-      throw new AppError({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: "agent_version_id must be a UUID",
-      });
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "agent_version_id must be a UUID" });
     }
 
-    const idempotencyKey =
-      (body.idempotency_key ?? body.idempotencyKey)?.trim() || null;
+    const idempotencyKey = (body.idempotency_key ?? body.idempotencyKey)?.trim() || null;
     if (idempotencyKey) {
       const existing = await this.repo.findRunByIdempotencyKey(workspaceId, idempotencyKey);
       if (existing) return { run: existing, created: false };
@@ -87,39 +326,90 @@ export class EvalService {
       });
     }
 
+    // Resolve dataset
+    let datasetId = (body.dataset_id ?? body.datasetId ?? "").trim();
+    let dataset: EvalDataset;
+    if (datasetId) {
+      dataset = await this.getDataset(workspaceId, datasetId);
+    } else {
+      dataset = await this.repo.getOrCreateDefaultDataset(workspaceId, agentId);
+      datasetId = dataset.id;
+    }
+
+    const expectedRevision = body.expected_dataset_revision ?? body.expectedDatasetRevision;
+    if (expectedRevision !== undefined && dataset.revision !== expectedRevision) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: `Dataset revision changed from ${expectedRevision} to ${dataset.revision}. Please refresh.`,
+      });
+    }
+
     const requestedIds = body.case_ids ?? body.caseIds;
     let cases: EvalCase[];
     if (requestedIds && requestedIds.length > 0) {
-      cases = await this.repo.getCasesByIds(workspaceId, agentId, requestedIds);
+      cases = await this.repo.getCasesByIds(workspaceId, requestedIds);
       if (cases.length !== requestedIds.length) {
         throw new AppError({
           code: ErrorCode.VALIDATION_FAILED,
-          message: "One or more case_ids were not found in this workspace/agent",
+          message: "One or more case_ids were not found in this workspace",
         });
       }
     } else {
-      cases = await this.repo.listCases(workspaceId, agentId);
+      const listRes = await this.repo.listCasesByDataset(workspaceId, datasetId, { limit: 1000 });
+      cases = listRes.cases;
     }
 
     if (cases.length === 0) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message: "No eval cases to run",
+        message: "Cannot launch evaluation: dataset has 0 test cases",
       });
     }
     if (cases.length > this.limits.maxCasesPerRun) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
-        message: `Case cap exceeded: max ${this.limits.maxCasesPerRun} cases per run`,
+        message: `Case cap exceeded: selected ${cases.length} cases (max allowed: ${this.limits.maxCasesPerRun})`,
       });
     }
+
+    const rawPolicy = body.policy ?? {};
+    const method: ScoringMethod = rawPolicy.method ?? "exact_match";
+    const policy: EvalPolicy = {
+      method,
+      config: rawPolicy.config ?? {},
+      scorerVersion: rawPolicy.scorer_version ?? "v1",
+    };
+
+    // Validate policy vs cases requirements
+    if (method === "exact_match" || method === "semantic_similarity") {
+      const missingExpected = cases.some((c) => !c.expectedOutput && (!c.expectedTools || c.expectedTools.length === 0));
+      if (missingExpected) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: `${method} requires test cases to have an expected response`,
+        });
+      }
+    }
+
+    // Freeze dataset snapshot
+    const snapshot = await this.repo.createDatasetSnapshot(
+      workspaceId,
+      datasetId,
+      dataset.revision,
+      cases,
+    );
 
     try {
       const run = await this.repo.createRun({
         workspaceId,
         agentId,
         agentVersionId,
+        datasetId,
+        datasetRevision: dataset.revision,
+        datasetSnapshotId: snapshot.id,
         cases,
+        policy,
+        fixtureConfig: body.fixture_config,
         idempotencyKey,
       });
       return { run, created: true };
@@ -137,6 +427,9 @@ export class EvalService {
     workspaceId: string,
     runId: string,
   ): Promise<{ run: EvalRun; results: EvalCaseResult[] }> {
+    if (!UUID_RE.test(runId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "runId must be a UUID" });
+    }
     const run = await this.repo.getRun(workspaceId, runId);
     if (!run) {
       throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Eval run not found" });
@@ -145,68 +438,383 @@ export class EvalService {
     return { run, results };
   }
 
-  listRuns(workspaceId: string, agentId: string): Promise<EvalRun[]> {
-    return this.repo.listRuns(workspaceId, agentId);
+  async listRuns(
+    workspaceId: string,
+    filters: {
+      agent_id?: string;
+      agentId?: string;
+      version_id?: string;
+      versionId?: string;
+      status?: string;
+      start_date?: string;
+      end_date?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ runs: EvalRun[]; total: number }> {
+    return this.repo.listRuns(workspaceId, {
+      agentId: filters.agent_id ?? filters.agentId,
+      versionId: filters.version_id ?? filters.versionId,
+      status: filters.status,
+      startDate: filters.start_date ? new Date(filters.start_date) : undefined,
+      endDate: filters.end_date ? new Date(filters.end_date) : undefined,
+      limit: filters.limit,
+      offset: filters.offset,
+    });
   }
 
-  /**
-   * Process one claimed run. When runtime is null (local PGlite proof), synthesize
-   * fake-reply:<input> as the scripted model answer.
-   */
-  async processRun(run: EvalRun, requestId: string = randomUUID()): Promise<EvalRun> {
-    const snapshots = await this.repo.listRunCaseSnapshots(run.id);
-    let passed = 0;
-    let failedHard = false;
-    let hardError: string | null = null;
+  /* ========================================================================== */
+  /* Comparisons                                                                */
+  /* ========================================================================== */
 
-    for (const snap of snapshots) {
+  async createOrGetComparison(
+    workspaceId: string,
+    body: { baseline_run_id?: string; baselineRunId?: string; candidate_run_id?: string; candidateRunId?: string },
+  ): Promise<EvalComparison> {
+    const baselineId = (body.baseline_run_id ?? body.baselineRunId ?? "").trim();
+    const candidateId = (body.candidate_run_id ?? body.candidateRunId ?? "").trim();
+    if (!UUID_RE.test(baselineId) || !UUID_RE.test(candidateId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "baseline and candidate run IDs must be UUIDs" });
+    }
+    if (baselineId === candidateId) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Cannot compare a run with itself" });
+    }
+
+    const { run: baselineRun, results: baselineResults } = await this.getRun(workspaceId, baselineId);
+    const { run: candidateRun, results: candidateResults } = await this.getRun(workspaceId, candidateId);
+
+    if (baselineRun.agentId !== candidateRun.agentId) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Compared runs must evaluate the same agent" });
+    }
+
+    const candidateMap = new Map<string, EvalCaseResult>();
+    for (const r of candidateResults) {
+      candidateMap.set(r.caseId, r);
+    }
+
+    const fixed: ComparisonCategoryItem[] = [];
+    const regressed: ComparisonCategoryItem[] = [];
+    const unchangedPassed: ComparisonCategoryItem[] = [];
+    const unchangedFailed: ComparisonCategoryItem[] = [];
+
+    for (const base of baselineResults) {
+      const cand = candidateMap.get(base.caseId);
+      if (!cand) continue;
+
+      const item: ComparisonCategoryItem = {
+        caseId: base.caseId,
+        caseName: base.caseName || "Case",
+        baselinePassed: base.passed,
+        candidatePassed: cand.passed,
+        baselineOutput: base.actualOutput,
+        candidateOutput: cand.actualOutput,
+        expectedOutput: base.expectedOutput,
+        status: "unchanged_passed",
+      };
+
+      if (!base.passed && cand.passed) {
+        item.status = "fixed";
+        fixed.push(item);
+      } else if (base.passed && !cand.passed) {
+        item.status = "regressed";
+        regressed.push(item);
+      } else if (base.passed && cand.passed) {
+        item.status = "unchanged_passed";
+        unchangedPassed.push(item);
+      } else {
+        item.status = "unchanged_failed";
+        unchangedFailed.push(item);
+      }
+    }
+
+    const matchedCount = fixed.length + regressed.length + unchangedPassed.length + unchangedFailed.length;
+    const basePassed = unchangedPassed.length + regressed.length;
+    const candPassed = unchangedPassed.length + fixed.length;
+
+    const baselinePassRate = matchedCount > 0 ? Math.round((basePassed / matchedCount) * 1000) / 10 : 0;
+    const candidatePassRate = matchedCount > 0 ? Math.round((candPassed / matchedCount) * 1000) / 10 : 0;
+    const deltaPercentagePoints = Math.round((candidatePassRate - baselinePassRate) * 10) / 10;
+
+    let latencyDeltaMs: number | null = null;
+    if (baselineRun.averageLatencyMs !== null && candidateRun.averageLatencyMs !== null) {
+      latencyDeltaMs = Math.round(candidateRun.averageLatencyMs - baselineRun.averageLatencyMs);
+    }
+
+    const compatibilityFingerprint = `${baselineRun.agentId}:${baselineRun.datasetId}:${baselineRun.policy.method}`;
+
+    return this.repo.createOrGetComparison({
+      workspaceId,
+      agentId: baselineRun.agentId,
+      baselineRunId: baselineId,
+      candidateRunId: candidateId,
+      datasetId: candidateRun.datasetId,
+      datasetRevision: candidateRun.datasetRevision,
+      compatibilityFingerprint,
+      matchedCaseCount: matchedCount,
+      fixedCount: fixed.length,
+      regressedCount: regressed.length,
+      unchangedPassedCount: unchangedPassed.length,
+      unchangedFailedCount: unchangedFailed.length,
+      baselinePassRate,
+      candidatePassRate,
+      deltaPercentagePoints,
+      latencyDeltaMs,
+      categories: {
+        fixed,
+        regressed,
+        unchangedPassed,
+        unchangedFailed,
+      },
+    });
+  }
+
+  async getComparison(workspaceId: string, comparisonId: string): Promise<EvalComparison> {
+    if (!UUID_RE.test(comparisonId)) {
+      throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "comparisonId must be a UUID" });
+    }
+    const comparison = await this.repo.getComparison(workspaceId, comparisonId);
+    if (!comparison) {
+      throw new AppError({ code: ErrorCode.NOT_FOUND, message: "Comparison not found" });
+    }
+    return comparison;
+  }
+
+  async getSummary(workspaceId: string): Promise<EvalSummary> {
+    return this.repo.getSummaryMetrics(workspaceId);
+  }
+
+  /* ========================================================================== */
+  /* Embeddings Helper                                                          */
+  /* ========================================================================== */
+
+  private async getEmbedding(text: string): Promise<number[]> {
+    if (this.limits.embeddingProvider === "openai" && this.limits.openaiApiKey) {
       try {
-        let actual: string;
+        const res = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.limits.openaiApiKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "text-embedding-3-small",
+            input: text.slice(0, 8000),
+          }),
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { data?: Array<{ embedding: number[] }> };
+          if (body.data?.[0]?.embedding) {
+            return body.data[0].embedding;
+          }
+        }
+      } catch {
+        // Fall back to deterministic normalized hash vector
+      }
+    }
+    return deterministicVector(text);
+  }
+
+  /* ========================================================================== */
+  /* Worker Run Processing                                                      */
+  /* ========================================================================== */
+
+  async processRun(run: EvalRun, workerId: string = "eval-worker"): Promise<EvalRun> {
+    const fenceToken = run.fenceToken ?? workerId;
+    const snapshots = await this.repo.listRunCaseSnapshots(run.id);
+
+    let passedCount = 0;
+    let failedCount = 0;
+    let erroredCount = 0;
+    let totalLatency = 0;
+    let latencyReportedCount = 0;
+    let hardError: string | null = null;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+
+    const policy = run.policy;
+    const method = policy.method ?? "exact_match";
+
+    for (let i = 0; i < snapshots.length; i++) {
+      const snap = snapshots[i];
+      const requestId = randomUUID();
+
+      try {
+        let actualOutput: string = "";
+        let actualTools: Array<{ name: string; arguments?: Record<string, unknown>; status?: string }> = [];
+        let caseLatency: number | null = null;
+        let caseTokens: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
+
         if (this.runtime) {
           const turn = await this.runtime.executeEvalTurn({
             workspaceId: run.workspaceId,
             agentId: run.agentId,
             agentVersionId: run.agentVersionId,
             message: snap.input,
+            fixtures: snap.fixtureResponses,
+            allowTools: method === "tool_trace" || snap.expectedTools.length > 0,
             idempotencyKey: `${run.id}:${snap.caseId}`,
             requestId,
             deadlineMs: this.limits.caseTimeoutMs,
           });
-          actual = turn.assistant_text;
+          actualOutput = turn.assistant_text;
+          actualTools = turn.tool_calls ?? [];
+          caseLatency = turn.latency_ms;
+          caseTokens = turn.token_usage ?? null;
         } else {
-          actual = `fake-reply:${snap.input}`;
+          // Synthetic deterministic reply for standalone unit proof
+          actualOutput = `fake-reply:${snap.input}`;
+          actualTools = snap.expectedTools.map((t) => ({ name: t.name, arguments: t.arguments, status: "succeeded" }));
+          caseLatency = 25;
         }
-        const ok = scoreExactMatch(snap.expectedOutput, actual);
-        if (ok) passed += 1;
+
+        if (caseLatency !== null) {
+          totalLatency += caseLatency;
+          latencyReportedCount++;
+        }
+        if (caseTokens) {
+          totalPromptTokens += caseTokens.prompt_tokens ?? 0;
+          totalCompletionTokens += caseTokens.completion_tokens ?? 0;
+        }
+
+        // Apply scoring
+        let scoreVal = 0;
+        let isPassed = false;
+        let failureReason: string | null = null;
+
+        if (method === "exact_match") {
+          const res = scoreExactMatch(snap.expectedOutput, actualOutput);
+          isPassed = res.passed;
+          scoreVal = res.score;
+          failureReason = res.failureReason;
+        } else if (method === "semantic_similarity") {
+          const threshold = Number(policy.config.threshold ?? 0.85);
+          const expVec = await this.getEmbedding(snap.expectedOutput);
+          const actVec = await this.getEmbedding(actualOutput);
+          const res = scoreSemanticSimilarity(expVec, actVec, threshold);
+          isPassed = res.passed;
+          scoreVal = res.score;
+          failureReason = res.failureReason;
+        } else if (method === "tool_trace") {
+          const res = scoreToolTrace(snap.expectedTools, actualTools, {
+            requireOrder: policy.config.requireOrder !== false,
+            allowUnexpectedTools: policy.config.allowUnexpectedTools === true,
+          });
+          isPassed = res.passed;
+          scoreVal = res.score;
+          failureReason = res.failureReason;
+        }
+
+        if (isPassed) {
+          passedCount++;
+        } else {
+          failedCount++;
+        }
+
         await this.repo.insertCaseResult({
           runId: run.id,
           caseId: snap.caseId,
           workspaceId: run.workspaceId,
-          passed: ok,
+          caseName: snap.caseName,
+          input: snap.input,
           expectedOutput: snap.expectedOutput,
-          actualOutput: actual,
-          error: null,
+          actualOutput,
+          expectedTools: snap.expectedTools,
+          actualTools,
+          passed: isPassed,
+          score: scoreVal,
+          scoringMethod: method,
+          failureReason,
+          executionError: null,
+          latencyMs: caseLatency,
+          tokenUsage: caseTokens,
         });
       } catch (err) {
-        failedHard = true;
-        hardError = err instanceof Error ? err.message : String(err);
+        erroredCount++;
+        failedCount++;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        hardError = errMsg;
+
         await this.repo.insertCaseResult({
           runId: run.id,
           caseId: snap.caseId,
           workspaceId: run.workspaceId,
-          passed: false,
+          caseName: snap.caseName,
+          input: snap.input,
           expectedOutput: snap.expectedOutput,
           actualOutput: null,
-          error: hardError,
+          expectedTools: snap.expectedTools,
+          actualTools: [],
+          passed: false,
+          score: 0,
+          scoringMethod: method,
+          failureReason: `Execution error: ${errMsg}`,
+          executionError: errMsg,
+          latencyMs: null,
+          tokenUsage: null,
         });
+      }
+
+      // Progress reporting & lease extension every 5 cases
+      if (i % 5 === 0 || i === snapshots.length - 1) {
+        await this.repo.updateRunProgress(run.id, fenceToken, {
+          progress: i + 1,
+          passedCount,
+          failedCount,
+          erroredCount,
+        });
+        await this.repo.renewLease(run.id, fenceToken, 60);
       }
     }
 
-    const score = meanScorePercent(passed, snapshots.length);
-    return this.repo.completeRun(run.id, {
-      status: failedHard ? "failed" : "completed",
-      score,
-      error: hardError,
+    const finalScore = meanScorePercent(passedCount, snapshots.length);
+    const avgLatency =
+      latencyReportedCount > 0 ? Math.round(totalLatency / latencyReportedCount) : null;
+
+    // Run status semantics:
+    // "Completed" means execution processed cases. Individual case assertions failing is normal.
+    // "Failed" is only for execution-level failure when 0 cases could be evaluated due to hard infrastructure error.
+    const isRunFailed = snapshots.length > 0 && erroredCount === snapshots.length;
+    const runStatus = isRunFailed ? "failed" : "completed";
+
+    return this.repo.completeRun(run.id, fenceToken, {
+      status: runStatus,
+      score: isRunFailed ? null : finalScore,
+      passedCount,
+      failedCount,
+      erroredCount,
+      averageLatencyMs: avgLatency,
+      totalCost: null,
+      tokenUsage:
+        totalPromptTokens + totalCompletionTokens > 0
+          ? {
+              prompt_tokens: totalPromptTokens,
+              completion_tokens: totalCompletionTokens,
+              total_tokens: totalPromptTokens + totalCompletionTokens,
+            }
+          : null,
+      error: isRunFailed ? hardError : null,
     });
+  }
+
+  /* ========================================================================== */
+  /* Legacy Endpoint Compatibility                                              */
+  /* ========================================================================== */
+
+  async listLegacyCases(workspaceId: string, agentId: string): Promise<EvalCase[]> {
+    return this.repo.listLegacyCases(workspaceId, agentId);
+  }
+
+  async createLegacyCase(
+    workspaceId: string,
+    agentId: string,
+    body: { name?: string; input: string; expected_output?: string; expectedOutput?: string },
+  ): Promise<EvalCase> {
+    const defaultDs = await this.repo.getOrCreateDefaultDataset(workspaceId, agentId);
+    return this.createCase(workspaceId, defaultDs.id, body);
+  }
+
+  async listLegacyRuns(workspaceId: string, agentId: string): Promise<EvalRun[]> {
+    const res = await this.repo.listRuns(workspaceId, { agentId, limit: 100 });
+    return res.runs;
   }
 }

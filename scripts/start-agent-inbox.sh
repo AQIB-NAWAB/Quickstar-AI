@@ -54,7 +54,14 @@ start_svc() {
     return 0
   fi
 
+  local needs_build=0
   if [[ ! -f "$entry" ]] || [[ "$name" == "runtime" ]]; then
+    needs_build=1
+  elif [[ -d "$ROOT/$dir/src" ]] && [[ -n $(find "$ROOT/$dir/src" -type f -newer "$entry" 2>/dev/null | head -n 1) ]]; then
+    needs_build=1
+  fi
+
+  if [[ "$needs_build" -eq 1 ]]; then
     echo "  building ${name}…"
     pnpm --filter "$(jq -r .name "$ROOT/$dir/package.json")" build >>"$logfile" 2>&1 || true
   fi
@@ -79,8 +86,42 @@ start_svc() {
   echo "  WARN: ${name} did not respond healthy on :${port} (see ${logfile})" >&2
 }
 
+start_lead_generation() {
+  local name="lead-generation"
+  local port="${LEAD_GENERATION_PORT:-3019}"
+  local pidfile="$LOG_DIR/${name}.pid"
+  local logfile="$LOG_DIR/${name}.log"
+  local entry="$ROOT/services/lead-generation-service/dist/index.js"
+  local env_args=(--env-file=.env)
+  if [[ -f "$ROOT/.env.leads" ]]; then
+    env_args+=(--env-file=.env.leads)
+  fi
+
+  if curl -sf "http://127.0.0.1:${port}/healthz" >/dev/null 2>&1; then
+    echo "  ${name} already up on :${port}"
+    return 0
+  fi
+  if [[ ! -f "$entry" ]]; then
+    echo "  building ${name}…"
+    pnpm --filter @quickstart/service-lead-generation build >>"$logfile" 2>&1 || true
+  fi
+  node "${env_args[@]}" "$entry" >>"$logfile" 2>&1 &
+  local pid=$!
+  echo "$pid" >"$pidfile"
+  PIDS+=("$pid")
+  echo "  started ${name} (pid $pid) on :${port}"
+  for _ in $(seq 1 40); do
+    if curl -sf "http://127.0.0.1:${port}/healthz" >/dev/null 2>&1; then
+      echo "  ${name} healthy on :${port}"
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "  WARN: ${name} did not respond healthy on :${port} (see ${logfile})" >&2
+}
+
 bold "1) Low-RAM Data Plane (Postgres + Valkey only)"
-if ! docker info >/dev/null 2>&1; then
+if ! docker ps >/dev/null 2>&1; then
   printf '\n\033[1;31m[!] Docker daemon is not running.\033[0m\n'
   echo "Please start Docker first by running: sudo systemctl start docker"
   echo ""
@@ -94,8 +135,18 @@ pnpm --filter @quickstart/service-identity migrate || true
 pnpm --filter @quickstart/service-workspace migrate || true
 pnpm --filter @quickstart/service-agent migrate || true
 pnpm --filter @quickstart/service-conversation migrate || true
+pnpm --filter @quickstart/service-web-fetch migrate || true
 pnpm --filter @quickstart/service-voice migrate || true
+pnpm --filter @quickstart/service-knowledge migrate || true
+pnpm --filter @quickstart/service-secrets migrate || true
 pnpm --filter @quickstart/service-workflow migrate || true
+pnpm --filter @quickstart/service-memory migrate || true
+pnpm --filter @quickstart/service-campaign migrate || true
+pnpm --filter @quickstart/service-lead migrate || true
+pnpm --filter @quickstart/service-lead-generation migrate || true
+pnpm --filter @quickstart/service-eval migrate || true
+pnpm --filter @quickstart/service-usage migrate || true
+pnpm --filter @quickstart/service-audit migrate || true
 
 bold "3) Core Backend Services"
 start_svc identity services/identity-service "${IDENTITY_PORT:-3001}"
@@ -104,8 +155,18 @@ start_svc agent services/agent-service "${AGENT_PORT:-3003}"
 start_svc conversation services/conversation-service "${CONVERSATION_PORT:-3004}"
 start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
 start_svc runtime services/runtime-service "${RUNTIME_PORT:-3006}"
+start_svc web-fetch services/web-fetch-service "${WEB_FETCH_PORT:-3007}"
 start_svc voice services/voice-service "${VOICE_PORT:-3008}"
+start_svc knowledge services/knowledge-service "${KNOWLEDGE_PORT:-3009}"
+start_svc memory services/memory-service "${MEMORY_PORT:-3010}"
+start_svc secrets services/secrets-service "${SECRETS_PORT:-3011}"
 start_svc workflow services/workflow-service "${WORKFLOW_PORT:-3012}"
+start_svc campaign services/campaign-service "${CAMPAIGN_PORT:-3013}"
+start_svc lead services/lead-service "${LEAD_PORT:-3014}"
+start_svc eval services/eval-service "${EVAL_PORT:-3016}"
+start_svc usage services/usage-service "${USAGE_PORT:-3017}"
+start_svc audit services/audit-service "${AUDIT_PORT:-3018}"
+start_lead_generation
 start_svc gateway services/gateway-service "${GATEWAY_PORT:-3000}"
 
 if ! curl -sf "http://127.0.0.1:4000/api/slots" >/dev/null 2>&1; then
@@ -127,8 +188,14 @@ echo "  Press Ctrl+C at any time to STOP all backends & frontend"
 echo "--------------------------------------------------------"
 echo ""
 
+# Free lingering port 3015 if any
+if lsof -ti :3015 >/dev/null 2>&1; then
+  fuser -k 3015/tcp 2>/dev/null || true
+  sleep 1
+fi
+
 # Run Next.js in foreground attached to terminal; when killed, trap cleans up everything
-env PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 &
+env NODE_ENV=development PORT=3015 pnpm --filter @quickstart/web exec next dev -H 0.0.0.0 -p 3015 &
 WEB_PID=$!
 PIDS+=("$WEB_PID")
 

@@ -46,19 +46,6 @@ export function formatExactNumber(num: number | null | undefined): string {
   return num.toLocaleString("en-US");
 }
 
-export function formatPercentage(
-  pct: number | null | undefined,
-  decimals: number = 0,
-): string {
-  if (pct === null || pct === undefined || isNaN(pct) || !isFinite(pct)) {
-    return "0%";
-  }
-  if (decimals === 0) {
-    return `${Math.round(pct)}%`;
-  }
-  return `${pct.toFixed(decimals).replace(/\.?0+$/, "")}%`;
-}
-
 export function formatSeconds(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return "—";
   const sec = ms / 1000;
@@ -83,10 +70,4 @@ export function formatUtcFullDate(dateStr: string): string {
   const day = d.getUTCDate();
   const year = d.getUTCFullYear();
   return `${month} ${day}, ${year}`;
-}
-
-export function formatHourIntervalUtc(hour: number): string {
-  const start = String(hour % 24).padStart(2, "0");
-  const end = String((hour + 1) % 24).padStart(2, "0");
-  return `${start}:00–${end}:00 UTC`;
 }

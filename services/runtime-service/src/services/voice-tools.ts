@@ -109,7 +109,14 @@ export function spokenToolNudge(
       ? feminine
         ? "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہی ہوں۔"
         : "ٹھیک ہے، میں آپ کو ایک ساتھی کے پاس بھیج رہا ہوں۔"
-      : "Okay, I'm connecting you with a teammate right now.";
+      : "Okay, I'm switching you to a teammate right now.";
+  }
+  const name = toolName.toLowerCase();
+  if (/fetch|get|lookup|search|scrape|retrieve|list/.test(name)) {
+    return urdu ? (feminine ? "ٹھیک ہے، میں یہ لا رہی ہوں۔" : "ٹھیک ہے، میں یہ لا رہا ہوں۔") : "I'm fetching that now.";
+  }
+  if (/status|check/.test(name)) {
+    return urdu ? (feminine ? "ٹھیک ہے، میں یہ چیک کر رہی ہوں۔" : "ٹھیک ہے، میں یہ چیک کر رہا ہوں۔") : "I'm checking that.";
   }
   if (urdu) {
     return feminine ? "ٹھیک ہے، میں یہ چیک کر رہی ہوں۔" : "ٹھیک ہے، میں یہ چیک کر رہا ہوں۔";
@@ -126,12 +133,6 @@ export function toolChangesData(tool: AgentToolDefinition | undefined): boolean 
   if (tool.type === "http" && tool.method !== "GET") return true;
   if (tool.type === "builtin_leads" && (tool.action === "start" || tool.action === "cancel")) return true;
   return false;
-}
-
-export function visitorWantsCancellation(text: string | undefined): boolean {
-  return /\b(cancel|cancellation|cancel appointment|cancel booking|appointment cancel|booking cancel|cancel my appointment|khatam|cancel kar do|cancel karni hai|cancel kardein|منسوخ|کینسل)\b/i.test(
-    text ?? "",
-  );
 }
 
 export function visitorConfirmed(text: string | undefined): boolean {

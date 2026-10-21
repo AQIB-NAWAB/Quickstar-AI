@@ -1,14 +1,14 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
-import { useRef,useState } from "react";
+import { Calendar, ChevronDown } from "lucide-react";
+import { useRef, useState } from "react";
 import { formatUtcDateRange } from "../lib/date-range";
 import type { DateRange } from "../lib/types";
 import { CustomDateRangeDialog } from "./custom-date-range-dialog";
 
 interface AnalyticsDateRangeProps {
   range: DateRange;
-  onSelectPreset: (preset: "7d" | "30d") => void;
+  onSelectPreset: (preset: "7d" | "30d" | "90d") => void;
   onSelectCustom: (from: string, to: string) => void;
 }
 
@@ -28,16 +28,16 @@ export function AnalyticsDateRange({
   }
 
   return (
-    <div className="flex flex-col items-start sm:items-end gap-1.5 select-none">
-      {/* Preset Buttons */}
-      <div className="inline-flex items-center p-0.5 rounded-8 bg-neutral-100 border border-border-faint text-xs font-medium">
+    <div className="flex flex-wrap items-center gap-3 select-none">
+      {/* Preset Pills */}
+      <div className="inline-flex items-center p-1 rounded-8 bg-[#F2F4F7] border border-[#EAECF0] text-xs font-medium">
         <button
           type="button"
           onClick={() => onSelectPreset("7d")}
-          className={`px-3 py-1 rounded-6 transition-colors ${
+          className={`px-3 py-1.5 rounded-6 font-semibold transition-all ${
             range.preset === "7d"
-              ? "bg-white text-accent-black font-semibold shadow-xs"
-              : "text-neutral-500 hover:text-accent-black"
+              ? "bg-[#FF571A] text-white shadow-xs"
+              : "text-[#71717A] hover:text-[#18181B]"
           }`}
           aria-pressed={range.preset === "7d"}
         >
@@ -47,10 +47,10 @@ export function AnalyticsDateRange({
         <button
           type="button"
           onClick={() => onSelectPreset("30d")}
-          className={`px-3 py-1 rounded-6 transition-colors ${
+          className={`px-3 py-1.5 rounded-6 font-semibold transition-all ${
             range.preset === "30d"
-              ? "bg-white text-accent-black font-semibold shadow-xs"
-              : "text-neutral-500 hover:text-accent-black"
+              ? "bg-[#FF571A] text-white shadow-xs"
+              : "text-[#71717A] hover:text-[#18181B]"
           }`}
           aria-pressed={range.preset === "30d"}
         >
@@ -58,30 +58,32 @@ export function AnalyticsDateRange({
         </button>
 
         <button
-          ref={customButtonRef}
           type="button"
-          onClick={() => setCustomDialogOpen(true)}
-          className={`px-3 py-1 rounded-6 transition-colors ${
-            range.preset === "custom"
-              ? "bg-white text-accent-black font-semibold shadow-xs"
-              : "text-neutral-500 hover:text-accent-black"
+          onClick={() => onSelectPreset("90d")}
+          className={`px-3 py-1.5 rounded-6 font-semibold transition-all ${
+            range.preset === "90d"
+              ? "bg-[#FF571A] text-white shadow-xs"
+              : "text-[#71717A] hover:text-[#18181B]"
           }`}
-          aria-pressed={range.preset === "custom"}
-          aria-expanded={customDialogOpen}
-          aria-haspopup="dialog"
+          aria-pressed={range.preset === "90d"}
         >
-          Custom
+          90d
         </button>
       </div>
 
-      {/* Selected Range Readout & UTC */}
-      <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-mono">
-        <CalendarDays className="w-3.5 h-3.5 text-neutral-400 shrink-0" aria-hidden="true" />
-        <span>{formattedRange}</span>
-        <span className="text-[10px] font-semibold text-neutral-400 px-1 py-0.2 bg-neutral-100 rounded border border-neutral-200">
-          UTC
-        </span>
-      </div>
+      {/* Date Dropdown Pill */}
+      <button
+        ref={customButtonRef}
+        type="button"
+        onClick={() => setCustomDialogOpen(true)}
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-8 bg-white border border-[#EAECF0] text-xs font-medium text-[#18181B] hover:bg-neutral-50 shadow-xs transition-colors"
+        aria-expanded={customDialogOpen}
+        aria-haspopup="dialog"
+      >
+        <Calendar className="w-4 h-4 text-[#71717A]" aria-hidden="true" />
+        <span>{formattedRange} (UTC)</span>
+        <ChevronDown className="w-3.5 h-3.5 text-[#71717A]" aria-hidden="true" />
+      </button>
 
       {/* Custom dialog */}
       <CustomDateRangeDialog

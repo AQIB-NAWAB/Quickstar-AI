@@ -1,7 +1,7 @@
 "use client";
 
-import { useId,useState } from "react";
-import { formatCompactNumber,formatExactNumber,formatUtcFullDate,formatUtcMonthDay } from "../../lib/format";
+import { useId, useState } from "react";
+import { formatCompactNumber, formatUtcFullDate, formatUtcMonthDay } from "../../lib/format";
 import type { DailyTokensPoint } from "../../lib/types";
 import { ChartTooltip } from "./chart-tooltip";
 
@@ -160,7 +160,7 @@ export function StackedBars({ data, height = 180 }: StackedBarsProps) {
                 y={inputY}
                 width={barWidth}
                 height={Math.max(0, inputHeight)}
-                fill="#fa5d19"
+                fill="#64748B"
                 opacity={hoveredIdx !== null && !isHovered ? 0.6 : 1}
                 rx={outputHeight <= 0 ? 1.5 : 0}
               />
@@ -171,7 +171,7 @@ export function StackedBars({ data, height = 180 }: StackedBarsProps) {
                 y={outputY}
                 width={barWidth}
                 height={Math.max(0, outputHeight)}
-                fill="#a3a3a3"
+                fill="#FF571A"
                 opacity={hoveredIdx !== null && !isHovered ? 0.6 : 1}
                 rx={1.5}
               />
@@ -216,21 +216,31 @@ export function StackedBars({ data, height = 180 }: StackedBarsProps) {
           title={formatUtcFullDate(activePoint.date)}
           items={[
             {
-              label: "Input",
-              value: formatExactNumber(activePoint.inputTokens),
-              color: "#fa5d19",
+              label: "Input tokens",
+              value: formatCompactNumber(activePoint.inputTokens),
+              color: "#64748B",
             },
             {
-              label: "Output",
-              value: formatExactNumber(activePoint.outputTokens),
-              color: "#a3a3a3",
+              label: "Output tokens",
+              value: formatCompactNumber(activePoint.outputTokens),
+              color: "#FF571A",
             },
-            {
-              label: "Total",
-              value: formatExactNumber(activePoint.totalTokens),
-            },
+            ...(activePoint.estimatedCostUsd !== undefined
+              ? [
+                  {
+                    label: "Estimated cost",
+                    value: `$${activePoint.estimatedCostUsd.toFixed(2)}`,
+                  },
+                ]
+              : [
+                  {
+                    label: "Total tokens",
+                    value: formatCompactNumber(activePoint.totalTokens),
+                  },
+                ]),
           ]}
           visible={true}
+
           align={
             hoveredIdx < 3
               ? "left"

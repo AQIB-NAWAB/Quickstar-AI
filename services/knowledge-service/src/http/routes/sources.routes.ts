@@ -14,35 +14,61 @@ export const createSourcesRoutes: RouteModule<KnowledgeHttpContext> = (ctx) => {
   const writePerm = requireWorkspacePermission(ctx.workspaceAccess, KNOWLEDGE_WRITE);
   const chain = [ctx.authGuard, ctx.tenantGuard];
 
+  // Upload multipart file
+  router.post(
+    "/v1/workspaces/:workspaceId/knowledge/sources/upload",
+    ...chain,
+    writePerm,
+    asyncHandler(ctrl.upload),
+  );
+
+  // Create text or URL source
   router.post(
     "/v1/workspaces/:workspaceId/knowledge/sources",
     ...chain,
     writePerm,
     asyncHandler(ctrl.create),
   );
-  router.patch(
-    "/v1/workspaces/:workspaceId/knowledge/sources/:sourceId",
+
+  // List persisted chunks for inspector
+  router.get(
+    "/v1/workspaces/:workspaceId/knowledge/sources/:sourceId/chunks",
     ...chain,
-    writePerm,
-    asyncHandler(ctrl.update),
+    readPerm,
+    asyncHandler(ctrl.listChunks),
   );
+
+  // Get details of single source
   router.get(
     "/v1/workspaces/:workspaceId/knowledge/sources/:sourceId",
     ...chain,
     readPerm,
     asyncHandler(ctrl.get),
   );
+
+  // List sources with filters, search, and pagination
   router.get(
     "/v1/workspaces/:workspaceId/knowledge/sources",
     ...chain,
     readPerm,
     asyncHandler(ctrl.list),
   );
+
+  // Update source
+  router.patch(
+    "/v1/workspaces/:workspaceId/knowledge/sources/:sourceId",
+    ...chain,
+    writePerm,
+    asyncHandler(ctrl.update),
+  );
+
+  // Delete source
   router.delete(
     "/v1/workspaces/:workspaceId/knowledge/sources/:sourceId",
     ...chain,
     writePerm,
     asyncHandler(ctrl.delete),
   );
+
   return router;
 };

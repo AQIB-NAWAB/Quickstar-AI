@@ -6,11 +6,6 @@ export function createAuthMiddleware(jwtSecret: string): RequestHandler {
   return async (req, res, next) => {
     try {
       const requestId = requestIdFromResponse(res);
-      const gatewayAuth = extractAuthContext(req.headers as Record<string, string | string[] | undefined>);
-      if (gatewayAuth?.actorId) {
-        res.locals.actorUserId = gatewayAuth.actorId;
-        return next();
-      }
       const rawToken = bearerTokenFromHeader(req.headers.authorization);
       if (!rawToken) {
         throw new AppError({
@@ -20,6 +15,14 @@ export function createAuthMiddleware(jwtSecret: string): RequestHandler {
         });
       }
       const verified = await verifyAccessToken(rawToken, jwtSecret);
+      const gatewayAuth = extractAuthContext(req.headers as Record<string, string | string[] | undefined>);
+      if (gatewayAuth?.actorId && gatewayAuth.actorId !== verified.sub) {
+        throw new AppError({
+          code: ErrorCode.UNAUTHORIZED,
+          message: "Actor context mismatch",
+          requestId,
+        });
+      }
       res.locals.actorUserId = verified.sub;
       next();
     } catch (err) {

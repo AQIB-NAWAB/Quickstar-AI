@@ -23,9 +23,3 @@ export type CreateWorkspaceInput = {
   slug: string;
   orgId?: string;
 };
-
-export type WorkspacesApiResponse = {
-  workspaces: WorkspaceItem[];
-  organizations: OrganizationItem[];
-  currentUser: { id: string; email: string } | null;
-};

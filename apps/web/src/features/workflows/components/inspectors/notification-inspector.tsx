@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Bell, Mail, X, Braces, Plus, Play, Check } from "lucide-react";
+import { Bell, Mail, X, Braces, Play } from "lucide-react";
 import type { WorkflowNode } from "../../lib/types";
 
 export type NotificationInspectorProps = {

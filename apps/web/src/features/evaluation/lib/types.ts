@@ -1,63 +1,155 @@
+export type RunStatus = "queued" | "running" | "completed" | "failed";
+export type ScoringMethod = "exact_match" | "semantic_similarity" | "tool_trace";
+
+export interface ExpectedToolCall {
+  name: string;
+  arguments?: Record<string, unknown>;
+  order?: number;
+}
+
+export interface FixtureResponse {
+  toolName: string;
+  matchArgs?: Record<string, unknown>;
+  response: Record<string, unknown>;
+}
+
 export interface EvaluationDataset {
   id: string;
   workspaceId: string;
+  agentId?: string;
+  agentName?: string;
   name: string;
-  description?: string;
+  description?: string | null;
+  tags?: string[];
   revision: number;
+  recordVersion?: number;
   caseCount: number;
-  updatedAt: string; // ISO string
+  lastEvaluatedVersion?: string | null;
+  lastPassRate?: number | null;
+  archivedAt?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface EvaluationCase {
   id: string;
+  workspaceId?: string;
+  agentId?: string;
   datasetId: string;
   name: string;
   input: string;
   expectedOutput: string;
-  expectedTools: string[];
-  createdAt: string;
+  expectedTools: ExpectedToolCall[];
+  fixtureResponses?: FixtureResponse[];
+  tags?: string[];
+  recordVersion?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
-
-export type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
-export type CaseOutcome = "passed" | "failed" | "error";
 
 export interface EvaluationRun {
   id: string;
   workspaceId: string;
   agentId: string;
-  agentName: string;
-  versionId: string;
-  displayVersion: string; // e.g. "v8"
-  datasetId: string;
-  datasetName: string;
+  agentName?: string;
+  agentVersionId?: string;
+  versionId?: string;
+  displayVersion?: string;
+  datasetId: string | null;
+  datasetName?: string;
+  datasetSnapshotId?: string | null;
   datasetRevision: number;
-  scoringPolicy: string; // e.g. "support-v1"
+  scoringPolicy?: string;
+  scoreScale?: number;
+  policy?: {
+    method: ScoringMethod;
+    config: Record<string, unknown>;
+    scorerVersion: string;
+  };
+  fixtureConfig?: Record<string, unknown> | null;
   status: RunStatus;
-  overallScore: number | null;
-  scoreScale: number; // e.g. 100
-  passedCount: number | null;
-  failedCount: number | null;
-  totalCases: number;
-  startedAt: string;
-  completedAt?: string;
+  caseCount?: number;
+  totalCases?: number;
+  progress?: number;
+  score?: number | null;
+  overallScore?: number | null;
+  passedCount?: number | null;
+  failedCount?: number | null;
+  erroredCount?: number | null;
+  averageLatencyMs?: number | null;
+  totalCost?: number | null;
+  tokenUsage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
+  idempotencyKey?: string | null;
+  error?: string | null;
+  startedAt: string | null;
+  finishedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface EvaluationCaseResult {
-  runCaseId: string;
+  id?: string;
+  runCaseId?: string;
   runId: string;
   caseId: string;
+  workspaceId?: string;
   caseName: string;
   input: string;
   expectedOutput: string;
-  actualOutput: string;
-  expectedTools: string[];
-  actualTools: string[];
-  outcome: CaseOutcome;
-  score: number;
-  scoreScale: number;
-  failureReasons?: string[];
-  executionError?: string;
+  actualOutput: string | null;
+  expectedTools: ExpectedToolCall[];
+  actualTools: Array<{ name: string; arguments?: Record<string, unknown>; status?: string }>;
+  passed?: boolean;
+  outcome?: "passed" | "failed" | "error";
+  score: number | null;
+  scoreScale?: number;
+  scoringMethod?: ScoringMethod;
+  failureReason?: string | null;
+  failureReasons?: string[] | null;
+  executionError?: string | null;
+  latencyMs?: number | null;
+  tokenUsage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
+  error?: string | null;
+  createdAt?: string;
+}
+
+export interface ComparisonCategoryItem {
+  caseId: string;
+  caseName: string;
+  baselinePassed: boolean;
+  candidatePassed: boolean;
+  baselineOutput?: string | null;
+  candidateOutput?: string | null;
+  expectedOutput?: string;
+  status: "fixed" | "regressed" | "unchanged_passed" | "unchanged_failed";
+}
+
+export interface EvaluationComparison {
+  id: string;
+  workspaceId: string;
+  agentId: string;
+  baselineRunId: string;
+  candidateRunId: string;
+  datasetId: string | null;
+  datasetRevision: number | null;
+  compatibilityFingerprint: string;
+  matchedCaseCount: number;
+  fixedCount: number;
+  regressedCount: number;
+  unchangedPassedCount: number;
+  unchangedFailedCount: number;
+  baselinePassRate: number;
+  candidatePassRate: number;
+  deltaPercentagePoints: number;
+  latencyDeltaMs: number | null;
+  categories: {
+    fixed: ComparisonCategoryItem[];
+    regressed: ComparisonCategoryItem[];
+    unchangedPassed: ComparisonCategoryItem[];
+    unchangedFailed: ComparisonCategoryItem[];
+  };
+  createdAt: string;
 }
 
 export interface VersionComparisonPoint {
@@ -75,6 +167,16 @@ export type RepositoryResult<T> =
   | { status: "not_found"; message: string }
   | { status: "error"; message: string };
 
+export interface EvaluationSummary {
+  averagePassRate: number | null;
+  averagePassRateDelta: number | null;
+  evaluatedRuns: number;
+  evaluatedRunsDelta: number | null;
+  activeTestCases: number;
+  regressionsFlagged: number;
+  period: string;
+}
+
 export interface EvaluationOverviewData {
   agentId: string;
   agentName: string;
@@ -89,6 +191,7 @@ export interface EvaluationOverviewData {
   comparison: VersionComparisonPoint[];
   datasets: EvaluationDataset[];
   recentRuns: EvaluationRun[];
+  summary?: EvaluationSummary;
 }
 
 export interface EvaluationRepository {
@@ -112,7 +215,7 @@ export interface EvaluationRepository {
 
   createDataset(
     workspaceId: string,
-    data: { name: string; description?: string }
+    data: { name: string; description?: string; tags?: string[] }
   ): Promise<RepositoryResult<EvaluationDataset>>;
 
   saveTestCase(

@@ -1,4 +1,4 @@
-import type { CreateWorkspaceInput, WorkspaceItem, WorkspacesApiResponse } from "./types";
+import type { CreateWorkspaceInput, WorkspaceItem } from "./types";
 
 export function slugify(input: string): string {
   return input
@@ -7,18 +7,6 @@ export function slugify(input: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-}
-
-export async function fetchWorkspaces(): Promise<WorkspacesApiResponse> {
-  const res = await fetch("/api/workspaces", {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to load workspaces (${res.status})`);
-  }
-  return res.json() as Promise<WorkspacesApiResponse>;
 }
 
 export async function createWorkspace(

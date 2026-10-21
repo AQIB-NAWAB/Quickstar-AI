@@ -190,7 +190,7 @@ export function LiveInboundDashboard({
                       href={`${basePath}/${call.id}`}
                       className="px-4 py-2 border border-heat-100 text-heat-100 hover:bg-orange-50/80 rounded-8 text-xs font-semibold shadow-xs transition-colors"
                     >
-                      Monitor
+                      Inspect
                     </Link>
                   </div>
                 </div>
@@ -232,7 +232,7 @@ export function LiveInboundDashboard({
 
           {/* Footer Note */}
           <p className="text-[11px] text-neutral-400 leading-relaxed px-1">
-            Elapsed counters update while calls remain live. Monitoring does not join the audio.
+            Elapsed counters update while calls remain live. Inspecting opens live transcript and turn metadata.
           </p>
         </div>
       )}

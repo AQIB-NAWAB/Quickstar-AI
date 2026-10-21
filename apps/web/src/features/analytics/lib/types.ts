@@ -1,4 +1,4 @@
-export type DateRangePreset = "7d" | "30d" | "custom";
+export type DateRangePreset = "7d" | "30d" | "90d" | "custom";
 
 export interface DateRange {
   preset: DateRangePreset;
@@ -12,8 +12,12 @@ export interface SummaryMetrics {
   inputTokens: number | null;
   outputTokens: number | null;
   conversations: number | null;
+  conversationsTrendPct?: number | null;
   latencyP50Ms: number | null;
   latencyP95Ms: number | null;
+  estimatedSpendUsd: number | null;
+  modelSpendUsd: number | null;
+  voiceSpendUsd: number | null;
   voiceMinutes: number | null;
   voiceCalls: number | null;
   billableAcquisitionActions: number | null;
@@ -24,6 +28,7 @@ export interface DailyTokensPoint {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  estimatedCostUsd?: number;
 }
 
 export interface ModelUsageItem {
@@ -50,6 +55,19 @@ export interface DailyLatencyPoint {
   p50Ms: number | null;
   p95Ms: number | null;
   sampleCount: number | null;
+  concurrentTurns?: number;
+}
+
+export interface ServiceUsageItem {
+  service: string;
+  provider: string;
+  kind: string;
+  units: number;
+  unitLabel: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedCostUsd: number;
+  isUnpriced: boolean;
 }
 
 export interface AcquisitionUsageItem {
@@ -66,6 +84,7 @@ export interface AnalyticsData {
   dailyConversations: DailyConversationPoint[];
   hourlyConversations: HourlyConversationPoint[];
   dailyLatency: DailyLatencyPoint[];
+  usageByService: ServiceUsageItem[];
   acquisitions: AcquisitionUsageItem[];
   voice: {
     minutes: number | null;

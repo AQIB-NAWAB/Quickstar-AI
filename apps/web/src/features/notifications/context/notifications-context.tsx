@@ -47,7 +47,10 @@ export function NotificationsProvider({
       }
 
       if (listRes.status === "ready") {
-        setNotifications(listRes.data);
+        setNotifications(listRes.data.notifications);
+        if (countRes.status !== "ready") {
+          setUnreadCount(listRes.data.unreadCount);
+        }
       }
     } finally {
       setLoading(false);

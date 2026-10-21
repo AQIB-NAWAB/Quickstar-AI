@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { GitBranch, X, Plus, Trash2, Play, Check } from "lucide-react";
+import { GitBranch, X, Trash2, Play } from "lucide-react";
 import type { WorkflowNode, WorkflowGraph } from "../../lib/types";
 import { evaluateConditionGroup } from "../../lib/condition-evaluator";
 type Rule = { id: string; field: string; operator: string; value: string };

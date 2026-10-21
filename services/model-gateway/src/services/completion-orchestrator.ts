@@ -224,7 +224,8 @@ export class CompletionOrchestrator {
               profile: model.profile,
               attempt,
             });
-            await new Promise((r) => setTimeout(r, 2500));
+            const delayMs = Math.min(2500, Math.max(50, Math.floor(this.config.completionTimeoutMs / 4)));
+            await new Promise((r) => setTimeout(r, delayMs));
             continue;
           }
           throw new AppError({
