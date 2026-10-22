@@ -157,3 +157,169 @@ export {
 } from "./usage.js";
 
 export type { AuditEntry, AuditListResponse } from "./audit.js";
+
+export {
+  GRAPH_SCHEMA_VERSION,
+  type AgentGraph,
+  type AgentGraphEdge,
+  type AgentGraphNode,
+  type AiPromptNodeConfig,
+  type CapturedFieldDefinition,
+  type CapturedFieldType,
+  type ConditionNodeConfig,
+  type ConditionOperator,
+  type ConditionRule,
+  type ConversationNodeConfig,
+  type EndConversationNodeConfig,
+  type EntrypointNodeConfig,
+  type FlowHandoffState,
+  type FlowPendingAction,
+  type FlowWaitState,
+  type GraphExecutionTrace,
+  type GraphNodeConfigMap,
+  type NodeConfigMap,
+  type GraphNodeExecutionStatus,
+  type GraphNodePort,
+  type GraphNodeType,
+  type GraphPortType,
+  type GraphSessionState,
+  type GraphTraceEvent,
+  type GraphValidationIssue,
+  type GraphValidationIssueType,
+  type GraphValidationResult,
+  type GraphViewport,
+  type HttpRequestNodeConfig,
+  type HttpRequestParameterMapping,
+  type HumanHandoffNodeConfig,
+  type IntentBranch,
+  type IntentRouterNodeConfig,
+  type KnowledgeSearchNodeConfig,
+  type ResponseNodeConfig,
+  type WelcomeNodeConfig,
+} from "./agent-graph.js";
+
+export {
+  validateAgentGraph,
+  type GraphValidationOptions,
+} from "./agent-graph-validator.js";
+
+export { normalizeAgentGraph, graphOutputPorts, isAgentGraphShape } from "./agent-graph-normalize.js";
+
+export type { GraphDraftSettings } from "./agent-graph.js";
+
+export {
+  type WorkflowStatus,
+  type WorkflowRunStatus,
+  type WorkflowStepStatus,
+  type WorkflowNodeType,
+  type WorkflowSourcePort,
+  type TriggerNodeConfig,
+  type ConditionRule as WorkflowConditionRule,
+  type ConditionGroup as WorkflowConditionGroup,
+  type ConditionNodeConfig as WorkflowConditionNodeConfig,
+  type WebhookHeader,
+  type WebhookNodeConfig,
+  type HandoffNodeConfig as WorkflowHandoffNodeConfig,
+  type NotificationNodeConfig,
+  type UpdateTagsNodeConfig,
+  type LogNodeConfig,
+  type EndNodeConfig,
+  type WorkflowNodeConfig,
+  type WorkflowNode,
+  type WorkflowEdge,
+  type WorkflowSettings,
+  type WorkflowGraph,
+  type WorkflowValidationSeverity,
+  type WorkflowValidationIssue,
+  type WorkflowValidationResult,
+  type StepExecutionTrace,
+  type WorkflowSimulationResult,
+  type WorkflowStatsSummary,
+} from "./workflow-graph.js";
+
+export { validateWorkflowGraph } from "./workflow-graph-validator.js";
+
+export { evaluateConditionGroup as evaluateWorkflowConditionGroup, compare as compareWorkflowCondition, getByPath as getWorkflowValue } from "./workflow-condition-evaluator.js";
+export { evaluateRule as evaluateWorkflowRule } from "./workflow-condition-evaluator.js";
+export { isWorkflowGraphShape, workflowOutputPorts } from "./workflow-graph-validator.js";
+
+export type {
+  AnalyticsSummary,
+  AnalyticsDailyTokenBucket,
+  AnalyticsDailyLatencyBucket,
+  AnalyticsServiceUsage,
+  AnalyticsResponse,
+  MetricCoverage,
+  MetricCoverageIndicators,
+} from "./analytics.js";
+
+export {
+  INTEGRATION_PROVIDERS,
+  INTEGRATION_CATEGORIES,
+  type IntegrationProvider,
+  type IntegrationCategory,
+  type IntegrationStatus,
+  type IntegrationCatalogItem,
+  type IntegrationConnection,
+  type ProviderCapabilities,
+  type IntegrationAuthorizeResponse,
+  type IntegrationsListResponse,
+  type IntegrationSyncRequest,
+  type IntegrationSyncResult,
+} from "./integrations.js";
+
+export type {
+  NotificationCategory,
+  NotificationSeverity,
+  NotificationSource,
+  WorkspaceNotificationItem,
+  NotificationsListResponse,
+  UnreadCountResponse,
+} from "./notifications.js";
+
+export type {
+  WebhookStatus,
+  WebhookEndpointItem,
+  WebhookDeliveryAttemptItem,
+  WebhookDeliveryItem,
+  WebhooksListResponse,
+  WebhookDeliveriesListResponse,
+} from "./webhooks.js";
+
+export type {
+  BillingPlanInterval,
+  BillingPlanTier,
+  BillingSubscriptionStatus,
+  BillingPlanFeature,
+  BillingPlan,
+  BillingSubscription,
+  BillingInvoice,
+  OrganizationEntitlements,
+  BillingSummaryResponse,
+  CreateCheckoutSessionRequest,
+  CreateCheckoutSessionResponse,
+  CreateCustomerPortalSessionRequest,
+  CreateCustomerPortalSessionResponse,
+  CancelSubscriptionRequest,
+  BillingReservation,
+  AcquireReservationRequest,
+  AcquireReservationResponse,
+  CommitReservationRequest,
+  BillingCredit,
+  SpendControls,
+} from "./billing.js";
+
+export type {
+  QueuePriority,
+  HandoffStatus,
+  OperatorQueue,
+  OperatorQueueMember,
+  ConversationHandoffRecord,
+  CreateQueueRequest,
+  UpdateQueueRequest,
+  EnqueueConversationRequest,
+  ClaimConversationRequest,
+  QueuesListResponse,
+} from "./operator-queues.js";
+
+

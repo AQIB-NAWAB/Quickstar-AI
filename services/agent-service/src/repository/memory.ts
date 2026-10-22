@@ -95,6 +95,42 @@ export class MemoryAgentStore implements AgentStore {
     if (input.channels !== undefined) agent.channels = input.channels;
     if (input.tools !== undefined) agent.tools = input.tools;
     if (input.voice !== undefined) agent.voice = input.voice;
+    if (input.builderMode !== undefined) agent.builderMode = input.builderMode;
+    if (input.draftGraph !== undefined) agent.draftGraph = input.draftGraph;
+    if (input.graphSchemaVersion !== undefined)
+      agent.graphSchemaVersion = input.graphSchemaVersion;
+    agent.version += 1;
+    agent.updatedAt = new Date();
+    return agent;
+  }
+
+  async updateGraph(
+    tenant: TenantContext,
+    agentId: string,
+    graph: import("@quickstart/contracts").AgentGraph,
+    expectedVersion: number,
+    settings: import("@quickstart/contracts").GraphDraftSettings = {},
+  ): Promise<Agent> {
+    const agent = this.agents.get(agentId);
+    if (!agent || agent.workspaceId !== tenant.workspaceId) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent not found",
+      });
+    }
+    if (agent.version !== expectedVersion) {
+      throw new AppError({
+        code: ErrorCode.CONFLICT,
+        message: "Draft was modified by another user or session; reload and retry",
+      });
+    }
+    if (settings.instructions !== undefined) agent.instructions = settings.instructions;
+    if (settings.model_settings) agent.modelSettings = settings.model_settings;
+    if (settings.channels) agent.channels = settings.channels;
+    if (settings.voice) agent.voice = settings.voice;
+    agent.draftGraph = graph;
+    agent.builderMode = "canvas";
+    agent.graphSchemaVersion = graph.schema_version ?? 1;
     agent.version += 1;
     agent.updatedAt = new Date();
     return agent;
@@ -118,7 +154,7 @@ export class MemoryAgentStore implements AgentStore {
     tenant: TenantContext,
     agentId: string,
     baseVersion: number,
-    _audit?: { requestId: string },
+    audit?: { requestId?: string; releaseNotes?: string },
   ) {
     const agent = this.agents.get(agentId);
     if (!agent || agent.workspaceId !== tenant.workspaceId) {
@@ -141,7 +177,8 @@ export class MemoryAgentStore implements AgentStore {
       workspaceId: tenant.workspaceId,
       agentId,
       releaseNumber,
-      snapshot: snapshotFromAgent(agent),
+      snapshot: snapshotFromAgent(agent, audit?.releaseNotes),
+      releaseNotes: audit?.releaseNotes ?? null,
       createdBy: tenant.actorId,
       createdAt: new Date(),
     };

@@ -21,6 +21,15 @@ export function createEvalTurnsController(turnsService: TurnsService) {
         agent_version_id?: string;
         message?: string;
         text?: string;
+        fixtures?: Array<{
+          toolName?: string;
+          tool_name?: string;
+          matchArgs?: Record<string, unknown>;
+          match_args?: Record<string, unknown>;
+          response?: Record<string, unknown>;
+        }>;
+        allow_tools?: boolean;
+        allowTools?: boolean;
         idempotency_key?: string;
         deadline_ms?: number;
       };
@@ -28,6 +37,13 @@ export function createEvalTurnsController(turnsService: TurnsService) {
       const agentId = body.agent_id?.trim() ?? "";
       const agentVersionId = body.agent_version_id?.trim() ?? "";
       const text = (body.message ?? body.text ?? "").trim();
+      const fixtures = (body.fixtures ?? []).map((f) => ({
+        toolName: f.toolName ?? f.tool_name ?? "",
+        matchArgs: f.matchArgs ?? f.match_args,
+        response: f.response ?? {},
+      })).filter((f) => Boolean(f.toolName));
+      const allowTools = body.allow_tools ?? body.allowTools ?? true;
+
       if (!UUID_RE.test(workspaceId)) {
         throw new AppError({
           code: ErrorCode.VALIDATION_FAILED,
@@ -57,6 +73,8 @@ export function createEvalTurnsController(turnsService: TurnsService) {
         agentId,
         agentVersionId,
         text,
+        fixtures,
+        allowTools,
         idempotencyKey,
         requestId,
         deadlineMs: body.deadline_ms,

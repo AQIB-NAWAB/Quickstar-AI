@@ -2,15 +2,6 @@ export type LeadStatus = "new" | "contacted" | "qualified" | "disqualified";
 
 export type LeadSentiment = "positive" | "neutral" | "negative" | "unknown";
 
-export type LeadSource =
-  | "web_research"
-  | "lead_gen_bot"
-  | "chat"
-  | "voice"
-  | "campaign"
-  | "api"
-  | "manual";
-
 export type CapturedFields = Record<string, string | number | boolean | null>;
 
 export type LeadFieldRole = "identity" | "contact_email" | "contact_phone" | "custom";

@@ -8,6 +8,8 @@ import type {
   CampaignRecord,
   CampaignRetryPolicy,
   CampaignSchedule,
+  CampaignTimezoneMode,
+  CampaignsDirectorySummary,
   CampaignStatus,
   CampaignSummary,
   CampaignTarget,
@@ -24,6 +26,7 @@ import {
   syntheticDialFromKey,
 } from "../utils/audience.js";
 import { isValidE164, normalizePhone } from "../utils/phone.js";
+import { isValidIanaTimezone } from "../utils/schedule-window.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -38,6 +41,8 @@ function defaultSchedule(): CampaignSchedule {
     timezone: "UTC",
     dailyWindowFrom: "09:00",
     dailyWindowTo: "17:00",
+    timezoneMode: "campaign",
+    weekdays: ["mon", "tue", "wed", "thu", "fri"],
   };
 }
 
@@ -65,6 +70,10 @@ export class CampaignsService {
     return this.repo.list(workspaceId, filters);
   }
 
+  directorySummary(workspaceId: string): Promise<CampaignsDirectorySummary> {
+    return this.repo.directorySummary(workspaceId);
+  }
+
   async getDetail(workspaceId: string, campaignId: string): Promise<CampaignDetail> {
     const campaign = await this.requireCampaign(workspaceId, campaignId);
     const metrics = await this.repo.metrics(workspaceId, campaignId);
@@ -78,6 +87,10 @@ export class CampaignsService {
       description?: string | null;
       agent_id?: string;
       agent_name?: string;
+      caller_id?: string | null;
+      agent_version_id?: string | null;
+      timezone_mode?: CampaignTimezoneMode;
+      weekdays?: string[] | number[];
       audience_schema?: unknown;
       schedule?: Partial<CampaignSchedule>;
       pacing?: Partial<CampaignPacing>;
@@ -118,7 +131,12 @@ export class CampaignsService {
     if (telephonyRequired) assertAudienceSchemaHasDial(audienceSchema);
     else assertAudienceSchemaHasReachableContact(audienceSchema);
 
-    const schedule = { ...defaultSchedule(), ...(body.schedule ?? {}) };
+    const schedule: CampaignSchedule = {
+      ...defaultSchedule(),
+      ...(body.schedule ?? {}),
+      timezoneMode: body.timezone_mode ?? body.schedule?.timezoneMode ?? "campaign",
+      weekdays: body.weekdays ?? body.schedule?.weekdays ?? ["mon", "tue", "wed", "thu", "fri"],
+    };
     const pacing: CampaignPacing = {
       maxConcurrentCalls:
         body.pacing?.maxConcurrentCalls ?? this.limits.defaultMaxConcurrentCalls,
@@ -136,6 +154,10 @@ export class CampaignsService {
       description: body.description ?? null,
       agentId,
       agentName: body.agent_name?.trim() || "Agent",
+      callerId: body.caller_id ?? null,
+      agentVersionId: body.agent_version_id ?? null,
+      timezoneMode: schedule.timezoneMode ?? "campaign",
+      weekdays: schedule.weekdays ?? ["mon", "tue", "wed", "thu", "fri"],
       status,
       audienceSchema,
       schedule,
@@ -152,6 +174,51 @@ export class CampaignsService {
     }
 
     return this.getDetail(workspaceId, campaign.id);
+  }
+
+  async updateDraft(
+    workspaceId: string,
+    campaignId: string,
+    expectedVersion: number,
+    patch: {
+      name?: string;
+      description?: string | null;
+      agent_id?: string;
+      agent_name?: string;
+      caller_id?: string | null;
+      agent_version_id?: string | null;
+      timezone_mode?: CampaignTimezoneMode;
+      weekdays?: string[] | number[];
+      schedule?: CampaignSchedule;
+      pacing?: CampaignPacing;
+      retry_policy?: CampaignRetryPolicy;
+    },
+  ): Promise<CampaignDetail> {
+    await this.repo.updateDraft(workspaceId, campaignId, expectedVersion, {
+      name: patch.name,
+      description: patch.description,
+      agentId: patch.agent_id,
+      agentName: patch.agent_name,
+      callerId: patch.caller_id,
+      agentVersionId: patch.agent_version_id,
+      timezoneMode: patch.timezone_mode,
+      weekdays: patch.weekdays,
+      schedule: patch.schedule,
+      pacing: patch.pacing,
+      retryPolicy: patch.retry_policy,
+    });
+    return this.getDetail(workspaceId, campaignId);
+  }
+
+  async delete(workspaceId: string, campaignId: string): Promise<void> {
+    const campaign = await this.requireCampaign(workspaceId, campaignId);
+    if (campaign.status === "running") {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Cannot delete an actively running campaign; pause or stop it first",
+      });
+    }
+    await this.repo.deleteCampaign(workspaceId, campaignId);
   }
 
   /**
@@ -277,12 +344,79 @@ export class CampaignsService {
       },
       { telephonyRequired },
     );
-    const inserted = await this.repo.insertTargets(workspaceId, campaignId, normalized.valid);
+    const isRecipientLocal = campaign.timezoneMode === "recipient_local";
+    const targetsToInsert = [];
+    for (const item of normalized.valid) {
+      let isHeld = false;
+      let heldReason: string | null = null;
+      let tz = item.timezone;
+      let provenance = "provided";
+
+      if (isRecipientLocal) {
+        if (!tz || !isValidIanaTimezone(tz)) {
+          isHeld = true;
+          heldReason = "unknown_timezone";
+          provenance = "unknown";
+          tz = null;
+        }
+      } else {
+        tz = campaign.schedule.timezone || "UTC";
+      }
+
+      targetsToInsert.push({
+        ...item,
+        timezone: tz,
+        timezoneProvenance: provenance,
+        isHeld,
+        heldReason,
+      });
+    }
+
+    const inserted = await this.repo.insertTargets(workspaceId, campaignId, targetsToInsert);
     return {
       inserted,
       invalidCount: normalized.invalidCount,
       duplicateCount: normalized.duplicateCount + (normalized.valid.length - inserted),
     };
+  }
+
+  async exportCsv(workspaceId: string, campaignId: string): Promise<string> {
+    await this.requireCampaign(workspaceId, campaignId);
+    const rows = await this.repo.exportResults(workspaceId, campaignId);
+    if (rows.length === 0) {
+      return "phone,name,email,timezone,status,attempts_count,latest_outcome,duration_seconds,call_id\r\n";
+    }
+
+    const standardHeaders = [
+      "phone",
+      "name",
+      "email",
+      "timezone",
+      "status",
+      "attempts_count",
+      "latest_outcome",
+      "duration_seconds",
+      "call_id",
+      "created_at",
+    ];
+
+    const allKeys = new Set<string>(standardHeaders);
+    for (const r of rows) {
+      for (const k of Object.keys(r)) {
+        if (k !== "id") allKeys.add(k);
+      }
+    }
+    const headerList = Array.from(allKeys);
+    const lines: string[] = [];
+    lines.push(headerList.map(escapeCsvValue).join(","));
+
+    for (const r of rows) {
+      const line = headerList.map((h) => escapeCsvValue(r[h] ?? "")).join(",");
+      lines.push(line);
+    }
+
+    // Formula injection protection + UTF-8 BOM
+    return "\uFEFF" + lines.join("\r\n");
   }
 
   async launch(workspaceId: string, campaignId: string, expectedVersion?: number): Promise<CampaignDetail> {
@@ -380,6 +514,16 @@ export class CampaignsService {
     );
   }
 
+  async reconcileAttempt(input: {
+    providerCallSid: string;
+    status: CampaignAttempt["status"];
+    durationSeconds?: number;
+    hangupCause?: string;
+    amdResult?: string;
+  }): Promise<CampaignAttempt | null> {
+    return this.repo.reconcileAttemptByCallSid(input);
+  }
+
   private async requireCampaign(workspaceId: string, campaignId: string): Promise<CampaignRecord> {
     const campaign = await this.repo.get(workspaceId, campaignId);
     if (!campaign) {
@@ -405,6 +549,17 @@ function parseScheduledStart(schedule: CampaignSchedule): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function escapeCsvValue(val: unknown): string {
+  if (val == null) return '""';
+  let s = String(val);
+  // Formula injection defense: prefix with ' if it starts with =, +, -, @, \t, \r
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+  // Escape double quotes
+  s = s.replace(/"/g, '""');
+  return `"${s}"`;
+}
 
 function toDetail(
   campaign: CampaignRecord,
@@ -417,11 +572,16 @@ function toDetail(
     description: campaign.description,
     agentId: campaign.agentId,
     agentName: campaign.agentName,
+    callerId: campaign.callerId,
+    agentVersionId: campaign.agentVersionId,
+    timezoneMode: campaign.timezoneMode,
+    weekdays: campaign.weekdays,
     status: campaign.status,
     eligibleContacts: metrics.eligibleContacts,
     completedContacts: metrics.completedContacts,
     answerRate: metrics.eligibleContacts > 0 ? metrics.answerRate : null,
     scheduledStart: campaign.scheduledStart?.toISOString() ?? null,
+    heldContactsCount: campaign.heldContactsCount,
     createdAt: campaign.createdAt.toISOString(),
     updatedAt: campaign.updatedAt.toISOString(),
     version: campaign.version,

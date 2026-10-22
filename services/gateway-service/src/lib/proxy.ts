@@ -17,12 +17,17 @@ const HOP_BY_HOP = new Set([
   "content-length",
 ]);
 
+const UNTRUSTED_INGRESS_HEADERS = new Set([
+  "x-quickstart-auth-context",
+  "x-quickstart-internal-token",
+]);
+
 function forwardRequestHeaders(req: Request, requestId: string, access?: VerifiedAccessToken, rawBearer?: string) {
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
     const lower = key.toLowerCase();
-    if (HOP_BY_HOP.has(lower)) continue;
+    if (HOP_BY_HOP.has(lower) || UNTRUSTED_INGRESS_HEADERS.has(lower)) continue;
     headers[key] = Array.isArray(value) ? value.join(", ") : value;
   }
   headers["x-request-id"] = requestId;
@@ -30,12 +35,23 @@ function forwardRequestHeaders(req: Request, requestId: string, access?: Verifie
     headers.authorization = `Bearer ${rawBearer}`;
   }
   if (access) {
-    headers[AUTH_CONTEXT_HEADER] = serializeAuthContext({
-      tenantId: access.org_id,
-      actorId: access.sub,
-      roles: [],
-      requestId,
-    });
+    const signingSecret = process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_ACCESS_SECRET;
+    const rawWorkspace = req.params?.workspaceId;
+    const workspaceId = Array.isArray(rawWorkspace) ? rawWorkspace[0] : rawWorkspace;
+    headers[AUTH_CONTEXT_HEADER] = serializeAuthContext(
+      {
+        tenantId: access.org_id,
+        actorId: access.sub,
+        roles: [],
+        requestId,
+        principalType: access.isApiKey ? "api_key" : "staff",
+        orgId: access.org_id,
+        workspaceId,
+        aud: "quickstart-internal",
+        email: access.email,
+      },
+      signingSecret,
+    );
   }
   return headers;
 }
@@ -53,18 +69,26 @@ export async function proxyToUpstream(
   const method = req.method;
   const headers = forwardRequestHeaders(req, requestId, options.access, options.rawBearer);
 
-  let body: string | undefined;
-  if (method !== "GET" && method !== "HEAD" && req.body !== undefined && req.body !== null) {
-    body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-    if (!headers["content-type"]) {
-      headers["content-type"] = "application/json";
+  let body: any = undefined;
+  let duplex: string | undefined = undefined;
+  const isMultipart = Boolean(headers["content-type"]?.includes("multipart/form-data"));
+
+  if (method !== "GET" && method !== "HEAD") {
+    if (isMultipart) {
+      body = req;
+      duplex = "half";
+    } else if (req.body !== undefined && req.body !== null) {
+      body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      if (!headers["content-type"]) {
+        headers["content-type"] = "application/json";
+      }
     }
   }
 
   try {
     const upstream = await fetchWithPolicy(
       url,
-      { method, headers, body },
+      { method, headers, body, ...(duplex ? { duplex } : {}) } as RequestInit,
       { timeoutMs: options.timeoutMs, maxRetries: 0 },
     );
 
@@ -117,6 +141,10 @@ export async function proxyToUpstream(
     res.status(upstream.status);
     if (contentType) {
       res.setHeader("content-type", contentType);
+    }
+    const contentDisposition = upstream.headers.get("content-disposition");
+    if (contentDisposition) {
+      res.setHeader("content-disposition", contentDisposition);
     }
     res.setHeader("x-request-id", requestId);
     res.send(responseText);

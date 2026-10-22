@@ -40,6 +40,3 @@ export async function runWebFetchMigrations(pool: Pool): Promise<void> {
     client.release();
   }
 }
-
-/** @deprecated Use runWebFetchMigrations */
-export const runWebAcquisitionMigrations = runWebFetchMigrations;

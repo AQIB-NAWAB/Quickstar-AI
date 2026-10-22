@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
-const MIGRATION_FILES = ["001_workflows.sql"] as const;
+const MIGRATION_FILES = [
+  "001_workflows.sql",
+  "002_workflow_graphs_and_versions.sql",
+  "003_durable_leases_and_recovery.sql",
+] as const;
 
 export async function runWorkflowMigrations(pool: Pool): Promise<void> {
   for (const file of MIGRATION_FILES) {

@@ -53,6 +53,12 @@ export const createWorkspaceTenantRoutes: RouteModule<WorkspaceHttpContext> = (c
     requirePermission(authorization, WORKSPACE_PERMISSIONS.MEMBER_REMOVE),
     asyncHandler(membersCtrl.removeMember),
   );
+  router.post(
+    "/v1/workspaces/:workspaceId/transfer-ownership",
+    ...tenantMiddleware,
+    requirePermission(authorization, WORKSPACE_PERMISSIONS.WORKSPACE_DELETE),
+    asyncHandler(membersCtrl.transferOwnership),
+  );
 
   router.get(
     "/v1/workspaces/:workspaceId/invites",
@@ -71,6 +77,12 @@ export const createWorkspaceTenantRoutes: RouteModule<WorkspaceHttpContext> = (c
     ...tenantMiddleware,
     requirePermission(authorization, WORKSPACE_PERMISSIONS.MEMBER_REMOVE),
     asyncHandler(membersCtrl.deleteInvite),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/invites/:inviteId/resend",
+    ...tenantMiddleware,
+    requirePermission(authorization, WORKSPACE_PERMISSIONS.MEMBER_INVITE),
+    asyncHandler(membersCtrl.resendInvite),
   );
 
   return router;

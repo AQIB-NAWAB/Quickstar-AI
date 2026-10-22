@@ -98,6 +98,7 @@ export function normalizeIncomingTargets(
     dialNormalized: string;
     displayName: string | null;
     email: string | null;
+    timezone?: string | null;
     attributes: Record<string, string>;
     sourceKind: "csv" | "lead" | "api";
     sourceRef: string | null;
@@ -110,6 +111,7 @@ export function normalizeIncomingTargets(
     dialNormalized: string;
     displayName: string | null;
     email: string | null;
+    timezone?: string | null;
     attributes: Record<string, string>;
     sourceKind: "csv" | "lead" | "api";
     sourceRef: string | null;
@@ -153,6 +155,7 @@ export function normalizeIncomingTargets(
       dialNormalized,
       displayName,
       email,
+      timezone: row.timezone ?? null,
       attributes,
       sourceKind: row.sourceKind ?? "csv",
       sourceRef: row.sourceRef ?? null,

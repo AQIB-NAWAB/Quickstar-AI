@@ -1,12 +1,25 @@
+export type NotificationCategory =
+  | "all"
+  | "unread"
+  | "system_security"
+  | "voice_campaigns"
+  | "billing"
+  | "knowledge"
+  | "general";
+
+export type NotificationSeverity = "info" | "warning" | "error" | "success";
+
 export type NotificationType =
   | "ingest_failed"
   | "usage_threshold"
   | "campaign_attention"
   | "member_joined"
   | "agent_published"
+  | "security_alert"
   | string;
 
 export interface NotificationSource {
+  type?: string;
   name: string;
   id: string;
 }
@@ -14,13 +27,17 @@ export interface NotificationSource {
 export interface WorkspaceNotification {
   id: string;
   workspaceId: string;
+  category: NotificationCategory;
+  severity: NotificationSeverity;
   type: NotificationType;
   title: string;
   description: string;
-  source: NotificationSource;
+  source?: NotificationSource | null;
+  actionUrl?: string | null;
+  actionLabel?: string | null;
   createdAt: string; // ISO UTC
   readAt: string | null;
-  timeAgoLabel: string;
+  timeAgoLabel?: string;
 }
 
 export type RepositoryResult<T> =
@@ -30,12 +47,18 @@ export type RepositoryResult<T> =
   | { status: "not_found"; message: string }
   | { status: "error"; message: string };
 
+export interface NotificationsListResult {
+  notifications: WorkspaceNotification[];
+  unreadCount: number;
+  total: number;
+}
+
 export interface NotificationsRepository {
   listNotifications(
     workspaceId: string,
-    filter?: { unreadOnly?: boolean; type?: string },
+    filter?: { category?: string; unreadOnly?: boolean; limit?: number },
     signal?: AbortSignal
-  ): Promise<RepositoryResult<WorkspaceNotification[]>>;
+  ): Promise<RepositoryResult<NotificationsListResult>>;
 
   getUnreadCount(
     workspaceId: string,
@@ -48,6 +71,11 @@ export interface NotificationsRepository {
   ): Promise<RepositoryResult<WorkspaceNotification>>;
 
   markAllAsRead(
+    workspaceId: string,
+    category?: string
+  ): Promise<RepositoryResult<{ count: number }>>;
+
+  dismissRead?(
     workspaceId: string
   ): Promise<RepositoryResult<{ count: number }>>;
 }

@@ -35,6 +35,7 @@ type Round = {
 function loopWith(
   rounds: Round[],
   executed: Array<{ name: string; args: Record<string, unknown> }>,
+  visitorText = "check post 5 and post 6",
 ) {
   const modelClient = {
     async complete(body: CompletionRequestBody): Promise<CompletionResponseBody> {
@@ -86,7 +87,8 @@ function loopWith(
     authHeaders: {},
     model: { profile: "fake", model_id: "fake:model" },
     tools: [HTTP_TOOL],
-    chatMessages: [{ role: "user", content: "hi" }],
+    chatMessages: [{ role: "user", content: visitorText }],
+    visitorText,
   });
 }
 

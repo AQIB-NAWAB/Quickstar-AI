@@ -5,7 +5,7 @@ import { EvaluationState } from "@/features/evaluation/components/evaluation-sta
 
 export const metadata = {
   title: "Evaluation Runs — QuickStart AI",
-  description: "View evaluation benchmark run history and scores.",
+  description: "View evaluation benchmark run history, pass rates, and latencies.",
 };
 
 interface Props {
@@ -18,24 +18,33 @@ export default async function WorkspaceRunsPage({ params }: Props) {
   const { activeWorkspace } = await loadWorkspaceShell(params.workspaceId);
   const repo = getEvaluationRepository(false);
 
-  const result = await repo.listRuns(activeWorkspace.id);
+  const [runsResult, datasetsResult] = await Promise.all([
+    repo.listRuns(activeWorkspace.id),
+    repo.listDatasets(activeWorkspace.id).catch(() => null),
+  ]);
 
-  if (result.status !== "ready") {
+  if (runsResult.status !== "ready") {
     return (
       <div className="w-full">
         <EvaluationState
-          status={result.status}
-          message={result.message}
+          status={runsResult.status}
+          message={runsResult.message}
         />
       </div>
     );
   }
 
+  const datasets =
+    datasetsResult && datasetsResult.status === "ready"
+      ? datasetsResult.data
+      : [];
+
   return (
     <div className="w-full">
       <RunHistory
         workspaceId={activeWorkspace.id}
-        runs={result.data}
+        runs={runsResult.data}
+        datasets={datasets}
         isPreview={false}
         isCompact={false}
       />

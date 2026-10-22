@@ -18,7 +18,26 @@ export function createWorkspacesController(workspaces: WorkspacesService) {
         });
       }
 
-      const body = req.body as { name?: string; slug?: string };
+      const authContext = res.locals.authContext;
+      const tokenOrgId = res.locals.tokenOrgId;
+
+      if (authContext?.orgId && authContext.orgId !== orgId) {
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Cross-organization access rejected: context organization does not match target route",
+          requestId,
+        });
+      }
+
+      if (!authContext && tokenOrgId && tokenOrgId !== orgId) {
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Cross-organization access rejected: token organization does not match target route",
+          requestId,
+        });
+      }
+
+      const body = req.body as { name?: string; slug?: string; ownerUserId?: string };
       const workspace = await workspaces.createWorkspace({
         orgId,
         name: body?.name ?? "",
@@ -41,6 +60,25 @@ export function createWorkspacesController(workspaces: WorkspacesService) {
         throw new AppError({
           code: ErrorCode.UNAUTHORIZED,
           message: "Actor context required",
+          requestId,
+        });
+      }
+
+      const authContext = res.locals.authContext;
+      const tokenOrgId = res.locals.tokenOrgId;
+
+      if (authContext?.orgId && authContext.orgId !== orgId) {
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Cross-organization access rejected: context organization does not match target route",
+          requestId,
+        });
+      }
+
+      if (!authContext && tokenOrgId && tokenOrgId !== orgId) {
+        throw new AppError({
+          code: ErrorCode.FORBIDDEN,
+          message: "Cross-organization access rejected: token organization does not match target route",
           requestId,
         });
       }

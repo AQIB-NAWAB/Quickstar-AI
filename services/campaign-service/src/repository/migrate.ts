@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
-const MIGRATION_FILES = ["001_campaigns.sql"] as const;
+const MIGRATION_FILES = [
+  "001_campaigns.sql",
+  "002_campaign_scheduling_and_pacing.sql",
+  "003_campaign_attempts_and_reconciliation.sql",
+] as const;
 
 export async function runCampaignMigrations(pool: Pool): Promise<void> {
   for (const file of MIGRATION_FILES) {

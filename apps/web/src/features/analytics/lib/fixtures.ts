@@ -212,6 +212,9 @@ export function generateDeterministicAnalyticsData(range: DateRange): AnalyticsD
       conversations,
       latencyP50Ms: 1200,
       latencyP95Ms: 3800,
+      estimatedSpendUsd: 14.82,
+      modelSpendUsd: 11.2,
+      voiceSpendUsd: 3.62,
       voiceMinutes,
       voiceCalls,
       billableAcquisitionActions,
@@ -222,6 +225,7 @@ export function generateDeterministicAnalyticsData(range: DateRange): AnalyticsD
     hourlyConversations,
     dailyLatency,
     acquisitions,
+    usageByService: [],
     voice: {
       minutes: voiceMinutes,
       calls: voiceCalls,

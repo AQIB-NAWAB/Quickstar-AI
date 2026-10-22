@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import type { KnowledgeSourceStatus } from "../lib/types";
 import { mapBackendStatusToPresentation } from "../lib/format";
 
@@ -10,22 +9,10 @@ interface SourceStatusBadgeProps {
 export function SourceStatusBadge({ status, className = "" }: SourceStatusBadgeProps) {
   const { presentation, label } = mapBackendStatusToPresentation(status);
 
-  if (presentation === "processing") {
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 text-xs font-medium text-heat-100 ${className}`}
-        aria-label={`Status: ${label}`}
-      >
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-heat-100" />
-        <span>{label}</span>
-      </span>
-    );
-  }
-
   if (presentation === "ready") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 text-xs font-medium text-[#16A34A] ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#E9F9EF] text-[#15803D] ${className}`}
         aria-label={`Status: ${label}`}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
@@ -34,25 +21,25 @@ export function SourceStatusBadge({ status, className = "" }: SourceStatusBadgeP
     );
   }
 
-  if (presentation === "failed") {
+  if (presentation === "indexing") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 text-xs font-medium text-accent-crimson ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEF6EE] text-[#B45309] ${className}`}
         aria-label={`Status: ${label}`}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-accent-crimson" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
         <span>{label}</span>
       </span>
     );
   }
 
-  if (presentation === "pending") {
+  if (presentation === "failed") {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEF3F2] text-[#B42318] ${className}`}
         aria-label={`Status: ${label}`}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#D92D20]" />
         <span>{label}</span>
       </span>
     );
@@ -60,10 +47,10 @@ export function SourceStatusBadge({ status, className = "" }: SourceStatusBadgeP
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#F2F4F7] text-[#475467] ${className}`}
       aria-label={`Status: ${label}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
+      <span className="w-1.5 h-1.5 rounded-full bg-[#98A2B3]" />
       <span>{label}</span>
     </span>
   );

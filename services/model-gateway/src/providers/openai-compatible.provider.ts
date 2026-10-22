@@ -2,6 +2,7 @@ import type { ChatMessage, ModelToolCall } from "@quickstart/contracts";
 import type { ProviderProfileConfig } from "../config/environment.js";
 import { ProviderError } from "../domain/types.js";
 import type { ProviderCompletionInput, ProviderCompletionOutput } from "../domain/types.js";
+import { repairAndParseJson } from "../lib/json-repair.js";
 import type { ChatProvider } from "./types.js";
 
 type OpenAiToolCall = {
@@ -24,15 +25,7 @@ type OpenAiChatResponse = {
 };
 
 function parseToolArguments(raw: string | undefined): Record<string, unknown> {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : { value: parsed };
-  } catch {
-    return { raw };
-  }
+  return repairAndParseJson(raw);
 }
 
 function mapToolCalls(calls: OpenAiToolCall[] | undefined): ModelToolCall[] | undefined {
@@ -183,7 +176,13 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       stream,
     };
     if (input.temperature !== undefined) body.temperature = input.temperature;
-    if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
+    if (input.maxTokens !== undefined) {
+      body.max_tokens = this.config.baseUrl?.includes("groq.com")
+        ? Math.min(input.maxTokens, 220)
+        : input.maxTokens;
+    } else if (this.config.baseUrl?.includes("groq.com")) {
+      body.max_tokens = 220;
+    }
     if (/gpt-oss/i.test(input.modelId)) {
       body.reasoning_effort = "low";
     }
@@ -208,25 +207,61 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       ...this.config.defaultHeaders,
     };
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-    } catch (error) {
-      throw new ProviderError("upstream network error", { retryable: true, cause: error });
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          continue;
+        }
+        throw new ProviderError("upstream network error", { retryable: true, cause: error });
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        const retryable = response.status === 429 || response.status >= 500;
+
+        // Auto-retry 429 rate limit if wait time is reasonable (<= 12s)
+        if (response.status === 429 && attempt < maxRetries) {
+          let waitMs = 2500 * Math.pow(1.5, attempt);
+          const retryAfterSec = response.headers.get("retry-after");
+          if (retryAfterSec) {
+            const sec = parseFloat(retryAfterSec);
+            if (!isNaN(sec) && sec > 0 && sec <= 12) {
+              waitMs = Math.ceil(sec * 1000) + 600;
+            }
+          } else {
+            const match = errText.match(/try again in ([\d\.]+)s/i);
+            if (match) {
+              const sec = parseFloat(match[1]);
+              if (!isNaN(sec) && sec > 0 && sec <= 12) {
+                waitMs = Math.ceil(sec * 1000) + 600;
+              }
+            }
+          }
+
+          if (waitMs <= 12000) {
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+        }
+
+        throw new ProviderError(`upstream ${response.status}: ${errText}`, {
+          retryable,
+          httpStatus: response.status,
+        });
+      }
+
+      return response;
     }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      const retryable = response.status === 429 || response.status >= 500;
-      throw new ProviderError(`upstream ${response.status}: ${errText}`, {
-        retryable,
-        httpStatus: response.status,
-      });
-    }
-    return response;
+    throw new ProviderError("upstream request failed after retries", { retryable: true });
   }
 }

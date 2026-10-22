@@ -1,6 +1,8 @@
 import type { RequestHandler } from "@quickstart/http-server";
 import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
+import type { AnalyticsService } from "../services/analytics.service.js";
+import type { BillingService } from "../services/billing.service.js";
 import type { UsageService } from "../services/usage.service.js";
 
 export type UsageHttpContext = {
@@ -10,4 +12,7 @@ export type UsageHttpContext = {
   internalAuth: RequestHandler;
   workspaceAccess: WorkspaceAccessClient;
   usage: UsageService;
+  analytics: AnalyticsService;
+  billing: BillingService;
 };
+

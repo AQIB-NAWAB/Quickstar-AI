@@ -165,6 +165,10 @@ export function CampaignPreviewView({ view }: CampaignPreviewViewProps) {
         campaignBaseUrl={campaignBaseUrl}
         backUrl="/preview/campaigns"
         isPreview={true}
+        onLaunch={async () => {
+          await campaignPreviewStore.launchCampaign("local-preview", activeCampaign.id, activeCampaign.version);
+          await refreshCampaign(activeCampaign.id);
+        }}
         onPause={async () => {
           await campaignPreviewStore.pauseCampaign("local-preview", activeCampaign.id, activeCampaign.version);
           await refreshCampaign(activeCampaign.id);

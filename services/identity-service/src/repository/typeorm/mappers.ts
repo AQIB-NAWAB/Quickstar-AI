@@ -60,3 +60,15 @@ export function toApiKeyRecord(entity: ApiKeyEntity): ApiKeyRecord {
     createdAt: entity.createdAt,
   };
 }
+
+export function toPasswordResetRecord(entity: import("../entities/password-reset.entity.js").PasswordResetEntity): import("../types.js").PasswordResetRecord {
+  return {
+    id: entity.id,
+    userId: entity.userId,
+    tokenHash: entity.tokenHash,
+    expiresAt: entity.expiresAt,
+    usedAt: entity.usedAt,
+    createdAt: entity.createdAt,
+  };
+}
+

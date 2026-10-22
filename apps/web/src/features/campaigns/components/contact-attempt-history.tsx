@@ -115,10 +115,10 @@ export function ContactAttemptHistory({
                         workspaceVoiceUrl ? (
                           <Link
                             href={`${workspaceVoiceUrl}/${encodeURIComponent(att.callId)}`}
-                            className="inline-flex items-center gap-1 text-heat-100 hover:underline font-mono"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-6 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-accent-black transition-colors font-mono"
                           >
-                            <span>{att.callId}</span>
-                            <ExternalLink className="w-3 h-3" />
+                            <span>Inspect call</span>
+                            <ExternalLink className="w-3 h-3 text-neutral-500" />
                           </Link>
                         ) : (
                           <span className="font-mono text-neutral-600">{att.callId}</span>

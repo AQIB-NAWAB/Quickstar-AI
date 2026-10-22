@@ -36,13 +36,6 @@ export interface LeadDetail extends LeadSummary {
   transcriptMessages: TranscriptMessage[];
 }
 
-export interface LeadsFilterState {
-  q: string;
-  status: string; // "all" | LeadStatus
-  tag: string; // "all" | string
-  leadId: string | null;
-}
-
 export type RepositoryResult<T> =
   | { status: "ready"; data: T }
   | { status: "unavailable"; message: string }

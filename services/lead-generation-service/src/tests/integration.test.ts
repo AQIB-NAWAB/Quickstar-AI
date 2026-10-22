@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+
+process.env.NODE_ENV = "test";
 import http from "node:http";
 import { signAccessToken } from "@quickstart/auth";
 import { createLogger } from "@quickstart/logging";
@@ -621,7 +623,7 @@ test("an empty early search still tries later query variants", async () => {
     const provider = new EmptyFirstSearch();
     await drain(f, provider);
     const run = await f.store.run(f.i, created.run.id);
-    assert.equal(provider.calls, 3);
+    assert.equal(provider.calls, 6);
     assert.equal(run.rounds, 3);
     assert.equal(run.accepted, 3);
   } finally {

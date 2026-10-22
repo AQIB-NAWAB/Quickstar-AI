@@ -35,6 +35,11 @@ export class ConversationClient {
     private readonly widgetInternalToken?: string,
   ) {}
 
+  async requestGraphHandoff(workspaceId: string, conversationId: string, requestId: string, channel: "chat" | "voice"): Promise<void> {
+    const res = await fetchWithPolicy(`${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/widget/conversations/${encodeURIComponent(conversationId)}/voice-attention`, { method: "POST", headers: { ...this.widgetAuthHeaders(requestId), "content-type": "application/json" }, body: JSON.stringify({ channel }) }, {timeoutMs:this.timeoutMs,maxRetries:0});
+    if (!res.ok) throw new AppError({code:ErrorCode.UPSTREAM_UNAVAILABLE,message:"Could not request an operator handoff."});
+  }
+
   private widgetAuthHeaders(requestId: string): Record<string, string> {
     if (!this.widgetInternalToken) {
       throw new Error("widget internal token not configured");

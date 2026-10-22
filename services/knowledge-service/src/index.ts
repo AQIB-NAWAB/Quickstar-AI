@@ -24,6 +24,7 @@ import { SourcesRepository } from "./repository/sources.repository.js";
 import { SourcesService } from "./services/sources.service.js";
 import { RetrieveService } from "./services/retrieve.service.js";
 import { startIngestWorker } from "./services/ingest.worker.js";
+import { ExtractionWorker } from "./workers/extraction.worker.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 
 export async function startKnowledgeServer(): Promise<{ server: Server; shutdown: () => Promise<void> }> {
@@ -73,7 +74,7 @@ export async function startKnowledgeServer(): Promise<{ server: Server; shutdown
     });
   }
 
-  const sources = new SourcesService(repo, queue, contentStore);
+  const sources = new SourcesService(repo, queue, contentStore, opensearch);
   const retrieve = new RetrieveService(opensearch, embedder);
   const worker = startIngestWorker({
     config,
@@ -84,6 +85,14 @@ export async function startKnowledgeServer(): Promise<{ server: Server; shutdown
     contentStore,
     logger,
   });
+
+  const extractionWorker = new ExtractionWorker(
+    repo,
+    contentStore,
+    logger,
+    (workspaceId, source) => sources.enqueueIngest(workspaceId, source),
+  );
+  extractionWorker.start();
 
   const app = createHttpServer({
     logger,
@@ -111,6 +120,7 @@ export async function startKnowledgeServer(): Promise<{ server: Server; shutdown
 
   const shutdown = async () => {
     worker.stop();
+    await extractionWorker.stop();
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });

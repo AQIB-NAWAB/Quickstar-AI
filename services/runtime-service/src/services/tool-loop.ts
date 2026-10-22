@@ -5,9 +5,9 @@ import type {
   ModelToolDefinition,
 } from "@quickstart/contracts";
 import { MAX_TOOL_ROUNDS_PER_TURN } from "@quickstart/contracts";
-import { AppError, ErrorCode } from "@quickstart/errors";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
 import type { ToolCallsClient } from "../clients/tool-calls.client.js";
+import { repairAndParseJson } from "../lib/json-repair.js";
 import { buildToolCallKey } from "../lib/tool-call-key.js";
 import type { ToolExecutor } from "./tool-executor.js";
 import {
@@ -133,6 +133,13 @@ function toolGuardMessage(message: string): string {
   return JSON.stringify({ error: "tool_guard", instruction: message });
 }
 
+export type ToolExecutionSummary = {
+  name: string;
+  status: "succeeded" | "failed" | "pending" | "unknown";
+  args?: Record<string, unknown>;
+  error?: string;
+};
+
 export type ToolLoopInput = {
   workspaceId: string;
   conversationId: string;
@@ -147,7 +154,8 @@ export type ToolLoopInput = {
   replyLanguage?: string;
   replyGender?: "female" | "male" | "neutral";
   /** Spoken before the tool runs so the caller is not left in silence. */
-  onToolStart?: (event: { name: string; spoken: string }) => void;
+  onToolStart?: (event: { name: string; spoken: string; args?: Record<string, unknown> }) => void;
+  onToolDone?: (event: ToolExecutionSummary) => void;
   visitorText?: string;
   signal?: AbortSignal;
 };
@@ -161,11 +169,17 @@ export class ToolLoop {
 
   async run(
     input: ToolLoopInput,
-  ): Promise<{ content: string; chatMessages: ChatMessage[]; transferred: boolean }> {
+  ): Promise<{
+    content: string;
+    chatMessages: ChatMessage[];
+    transferred: boolean;
+    toolCalls: ToolExecutionSummary[];
+  }> {
     const messages = [...input.chatMessages];
     const modelTools = input.tools.length > 0 ? toModelTools(input.tools) : undefined;
     let transferred = false;
     const executedCalls = new Map<string, number>();
+    const toolCalls: ToolExecutionSummary[] = [];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS_PER_TURN; round += 1) {
       if (input.signal?.aborted) throw new DOMException("Turn interrupted", "AbortError");
@@ -181,7 +195,7 @@ export class ToolLoop {
       if (input.signal?.aborted) throw new DOMException("Turn interrupted", "AbortError");
 
       if (completion.finish_reason !== "tool_calls" || !completion.tool_calls?.length) {
-        return { content: completion.content, chatMessages: messages, transferred };
+        return { content: completion.content, chatMessages: messages, transferred, toolCalls };
       }
 
       messages.push({
@@ -197,6 +211,9 @@ export class ToolLoop {
             name: call.name,
             spoken: spokenToolNudge(call.name, input.replyLanguage, input.replyGender),
           });
+          const transferEvent: ToolExecutionSummary = { name: call.name, status: "succeeded" };
+          toolCalls.push(transferEvent);
+          input.onToolDone?.(transferEvent);
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -211,6 +228,13 @@ export class ToolLoop {
         }
         const tool = findTool(input.tools, call.name);
         if (!tool) {
+          const failEvent: ToolExecutionSummary = {
+            name: call.name,
+            status: "failed",
+            error: "tool not configured on agent version",
+          };
+          toolCalls.push(failEvent);
+          input.onToolDone?.(failEvent);
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -220,7 +244,12 @@ export class ToolLoop {
           continue;
         }
 
-        const args = normalizePathArgs(tool, call.arguments ?? {});
+        const rawCallArgs = call.arguments ?? {};
+        const resolvedArgs =
+          typeof rawCallArgs.raw === "string"
+            ? repairAndParseJson(rawCallArgs.raw)
+            : rawCallArgs;
+        const args = normalizePathArgs(tool, resolvedArgs);
         const callFingerprint = `${call.name}:${JSON.stringify(args)}`;
         if (executedCalls.has(callFingerprint)) {
           messages.push({
@@ -265,6 +294,7 @@ export class ToolLoop {
         input.onToolStart?.({
           name: call.name,
           spoken: spokenToolNudge(call.name, input.replyLanguage, input.replyGender),
+          args,
         });
 
         // Barge-in can arrive while the model is choosing a tool. Never start
@@ -283,6 +313,13 @@ export class ToolLoop {
             prior.response_json != null
               ? JSON.stringify(prior.response_json)
               : (prior.error_code ?? prior.status);
+          const replayEvent: ToolExecutionSummary = {
+            name: call.name,
+            status: prior.status as ToolExecutionSummary["status"],
+            args,
+          };
+          toolCalls.push(replayEvent);
+          input.onToolDone?.(replayEvent);
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -319,19 +356,97 @@ export class ToolLoop {
           error_code: result.errorCode ?? null,
         });
 
+        const doneEvent: ToolExecutionSummary = {
+          name: call.name,
+          status: result.status,
+          args,
+          error: result.status === "failed" ? result.errorCode : undefined,
+        };
+        toolCalls.push(doneEvent);
+        input.onToolDone?.(doneEvent);
+
+        let toolContent = result.content;
+        if (!result.ok) {
+          toolContent = JSON.stringify({
+            status: "error",
+            error_code: result.errorCode ?? "TOOL_EXECUTION_FAILED",
+            message: result.content,
+            instruction:
+              "The tool call failed. Do not call this tool again with identical arguments. Either ask the visitor for clarification if an argument was invalid, try an alternative approach, or politely explain the issue to the visitor without technical error dumps.",
+          });
+        } else {
+          const trimmed = result.content.trim();
+          if (
+            trimmed === "[]" ||
+            trimmed === "{}" ||
+            /^\{\s*"(?:items|results|data|records|slots)"\s*:\s*\[\s*\]\s*\}$/.test(trimmed) ||
+            /^\{\s*"(?:count|total|total_results)"\s*:\s*0\s*\}$/.test(trimmed)
+          ) {
+            try {
+              const parsed = JSON.parse(trimmed) as unknown;
+              toolContent = JSON.stringify({
+                data: parsed,
+                notice:
+                  "Zero matching records found. Report this outcome truthfully to the visitor; do not fabricate fake IDs, mock appointments, or assumptions.",
+              });
+            } catch {
+              /* keep original content */
+            }
+          }
+        }
+
         messages.push({
           role: "tool",
           tool_call_id: call.id,
           name: call.name,
-          content: result.content,
+          content: toolContent,
         });
       }
     }
 
-    throw new AppError({
-      code: ErrorCode.VALIDATION_FAILED,
-      message: `Exceeded maximum tool rounds (${MAX_TOOL_ROUNDS_PER_TURN})`,
-    });
+    // Graceful Fallback on Max Tool Rounds:
+    // Instead of throwing AppError and failing the user's turn, make one final synthesis call without tools.
+    try {
+      messages.push({
+        role: "system",
+        content:
+          "The maximum tool execution steps for this turn have been reached. Do not invoke any further tools. Using the information gathered from prior tool calls, synthesize a clear, helpful response explaining what was completed and what remains pending.",
+      });
+
+      const finalCompletion = await this.modelClient.complete(
+        {
+          workspace_id: input.workspaceId,
+          request_id: input.requestId,
+          model: input.model,
+          messages,
+          tools: undefined,
+          temperature: input.temperature,
+          ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+        },
+        input.signal,
+      );
+
+      if (finalCompletion.content && finalCompletion.content.trim()) {
+        return {
+          content: finalCompletion.content,
+          chatMessages: messages,
+          transferred,
+          toolCalls,
+        };
+      }
+    } catch {
+      /* fallback to default polite message */
+    }
+
+    const fallbackSummary =
+      "I was able to perform part of your request, but reached the maximum allowed steps for this turn. Here is the latest update based on the actions taken so far. Please let me know if you would like me to continue.";
+
+    return {
+      content: fallbackSummary,
+      chatMessages: messages,
+      transferred,
+      toolCalls,
+    };
   }
 
   /** Widget voice has no staff token. A failed audit write must not block the function. */

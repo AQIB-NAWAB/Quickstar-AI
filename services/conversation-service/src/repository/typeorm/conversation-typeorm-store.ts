@@ -410,5 +410,52 @@ export function createTypeOrmConversationStore(dataSource: DataSource): Conversa
       );
       return rows.map((row: Record<string, unknown>) => mapToolCallRow(row));
     },
+
+    async updateTags(
+      workspaceId: string,
+      conversationId: string,
+      tags: string[],
+      mode: "add" | "remove" | "replace" = "add",
+    ): Promise<string[]> {
+      const cleanTags = tags.map((t) => t.trim().toLowerCase()).filter(Boolean);
+      let query = "";
+      const params: unknown[] = [workspaceId, conversationId, cleanTags];
+
+      if (mode === "replace") {
+        query = `
+          UPDATE conversations
+          SET tags = $3, updated_at = NOW()
+          WHERE workspace_id = $1 AND id = $2
+          RETURNING tags
+        `;
+      } else if (mode === "remove") {
+        query = `
+          UPDATE conversations
+          SET tags = ARRAY(
+            SELECT t FROM unnest(tags) AS t WHERE t NOT IN (SELECT unnest($3::text[]))
+          ), updated_at = NOW()
+          WHERE workspace_id = $1 AND id = $2
+          RETURNING tags
+        `;
+      } else {
+        query = `
+          UPDATE conversations
+          SET tags = ARRAY(
+            SELECT DISTINCT t FROM unnest(array_cat(tags, $3::text[])) AS t WHERE t IS NOT NULL AND t != ''
+          ), updated_at = NOW()
+          WHERE workspace_id = $1 AND id = $2
+          RETURNING tags
+        `;
+      }
+
+      const rows = await dataSource.query(query, params);
+      if (rows.length === 0) {
+        throw new AppError({
+          code: ErrorCode.NOT_FOUND,
+          message: "Conversation not found",
+        });
+      }
+      return (rows[0].tags as string[]) ?? [];
+    },
   };
 }

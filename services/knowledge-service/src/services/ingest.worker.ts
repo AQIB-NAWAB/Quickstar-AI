@@ -1,12 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { Logger } from "@quickstart/logging";
 import type { ContentStore } from "../lib/content-store.js";
 import type { KnowledgeConfig } from "../config/environment.js";
-import { chunkText } from "../lib/chunk.js";
+import { chunkTextWithCoordinates } from "../lib/chunk.js";
 import type { EmbeddingProvider } from "../lib/embed.js";
-import type { OpenSearchClient } from "../lib/opensearch.js";
-import type { IngestQueue } from "../lib/sqs.js";
+import type { ChunkDocument, OpenSearchClient } from "../lib/opensearch.js";
+import type { IngestJobMessage, IngestQueue } from "../lib/sqs.js";
 import type { SourcesRepository } from "../repository/sources.repository.js";
+
+const DEFAULT_EMBED_CONCURRENCY = 2;
 
 async function loadSourceText(
   source: { content_text: string | null; storage_key: string | null },
@@ -19,6 +21,28 @@ async function loadSourceText(
   return source.content_text?.trim() ?? "";
 }
 
+/**
+ * Executes async tasks with bounded concurrency to prevent overwhelming downstream embedding providers.
+ */
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIdx = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIdx < items.length) {
+      const idx = nextIdx++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
 export function startIngestWorker(deps: {
   config: KnowledgeConfig;
   queue: IngestQueue;
@@ -27,106 +51,206 @@ export function startIngestWorker(deps: {
   embedder: EmbeddingProvider;
   contentStore: ContentStore | null;
   logger: Logger;
+  embedConcurrency?: number;
 }): { stop: () => void } {
   let running = true;
+  let inFlight = false;
+  let timerId: ReturnType<typeof setTimeout> | undefined;
 
-  const tick = async () => {
-    if (!running) {
+  const concurrency = deps.embedConcurrency ?? DEFAULT_EMBED_CONCURRENCY;
+
+  const processJob = async (job: IngestJobMessage, receiptHandle: string) => {
+    // 1. Delete Action
+    if (job.action === "delete") {
+      await deps.opensearch.deleteBySource(job.workspace_id, job.source_id);
+      await deps.queue.ack(receiptHandle);
       return;
     }
+
+    const { workspace_id: workspaceId, source_id: sourceId, version: jobVersion } = job;
+
+    // 2. Validate current source existence & version
+    const source = await deps.repo.get(workspaceId, sourceId);
+    if (!source) {
+      // Source deleted before worker processed it; clean up any orphaned chunks
+      await deps.opensearch.deleteBySource(workspaceId, sourceId);
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    if (jobVersion !== undefined && jobVersion !== source.version) {
+      // Stale job: a newer version was enqueued
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    // 3. Version-conditional transition to 'processing'
+    const claimed = await deps.repo.updateStatus(
+      workspaceId,
+      sourceId,
+      "processing",
+      {},
+      jobVersion,
+    );
+    if (!claimed) {
+      // Version mismatch or race condition
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    // 4. Load extracted text
+    const text = await loadSourceText(source, deps.contentStore);
+    if (!text || !text.trim()) {
+      await deps.repo.updateStatus(
+        workspaceId,
+        sourceId,
+        "failed",
+        { error_message: "Source content is empty or could not be loaded" },
+        jobVersion,
+      );
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    // 5. Generate chunks with real coordinates
+    const spans = chunkTextWithCoordinates(text);
+    if (spans.length === 0) {
+      await deps.repo.updateStatus(
+        workspaceId,
+        sourceId,
+        "failed",
+        { error_message: "No searchable chunks could be extracted" },
+        jobVersion,
+      );
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    // 6. Embed chunks with bounded concurrency and deterministic chunk IDs
+    const docs: ChunkDocument[] = await mapConcurrent(
+      spans,
+      concurrency,
+      async (span, index) => {
+        const hash = createHash("sha256")
+          .update(`${workspaceId}:${sourceId}:v${jobVersion}:${index}`)
+          .digest("hex")
+          .slice(0, 16);
+        const chunkId = `chk_${hash}`;
+
+        const vector = await deps.embedder.embed(span.text);
+
+        return {
+          workspace_id: workspaceId,
+          source_id: sourceId,
+          source_version: jobVersion,
+          chunk_id: chunkId,
+          chunk_index: span.chunk_index,
+          start_char: span.start_char,
+          end_char: span.end_char,
+          text: span.text,
+          vector,
+        };
+      },
+    );
+
+    // 7. Bulk index to OpenSearch (with item-level verification)
+    await deps.opensearch.indexChunks(docs);
+
+    // 8. Re-check source before publishing Ready
+    const finalCheck = await deps.repo.get(workspaceId, sourceId);
+    if (!finalCheck || finalCheck.version !== jobVersion) {
+      // Source was deleted or bumped while indexing; delete staged chunks
+      await deps.opensearch.deleteBySource(workspaceId, sourceId, jobVersion);
+      await deps.queue.ack(receiptHandle);
+      return;
+    }
+
+    // 9. Publish Ready with indexed_version = jobVersion
+    await deps.repo.updateStatus(
+      workspaceId,
+      sourceId,
+      "ready",
+      {
+        chunk_count: docs.length,
+        char_count: text.length,
+        indexed_version: jobVersion,
+        error_message: null,
+      },
+      jobVersion,
+    );
+
+    // 10. Clean up older superseded versions in OpenSearch
+    if (jobVersion > 1) {
+      await deps.opensearch.deleteOlderVersions(workspaceId, sourceId, jobVersion);
+    }
+
+    await deps.queue.ack(receiptHandle);
+  };
+
+  const tick = async () => {
+    if (!running || inFlight) {
+      return;
+    }
+    inFlight = true;
     let receiptHandle: string | undefined;
     let workspaceId: string | undefined;
     let sourceId: string | undefined;
+    let jobVersion: number | undefined;
 
     try {
       const msg = await deps.queue.receive();
       if (!msg) {
         return;
       }
-      const { job } = msg;
       receiptHandle = msg.receiptHandle;
-      if (job.action === "delete") {
-        await deps.opensearch.deleteBySource(job.workspace_id, job.source_id);
-        await deps.queue.ack(receiptHandle);
-        return;
+      const { job } = msg;
+      if (job.action === "ingest") {
+        workspaceId = job.workspace_id;
+        sourceId = job.source_id;
+        jobVersion = job.version;
       }
-
-      workspaceId = job.workspace_id;
-      sourceId = job.source_id;
-
-      const source = await deps.repo.get(job.workspace_id, job.source_id);
-      if (!source) {
-        await deps.repo.updateStatus(job.workspace_id, job.source_id, "failed", {
-          error_message: "Source missing",
-        });
-        await deps.queue.ack(receiptHandle);
-        return;
-      }
-
-      if (job.version !== undefined && job.version !== source.version) {
-        await deps.queue.ack(receiptHandle);
-        return;
-      }
-
-      const text = await loadSourceText(source, deps.contentStore);
-      if (!text) {
-        await deps.repo.updateStatus(job.workspace_id, job.source_id, "failed", {
-          error_message: "Source missing or empty",
-        });
-        await deps.queue.ack(receiptHandle);
-        return;
-      }
-
-      await deps.repo.updateStatus(job.workspace_id, job.source_id, "processing");
-      await deps.opensearch.deleteBySource(job.workspace_id, job.source_id);
-
-      const chunks = chunkText(text);
-      const docs = await Promise.all(
-        chunks.map(async (chunk, index) => ({
-          workspace_id: job.workspace_id,
-          source_id: job.source_id,
-          chunk_id: randomUUID(),
-          chunk_index: index,
-          text: chunk,
-          vector: await deps.embedder.embed(chunk),
-        })),
-      );
-
-      await deps.opensearch.indexChunks(docs);
-      await deps.repo.updateStatus(job.workspace_id, job.source_id, "ready", {
-        chunk_count: docs.length,
-        error_message: null,
-      });
-      await deps.queue.ack(receiptHandle);
+      await processJob(job, receiptHandle);
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
       deps.logger.warn("ingest.worker.error", { error: message, workspaceId, sourceId });
-      if (workspaceId && sourceId) {
+
+      if (workspaceId && sourceId && jobVersion !== undefined) {
         try {
-          await deps.repo.updateStatus(workspaceId, sourceId, "failed", {
-            error_message: message.slice(0, 500),
-          });
+          await deps.repo.updateStatus(
+            workspaceId,
+            sourceId,
+            "failed",
+            { error_message: message.slice(0, 500) },
+            jobVersion,
+          );
         } catch {
-          // ignore secondary failure
+          // secondary failure ignored
         }
       }
       if (receiptHandle) {
         try {
           await deps.queue.ack(receiptHandle);
         } catch {
-          // ignore ack failure
+          // ack failure ignored
         }
+      }
+    } finally {
+      inFlight = false;
+      if (running) {
+        timerId = setTimeout(() => void tick(), deps.config.workerPollMs);
       }
     }
   };
 
-  const interval = setInterval(() => void tick(), deps.config.workerPollMs);
   void deps.opensearch.ensureIndex();
+  timerId = setTimeout(() => void tick(), deps.config.workerPollMs);
 
   return {
     stop: () => {
       running = false;
-      clearInterval(interval);
+      if (timerId) {
+        clearTimeout(timerId);
+      }
     },
   };
 }

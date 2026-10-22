@@ -1,157 +1,138 @@
-import type { AnalyticsData, AnalyticsDataSource, AnalyticsResult, DateRange } from "./types";
-
-type UsageEntry = {
-  id: string;
-  kind: "model" | "acquisition" | "voice" | string;
-  units: number;
-  unit_label: string | null;
-  provider: string | null;
-  model: string | null;
-  detail: Record<string, unknown> | null;
-  created_at: string;
-};
-
-type UsageListResponse = {
-  entries: UsageEntry[];
-  sum_units?: number;
-  count?: number;
-};
-
-function emptySeries(range: DateRange): AnalyticsData {
-  return {
-    range,
-    summary: {
-      totalTokens: 0,
-      inputTokens: null,
-      outputTokens: null,
-      conversations: null,
-      latencyP50Ms: null,
-      latencyP95Ms: null,
-      voiceMinutes: 0,
-      voiceCalls: null,
-      billableAcquisitionActions: 0,
-    },
-    dailyTokens: [],
-    models: [],
-    dailyConversations: [],
-    hourlyConversations: [],
-    dailyLatency: [],
-    acquisitions: [],
-    voice: { minutes: 0, calls: null },
-    latencyDefinition: null,
-    coverage: {
-      tokens: "partial",
-      models: "partial",
-      conversations: "unavailable",
-      latency: "unavailable",
-      acquisition: "partial",
-      voice: "partial",
-    },
-    coverageMessage:
-      "Showing usage ledger facts (Feature 26). Daily rollups and latency charts are not shipped yet.",
-  };
-}
-
-function inRange(iso: string, range: DateRange): boolean {
-  const day = iso.slice(0, 10);
-  return day >= range.from && day <= range.to;
-}
+import type {
+  AnalyticsData,
+  AnalyticsDataSource,
+  AnalyticsResult,
+  DateRange,
+  DailyLatencyPoint,
+  DailyTokensPoint,
+  ServiceUsageItem,
+} from "./types";
+import type { AnalyticsResponse } from "@quickstart/contracts";
 
 export function createUsageLedgerDataSource(workspaceId: string): AnalyticsDataSource {
   return {
     async fetchAnalytics(range: DateRange, signal?: AbortSignal): Promise<AnalyticsResult> {
       try {
-        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/usage`, {
-          signal,
-          cache: "no-store",
+        const params = new URLSearchParams({
+          from: range.from,
+          to: range.to,
+          timezone: range.timezone,
         });
-        const body = (await res.json().catch(() => ({}))) as UsageListResponse & {
-          error?: { message?: string };
+
+        const res = await fetch(
+          `/api/workspaces/${encodeURIComponent(workspaceId)}/analytics?${params.toString()}`,
+          {
+            signal,
+            cache: "no-store",
+          },
+        );
+
+        if (res.status === 403) {
+          const body = await res.json().catch(() => ({}));
+          return {
+            status: "forbidden",
+            message: (body as { error?: { message?: string } })?.error?.message ?? "Access denied.",
+          };
+        }
+
+        if (res.ok) {
+          const payload = (await res.json()) as AnalyticsResponse;
+          const s = payload.summary;
+
+          const data: AnalyticsData = {
+            range,
+            summary: {
+              totalTokens: s.total_tokens,
+              inputTokens: s.input_tokens,
+              outputTokens: s.output_tokens,
+              conversations: s.conversations,
+              conversationsTrendPct: s.conversations_trend_pct,
+              latencyP50Ms: s.latency_p50_ms,
+              latencyP95Ms: s.latency_p95_ms,
+              estimatedSpendUsd: s.estimated_spend_usd,
+              modelSpendUsd: s.model_spend_usd,
+              voiceSpendUsd: s.voice_spend_usd,
+              voiceMinutes: s.voice_minutes,
+              voiceCalls: s.voice_calls,
+              billableAcquisitionActions: s.billable_acquisition_actions,
+            },
+            dailyTokens: payload.daily_tokens.map((d): DailyTokensPoint => ({
+              date: d.date,
+              inputTokens: d.input_tokens,
+              outputTokens: d.output_tokens,
+              totalTokens: d.total_tokens,
+              estimatedCostUsd: d.estimated_cost_usd,
+            })),
+            dailyLatency: payload.daily_latency.map((d): DailyLatencyPoint => ({
+              date: d.date,
+              p50Ms: d.p50_ms,
+              p95Ms: d.p95_ms,
+              sampleCount: d.concurrent_turns,
+              concurrentTurns: d.concurrent_turns,
+            })),
+            usageByService: payload.usage_by_service.map((u): ServiceUsageItem => ({
+              service: u.service,
+              provider: u.provider,
+              kind: u.kind,
+              units: u.units,
+              unitLabel: u.unit_label,
+              inputTokens: u.input_tokens,
+              outputTokens: u.output_tokens,
+              estimatedCostUsd: u.estimated_cost_usd,
+              isUnpriced: u.is_unpriced,
+            })),
+            models: payload.usage_by_service
+              .filter((u) => u.kind === "model")
+              .map((u) => ({
+                provider: u.provider,
+                model: u.service,
+                tokens: u.units,
+                percentage: s.total_tokens > 0 ? Math.round((u.units / s.total_tokens) * 100) : 0,
+                inputTokens: u.input_tokens ?? undefined,
+                outputTokens: u.output_tokens ?? undefined,
+              })),
+            dailyConversations: payload.daily_latency.map((d) => ({
+              date: d.date,
+              conversations: d.concurrent_turns,
+            })),
+            hourlyConversations: [],
+            acquisitions: payload.usage_by_service
+              .filter((u) => u.kind === "acquisition")
+              .map((u) => ({
+                action: u.service,
+                label: u.service,
+                billableUnits: u.units,
+              })),
+            voice: {
+              minutes: s.voice_minutes,
+              calls: s.voice_calls,
+            },
+            latencyDefinition: "Response latency measured from gateway receipt to stream completion.",
+            coverage: {
+              tokens: "complete",
+              models: "complete",
+              conversations: "complete",
+              latency: "complete",
+              acquisition: "complete",
+              voice: "complete",
+            },
+          };
+
+          return { status: "ready", data };
+        }
+
+        // If not ok and not 403
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          status: "unavailable",
+          message: (errBody as { error?: { message?: string } })?.error?.message ?? "Usage reporting unavailable",
+          description: "Could not retrieve authoritative workspace analytics.",
         };
-        if (!res.ok) {
-          if (res.status === 403) {
-            return { status: "forbidden", message: body.error?.message ?? "Forbidden" };
-          }
-          return {
-            status: "unavailable",
-            message: body.error?.message ?? "Usage ledger unavailable",
-            description: "Could not load workspace usage entries.",
-          };
-        }
-
-        const entries = (body.entries ?? []).filter((e) => inRange(e.created_at, range));
-        const data = emptySeries(range);
-
-        let modelUnits = 0;
-        let voiceUnits = 0;
-        let acquisitionUnits = 0;
-        const modelMap = new Map<string, number>();
-        const acquisitionMap = new Map<string, number>();
-        const daily = new Map<string, { input: number; output: number; total: number }>();
-
-        for (const entry of entries) {
-          const day = entry.created_at.slice(0, 10);
-          const bucket = daily.get(day) ?? { input: 0, output: 0, total: 0 };
-          if (entry.kind === "model") {
-            modelUnits += entry.units;
-            bucket.total += entry.units;
-            const detail = entry.detail ?? {};
-            const input = Number(detail.input_tokens ?? 0);
-            const output = Number(detail.output_tokens ?? 0);
-            bucket.input += input;
-            bucket.output += output;
-            const key = `${entry.provider ?? "unknown"}:${entry.model ?? "unknown"}`;
-            modelMap.set(key, (modelMap.get(key) ?? 0) + entry.units);
-          } else if (entry.kind === "voice") {
-            voiceUnits += entry.units;
-          } else if (entry.kind === "acquisition") {
-            acquisitionUnits += entry.units;
-            const label = entry.unit_label ?? "action";
-            acquisitionMap.set(label, (acquisitionMap.get(label) ?? 0) + entry.units);
-          }
-          daily.set(day, bucket);
-        }
-
-        data.summary.totalTokens = modelUnits;
-        data.summary.inputTokens = [...daily.values()].reduce((s, d) => s + d.input, 0) || null;
-        data.summary.outputTokens = [...daily.values()].reduce((s, d) => s + d.output, 0) || null;
-        data.summary.voiceMinutes = voiceUnits / 60;
-        data.summary.billableAcquisitionActions = acquisitionUnits;
-        data.voice.minutes = voiceUnits / 60;
-
-        data.dailyTokens = [...daily.entries()]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([date, v]) => ({
-            date,
-            inputTokens: v.input,
-            outputTokens: v.output,
-            totalTokens: v.total,
-          }));
-
-        const modelTotal = [...modelMap.values()].reduce((s, n) => s + n, 0) || 1;
-        data.models = [...modelMap.entries()].map(([key, tokens]) => {
-          const [provider, model] = key.split(":");
-          return {
-            provider,
-            model,
-            tokens,
-            percentage: Math.round((tokens / modelTotal) * 100),
-          };
-        });
-
-        data.acquisitions = [...acquisitionMap.entries()].map(([action, billableUnits]) => ({
-          action,
-          label: action,
-          billableUnits,
-        }));
-
-        return { status: "ready", data };
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") throw err;
         return {
           status: "unavailable",
-          message: "Usage ledger unreachable",
-          description: err instanceof Error ? err.message : "Network error",
+          message: err instanceof Error ? err.message : "Analytics service unreachable",
         };
       }
     },

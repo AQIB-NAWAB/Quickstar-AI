@@ -135,8 +135,15 @@ export class ToolExecutor {
   private async executeHttp(
     tool: AgentToolDefinition & { type: "http" },
     args: Record<string, unknown>,
-    ctx: { workspaceId: string; requestId: string; timeoutMs: number },
+    ctx: { workspaceId: string; requestId: string; timeoutMs: number; toolCallKey: string },
   ): Promise<ToolExecutionResult> {
+    const pathKeys = new Set<string>();
+    if (tool.path_template) {
+      for (const match of tool.path_template.matchAll(/\{(\w+)\}/g)) {
+        pathKeys.add(match[1]);
+      }
+    }
+
     const path =
       typeof args.path === "string"
         ? args.path
@@ -152,13 +159,33 @@ export class ToolExecutor {
       });
     }
     const method = tool.method ?? "GET";
-    const body =
-      method !== "GET" && method !== "DELETE" && args.body !== undefined
-        ? JSON.stringify(args.body)
-        : undefined;
+
+    let body: string | undefined;
+    if (method !== "GET" && method !== "DELETE") {
+      if (args.body !== undefined) {
+        body = typeof args.body === "string" ? args.body : JSON.stringify(args.body);
+      } else {
+        const bodyArgs: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(args)) {
+          if (k !== "path" && !pathKeys.has(k) && v !== undefined) {
+            bodyArgs[k] = v;
+          }
+        }
+        if (Object.keys(bodyArgs).length > 0) {
+          body = JSON.stringify(bodyArgs);
+        }
+      }
+    } else if (method === "GET") {
+      for (const [k, v] of Object.entries(args)) {
+        if (k !== "path" && !pathKeys.has(k) && v !== undefined && v !== null) {
+          url.searchParams.set(k, String(v));
+        }
+      }
+    }
 
     const headers: Record<string, string> = {
       ...(tool.headers ?? {}),
+      "Idempotency-Key": ctx.toolCallKey,
       ...(body ? { "content-type": "application/json" } : {}),
     };
     if (tool.auth?.type === "bearer_secret" && tool.auth.secret_name) {

@@ -133,6 +133,34 @@ export function AuthenticatedCampaignView({
   const contacts = contactsResult?.status === "ready" ? contactsResult.data : [];
   const attempts = attemptsResult?.status === "ready" ? attemptsResult.data : [];
 
+  async function handleLaunch() {
+    const res = await repo.launchCampaign(workspaceId, campaignId, campaign.version);
+    if (res.status === "ready") {
+      setCampaignResult(res);
+    }
+  }
+
+  async function handlePause() {
+    const res = await repo.pauseCampaign(workspaceId, campaignId, campaign.version);
+    if (res.status === "ready") {
+      setCampaignResult(res);
+    }
+  }
+
+  async function handleResume() {
+    const res = await repo.resumeCampaign(workspaceId, campaignId, campaign.version);
+    if (res.status === "ready") {
+      setCampaignResult(res);
+    }
+  }
+
+  async function handleStop() {
+    const res = await repo.stopCampaign(workspaceId, campaignId, campaign.version);
+    if (res.status === "ready") {
+      setCampaignResult(res);
+    }
+  }
+
   // Single contact attempt history
   if (tab === "contacts" && contactId) {
     const contact = contacts.find((c) => c.id === contactId);
@@ -174,6 +202,11 @@ export function AuthenticatedCampaignView({
         campaignBaseUrl={campaignBaseUrl}
         backUrl={backUrl}
         isPreview={false}
+        onLaunch={handleLaunch}
+        onPause={handlePause}
+        onResume={handleResume}
+        onStop={handleStop}
+        exportCsvUrl={repo.getExportCsvUrl(workspaceId, campaignId)}
       />
 
       {tab === "overview" && (

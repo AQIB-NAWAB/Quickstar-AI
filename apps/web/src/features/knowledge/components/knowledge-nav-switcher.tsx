@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Brain } from "lucide-react";
+import { BookOpen, Database } from "lucide-react";
 
 interface KnowledgeNavSwitcherProps {
   workspaceId: string;
@@ -19,7 +19,7 @@ export function KnowledgeNavSwitcher({ workspaceId }: KnowledgeNavSwitcherProps)
         href={`/workspaces/${workspaceId}/knowledge`}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-8 text-xs font-medium transition-colors ${
           isKnowledge
-            ? "bg-white text-heat-100 font-semibold shadow-sm"
+            ? "bg-white text-[#FF571A] font-semibold shadow-sm"
             : "text-neutral-600 hover:text-accent-black"
         }`}
       >
@@ -30,11 +30,11 @@ export function KnowledgeNavSwitcher({ workspaceId }: KnowledgeNavSwitcherProps)
         href={`/workspaces/${workspaceId}/memory`}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-8 text-xs font-medium transition-colors ${
           isMemory
-            ? "bg-white text-heat-100 font-semibold shadow-sm"
+            ? "bg-white text-[#FF571A] font-semibold shadow-sm"
             : "text-neutral-600 hover:text-accent-black"
         }`}
       >
-        <Brain className="w-3.5 h-3.5" />
+        <Database className="w-3.5 h-3.5" />
         <span>Memory</span>
       </Link>
     </div>

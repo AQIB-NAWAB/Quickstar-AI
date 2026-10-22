@@ -6,11 +6,13 @@ import type {
   TargetStatus,
 } from "../domain/types.js";
 import type { CampaignsRepository } from "../repository/campaigns.repository.js";
+import { evaluateCallingWindow } from "../utils/schedule-window.js";
 
 export type DialResult = {
   status: CampaignAttempt["status"];
   outcome: string;
   callId: string | null;
+  providerCallSid?: string | null;
   durationSeconds: number | null;
   error?: { code: string; message: string } | null;
 };
@@ -115,6 +117,50 @@ export class CampaignDialer {
       return;
     }
 
+    if (target.isHeld) {
+      return;
+    }
+
+    const windowEval = evaluateCallingWindow(campaign.schedule, target.timezone);
+    if (!windowEval.inWindow) {
+      if (windowEval.held) {
+        await this.repo.markTargetHeld(target.id, windowEval.heldReason || "unknown_timezone");
+        this.logger.warn("campaign.dialer.target_held", {
+          targetId: target.id,
+          campaignId: campaign.id,
+          reason: windowEval.heldReason,
+        });
+        return;
+      }
+
+      await this.repo.completeTargetAttempt({
+        targetId: target.id,
+        nextStatus: "pending",
+        outcome: "outside_window",
+        nextAttemptAt: windowEval.nextWindowOpenAt ?? new Date(Date.now() + 5 * 60_000),
+      });
+      return;
+    }
+
+    const isSuppressed = await this.repo.isPhoneSuppressed(
+      target.workspaceId,
+      target.dialNormalized,
+    );
+    if (isSuppressed) {
+      await this.repo.completeTargetAttempt({
+        targetId: target.id,
+        nextStatus: "failed",
+        outcome: "suppressed",
+        nextAttemptAt: null,
+      });
+      this.logger.info("campaign.dialer.target_suppressed", {
+        targetId: target.id,
+        campaignId: campaign.id,
+        phone: target.dialNormalized,
+      });
+      return;
+    }
+
     const attemptNumber = target.attemptsCount + 1;
     const idempotencyKey = `${campaign.id}:${target.id}:${attemptNumber}`;
     const attempt = await this.repo.createAttempt({
@@ -150,6 +196,7 @@ export class CampaignDialer {
       status: result.status,
       outcome: result.outcome,
       callId: result.callId,
+      providerCallSid: result.providerCallSid,
       durationSeconds: result.durationSeconds,
       error: result.error ?? null,
     });

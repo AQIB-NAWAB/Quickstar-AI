@@ -1,14 +1,18 @@
 import {
-SAMPLE_INBOUND_CALLS,
-SAMPLE_INBOUND_CALL_DETAIL_1042,
-SAMPLE_LIVE_CALLS,
+  SAMPLE_INBOUND_CALLS,
+  SAMPLE_INBOUND_CALL_DETAIL_1042,
+  SAMPLE_LIVE_CALLS,
 } from "./fixtures";
 import type {
-CallLogFilters,
-InboundCall,
-InboundCallDetail,
-RepositoryResult,
-VoiceRepository,
+  CallLogFilters,
+  InboundCall,
+  InboundCallDetail,
+  ProcessingTurn,
+  RepositoryResult,
+  TranscriptSegment,
+  VoiceInboundSummary,
+  VoiceRepository,
+  VoiceWaveform,
 } from "./types";
 
 class InMemoryVoicePreviewStore implements VoiceRepository {
@@ -25,6 +29,61 @@ class InMemoryVoicePreviewStore implements VoiceRepository {
     this.liveCalls = JSON.parse(JSON.stringify(SAMPLE_LIVE_CALLS));
     this.callDetails.clear();
     this.callDetails.set("call_1042", JSON.parse(JSON.stringify(SAMPLE_INBOUND_CALL_DETAIL_1042)));
+  }
+
+  async getInboundSummary(
+    _workspaceId: string,
+    _signal?: AbortSignal
+  ): Promise<RepositoryResult<VoiceInboundSummary>> {
+    return {
+      status: "ready",
+      data: {
+        totalCalls: this.calls.length,
+        completedCalls: this.calls.filter((c) => c.status === "completed").length,
+        failedCalls: this.calls.filter((c) => c.status === "failed").length,
+        avgDurationSeconds: 142,
+        avgFirstAudioMs: 420,
+        activeCalls: this.liveCalls.length,
+      },
+    };
+  }
+
+  async getWaveform(
+    _workspaceId: string,
+    _callId: string,
+    _signal?: AbortSignal
+  ): Promise<RepositoryResult<VoiceWaveform>> {
+    return {
+      status: "ready",
+      data: {
+        callId: _callId,
+        durationSeconds: 120,
+        peaks: [0.2, 0.5, 0.8, 0.6, 0.7, 0.8, 0.5, 0.9, 0.4, 0.1],
+        agentPeaks: [0.1, 0.4, 0.8, 0.6, 0.2, 0.1, 0.5, 0.9, 0.3, 0.1],
+        callerPeaks: [0.2, 0.5, 0.3, 0.1, 0.7, 0.8, 0.4, 0.2, 0.1, 0.0],
+        stereoAvailable: true,
+      },
+    };
+  }
+
+  async getTranscript(
+    _workspaceId: string,
+    callId: string,
+    _signal?: AbortSignal
+  ): Promise<
+    RepositoryResult<{
+      segments: TranscriptSegment[];
+      processingTurns?: ProcessingTurn[];
+    }>
+  > {
+    const detail = this.callDetails.get(callId);
+    return {
+      status: "ready",
+      data: {
+        segments: detail?.transcript ?? [],
+        processingTurns: detail?.processingTurns ?? [],
+      },
+    };
   }
 
   async listInboundCalls(

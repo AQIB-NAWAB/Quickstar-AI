@@ -12,6 +12,15 @@ export const PLATFORM_EVENT_TYPES = [
   "lead.created",
   "lead.updated",
   "lead.status_changed",
+  "call.started",
+  "call.connected",
+  "call.completed",
+  "integration.connected",
+  "integration.disconnected",
+  "integration.sync_completed",
+  "billing.subscription_updated",
+  "billing.payment_succeeded",
+  "billing.payment_failed",
 ] as const;
 
 export type PlatformEventType = (typeof PLATFORM_EVENT_TYPES)[number];

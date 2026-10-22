@@ -75,9 +75,12 @@ function mapSummary(raw: Record<string, unknown>): CampaignSummary {
     description: (raw.description as string | null) ?? null,
     agentId: String(raw.agent_id ?? raw.agentId ?? ""),
     agentName: String(raw.agent_name ?? raw.agentName ?? ""),
+    callerId: (raw.caller_id ?? raw.callerId ?? null) as string | null,
+    agentVersionId: (raw.agent_version_id ?? raw.agentVersionId ?? null) as string | null,
     status: raw.status as CampaignSummary["status"],
     eligibleContacts: Number(raw.eligible_contacts ?? raw.eligibleContacts ?? 0),
     completedContacts: Number(raw.completed_contacts ?? raw.completedContacts ?? 0),
+    heldContactsCount: Number(raw.held_contacts_count ?? raw.heldContactsCount ?? 0),
     answerRate:
       raw.answer_rate === null || raw.answer_rate === undefined
         ? null
@@ -120,9 +123,15 @@ function mapDetail(raw: Record<string, unknown>): CampaignDetail {
     schedule: {
       startDate: String(schedule.start_date ?? schedule.startDate ?? ""),
       startTime: String(schedule.start_time ?? schedule.startTime ?? "09:00"),
+      endDate: (schedule.end_date ?? schedule.endDate ?? null) as string | null,
       timezone: String(schedule.timezone ?? "UTC"),
+      timezoneMode: (schedule.timezone_mode ?? schedule.timezoneMode ?? "fixed") as
+        | "fixed"
+        | "recipient"
+        | "recipient_local",
       dailyWindowFrom: String(schedule.daily_window_from ?? schedule.dailyWindowFrom ?? "09:00"),
       dailyWindowTo: String(schedule.daily_window_to ?? schedule.dailyWindowTo ?? "17:00"),
+      weekdays: Array.isArray(schedule.weekdays) ? (schedule.weekdays as number[]) : [1, 2, 3, 4, 5],
     },
     pacing: {
       maxConcurrentCalls: Number(pacing.max_concurrent_calls ?? pacing.maxConcurrentCalls ?? 5),
@@ -167,6 +176,10 @@ function mapContact(raw: Record<string, unknown>): CampaignContact {
     name: (raw.name as string | null) ?? null,
     phone: String(raw.phone ?? raw.dial_address ?? ""),
     email: (raw.email as string | null) ?? null,
+    timezone: (raw.timezone ?? null) as string | null,
+    timezoneProvenance: (raw.timezone_provenance ?? raw.timezoneProvenance ?? null) as string | null,
+    isHeld: Boolean(raw.is_held ?? raw.isHeld),
+    heldReason: (raw.held_reason ?? raw.heldReason ?? null) as string | null,
     customFields: attrs,
     attributes: attrs,
     status: raw.status as CampaignContact["status"],
@@ -330,12 +343,14 @@ export async function saveDraftApi(
         phone: r.phone,
         name: r.name ?? null,
         email: r.email ?? null,
+        timezone: undefined as string | undefined,
         attributes: r.customFields ?? {},
       }))
   ).map((t) => ({
     phone: t.phone,
     name: t.name ?? null,
     email: t.email ?? null,
+    timezone: t.timezone,
     attributes: t.attributes ?? {},
     source_kind: (draft.audienceSource === "lead_run" ? "lead" : "csv") as "lead" | "csv",
     source_ref: "sourceRef" in t ? (t.sourceRef ?? null) : null,
@@ -346,6 +361,8 @@ export async function saveDraftApi(
     description: draft.description || null,
     agent_id: draft.agentId,
     agent_name: draft.agentName,
+    caller_id: draft.callerId || null,
+    agent_version_id: draft.agentVersionId || null,
     audience_schema: audienceSchema.map((f) => ({
       key: f.key,
       label: f.label,
@@ -356,9 +373,12 @@ export async function saveDraftApi(
     schedule: {
       start_date: draft.schedule.startDate,
       start_time: draft.schedule.startTime,
+      end_date: draft.schedule.endDate ?? null,
       timezone: draft.schedule.timezone,
+      timezone_mode: draft.schedule.timezoneMode ?? "fixed",
       daily_window_from: draft.schedule.dailyWindowFrom,
       daily_window_to: draft.schedule.dailyWindowTo,
+      weekdays: draft.schedule.weekdays ?? [1, 2, 3, 4, 5],
     },
     pacing: {
       max_concurrent_calls: draft.pacing.maxConcurrentCalls,
@@ -381,6 +401,87 @@ export async function saveDraftApi(
   return toResult(status, mapSummary(data.campaign));
 }
 
+export async function updateDraftApi(
+  workspaceId: string,
+  campaignId: string,
+  draft: Partial<WizardDraft>,
+  version?: number,
+): Promise<RepositoryResult<CampaignDetail>> {
+  const body: Record<string, unknown> = {
+    version,
+    expected_version: version,
+  };
+  if (draft.name !== undefined) body.name = draft.name;
+  if (draft.description !== undefined) body.description = draft.description;
+  if (draft.agentId !== undefined) body.agent_id = draft.agentId;
+  if (draft.agentName !== undefined) body.agent_name = draft.agentName;
+  if (draft.callerId !== undefined) body.caller_id = draft.callerId;
+  if (draft.agentVersionId !== undefined) body.agent_version_id = draft.agentVersionId;
+  if (draft.schedule) {
+    body.schedule = {
+      start_date: draft.schedule.startDate,
+      start_time: draft.schedule.startTime,
+      end_date: draft.schedule.endDate ?? null,
+      timezone: draft.schedule.timezone,
+      timezone_mode: draft.schedule.timezoneMode ?? "fixed",
+      daily_window_from: draft.schedule.dailyWindowFrom,
+      daily_window_to: draft.schedule.dailyWindowTo,
+      weekdays: draft.schedule.weekdays ?? [1, 2, 3, 4, 5],
+    };
+  }
+  if (draft.pacing) {
+    body.pacing = {
+      max_concurrent_calls: draft.pacing.maxConcurrentCalls,
+      max_call_starts_per_minute: draft.pacing.maxCallStartsPerMinute,
+    };
+  }
+  if (draft.retryPolicy) {
+    body.retry_policy = {
+      max_retries: draft.retryPolicy.maxRetries,
+      retry_interval_minutes: draft.retryPolicy.retryIntervalMinutes,
+      eligible_outcomes: draft.retryPolicy.eligibleOutcomes,
+    };
+  }
+
+  const { status, data, error } = await bff<{ campaign: Record<string, unknown> }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+  if (error || !data?.campaign) return failResult<CampaignDetail>(status, error);
+  return toResult(status, mapDetail(data.campaign));
+}
+
+export async function deleteCampaignApi(
+  workspaceId: string,
+  campaignId: string,
+): Promise<RepositoryResult<void>> {
+  const { status, error } = await bff<{ deleted: boolean }>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}`,
+    { method: "DELETE" },
+  );
+  if (error) return failResult<void>(status, error);
+  return { status: "ready", data: undefined };
+}
+
+export async function getDirectorySummaryApi(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<RepositoryResult<import("./types").CampaignsDirectorySummary>> {
+  const { status, data, error } = await bff<import("./types").CampaignsDirectorySummary>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/summary`,
+    { signal },
+  );
+  if (error || !data) return failResult(status, error);
+  return toResult(status, data);
+}
+
+export function getExportCsvUrl(workspaceId: string, campaignId: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/export`;
+}
+
 async function controlApi(
   workspaceId: string,
   campaignId: string,
@@ -396,6 +497,10 @@ async function controlApi(
   );
   if (error || !data?.campaign) return failResult<CampaignDetail>(status, error);
   return toResult(status, mapDetail(data.campaign));
+}
+
+export function launchCampaignApi(workspaceId: string, campaignId: string, version?: number) {
+  return controlApi(workspaceId, campaignId, "launch", version);
 }
 
 export function pauseCampaignApi(workspaceId: string, campaignId: string, version?: number) {

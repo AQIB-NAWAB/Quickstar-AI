@@ -42,7 +42,11 @@ export function createGatewayServer(options: CreateGatewayServerOptions): Applic
         },
       ],
     }),
-    requireAccessToken: createRequireAccessTokenMiddleware(config.jwtAccessSecret),
+    requireAccessToken: createRequireAccessTokenMiddleware({
+      jwtSecret: config.jwtAccessSecret,
+      identityUrl: config.identityUrl,
+      timeoutMs: config.httpRequestTimeoutMs,
+    }),
     requireWorkspaceMembership: createRequireWorkspaceMembershipMiddleware(workspaceAccess),
     requirePublishableKey: createRequirePublishableKeyMiddleware(config),
     customLlm: {

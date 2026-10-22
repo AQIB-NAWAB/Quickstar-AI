@@ -11,11 +11,15 @@ import type { ConversationsService } from "../services/conversations.service.js"
 import type { ConversationHttpContext } from "./context.js";
 import { createConversationApiRouter } from "./routes/index.js";
 
+import { createOperatorQueuesController } from "../controllers/operator-queues.controller.js";
+import type { OperatorQueuesService } from "../services/operator-queues.service.js";
+
 export { SERVICE_NAME };
 
 export type CreateConversationHttpServerOptions = {
   logger: Logger;
   conversations: ConversationsService;
+  operatorQueues?: OperatorQueuesService;
   jwtSecret: string;
   internalToken: string;
   workspaceAccess: WorkspaceAccessClient;
@@ -26,7 +30,7 @@ export type CreateConversationHttpServerOptions = {
 };
 
 export function createHttpServer(options: CreateConversationHttpServerOptions): Application {
-  const { logger, conversations, jwtSecret, workspaceAccess } = options;
+  const { logger, conversations, operatorQueues, jwtSecret, workspaceAccess } = options;
 
   const authGuard = createAuthMiddleware(jwtSecret);
   const tenantGuard = requireTenantContext();
@@ -38,6 +42,7 @@ export function createHttpServer(options: CreateConversationHttpServerOptions): 
     tenantMiddleware: [authGuard, tenantGuard],
     workspaceAccess,
     conversationsCtrl: createConversationsController(conversations),
+    operatorQueuesCtrl: operatorQueues ? createOperatorQueuesController(operatorQueues) : undefined,
   };
 
   const apiRouter = createConversationApiRouter(httpContext);

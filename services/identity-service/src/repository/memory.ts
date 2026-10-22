@@ -3,6 +3,7 @@ import type {
   IdentityStore,
   MembershipRecord,
   OrganizationRecord,
+  PasswordResetRecord,
   RefreshTokenRecord,
   UserRecord,
 } from "./types.js";
@@ -15,6 +16,7 @@ export function createMemoryRepository(): IdentityStore {
   const refreshByHash = new Map<string, RefreshTokenRecord>();
   const refreshById = new Map<string, RefreshTokenRecord>();
   const apiKeys = new Map<string, ApiKeyRecord>();
+  const passwordResetsByHash = new Map<string, PasswordResetRecord>();
 
   function membershipKey(orgId: string, userId: string): string {
     return `${orgId}:${userId}`;
@@ -69,6 +71,28 @@ export function createMemoryRepository(): IdentityStore {
 
     async getOrganization(orgId) {
       return orgs.get(orgId) ?? null;
+    },
+
+    async createOrganization(input) {
+      const org: OrganizationRecord = {
+        id: input.orgId,
+        name: input.name,
+        createdAt: new Date(),
+      };
+      orgs.set(input.orgId, org);
+      memberships.set(membershipKey(input.orgId, input.userId), {
+        orgId: input.orgId,
+        userId: input.userId,
+        role: "owner",
+      });
+      return org;
+    },
+
+    async updateOrganization(orgId, name) {
+      const org = orgs.get(orgId);
+      if (!org) return null;
+      org.name = name;
+      return org;
     },
 
     async insertRefreshToken(record) {
@@ -138,6 +162,47 @@ export function createMemoryRepository(): IdentityStore {
       }
     },
 
+    async revokeAllUserTokens(userId) {
+      for (const row of refreshById.values()) {
+        if (row.userId === userId) {
+          row.revokedAt = new Date();
+        }
+      }
+    },
+
+    async createPasswordReset(record) {
+      passwordResetsByHash.set(record.tokenHash, {
+        id: record.id,
+        userId: record.userId,
+        tokenHash: record.tokenHash,
+        expiresAt: record.expiresAt,
+        usedAt: null,
+        createdAt: new Date(),
+      });
+    },
+
+    async findPasswordResetByHash(tokenHash) {
+      return passwordResetsByHash.get(tokenHash) ?? null;
+    },
+
+    async consumePasswordReset(tokenHash, newPasswordHash) {
+      const reset = passwordResetsByHash.get(tokenHash);
+      if (!reset || reset.usedAt || reset.expiresAt.getTime() < Date.now()) {
+        return { success: false };
+      }
+      reset.usedAt = new Date();
+      const user = usersById.get(reset.userId);
+      if (user) {
+        user.passwordHash = newPasswordHash;
+      }
+      for (const row of refreshById.values()) {
+        if (row.userId === reset.userId) {
+          row.revokedAt = new Date();
+        }
+      }
+      return { success: true, userId: reset.userId };
+    },
+
     async createApiKey(record, _audit) {
       apiKeys.set(record.id, {
         ...record,
@@ -148,6 +213,15 @@ export function createMemoryRepository(): IdentityStore {
 
     async listApiKeys(orgId) {
       return [...apiKeys.values()].filter((k) => k.orgId === orgId && !k.revokedAt);
+    },
+
+    async findApiKeyByPrefix(keyPrefix) {
+      for (const k of apiKeys.values()) {
+        if (k.keyPrefix === keyPrefix && !k.revokedAt) {
+          return k;
+        }
+      }
+      return null;
     },
 
     async revokeApiKey(orgId, keyId, _audit) {

@@ -222,7 +222,7 @@ export function StepInspector({
             </div>
             <div className="space-y-1">
               <label htmlFor="workflow-step-name" className="text-[11px] font-semibold text-neutral-600 block">Step name</label>
-              <input id="workflow-step-name" value={actionDraft.config.name} onChange={event => { setActionDraft({ ...actionDraft, config: { ...actionDraft.config, name: event.target.value } }); handleDraftChange(); }} className="w-full px-3 py-1.5 text-xs rounded-8 border border-neutral-300 focus:outline-none focus:border-heat-100 bg-white" />
+              <input id="workflow-step-name" value={String((actionDraft.config as Record<string, any>).name ?? "")} onChange={event => { setActionDraft({ ...actionDraft, config: { ...actionDraft.config, name: event.target.value } }); handleDraftChange(); }} className="w-full px-3 py-1.5 text-xs rounded-8 border border-neutral-300 focus:outline-none focus:border-heat-100 bg-white" />
             </div>
           </div>
         )}

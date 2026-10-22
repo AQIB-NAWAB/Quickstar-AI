@@ -36,5 +36,39 @@ export const createAuthRoutes: RouteModule<IdentityHttpContext> = (ctx) => {
     }),
   );
 
+  router.post(
+    "/v1/auth/forgot-password",
+    authRateLimit,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      await authController.handleForgotPassword(req, res, requestId, services.auth);
+    }),
+  );
+  router.post(
+    "/v1/forgot-password",
+    authRateLimit,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      await authController.handleForgotPassword(req, res, requestId, services.auth);
+    }),
+  );
+
+  router.post(
+    "/v1/auth/reset-password",
+    authRateLimit,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      await authController.handleResetPassword(req, res, requestId, services.auth);
+    }),
+  );
+  router.post(
+    "/v1/reset-password",
+    authRateLimit,
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      await authController.handleResetPassword(req, res, requestId, services.auth);
+    }),
+  );
+
   return router;
 };

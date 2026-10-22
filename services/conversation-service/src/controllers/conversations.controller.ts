@@ -163,6 +163,7 @@ export function createConversationsController(conversations: ConversationsServic
       const conversation = await conversations.requestVoiceAttention(
         tenant.workspaceId,
         conversationId,
+        req.body?.channel === "chat" ? "chat" : "voice",
       );
       sendPlatformJson(res, 200, {
         request_id: requestId,
@@ -210,6 +211,25 @@ export function createConversationsController(conversations: ConversationsServic
       sendPlatformJson(res, 200, {
         request_id: requestId,
         tool_calls: list.map(toToolCallJson),
+      });
+    }) as RequestHandler,
+
+    updateTags: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const conversationId = routeParam(req.params.conversationId);
+      const body = req.body as { tags?: string[]; mode?: "add" | "remove" | "replace" };
+
+      const tags = await conversations.updateTags(
+        tenant.workspaceId,
+        conversationId,
+        body?.tags ?? [],
+        body?.mode ?? "add",
+      );
+
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        tags,
       });
     }) as RequestHandler,
   };

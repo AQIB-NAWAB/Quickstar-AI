@@ -1,29 +1,29 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Bot,
-  CheckCircle2,
-  ChevronRight,
-  Globe,
-  MessageSquare,
-  Mic,
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ChevronDown,
   Plus,
   Search,
-  Sparkles,
-  Trash2,
+  X,
 } from "lucide-react";
-import { FeatureDialog } from "@/features/knowledge/components/feature-dialog";
 import type { Agent } from "../lib/types";
 import { deleteAgent } from "../lib/client";
-import { CreateAgentForm } from "./create-agent-form";
+import { AgentCard } from "./agent-card";
+import { CreateAgentDialog } from "./create-agent-dialog";
+import { TestAgentPanel } from "./test-agent-panel";
 
 type Props = {
   workspaceId: string;
+  workspaceName?: string;
   initialAgents: Agent[];
 };
+
+type StatusFilter = "all" | "published" | "unpublished";
+type SortOrder = "asc" | "desc";
 
 function CreateQueryOpener({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams();
@@ -33,216 +33,244 @@ function CreateQueryOpener({ onOpen }: { onOpen: () => void }) {
   return null;
 }
 
-export function AgentList({ workspaceId, initialAgents }: Props) {
+export function AgentList({ workspaceId, workspaceName = "Workspace", initialAgents }: Props) {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>(initialAgents);
-  const [query, setQuery] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const openCreate = useCallback(() => setCreateOpen(true), []);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+
+  // Create wizard state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const openCreate = useCallback(() => setIsCreateOpen(true), []);
 
   function closeCreate() {
-    setCreateOpen(false);
+    setIsCreateOpen(false);
     if (typeof window !== "undefined" && window.location.search.includes("create=1")) {
       router.replace(`/workspaces/${workspaceId}/agents`);
     }
   }
 
-  const filtered = agents.filter((a) => {
-    const q = query.toLowerCase();
-    return a.name.toLowerCase().includes(q) || (a.description?.toLowerCase() || "").includes(q);
-  });
+  // Active test modal state (centered modal matching 9.png)
+  const [activeTestingAgent, setActiveTestingAgent] = useState<Agent | null>(null);
 
-  async function handleDelete(e: React.MouseEvent, agentId: string) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this agent? This cannot be undone.")) {
-      return;
-    }
+  // Filter & sort agents
+  const filteredAndSortedAgents = useMemo(() => {
+    return agents
+      .filter((agent) => {
+        // Status filter
+        if (statusFilter === "published" && !agent.production_version_id) return false;
+        if (statusFilter === "unpublished" && agent.production_version_id) return false;
 
-    setDeletingId(agentId);
+        // Search query filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const nameMatch = agent.name.toLowerCase().includes(q);
+          const descMatch = (agent.description || "").toLowerCase().includes(q);
+          const instructionsMatch = (agent.instructions || "").toLowerCase().includes(q);
+          return nameMatch || descMatch || instructionsMatch;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const comparison = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+        return sortOrder === "asc" ? comparison : -comparison;
+      });
+  }, [agents, statusFilter, searchQuery, sortOrder]);
+
+  // Handle agent deletion
+  async function handleDeleteAgent(agentId: string): Promise<boolean> {
     const res = await deleteAgent(workspaceId, agentId);
-    setDeletingId(null);
     if (res.success) {
       setAgents((prev) => prev.filter((a) => a.id !== agentId));
-    } else {
-      alert(res.error?.message || "Failed to delete agent");
+      if (activeTestingAgent?.id === agentId) {
+        setActiveTestingAgent(null);
+      }
+      return true;
     }
+    return false;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header and Controls */}
+    <div className="space-y-6 w-full pb-12">
+      {/* Page Header matching 1.png */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-accent-black tracking-tight">Agents</h1>
-            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-neutral-100 text-neutral-600 border border-border-faint">
-              {agents.length}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-neutral-500">
-            Configure system prompts, select AI models, attach tools, and manage release versions.
+          <h1 className="text-[36px] font-bold text-[#202125] tracking-tight leading-tight">Agents</h1>
+          <p className="mt-1 text-[15px] text-[#667085]">
+            Build and manage your customer-facing assistants.
           </p>
         </div>
 
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-8 bg-heat-100 text-white text-xs font-semibold hover:bg-heat-100/90 transition-colors shadow-sm self-start sm:self-auto"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-[6px] bg-[#FF571A] text-white text-[14px] font-medium hover:bg-[#E04B14] transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          Create Agent
+          <span>Create agent</span>
         </button>
       </div>
 
-      {/* Filter / Search Bar */}
-      {agents.length > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Toolbar matching 1.png: "All agents {count}" on left, Search on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2 text-[18px] font-semibold text-[#202125]">
+          <span>All agents</span>
+          <span className="text-[#667085] font-normal text-[15px]">
+            {filteredAndSortedAgents.length}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-1 max-w-[480px] justify-end">
+          {/* Search agents input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search agents by name or description..."
-              className="w-full pl-9 pr-3 py-2 rounded-8 border border-border-faint bg-white text-xs text-accent-black placeholder-neutral-400 focus:outline-hidden focus:border-heat-100"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search agents..."
+              className="w-full pl-9 pr-8 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[14px] text-[#202125] placeholder-[#98A2B3] focus:outline-none focus:border-[#FF571A] focus:ring-1 focus:ring-[#FF571A] transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#202125]"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Agents Grid / List */}
-      {agents.length === 0 ? (
-        <div className="rounded-16 border border-dashed border-neutral-300 bg-white p-12 text-center">
-          <div className="w-12 h-12 rounded-16 bg-heat-12 text-heat-100 mx-auto flex items-center justify-center mb-4">
-            <Sparkles className="w-6 h-6" />
+          {/* Compact Status Filter */}
+          <div className="relative shrink-0">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+              aria-label="Filter by status"
+              className="appearance-none pl-3 pr-7 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[13px] text-[#202125] font-medium focus:outline-none focus:border-[#FF571A] cursor-pointer"
+            >
+              <option value="all">All statuses</option>
+              <option value="published">Live</option>
+              <option value="unpublished">Draft</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-[#667085] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
-          <h3 className="text-base font-bold text-accent-black">No agents created yet</h3>
-          <p className="mt-1 text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed">
-            Create your first agent to set up custom prompts, tool integration, and knowledge
-            retrieval for your business.
+
+          {/* Sort order toggle */}
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+            className="p-2 h-10 rounded-[6px] border border-[#DCE1E8] bg-white text-[#667085] hover:text-[#202125] hover:bg-[#F8F9FA] transition-colors shrink-0"
+            title={`Sort ${sortOrder === "asc" ? "Z to A" : "A to Z"}`}
+            aria-label="Toggle alphabetical sort"
+          >
+            {sortOrder === "asc" ? (
+              <ArrowDownAZ className="w-4 h-4" />
+            ) : (
+              <ArrowUpAZ className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Thin divider beneath toolbar matching 1.png */}
+      <div className="border-b border-[#EAECF0]" />
+
+      {/* Directory Table Structure */}
+      {agents.length === 0 ? (
+        <div className="rounded-[8px] border border-dashed border-[#DCE1E8] bg-white p-12 text-center">
+          <h3 className="text-[18px] font-semibold text-[#202125]">No agents yet</h3>
+          <p className="mt-1 text-[14px] text-[#667085] max-w-sm mx-auto leading-relaxed">
+            Create your first agent to set up instructions, AI models, and tools for your business.
           </p>
           <div className="mt-6">
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-8 bg-heat-100 text-white text-xs font-semibold hover:bg-heat-100/90 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[6px] bg-[#FF571A] text-white text-[14px] font-medium hover:bg-[#E04B14] transition-colors shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              Create your first agent
+              Create agent
             </button>
           </div>
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="p-8 text-center text-xs text-neutral-500 bg-white rounded-12 border border-border-faint">
-          No agents match your search query &ldquo;{query}&rdquo;.
+      ) : filteredAndSortedAgents.length === 0 ? (
+        <div className="p-8 text-center bg-white rounded-[8px] border border-[#DCE1E8] space-y-3">
+          <p className="text-[15px] text-[#667085]">
+            No agents match your search or selected filters.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setStatusFilter("all");
+            }}
+            className="px-3.5 py-1.5 rounded-[6px] text-[14px] font-medium text-[#202125] bg-white border border-[#DCE1E8] hover:bg-[#F8F9FA] transition-colors"
+          >
+            Clear filters
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((agent) => {
-            const hasPublished = Boolean(agent.production_version_id);
-            const modelName =
-              (agent.model_settings?.model as string) || "Default (gpt-4o-mini)";
+        <div className="space-y-4">
+          {/* Table-like column headings matching 1.png */}
+          <div className="hidden sm:flex items-center justify-between px-6 text-[11px] font-semibold tracking-wider text-[#667085] uppercase">
+            <span className="flex-1">AGENT</span>
+            <span className="w-[180px]">CHANNEL</span>
+            <span className="w-[140px] text-left">STATUS</span>
+          </div>
 
-            return (
-              <Link
+          {/* Agent Records */}
+          <div className="space-y-3">
+            {filteredAndSortedAgents.map((agent) => (
+              <AgentCard
                 key={agent.id}
-                href={`/workspaces/${workspaceId}/agents/${agent.id}`}
-                className="group rounded-12 border border-border-faint bg-white p-5 hover:border-neutral-400 hover:shadow-sm transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-10 bg-heat-12 text-heat-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        <Bot className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-accent-black group-hover:text-heat-100 transition-colors truncate">
-                          {agent.name}
-                        </h3>
-                        <p className="text-[11px] font-mono text-neutral-400 truncate">
-                          {modelName}
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => handleDelete(e, agent.id)}
-                      disabled={deletingId === agent.id}
-                      title="Delete Agent"
-                      className="p-1.5 rounded-6 text-neutral-300 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <p className="mt-3 text-xs text-neutral-600 line-clamp-2 leading-relaxed min-h-[32px]">
-                    {agent.description || "No description provided."}
-                  </p>
-                </div>
-
-                <div className="mt-5 pt-4 border-t border-border-faint space-y-2.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      {agent.channels.chat && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-mono text-[10px]">
-                          <MessageSquare className="w-3 h-3 text-neutral-500" />
-                          Chat
-                        </span>
-                      )}
-                      {agent.channels.voice && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-mono text-[10px]">
-                          <Mic className="w-3 h-3 text-neutral-500" />
-                          Voice
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-mono text-[10px]">
-                        <Globe className="w-3 h-3 text-neutral-500" />
-                        {agent.environment}
-                      </span>
-                    </div>
-
-                    <span className="text-[11px] font-mono text-neutral-400">
-                      Draft v{agent.version}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    {hasPublished ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-green-700 font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                        Live in production
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-amber-700 font-medium">
-                        ● Unpublished draft
-                      </span>
-                    )}
-
-                    <span className="text-xs text-neutral-400 group-hover:text-heat-100 group-hover:translate-x-0.5 transition-all inline-flex items-center">
-                      Configure <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                agent={agent}
+                workspaceId={workspaceId}
+                onTestAgent={(a) => setActiveTestingAgent(a)}
+                onDeleteAgent={handleDeleteAgent}
+              />
+            ))}
+          </div>
         </div>
       )}
+
+      {/* Footer count indicator matching 1.png: "1 agent in Demo Workspace" */}
+      {agents.length > 0 && (
+        <div className="pt-2 text-[13px] text-[#667085]">
+          <span>
+            {filteredAndSortedAgents.length}{" "}
+            {filteredAndSortedAgents.length === 1 ? "agent" : "agents"} in {workspaceName}
+          </span>
+        </div>
+      )}
+
+      {/* Deep Link URL opener for ?create=1 */}
       <Suspense fallback={null}>
         <CreateQueryOpener onOpen={openCreate} />
       </Suspense>
-      <FeatureDialog
-        open={createOpen}
+
+      {/* Create Agent Wizard Dialog (10.png, 11.png, 12.png) */}
+      <CreateAgentDialog
+        isOpen={isCreateOpen}
         onClose={closeCreate}
-        title="Create agent"
-        description="Identity, instructions, then channels."
-        maxWidthClass="max-w-3xl"
-      >
-        <CreateAgentForm workspaceId={workspaceId} embedded onCancel={closeCreate} />
-      </FeatureDialog>
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+      />
+
+      {/* Centered Test Agent Modal (9.png) */}
+      {activeTestingAgent && (
+        <TestAgentPanel
+          agent={activeTestingAgent}
+          workspaceId={workspaceId}
+          releaseNumber={undefined}
+          isOpen={true}
+          onClose={() => setActiveTestingAgent(null)}
+        />
+      )}
     </div>
   );
 }

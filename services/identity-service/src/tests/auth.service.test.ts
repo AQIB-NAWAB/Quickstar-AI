@@ -112,3 +112,97 @@ test("api key create returns raw key once", async () => {
   assert.ok(key.api_key.startsWith("qs_live_"));
   assert.equal(key.key_prefix, key.api_key.slice(0, 16));
 });
+
+test("password recovery: enumeration resistance, token hashing, single-use, session revocation", async () => {
+  const { services, repository } = createTestIdentityServices();
+  const { emailDelivery } = await import("../utils/email-delivery.js");
+  emailDelivery.clearCaptured();
+
+  // 1. Request reset for non-existent email -> enumeration-resistant generic response, no email sent
+  const nonExistentRes = await services.auth.requestPasswordReset({
+    email: "unknown@example.com",
+  });
+  assert.equal(nonExistentRes.ok, true);
+  assert.match(nonExistentRes.message, /If an account exists/i);
+  assert.equal(emailDelivery.getCapturedEmails().length, 0);
+
+  // 2. Register real user and login to obtain active session
+  const reg = await services.auth.register({
+    email: "recovery@example.com",
+    password: "oldPassword123!",
+    organizationName: "Recovery Org",
+  });
+  const initialLogin = await services.auth.login({
+    email: "recovery@example.com",
+    password: "oldPassword123!",
+  });
+  assert.ok(initialLogin.access_token);
+
+  // 3. Request reset for real email -> captures email with link
+  const resetReq = await services.auth.requestPasswordReset({
+    email: "recovery@example.com",
+  });
+  assert.equal(resetReq.ok, true);
+  const lastEmail = emailDelivery.getLastEmail();
+  assert.ok(lastEmail);
+  assert.equal(lastEmail.to, "recovery@example.com");
+  assert.match(lastEmail.url, /\/reset-password\?token=/);
+
+  const rawToken = new URL(lastEmail.url).searchParams.get("token")!;
+  assert.ok(rawToken);
+
+  // 4. Verify raw token is NOT in store, only token_hash is stored
+  const { hashToken } = await import("../utils/password-hasher.js");
+  const storedReset = await repository.findPasswordResetByHash(hashToken(rawToken));
+  assert.ok(storedReset);
+  assert.equal(storedReset.userId, reg.user_id);
+  assert.equal(storedReset.usedAt, null);
+
+  // 5. Password validation: < 8 characters rejected
+  await assert.rejects(
+    services.auth.consumePasswordReset({
+      token: rawToken,
+      newPassword: "short",
+    }),
+    /Password must be at least 8 characters/i,
+  );
+
+  // 6. Reset password with new password
+  const resetResult = await services.auth.consumePasswordReset({
+    token: rawToken,
+    newPassword: "newSecurePassword456!",
+  });
+  assert.equal(resetResult.ok, true);
+
+  // 7. Reusing the same reset token is rejected (single-use transactional guarantee)
+  await assert.rejects(
+    services.auth.consumePasswordReset({
+      token: rawToken,
+      newPassword: "anotherPassword789!",
+    }),
+    /Invalid, expired, or already used/i,
+  );
+
+  // 8. Old password fails
+  await assert.rejects(
+    services.auth.login({
+      email: "recovery@example.com",
+      password: "oldPassword123!",
+    }),
+    /Invalid email or password/i,
+  );
+
+  // 9. New password succeeds
+  const newLogin = await services.auth.login({
+    email: "recovery@example.com",
+    password: "newSecurePassword456!",
+  });
+  assert.ok(newLogin.access_token);
+
+  // 10. Previous refresh token was revoked upon reset
+  await assert.rejects(
+    services.auth.refresh(initialLogin.refresh_token),
+    /Invalid refresh token|Refresh token reuse/i,
+  );
+});
+

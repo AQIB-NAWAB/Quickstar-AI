@@ -15,6 +15,8 @@ export type EvalConfig = {
   workerId: string;
   workerPollIntervalMs: number;
   caseTimeoutMs: number;
+  openaiApiKey?: string;
+  embeddingProvider: "openai" | "fake";
 };
 
 export function loadEvalConfig(): EvalConfig {
@@ -50,5 +52,7 @@ export function loadEvalConfig(): EvalConfig {
     workerId: process.env.EVAL_WORKER_ID ?? `eval-${process.pid}`,
     workerPollIntervalMs: Number(process.env.EVAL_WORKER_POLL_MS ?? 500),
     caseTimeoutMs: Number(process.env.EVAL_CASE_TIMEOUT_MS ?? 30_000),
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    embeddingProvider: (process.env.EMBEDDING_PROVIDER ?? (process.env.OPENAI_API_KEY ? "openai" : "fake")) === "openai" ? "openai" : "fake",
   };
 }

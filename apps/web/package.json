@@ -7,11 +7,14 @@
     "dev": "next dev -p 3005",
     "build": "next build",
     "start": "next start -p 3005",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@bible-strong/avatar-core": "0.1.0",
     "@lucasmarkes/hairline": "^0.5.0",
+    "@quickstart/contracts": "workspace:*",
+    "@xyflow/react": "^12.3.6",
     "clsx": "^2.1.1",
     "lucide-react": "^0.453.0",
     "next": "^14.2.15",

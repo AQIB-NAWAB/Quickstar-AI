@@ -1,0 +1,27 @@
+{
+  "name": "@quickstart/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript & JavaScript SDK for QuickStart AI Platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "keywords": [
+    "quickstart",
+    "ai",
+    "agents",
+    "voice",
+    "telephony",
+    "sdk"
+  ],
+  "author": "QuickStart AI",
+  "license": "Apache-2.0"
+}

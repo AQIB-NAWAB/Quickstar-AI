@@ -8,6 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --filter @quickstart/web dev",
+    "dev:all": "bash scripts/start-agent-inbox.sh",
+    "start": "bash scripts/start-agent-inbox.sh",
     "build": "pnpm -r run build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
@@ -19,7 +22,11 @@
     "stack:up": "bash scripts/start-local-stack.sh",
     "widget:test:prepare": "node scripts/prepare-widget-test.mjs",
     "widget:test:serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory fixtures/widget-test",
-    "widget:real-llm": "node --env-file=.env scripts/configure-demo-agent-real-llm.mjs"
+    "widget:real-llm": "node --env-file=.env scripts/configure-demo-agent-real-llm.mjs",
+    "start:agent-inbox": "bash scripts/start-agent-inbox.sh",
+    "stop:agent-inbox": "bash scripts/stop-agent-inbox.sh",
+    "start:workspaces": "bash scripts/start-workspaces.sh",
+    "clinic:portal": "node fixtures/dental-clinic-portal/server.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

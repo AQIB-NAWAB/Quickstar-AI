@@ -210,25 +210,6 @@ export function parseCsvText(text: string): ParsedCsvResult {
   };
 }
 
-/**
- * Validates parsed CSV rows against column mappings:
- * - Dial role column is required and must match international E.164
- * - Checks for duplicates by normalized phone
- * - All other mapped columns become flexible attributes
- */
-export function validateAudienceRows(
-  rows: Record<string, string>[],
-  phoneColumn: string,
-  _nameColumn?: string,
-  _emailColumn?: string,
-): ValidationSummary {
-  void _nameColumn;
-  void _emailColumn;
-  return validateAudienceWithMappings(rows, [
-    { sourceColumn: phoneColumn, key: "phone", role: "dial" },
-  ]);
-}
-
 export type PreparedAudienceRow = {
   phone: string;
   name?: string | null;

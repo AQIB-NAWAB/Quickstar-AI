@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { IdentityStore } from "../repository/types.js";
 import { apiKeyMaterial, hashToken } from "../utils/password-hasher.js";
@@ -74,7 +74,37 @@ export function createApiKeysService(repository: IdentityStore) {
         throw new AppError({ code: ErrorCode.NOT_FOUND, message: "API key not found" });
       }
     },
+
+    async verifyApiKey(rawKey: string): Promise<{
+      valid: boolean;
+      orgId?: string;
+      keyId?: string;
+      createdBy?: string;
+    }> {
+      const trimmed = rawKey.trim();
+      if (!trimmed.startsWith("qs_live_") && !trimmed.startsWith("qk_live_")) {
+        return { valid: false };
+      }
+      const prefix = trimmed.slice(0, 16);
+      const record = await repository.findApiKeyByPrefix(prefix);
+      if (!record || record.revokedAt) {
+        return { valid: false };
+      }
+      const expectedHash = hashToken(trimmed);
+      const a = Buffer.from(record.keyHash, "hex");
+      const b = Buffer.from(expectedHash, "hex");
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        return { valid: false };
+      }
+      return {
+        valid: true,
+        orgId: record.orgId,
+        keyId: record.id,
+        createdBy: record.createdBy,
+      };
+    },
   };
 }
 
 export type ApiKeysService = ReturnType<typeof createApiKeysService>;
+

@@ -1,308 +1,557 @@
-import {
-  gatewayFetch,
-  getAccessTokenFromCookies,
-} from "@/lib/server/gateway/fetch";
 import type {
   EvaluationCase,
   EvaluationCaseResult,
+  EvaluationComparison,
   EvaluationDataset,
-  EvaluationOverviewData,
   EvaluationRepository,
   EvaluationRun,
-  RepositoryResult,
-  RunStatus,
+  EvaluationSummary,
+  ExpectedToolCall,
+  FixtureResponse,
+  ScoringMethod,
 } from "./types";
 
-type AgentRow = { id: string; name: string; production_version_id?: string | null };
-type CaseRow = {
-  id: string;
-  agent_id: string;
-  name?: string;
-  input: string;
-  expected_output: string;
-  created_at: string;
-};
-type RunRow = {
-  id: string;
-  workspace_id: string;
-  agent_id: string;
-  agent_version_id: string;
-  status: string;
-  case_count: number;
-  score: number | null;
-  started_at: string | null;
-  finished_at: string | null;
-  created_at: string;
-};
-type ResultRow = {
-  id: string;
-  run_id: string;
-  case_id: string;
-  passed: boolean;
-  expected_output: string;
-  actual_output: string;
-  error: string | null;
-};
+export type ApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; status: number };
 
-function fail<T>(status: number, message: string): RepositoryResult<T> {
-  if (status === 0) return { status: "unavailable", message };
-  if (status === 403) return { status: "forbidden", message };
-  if (status === 404) return { status: "not_found", message };
-  return { status: "error", message };
+async function apiFetch<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<ApiResult<T>> {
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: { message?: string } | string;
+      };
+      const message =
+        typeof body.error === "string"
+          ? body.error
+          : body.error?.message || `Request failed with status ${res.status}`;
+      return { ok: false, error: message, status: res.status };
+    }
+
+    const data = (await res.json()) as T;
+    return { ok: true, data };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Network error",
+      status: 0,
+    };
+  }
 }
 
-async function token(): Promise<string | null> {
-  return getAccessTokenFromCookies();
-}
+export class EvaluationApiClient {
+  /* Summary */
+  static async getSummary(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ summary: EvaluationSummary }>> {
+    return apiFetch<{ summary: EvaluationSummary }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/summary`,
+      { signal },
+    );
+  }
 
-function mapCase(c: CaseRow, datasetId: string): EvaluationCase {
-  return {
-    id: c.id,
-    datasetId,
-    name: c.name ?? (c.input.slice(0, 40) || "Case"),
-    input: c.input,
-    expectedOutput: c.expected_output,
-    expectedTools: [],
-    createdAt: c.created_at,
-  };
-}
+  /* Datasets */
+  static async listDatasets(
+    workspaceId: string,
+    filters: {
+      agentId?: string;
+      search?: string;
+      sort?: "updated" | "cases" | "pass_rate";
+      limit?: number;
+      offset?: number;
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ datasets: EvaluationDataset[]; total: number }>> {
+    const params = new URLSearchParams();
+    if (filters.agentId) params.set("agent_id", filters.agentId);
+    if (filters.search) params.set("search", filters.search);
+    if (filters.sort) params.set("sort", filters.sort);
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.offset) params.set("offset", String(filters.offset));
+    const qs = params.toString();
 
-function mapRun(r: RunRow, agentName: string): EvaluationRun {
-  const passed =
-    typeof r.score === "number" && r.case_count > 0
-      ? Math.round((r.score / 100) * r.case_count)
-      : null;
-  return {
-    id: r.id,
-    workspaceId: r.workspace_id,
-    agentId: r.agent_id,
-    agentName,
-    versionId: r.agent_version_id,
-    displayVersion: r.agent_version_id.slice(0, 8),
-    datasetId: r.agent_id,
-    datasetName: `${agentName} cases`,
-    datasetRevision: 1,
-    scoringPolicy: "exact-match-v1",
-    status: r.status as RunStatus,
-    overallScore: r.score,
-    scoreScale: 100,
-    passedCount: passed,
-    failedCount: passed != null ? r.case_count - passed : null,
-    totalCases: r.case_count,
-    startedAt: r.started_at ?? r.created_at,
-    completedAt: r.finished_at ?? undefined,
-  };
-}
+    return apiFetch<{ datasets: EvaluationDataset[]; total: number }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets${qs ? `?${qs}` : ""}`,
+      { signal },
+    );
+  }
 
-async function listAgents(workspaceId: string, accessToken: string) {
-  return gatewayFetch<{ agents: AgentRow[] }>(
-    `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents`,
-    { accessToken },
-  );
+  static async getDataset(
+    workspaceId: string,
+    datasetId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ dataset: EvaluationDataset }>> {
+    return apiFetch<{ dataset: EvaluationDataset }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}`,
+      { signal },
+    );
+  }
+
+  static async createDataset(
+    workspaceId: string,
+    data: {
+      agentId: string;
+      name: string;
+      description?: string;
+      tags?: string[];
+    },
+  ): Promise<ApiResult<{ dataset: EvaluationDataset }>> {
+    return apiFetch<{ dataset: EvaluationDataset }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          agent_id: data.agentId,
+          name: data.name,
+          description: data.description,
+          tags: data.tags,
+        }),
+      },
+    );
+  }
+
+  static async updateDataset(
+    workspaceId: string,
+    datasetId: string,
+    patch: {
+      name?: string;
+      description?: string | null;
+      tags?: string[];
+      expectedRecordVersion?: number;
+    },
+  ): Promise<ApiResult<{ dataset: EvaluationDataset }>> {
+    return apiFetch<{ dataset: EvaluationDataset }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: patch.name,
+          description: patch.description,
+          tags: patch.tags,
+          expected_record_version: patch.expectedRecordVersion,
+        }),
+      },
+    );
+  }
+
+  static async archiveDataset(
+    workspaceId: string,
+    datasetId: string,
+  ): Promise<ApiResult<{ ok: boolean }>> {
+    return apiFetch<{ ok: boolean }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  /* Test Cases */
+  static async listCases(
+    workspaceId: string,
+    datasetId: string,
+    options: { search?: string; tag?: string; offset?: number; limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ cases: EvaluationCase[]; total: number }>> {
+    const params = new URLSearchParams();
+    if (options.search) params.set("search", options.search);
+    if (options.tag) params.set("tag", options.tag);
+    if (options.offset) params.set("offset", String(options.offset));
+    if (options.limit) params.set("limit", String(options.limit));
+    const qs = params.toString();
+
+    return apiFetch<{ cases: EvaluationCase[]; total: number }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/cases${qs ? `?${qs}` : ""}`,
+      { signal },
+    );
+  }
+
+  static async getCase(
+    workspaceId: string,
+    datasetId: string,
+    caseId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ case: EvaluationCase }>> {
+    return apiFetch<{ case: EvaluationCase }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}`,
+      { signal },
+    );
+  }
+
+  static async createCase(
+    workspaceId: string,
+    datasetId: string,
+    data: {
+      name?: string;
+      input: string;
+      expectedOutput?: string;
+      expectedTools?: ExpectedToolCall[];
+      fixtureResponses?: FixtureResponse[];
+      tags?: string[];
+    },
+  ): Promise<ApiResult<{ case: EvaluationCase }>> {
+    return apiFetch<{ case: EvaluationCase }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/cases`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: data.name,
+          input: data.input,
+          expected_output: data.expectedOutput,
+          expected_tools: data.expectedTools,
+          fixture_responses: data.fixtureResponses,
+          tags: data.tags,
+        }),
+      },
+    );
+  }
+
+  static async updateCase(
+    workspaceId: string,
+    datasetId: string,
+    caseId: string,
+    patch: {
+      name?: string;
+      input?: string;
+      expectedOutput?: string;
+      expectedTools?: ExpectedToolCall[];
+      fixtureResponses?: FixtureResponse[];
+      tags?: string[];
+      expectedRecordVersion?: number;
+    },
+  ): Promise<ApiResult<{ case: EvaluationCase }>> {
+    return apiFetch<{ case: EvaluationCase }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: patch.name,
+          input: patch.input,
+          expected_output: patch.expectedOutput,
+          expected_tools: patch.expectedTools,
+          fixture_responses: patch.fixtureResponses,
+          tags: patch.tags,
+          expected_record_version: patch.expectedRecordVersion,
+        }),
+      },
+    );
+  }
+
+  static async deleteCase(
+    workspaceId: string,
+    datasetId: string,
+    caseId: string,
+  ): Promise<ApiResult<{ ok: boolean }>> {
+    return apiFetch<{ ok: boolean }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  static async importCases(
+    workspaceId: string,
+    datasetId: string,
+    cases: Array<{
+      name?: string;
+      input: string;
+      expectedOutput?: string;
+      expectedTools?: ExpectedToolCall[];
+      fixtureResponses?: FixtureResponse[];
+      tags?: string[];
+    }>,
+  ): Promise<ApiResult<{ imported_count: number; new_revision: number }>> {
+    return apiFetch<{ imported_count: number; new_revision: number }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/datasets/${encodeURIComponent(datasetId)}/import`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          cases: cases.map((c) => ({
+            name: c.name,
+            input: c.input,
+            expected_output: c.expectedOutput,
+            expected_tools: c.expectedTools,
+            fixture_responses: c.fixtureResponses,
+            tags: c.tags,
+          })),
+        }),
+      },
+    );
+  }
+
+  /* Runs */
+  static async listRuns(
+    workspaceId: string,
+    filters: {
+      agentId?: string;
+      versionId?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ runs: EvaluationRun[]; total: number }>> {
+    const params = new URLSearchParams();
+    if (filters.agentId) params.set("agent_id", filters.agentId);
+    if (filters.versionId) params.set("version_id", filters.versionId);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.startDate) params.set("start_date", filters.startDate);
+    if (filters.endDate) params.set("end_date", filters.endDate);
+    if (filters.limit) params.set("limit", String(filters.limit));
+    if (filters.offset) params.set("offset", String(filters.offset));
+    const qs = params.toString();
+
+    return apiFetch<{ runs: EvaluationRun[]; total: number }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/runs${qs ? `?${qs}` : ""}`,
+      { signal },
+    );
+  }
+
+  static async getRun(
+    workspaceId: string,
+    runId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ run: EvaluationRun; results: EvaluationCaseResult[] }>> {
+    return apiFetch<{ run: EvaluationRun; results: EvaluationCaseResult[] }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/runs/${encodeURIComponent(runId)}`,
+      { signal },
+    );
+  }
+
+  static async startRun(
+    workspaceId: string,
+    data: {
+      agentId: string;
+      agentVersionId: string;
+      datasetId: string;
+      expectedDatasetRevision?: number;
+      caseIds?: string[];
+      policy: {
+        method: ScoringMethod;
+        config: Record<string, unknown>;
+        scorerVersion?: string;
+      };
+      fixtureConfig?: Record<string, unknown>;
+      idempotencyKey?: string;
+    },
+  ): Promise<ApiResult<{ run: EvaluationRun; created: boolean }>> {
+    return apiFetch<{ run: EvaluationRun; created: boolean }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/runs`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          agent_id: data.agentId,
+          agent_version_id: data.agentVersionId,
+          dataset_id: data.datasetId,
+          expected_dataset_revision: data.expectedDatasetRevision,
+          case_ids: data.caseIds,
+          policy: {
+            method: data.policy.method,
+            config: data.policy.config,
+            scorer_version: data.policy.scorerVersion ?? "v1",
+          },
+          fixture_config: data.fixtureConfig,
+          idempotency_key: data.idempotencyKey,
+        }),
+      },
+    );
+  }
+
+  /* Comparisons */
+  static async createComparison(
+    workspaceId: string,
+    data: {
+      baselineRunId: string;
+      candidateRunId: string;
+    },
+  ): Promise<ApiResult<{ comparison: EvaluationComparison }>> {
+    return apiFetch<{ comparison: EvaluationComparison }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/comparisons`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          baseline_run_id: data.baselineRunId,
+          candidate_run_id: data.candidateRunId,
+        }),
+      },
+    );
+  }
+
+  static async getComparison(
+    workspaceId: string,
+    comparisonId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<{ comparison: EvaluationComparison }>> {
+    return apiFetch<{ comparison: EvaluationComparison }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/eval/comparisons/${encodeURIComponent(comparisonId)}`,
+      { signal },
+    );
+  }
 }
 
 export const apiEvaluationRepository: EvaluationRepository = {
-  async listDatasets(workspaceId) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const agentsRes = await listAgents(workspaceId, accessToken);
-    if (!agentsRes.ok) return fail(agentsRes.status, agentsRes.error.message);
-    const datasets: EvaluationDataset[] = [];
-    for (const agent of agentsRes.data.agents ?? []) {
-      const casesRes = await gatewayFetch<{ cases: CaseRow[] }>(
-        `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agent.id)}/eval/cases`,
-        { accessToken },
-      );
-      const cases = casesRes.ok ? (casesRes.data.cases ?? []) : [];
-      datasets.push({
-        id: agent.id,
-        workspaceId,
-        name: `${agent.name} cases`,
-        description: "Cases stored on the agent (eval-service v1 has no separate datasets).",
-        revision: 1,
-        caseCount: cases.length,
-        updatedAt: cases[0]?.created_at ?? new Date().toISOString(),
-        createdAt: cases[0]?.created_at ?? new Date().toISOString(),
-      });
-    }
-    return { status: "ready", data: datasets };
-  },
-
-  async getDataset(workspaceId, datasetId) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const agentsRes = await listAgents(workspaceId, accessToken);
-    if (!agentsRes.ok) return fail(agentsRes.status, agentsRes.error.message);
-    const agent = (agentsRes.data.agents ?? []).find((a) => a.id === datasetId);
-    if (!agent) return { status: "not_found", message: "Dataset (agent) not found" };
-    const casesRes = await gatewayFetch<{ cases: CaseRow[] }>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(datasetId)}/eval/cases`,
-      { accessToken },
-    );
-    if (!casesRes.ok) return fail(casesRes.status, casesRes.error.message);
-    const cases = (casesRes.data.cases ?? []).map((c) => mapCase(c, datasetId));
-    return {
-      status: "ready",
-      data: {
-        dataset: {
-          id: datasetId,
-          workspaceId,
-          name: `${agent.name} cases`,
-          revision: 1,
-          caseCount: cases.length,
-          updatedAt: cases[0]?.createdAt ?? new Date().toISOString(),
-          createdAt: cases[0]?.createdAt ?? new Date().toISOString(),
-        },
-        cases,
-      },
-    };
-  },
-
-  async createDataset() {
-    return {
-      status: "unavailable",
-      message:
-        "Eval v1 stores cases per agent. Open an agent and add cases via the eval API, or use Save test case on an agent dataset.",
-    };
-  },
-
-  async saveTestCase(workspaceId, datasetId, caseData) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const res = await gatewayFetch<{ case: CaseRow }>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(datasetId)}/eval/cases`,
-      {
-        accessToken,
-        method: "POST",
-        body: JSON.stringify({
-          name: caseData.name,
-          input: caseData.input,
-          expected_output: caseData.expectedOutput ?? "",
-        }),
-      },
-    );
-    if (!res.ok) return fail(res.status, res.error.message);
-    return { status: "ready", data: mapCase(res.data.case, datasetId) };
-  },
-
-  async importCases(workspaceId, datasetId, cases) {
-    let imported = 0;
-    for (const c of cases) {
-      if (!c.input) continue;
-      const r = await this.saveTestCase(workspaceId, datasetId, {
-        name: c.name ?? c.input.slice(0, 40),
-        input: c.input,
-        expectedOutput: c.expectedOutput ?? "",
-      });
-      if (r.status === "ready") imported += 1;
-    }
-    return { status: "ready", data: { importedCount: imported, newRevision: 1 } };
-  },
-
-  async listRuns(workspaceId, filter) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const agentsRes = await listAgents(workspaceId, accessToken);
-    if (!agentsRes.ok) return fail(agentsRes.status, agentsRes.error.message);
-    const agents = (agentsRes.data.agents ?? []).filter((a) =>
-      filter?.agentId ? a.id === filter.agentId : true,
-    );
-    const runs: EvaluationRun[] = [];
-    for (const agent of agents) {
-      const runsRes = await gatewayFetch<{ runs: RunRow[] }>(
-        `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agent.id)}/eval/runs`,
-        { accessToken },
-      );
-      if (!runsRes.ok) continue;
-      for (const run of runsRes.data.runs ?? []) {
-        if (filter?.status && run.status !== filter.status) continue;
-        runs.push(mapRun(run, agent.name));
-      }
-    }
-    runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    return { status: "ready", data: runs };
-  },
-
-  async getRun(workspaceId, runId) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const agentsRes = await listAgents(workspaceId, accessToken);
-    if (!agentsRes.ok) return fail(agentsRes.status, agentsRes.error.message);
-    for (const agent of agentsRes.data.agents ?? []) {
-      const res = await gatewayFetch<{ run: RunRow; results: ResultRow[] }>(
-        `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agent.id)}/eval/runs/${encodeURIComponent(runId)}`,
-        { accessToken },
-      );
-      if (!res.ok) continue;
-      const run = mapRun(res.data.run, agent.name);
-      const results: EvaluationCaseResult[] = (res.data.results ?? []).map((r) => ({
-        runCaseId: r.id,
-        runId: r.run_id,
-        caseId: r.case_id,
-        caseName: r.case_id.slice(0, 8),
-        input: "",
-        expectedOutput: r.expected_output,
-        actualOutput: r.actual_output,
-        expectedTools: [],
-        actualTools: [],
-        outcome: r.error ? "error" : r.passed ? "passed" : "failed",
-        score: r.passed ? 100 : 0,
-        scoreScale: 100,
-        executionError: r.error ?? undefined,
-      }));
-      return { status: "ready", data: { run, results } };
-    }
-    return { status: "not_found", message: "Eval run not found" };
-  },
-
-  async startRun(workspaceId, data) {
-    const accessToken = await token();
-    if (!accessToken) return fail(401, "Not signed in");
-    const agentId = data.agentId || data.datasetId;
-    const res = await gatewayFetch<{ run: RunRow }>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}/eval/runs`,
-      {
-        accessToken,
-        method: "POST",
-        body: JSON.stringify({
-          agent_version_id: data.versionId,
-          idempotency_key: `ui-eval:${workspaceId}:${agentId}:${Date.now()}`,
-        }),
-      },
-    );
-    if (!res.ok) return fail(res.status, res.error.message);
-    const agentsRes = await listAgents(workspaceId, accessToken);
-    const agentName =
-      (agentsRes.ok ? agentsRes.data.agents : [])?.find((a) => a.id === agentId)?.name ?? "Agent";
-    return { status: "ready", data: mapRun(res.data.run, agentName) };
-  },
-
-  async getOverview(workspaceId, agentId, datasetId) {
-    const dsId = datasetId ?? agentId;
-    const [datasetRes, runsRes] = await Promise.all([
-      this.getDataset(workspaceId, dsId),
-      this.listRuns(workspaceId, { agentId }),
+  async getOverview(workspaceId, agentId, datasetId, signal) {
+    const [summaryRes, datasetsRes, runsRes] = await Promise.all([
+      EvaluationApiClient.getSummary(workspaceId, signal),
+      EvaluationApiClient.listDatasets(workspaceId, { agentId }, signal),
+      EvaluationApiClient.listRuns(workspaceId, { agentId }, signal),
     ]);
-    if (datasetRes.status !== "ready") return datasetRes;
-    if (runsRes.status !== "ready") return runsRes;
-    const latest = runsRes.data[0] ?? null;
+
+    const datasets = datasetsRes.ok ? datasetsRes.data.datasets : [];
+    const runs = runsRes.ok ? runsRes.data.runs : [];
+    const selectedDataset =
+      (datasetId ? datasets.find((d) => d.id === datasetId) : null) ||
+      datasets[0] || {
+        id: "default",
+        workspaceId,
+        agentId,
+        name: "Default Dataset",
+        description: null,
+        tags: [],
+        revision: 1,
+        recordVersion: 1,
+        caseCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+    const latestRun = runs[0] ?? null;
+
     return {
       status: "ready",
       data: {
         agentId,
-        agentName: latest?.agentName ?? "Agent",
-        selectedDataset: datasetRes.data.dataset,
-        scoringPolicy: "exact-match-v1",
-        latestScore: latest?.overallScore ?? null,
+        agentName: latestRun?.agentName ?? "Agent",
+        selectedDataset,
+        scoringPolicy: latestRun?.policy?.method ?? "exact_match",
+        latestScore: latestRun?.score ?? null,
         scoreScale: 100,
-        passedCases: latest?.passedCount ?? null,
-        failedCases: latest?.failedCount ?? null,
-        totalCases: datasetRes.data.cases.length,
-        latestRun: latest,
+        passedCases: latestRun?.passedCount ?? null,
+        failedCases: latestRun?.failedCount ?? null,
+        totalCases: selectedDataset.caseCount,
+        latestRun,
         comparison: [],
-        datasets: [datasetRes.data.dataset],
-        recentRuns: runsRes.data.slice(0, 10),
-      } satisfies EvaluationOverviewData,
+        datasets,
+        recentRuns: runs,
+        summary: summaryRes.ok ? summaryRes.data.summary : undefined,
+      },
     };
+  },
+
+  async listDatasets(workspaceId, signal) {
+    const res = await EvaluationApiClient.listDatasets(workspaceId, {}, signal);
+    if (!res.ok) {
+      return { status: res.status === 404 ? "not_found" : "error", message: res.error };
+    }
+    return { status: "ready", data: res.data.datasets };
+  },
+
+  async getDataset(workspaceId, datasetId, signal) {
+    const [datasetRes, casesRes] = await Promise.all([
+      EvaluationApiClient.getDataset(workspaceId, datasetId, signal),
+      EvaluationApiClient.listCases(workspaceId, datasetId, {}, signal),
+    ]);
+    if (!datasetRes.ok) {
+      return { status: datasetRes.status === 404 ? "not_found" : "error", message: datasetRes.error };
+    }
+    return {
+      status: "ready",
+      data: {
+        dataset: datasetRes.data.dataset,
+        cases: casesRes.ok ? casesRes.data.cases : [],
+      },
+    };
+  },
+
+  async createDataset(workspaceId, data) {
+    const res = await EvaluationApiClient.createDataset(workspaceId, {
+      agentId: "all",
+      name: data.name,
+      description: data.description,
+      tags: data.tags,
+    });
+    if (!res.ok) {
+      return { status: "error", message: res.error };
+    }
+    return { status: "ready", data: res.data.dataset };
+  },
+
+  async saveTestCase(workspaceId, datasetId, caseData) {
+    if (caseData.id) {
+      const res = await EvaluationApiClient.updateCase(workspaceId, datasetId, caseData.id, {
+        name: caseData.name,
+        input: caseData.input,
+        expectedOutput: caseData.expectedOutput,
+        expectedTools: caseData.expectedTools,
+        fixtureResponses: caseData.fixtureResponses,
+        tags: caseData.tags,
+        expectedRecordVersion: caseData.recordVersion,
+      });
+      if (!res.ok) return { status: "error", message: res.error };
+      return { status: "ready", data: res.data.case };
+    }
+
+    const res = await EvaluationApiClient.createCase(workspaceId, datasetId, {
+      name: caseData.name,
+      input: caseData.input,
+      expectedOutput: caseData.expectedOutput,
+      expectedTools: caseData.expectedTools,
+      fixtureResponses: caseData.fixtureResponses,
+      tags: caseData.tags,
+    });
+    if (!res.ok) return { status: "error", message: res.error };
+    return { status: "ready", data: res.data.case };
+  },
+
+  async importCases(workspaceId, datasetId, cases) {
+    const res = await EvaluationApiClient.importCases(workspaceId, datasetId, cases as any);
+    if (!res.ok) return { status: "error", message: res.error };
+    return {
+      status: "ready",
+      data: {
+        importedCount: res.data.imported_count,
+        newRevision: res.data.new_revision,
+      },
+    };
+  },
+
+  async listRuns(workspaceId, filter, signal) {
+    const res = await EvaluationApiClient.listRuns(workspaceId, filter ?? {}, signal);
+    if (!res.ok) return { status: "error", message: res.error };
+    return { status: "ready", data: res.data.runs };
+  },
+
+  async getRun(workspaceId, runId, signal) {
+    const res = await EvaluationApiClient.getRun(workspaceId, runId, signal);
+    if (!res.ok) {
+      return { status: res.status === 404 ? "not_found" : "error", message: res.error };
+    }
+    return { status: "ready", data: res.data };
+  },
+
+  async startRun(workspaceId, data) {
+    const res = await EvaluationApiClient.startRun(workspaceId, {
+      agentId: data.agentId,
+      agentVersionId: data.versionId,
+      datasetId: data.datasetId,
+      policy: {
+        method: "exact_match",
+        config: {},
+        scorerVersion: "v1",
+      },
+    });
+    if (!res.ok) return { status: "error", message: res.error };
+    return { status: "ready", data: res.data.run };
   },
 };

@@ -24,6 +24,12 @@ export class WorkspaceInviteEntity {
   @Column({ name: "expires_at", type: "timestamptz" })
   expiresAt!: Date;
 
+  @Column({ name: "accepted_at", type: "timestamptz", nullable: true })
+  acceptedAt!: Date | null;
+
+  @Column({ name: "accepted_by", type: "uuid", nullable: true })
+  acceptedBy!: string | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 }

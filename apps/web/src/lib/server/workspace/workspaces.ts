@@ -71,20 +71,24 @@ export async function createWorkspace(
   return normalizeWorkspace(res.data.workspace);
 }
 
-/** Pick first workspace for org or create a default one after register/login. */
+/** Pick first workspace for user across all authorized organizations or create a default one. */
 export async function ensureWorkspaceForUser(accessToken: string): Promise<string | null> {
   const me = await fetchMe(accessToken);
   if (!me?.organizations?.length) {
     return null;
   }
-  const org = me.organizations[0]!;
-  let list = await listOrgWorkspaces(accessToken, org.id);
-  if (list.length === 0) {
-    const slug = slugify(org.name);
-    const created = await createWorkspace(accessToken, org.id, org.name, slug);
-    if (created) {
-      list = [created];
+
+  // Check each authorized organization for existing workspaces
+  for (const org of me.organizations) {
+    const list = await listOrgWorkspaces(accessToken, org.id);
+    if (list.length > 0) {
+      return list[0]!.id;
     }
   }
-  return list[0]?.id ?? null;
+
+  // If no workspaces exist across any organization, create default in the primary organization
+  const org = me.organizations[0]!;
+  const slug = slugify(org.name);
+  const created = await createWorkspace(accessToken, org.id, org.name, slug);
+  return created?.id ?? null;
 }

@@ -9,3 +9,24 @@ export async function GET(_request: Request, { params }: Params) {
   if (!result.ok) return result.response;
   return NextResponse.json(result.data, { status: result.status });
 }
+
+export async function PATCH(request: Request, { params }: Params) {
+  const body = await request.text();
+  const path = `/v1/workspaces/${encodeURIComponent(params.workspaceId)}/campaigns/${encodeURIComponent(params.campaignId)}`;
+  const result = await proxyToGateway<Record<string, unknown>>(path, {
+    method: "PATCH",
+    body,
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!result.ok) return result.response;
+  return NextResponse.json(result.data, { status: result.status });
+}
+
+export async function DELETE(_request: Request, { params }: Params) {
+  const path = `/v1/workspaces/${encodeURIComponent(params.workspaceId)}/campaigns/${encodeURIComponent(params.campaignId)}`;
+  const result = await proxyToGateway<Record<string, unknown>>(path, {
+    method: "DELETE",
+  });
+  if (!result.ok) return result.response;
+  return NextResponse.json(result.data, { status: result.status });
+}

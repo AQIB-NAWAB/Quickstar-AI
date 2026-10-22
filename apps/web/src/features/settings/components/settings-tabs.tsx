@@ -12,6 +12,7 @@ const ACCOUNT: { id: SettingsTab; label: string }[] = [{ id: "account", label: "
 const WORKSPACE: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "members", label: "Members" },
+  { id: "billing", label: "Billing & plans" },
   { id: "api-keys", label: "API keys" },
   { id: "secrets", label: "Secrets" },
   { id: "publishable-keys", label: "Publishable keys" },

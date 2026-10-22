@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, AlertTriangle } from "lucide-react";
 import { FeatureDialog } from "./feature-dialog";
 import { deleteSource } from "../lib/client";
 
@@ -11,6 +11,7 @@ interface DeleteSourceModalProps {
   workspaceId: string;
   sourceId: string;
   sourceName: string;
+  chunkCount?: number | null;
   onDeleted: () => void;
 }
 
@@ -20,6 +21,7 @@ export function DeleteSourceModal({
   workspaceId,
   sourceId,
   sourceName,
+  chunkCount,
   onDeleted,
 }: DeleteSourceModalProps) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -40,27 +42,38 @@ export function DeleteSourceModal({
     }
   }
 
+  const chunkNotice = typeof chunkCount === "number" && chunkCount > 0
+    ? ` and remove all ${chunkCount} of its indexed ${chunkCount === 1 ? "chunk" : "chunks"} from agent context`
+    : " and remove all indexed chunks from agent context";
+
   return (
     <FeatureDialog
       open={open}
       onClose={onClose}
-      title="Delete source?"
+      title="Delete this source?"
       isSubmitting={isDeleting}
-      maxWidthClass="max-w-[460px]"
+      maxWidthClass="max-w-[480px]"
     >
       <div className="space-y-4">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 text-accent-crimson flex items-center justify-center shrink-0">
-            <Trash2 className="w-5 h-5" />
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-full bg-red-50 text-accent-crimson flex items-center justify-center shrink-0 border border-red-100">
+            <Trash2 className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="space-y-1.5 min-w-0">
             <p className="text-sm font-semibold text-accent-black break-words">
               {sourceName}
             </p>
             <p className="text-xs text-neutral-600 leading-relaxed">
-              This deletes the source and schedules removal of its indexed content. This cannot be undone.
+              This will permanently delete this source{chunkNotice}. This action cannot be undone.
             </p>
           </div>
+        </div>
+
+        <div className="p-3 bg-red-50/60 border border-red-100 rounded-10 flex items-start gap-2.5 text-xs text-accent-crimson leading-relaxed">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            Deletion immediately removes this source from runtime retrieval. Indexed content and stored files will be completely purged.
+          </span>
         </div>
 
         {error ? (
@@ -85,7 +98,7 @@ export function DeleteSourceModal({
             type="button"
             onClick={() => void handleDelete()}
             disabled={isDeleting}
-            className="px-4 py-2 rounded-10 bg-accent-crimson text-white text-xs font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="px-4 py-2 rounded-10 bg-accent-crimson text-white text-xs font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 shadow-sm"
           >
             {isDeleting ? "Deleting..." : "Delete source"}
           </button>

@@ -180,34 +180,32 @@ Security is not an afterthought in QuickStart AI; it is baked into every layer o
 
 ## 7. Frontend Architecture & Landing Page Tour (`apps/web`)
 
-The web application is built with **Next.js 14+ (App Router)**, **TypeScript**, **TailwindCSS**, **Framer Motion**, and **Three.js / 3D Canvas components**.
+The web application uses **Next.js 14 (App Router)**, **React 18**, **TypeScript**, and **Tailwind CSS**. React Flow powers the agent and workflow canvases; SVG and the Hairline runtime power the landing-page illustrations.
 
 ```text
 apps/web/src/
 ├── app/
-│   ├── globals.css              # Custom Firecrawl-inspired tokens & heat-glow animations
-│   ├── layout.tsx               # Root layout, Inter & Mono fonts
-│   └── page.tsx                 # Master landing page layout
-└── components/
-    ├── navbar.tsx               # Hairline navigation with live status pulse & corner marks
-    ├── hero.tsx                 # Headline with background 3D ASCII & wireframe geometries
-    ├── animated-tetrahedron.tsx # Mathematical 3D spinning wireframe tetrahedron
-    ├── animated-sphere.tsx      # Rotating ASCII wireframe sphere
-    ├── interactive-url-bar.tsx  # Dynamic agent execution prompt bar
-    ├── code-playground.tsx      # Live split code view + simulated runtime trace
-    ├── how-it-works-section.tsx # 3-step interactive pipeline stepper
-    ├── feature-grid.tsx         # 4 pillar cards with live animated SVG visualizers
-    ├── infrastructure-section.tsx # Visual microservice request-flow diagrams
-    ├── metrics-section.tsx      # Animated telemetry counters & live UTC clock
-    ├── pricing-section.tsx      # Transparent developer tier pricing
-    └── cta-banner.tsx           # Terminal CLI quickstart box
+│   ├── globals.css              # Shared tokens and application styles
+│   ├── landing.css              # Scoped landing-page layout and typography
+│   ├── layout.tsx               # Root metadata, fonts, and styles
+│   └── page.tsx                 # Composes the public landing page
+├── components/brand/            # Logo and interactive companion
+├── features/marketing/components/
+│   ├── navbar.tsx
+│   ├── hero.tsx
+│   ├── hero-business-conveyor.tsx
+│   ├── social-proof.tsx
+│   ├── how-it-works-section.tsx
+│   ├── feature-grid.tsx
+│   ├── platform-control-demo.tsx
+│   ├── team-control-illustration.tsx
+│   ├── pricing-section.tsx
+│   ├── cta-banner.tsx
+│   └── footer.tsx
+└── lib/marketing/               # Companion motion and conveyor runtime
 ```
 
-### Visual Highlights of the Page:
-1. **The Nav Crosshair Indicators:** The header features subtle corner connector symbols (`+`) at border junctions, emphasizing technical, blueprint-like drafting precision.
-2. **The 3D Mathematical Hero Elements:** The hero features interactive, rotating 3D geometry (an ASCII sphere and a wireframe tetrahedron). This represents the mathematical, algorithmic foundations of machine learning.
-3. **The Live Code Sandbox:** Visitors can click between agent modes (`Chat`, `Action`, `Research`, `Workflow`). The left side shows clean TypeScript SDK code, while the right side displays the real-time reasoning trace (thinking -> querying DB -> tool call -> completion).
-4. **The Signature Glow Button:** Custom P3 wide-gamut heat orange buttons (`#fa5d19`) with inset rim lighting and subtle interactive hover-lift physics.
+The hero explains the agent lifecycle through an interactive conveyor. The feature grid combines a platform demo with contextual illustrations for versions, workspaces, and permissions. The brand companion provides contextual hints and respects reduced-motion preferences. The authenticated console lives under `app/(app)/workspaces/[workspaceId]` and calls backend services through workspace-scoped BFF routes.
 
 ---
 

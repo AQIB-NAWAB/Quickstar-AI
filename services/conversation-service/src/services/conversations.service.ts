@@ -75,7 +75,7 @@ export class ConversationsService {
     return conversation;
   }
 
-  async requestVoiceAttention(workspaceId: string, conversationId: string): Promise<Conversation> {
+  async requestVoiceAttention(workspaceId: string, conversationId: string, channel: "chat" | "voice" = "voice"): Promise<Conversation> {
     const existing = await this.getConversation(workspaceId, conversationId);
     if (existing.state !== "bot") return existing;
     const updated = await this.store.markVoiceWaiting(workspaceId, conversationId);
@@ -84,9 +84,9 @@ export class ConversationsService {
       conversationId,
       senderType: "system",
       senderId: "voice",
-      text: "A visitor is waiting for a teammate on a live call.",
+      text: channel === "voice" ? "A visitor is waiting for a teammate on a live call." : "A visitor is waiting for a teammate in chat.",
       idempotencyKey: `voice-attention:${conversationId}`,
-      metadata: { kind: "voice_attention" },
+      metadata: { kind: channel === "voice" ? "voice_attention" : "agent_attention" },
     });
     return updated ?? existing;
   }
@@ -219,5 +219,20 @@ export class ConversationsService {
       });
     }
     return this.store.listToolCalls(workspaceId, conversationId, key);
+  }
+
+  async updateTags(
+    workspaceId: string,
+    conversationId: string,
+    tags: string[],
+    mode: "add" | "remove" | "replace" = "add",
+  ): Promise<string[]> {
+    if (!workspaceId?.trim() || !conversationId?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "workspaceId and conversationId are required",
+      });
+    }
+    return this.store.updateTags(workspaceId, conversationId, tags, mode);
   }
 }

@@ -1,3 +1,5 @@
+import type { AgentGraph } from "@quickstart/contracts";
+
 export type AgentChannels = {
   chat: boolean;
   voice: boolean;
@@ -71,6 +73,8 @@ export type AgentSnapshot = {
   channels: AgentChannels;
   tools: AgentToolDefinition[];
   draft_version: number;
+  graph?: AgentGraph;
+  builder_mode?: "legacy" | "canvas";
 };
 
 export type AgentVoiceSettings = {
@@ -94,6 +98,9 @@ export type Agent = {
   tools: AgentToolDefinition[];
   voice?: AgentVoiceSettings;
   version: number;
+  draft_revision?: number;
+  builder_mode?: "legacy" | "canvas";
+  draft_graph?: AgentGraph | null;
   production_version_id: string | null;
   created_at: string;
   updated_at: string;
@@ -104,6 +111,7 @@ export type AgentVersion = {
   workspace_id: string;
   agent_id: string;
   release_number: number;
+  release_notes?: string | null;
   snapshot: AgentSnapshot;
   created_by: string;
   created_at: string;

@@ -4,6 +4,7 @@ interface ChartCardProps {
   title: string;
   description?: string;
   headerRight?: React.ReactNode;
+  legend?: { label: string; color: string }[];
   footer?: React.ReactNode;
   children: React.ReactNode;
   dataTable?: React.ReactNode;
@@ -14,6 +15,7 @@ export function ChartCard({
   title,
   description,
   headerRight,
+  legend,
   footer,
   children,
   dataTable,
@@ -48,7 +50,19 @@ export function ChartCard({
             </p>
           )}
         </div>
-        {headerRight && <div className="shrink-0">{headerRight}</div>}
+        <div className="flex items-center gap-3 shrink-0">
+          {legend && (
+            <div className="flex items-center gap-3 text-xs text-neutral-500">
+              {legend.map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                  <span>{l.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {headerRight && <div>{headerRight}</div>}
+        </div>
       </div>
 
       {/* Chart Plotting Area */}

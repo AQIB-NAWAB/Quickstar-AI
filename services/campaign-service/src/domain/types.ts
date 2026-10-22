@@ -29,12 +29,17 @@ export type AudienceFieldDef = {
   required?: boolean;
 };
 
+export type CampaignTimezoneMode = "campaign" | "recipient_local" | "recipient" | "fixed" | "campaign_fixed";
+
 export type CampaignSchedule = {
   startDate: string;
   startTime: string;
+  endDate?: string | null;
   timezone: string;
   dailyWindowFrom: string;
   dailyWindowTo: string;
+  timezoneMode?: CampaignTimezoneMode;
+  weekdays?: string[] | number[];
 };
 
 export type CampaignPacing = {
@@ -55,6 +60,10 @@ export type CampaignRecord = {
   description: string | null;
   agentId: string;
   agentName: string;
+  callerId?: string | null;
+  agentVersionId?: string | null;
+  timezoneMode?: CampaignTimezoneMode;
+  weekdays?: string[] | number[];
   status: CampaignStatus;
   audienceSchema: AudienceFieldDef[];
   schedule: CampaignSchedule;
@@ -65,6 +74,7 @@ export type CampaignRecord = {
   scheduledStart: Date | null;
   startedAt: Date | null;
   completedAt: Date | null;
+  heldContactsCount?: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -81,6 +91,14 @@ export type CampaignMetrics = {
   startedAttempts: number;
 };
 
+export type CampaignsDirectorySummary = {
+  outboundAttemptsPlaced: number;
+  humanConnectionRate: number;
+  activeChannels: number;
+  workspaceCapacity: number;
+  retryConversionRate: number;
+};
+
 export type CampaignSummary = {
   id: string;
   workspaceId: string;
@@ -88,11 +106,16 @@ export type CampaignSummary = {
   description: string | null;
   agentId: string;
   agentName: string;
+  callerId?: string | null;
+  agentVersionId?: string | null;
+  timezoneMode?: CampaignTimezoneMode;
+  weekdays?: string[] | number[];
   status: CampaignStatus;
   eligibleContacts: number;
   completedContacts: number;
   answerRate: number | null;
   scheduledStart: string | null;
+  heldContactsCount?: number;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -114,6 +137,10 @@ export type CampaignTarget = {
   dialNormalized: string;
   displayName: string | null;
   email: string | null;
+  timezone?: string | null;
+  timezoneProvenance?: "provided" | "inferred" | "unknown";
+  isHeld?: boolean;
+  heldReason?: string | null;
   attributes: Record<string, string>;
   sourceKind: "csv" | "lead" | "api";
   sourceRef: string | null;
@@ -136,6 +163,8 @@ export type CampaignAttempt = {
   attemptNumber: number;
   idempotencyKey: string;
   callId: string | null;
+  providerCallSid?: string | null;
+  provider?: string;
   status: "answered" | "no_answer" | "busy" | "failed" | "in_progress" | "voicemail";
   outcome: string;
   startedAt: Date;
@@ -148,6 +177,7 @@ export type IncomingTarget = {
   dialAddress: string;
   displayName?: string | null;
   email?: string | null;
+  timezone?: string | null;
   attributes?: Record<string, string>;
   sourceKind?: "csv" | "lead" | "api";
   sourceRef?: string | null;

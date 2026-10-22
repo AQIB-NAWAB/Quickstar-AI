@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { AuthCard } from "@/features/auth/components/auth-card";
-import { Button } from "@/components/ui/button";
+import { AuthLayout } from "./auth-layout";
 import { PasswordInput } from "./password-input";
-import { Input } from "@/components/ui/input";
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,40 +46,58 @@ export function LoginForm() {
   }
 
   return (
-    <AuthCard
-      title="Welcome back"
-      subtitle="Sign in to manage agents, inbox, and workspace settings."
-      footer={
-        <>
-          <span className="text-neutral-500">New here? </span>
-          <Link href="/register" className="font-semibold text-heat-100 hover:underline">
-            Create an account
-          </Link>
-        </>
-      }
-    >
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Input
-          label="Email"
-          name="email"
-          type="email"
-          placeholder="you@company.com"
-          className="h-11 rounded-8 text-[13px]"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+    <AuthLayout variant="login">
+      <form onSubmit={onSubmit}>
+        <div className="auth-field">
+          <label htmlFor="email" className="auth-label">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@company.com"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="auth-input"
+          />
+        </div>
+
+        <PasswordInput
+          value={password}
+          onChange={setPassword}
+          isNew={false}
+          placeholder="Enter your password"
         />
-        <PasswordInput value={password} onChange={setPassword} />
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px", marginBottom: "18px" }}>
+          <a
+            href="/forgot-password"
+            style={{ fontSize: "12px", color: "#666", textDecoration: "none", fontWeight: 500 }}
+          >
+            Forgot password?
+          </a>
+        </div>
+
         {error ? (
-          <p role="alert" className="rounded-10 border border-red-100 bg-red-50 px-3 py-2 text-sm text-accent-crimson">
+          <p role="alert" className="auth-error">
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full h-11 rounded-8 bg-heat-100 hover:bg-heat-100/90 shadow-none" loading={loading}>
-          Sign in
-        </Button>
+
+        <button
+          type="submit"
+          className="auth-btn-primary"
+          disabled={loading}
+        >
+          <span>{loading ? "Signing in…" : "Sign in"}</span>
+          <span className="auth-btn-arrow" aria-hidden="true">
+            →
+          </span>
+        </button>
       </form>
-    </AuthCard>
+    </AuthLayout>
   );
 }

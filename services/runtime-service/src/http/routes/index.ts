@@ -4,6 +4,7 @@ import { createHealthRoutes } from "./health.routes.js";
 import { createInternalEvalRoutes } from "./internal-eval.routes.js";
 import { createInternalVoiceRoutes } from "./internal-voice.routes.js";
 import { createInternalWidgetRoutes } from "./internal-widget.routes.js";
+import { createGraphTurnsRoutes } from "./graph-turns.routes.js";
 import { createTurnsRoutes } from "./turns.routes.js";
 
 export function createRuntimeApiRouter(ctx: RuntimeHttpContext): Router {
@@ -13,6 +14,7 @@ export function createRuntimeApiRouter(ctx: RuntimeHttpContext): Router {
   router.use(createInternalWidgetRoutes(ctx));
   router.use(createInternalVoiceRoutes(ctx));
   router.use(createInternalEvalRoutes(ctx));
+  router.use(createGraphTurnsRoutes(ctx));
   router.use(createTurnsRoutes(ctx));
 
   return router;

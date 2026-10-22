@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { AuthCard } from "@/features/auth/components/auth-card";
-import { Button } from "@/components/ui/button";
+import { AuthLayout } from "./auth-layout";
 import { PasswordInput } from "./password-input";
-import { Input } from "@/components/ui/input";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -49,50 +46,65 @@ export function RegisterForm() {
   }
 
   return (
-    <AuthCard
-      title="Create your account"
-      subtitle="Create your organization and first workspace in one step."
-      footer={
-        <>
-          <span className="text-neutral-500">Already have an account? </span>
-          <Link href="/login" className="font-semibold text-heat-100 hover:underline">
-            Sign in
-          </Link>
-        </>
-      }
-    >
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Input
-          label="Organization name"
-          name="organization_name"
-          autoComplete="organization"
-          className="h-11 rounded-8 text-[13px]"
-          required
-          value={organizationName}
-          onChange={(e) => setOrganizationName(e.target.value)}
-          placeholder="Acme Support"
+    <AuthLayout variant="register">
+      <form onSubmit={onSubmit}>
+        <div className="auth-field">
+          <label htmlFor="organization_name" className="auth-label">
+            Organization name
+          </label>
+          <input
+            id="organization_name"
+            name="organization_name"
+            autoComplete="organization"
+            placeholder="Acme Support"
+            required
+            value={organizationName}
+            onChange={(e) => setOrganizationName(e.target.value)}
+            className="auth-input"
+          />
+        </div>
+
+        <div className="auth-field">
+          <label htmlFor="email" className="auth-label">
+            Work email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@company.com"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="auth-input"
+          />
+        </div>
+
+        <PasswordInput
+          value={password}
+          onChange={setPassword}
+          isNew={true}
+          placeholder="Create a password"
         />
-        <Input
-          label="Work email"
-          name="email"
-          type="email"
-          placeholder="you@company.com"
-          className="h-11 rounded-8 text-[13px]"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <PasswordInput value={password} onChange={setPassword} isNew />
+
         {error ? (
-          <p role="alert" className="rounded-10 border border-red-100 bg-red-50 px-3 py-2 text-sm text-accent-crimson">
+          <p role="alert" className="auth-error">
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full h-11 rounded-8 bg-heat-100 hover:bg-heat-100/90 shadow-none" loading={loading}>
-          Create account
-        </Button>
+
+        <button
+          type="submit"
+          className="auth-btn-primary"
+          disabled={loading}
+        >
+          <span>{loading ? "Creating account…" : "Create account"}</span>
+          <span className="auth-btn-arrow" aria-hidden="true">
+            →
+          </span>
+        </button>
       </form>
-    </AuthCard>
+    </AuthLayout>
   );
 }

@@ -1,4 +1,4 @@
-import type { AgentToolDefinition } from "@quickstart/contracts";
+import type { AgentGraph, AgentToolDefinition } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import { fetchWithPolicy } from "@quickstart/utilities";
 
@@ -8,7 +8,11 @@ export type AgentInfo = {
   name: string;
   production_version_id: string | null;
   instructions: string;
+  draft_revision?: number;
+  draft_graph?: AgentGraph | null;
+  builder_mode?: "legacy" | "canvas";
   model_settings?: Record<string, unknown>;
+  tools?: AgentToolDefinition[];
 };
 
 export type AgentVersionInfo = {
@@ -22,6 +26,8 @@ export type AgentVersionInfo = {
     model_settings: Record<string, unknown>;
     channels?: { chat?: boolean; voice?: boolean };
     tools?: AgentToolDefinition[];
+    graph?: AgentGraph;
+    builder_mode?: "legacy" | "canvas";
   };
 };
 
@@ -167,5 +173,38 @@ export class AgentClient {
     }
     const data = (await res.json()) as { version: AgentVersionInfo };
     return data.version;
+  }
+
+  async getDraftGraph(
+    workspaceId: string,
+    agentId: string,
+    headers: Record<string, string>,
+  ): Promise<{ graph: AgentGraph; draft_revision: number; builder_mode: "legacy" | "canvas" }> {
+    const url = `${this.baseUrl}/v1/workspaces/${encodeURIComponent(workspaceId)}/agents/${encodeURIComponent(agentId)}/graph`;
+    const res = await fetchWithPolicy(
+      url,
+      {
+        method: "GET",
+        headers: {
+          ...headers,
+          Accept: "application/json",
+        },
+      },
+      { timeoutMs: this.timeoutMs, maxRetries: 1 },
+    );
+
+    if (res.status === 404) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Agent or graph not found in workspace",
+      });
+    }
+    if (!res.ok) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: `Agent service failed with status ${res.status}`,
+      });
+    }
+    return (await res.json()) as { graph: AgentGraph; draft_revision: number; builder_mode: "legacy" | "canvas" };
   }
 }

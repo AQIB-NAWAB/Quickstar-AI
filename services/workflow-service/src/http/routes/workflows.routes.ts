@@ -20,12 +20,35 @@ export const createWorkflowsRoutes: RouteModule<WorkflowHttpContext> = (ctx) => 
   const del = requireWorkspacePermission(ctx.workspaceAccess, WORKFLOW_DELETE);
   const runsRead = requireWorkspacePermission(ctx.workspaceAccess, WORKFLOW_RUNS_READ);
 
+  // Stats & Templates & Catalog
+  router.get(
+    "/v1/workspaces/:workspaceId/workflows/stats",
+    ...chain,
+    read,
+    asyncHandler(ctrl.stats),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/workflows/templates",
+    ...chain,
+    read,
+    asyncHandler(ctrl.templates),
+  );
   router.get(
     "/v1/workspaces/:workspaceId/workflows/events/catalog",
     ...chain,
     read,
     asyncHandler(ctrl.catalog),
   );
+
+  // Workspace-wide runs list
+  router.get(
+    "/v1/workspaces/:workspaceId/workflows/runs",
+    ...chain,
+    runsRead,
+    asyncHandler(ctrl.listRuns),
+  );
+
+  // Workflow CRUD
   router.get("/v1/workspaces/:workspaceId/workflows", ...chain, read, asyncHandler(ctrl.list));
   router.post("/v1/workspaces/:workspaceId/workflows", ...chain, edit, asyncHandler(ctrl.create));
   router.get(
@@ -40,20 +63,64 @@ export const createWorkflowsRoutes: RouteModule<WorkflowHttpContext> = (ctx) => 
     edit,
     asyncHandler(ctrl.update),
   );
-  // Activate/pause use the same PUT with status; require activate permission when body asks for it
-  // via edit above for drafts; activate permission checked in a dedicated PATCH.
-  router.patch(
-    "/v1/workspaces/:workspaceId/workflows/:workflowId/status",
-    ...chain,
-    activate,
-    asyncHandler(ctrl.update),
-  );
   router.delete(
     "/v1/workspaces/:workspaceId/workflows/:workflowId",
     ...chain,
     del,
     asyncHandler(ctrl.remove),
   );
+
+  // Graph operations: save draft, validate, simulate, activate, pause, versions
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/draft",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.saveDraft),
+  );
+  router.put(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/draft",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.saveDraft),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/validate",
+    ...chain,
+    read,
+    asyncHandler(ctrl.validate),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/simulations",
+    ...chain,
+    read,
+    asyncHandler(ctrl.simulate),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/activate",
+    ...chain,
+    activate,
+    asyncHandler(ctrl.activate),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/pause",
+    ...chain,
+    activate,
+    asyncHandler(ctrl.pause),
+  );
+  router.patch(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/status",
+    ...chain,
+    activate,
+    asyncHandler(ctrl.status),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/versions",
+    ...chain,
+    read,
+    asyncHandler(ctrl.listVersions),
+  );
+
+  // Workflow Runs
   router.get(
     "/v1/workspaces/:workspaceId/workflows/:workflowId/runs",
     ...chain,
@@ -65,6 +132,24 @@ export const createWorkflowsRoutes: RouteModule<WorkflowHttpContext> = (ctx) => 
     ...chain,
     runsRead,
     asyncHandler(ctrl.getRun),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/runs/:runId/cancel",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.cancelRun),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/runs/:runId/replay",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.replayRun),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/recover-abandoned",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.recoverRuns),
   );
 
   return router;
