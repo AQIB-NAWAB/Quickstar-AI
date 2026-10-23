@@ -11,8 +11,16 @@ import { HowItWorksSection } from "@/features/marketing/components/how-it-works-
 import { Navbar } from "@/features/marketing/components/navbar";
 import { PricingSection } from "@/features/marketing/components/pricing-section";
 import { SocialProof } from "@/features/marketing/components/social-proof";
+import { LandingChatWidget } from "@/features/marketing/components/landing-chat-widget";
 
 export default function HomePage() {
+  const widgetKey = process.env.NEXT_PUBLIC_LANDING_WIDGET_PUBLISHABLE_KEY;
+  const widgetAgentId = process.env.NEXT_PUBLIC_LANDING_WIDGET_AGENT_ID;
+  const widgetGatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL;
+  const widgetConfig = widgetKey && widgetAgentId && widgetGatewayUrl
+    ? { publishableKey: widgetKey, agentId: widgetAgentId, gatewayUrl: widgetGatewayUrl }
+    : null;
+
   return (
     <div className="landing-page relative min-h-screen flex flex-col bg-background-base">
       <Navbar />
@@ -38,7 +46,8 @@ export default function HomePage() {
       </main>
 
       <Footer />
-      <BrandCompanion />
+      <BrandCompanion restOnLeft={Boolean(widgetConfig)} />
+      {widgetConfig && <LandingChatWidget {...widgetConfig} />}
     </div>
   );
 }
