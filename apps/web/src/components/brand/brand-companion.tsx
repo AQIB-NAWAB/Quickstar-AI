@@ -12,7 +12,7 @@ interface Point { x: number; y: number }
 const INTRO: Reaction = { mood: "curious", message: "I'm here to explore with you. Follow the spark as you scroll.", hint: false };
 
 /** A corner companion with measured hover spacing and random screen-edge entrances. */
-export function BrandCompanion() {
+export function BrandCompanion({ restOnLeft = false }: { restOnLeft?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const connector = useRef<SVGPathElement>(null);
   const overlay = useRef<SVGSVGElement>(null);
@@ -47,7 +47,7 @@ export function BrandCompanion() {
       element.dataset.section = "rest";
       const halfWidth = element.offsetWidth * .95 / 2;
       const halfHeight = element.offsetHeight * .95 / 2;
-      return { x: innerWidth - halfWidth - 24, y: innerHeight - halfHeight - 24 };
+      return { x: restOnLeft ? halfWidth + 24 : innerWidth - halfWidth - 24, y: innerHeight - halfHeight - 24 };
     };
     const react = (next: Reaction) => {
       if (state.current.greeting) return;
@@ -296,7 +296,7 @@ export function BrandCompanion() {
       preference.removeEventListener("change", resize);
       element.removeEventListener("spark-state-change", schedule);
     };
-  }, [hidden]);
+  }, [hidden, restOnLeft]);
 
   const greet = () => {
     const now = performance.now();
