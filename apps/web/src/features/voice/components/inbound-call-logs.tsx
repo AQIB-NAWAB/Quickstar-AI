@@ -403,8 +403,14 @@ export function InboundCallLogs({
               </span>
               <div className="text-xs font-semibold text-accent-black">Assign Phone Number</div>
               <p className="text-[11px] text-neutral-500 leading-snug">
-                Configure your inbound carrier route or SIP trunk in Voice settings.
+                Buy a Telnyx number and route it through LiveKit SIP in Voice → Numbers.
               </p>
+              <Link
+                href={basePath.replace(/\/inbound$/, "/numbers")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-heat-100 hover:text-heat-200"
+              >
+                Open numbers &rarr;
+              </Link>
             </div>
 
             <div className="p-3.5 rounded-12 bg-neutral-50 border border-neutral-200/70 space-y-1.5">

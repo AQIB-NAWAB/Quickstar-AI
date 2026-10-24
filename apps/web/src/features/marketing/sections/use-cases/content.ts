@@ -66,7 +66,7 @@ export const USE_CASES_CONTENT: UseCasesContent = {
     {
       id: "follow-up-call",
       question: "Can you call me tomorrow?",
-      actionText: "Follow up with a call",
+      actionText: "Request a follow-up call",
       icon: Phone,
       portraitSrc: "/marketing/use-cases/portrait-call.png",
       href: "/register",

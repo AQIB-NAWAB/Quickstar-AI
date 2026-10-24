@@ -37,7 +37,7 @@ export class DeepgramSpeechToText implements SpeechToText {
 
   async transcribe(chunk: AudioChunk, signal?: AbortSignal): Promise<TranscriptResult> {
     const started = Date.now();
-    const model = this.options.model ?? "nova-2";
+    const model = this.options.model ?? "nova-3";
     const query = new URLSearchParams({
       model,
       smart_format: "true",

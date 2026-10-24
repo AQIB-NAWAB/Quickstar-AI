@@ -1,6 +1,6 @@
-/** Cascade TTS voices the agent builder can preview and pin. Six entries, three providers. */
+/** Cascade TTS voices the agent builder can preview and pin. Seven entries, four providers. */
 
-export const TTS_PROVIDERS = ["uplift", "cartesia", "fish"] as const;
+export const TTS_PROVIDERS = ["uplift", "cartesia", "fish", "elevenlabs"] as const;
 export type TtsProviderId = (typeof TTS_PROVIDERS)[number];
 
 export type VoiceCatalogEntry = {
@@ -74,6 +74,15 @@ export const VOICE_CATALOG: readonly VoiceCatalogEntry[] = [
     label: "Fish reference",
     language: "en",
     description: "The Fish Audio voice id in FISH_AUDIO_REFERENCE_ID.",
+    sample_text: "Thanks for calling. I can help you book a demo or answer a pricing question.",
+  },
+  {
+    id: "elevenlabs:reference",
+    provider: "elevenlabs",
+    voice_id: "reference",
+    label: "ElevenLabs reference",
+    language: "en",
+    description: "The ElevenLabs voice id in ELEVENLABS_VOICE_ID.",
     sample_text: "Thanks for calling. I can help you book a demo or answer a pricing question.",
   },
 ] as const;

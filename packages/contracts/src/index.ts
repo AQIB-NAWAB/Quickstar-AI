@@ -15,14 +15,18 @@ export {
   type WorkspaceRole,
 } from "./workspace-permissions.js";
 
-export type {
-  AgentBuiltinWebToolDefinition,
-  AgentHttpToolAuth,
-  AgentHttpToolDefinition,
-  AgentMcpToolDefinition,
-  AgentToolDefinition,
-  ToolParameterProperty,
-  ToolParameterSchema,
+export {
+  BUILTIN_INTEGRATION_ACTIONS,
+  type AgentBuiltinCalendarToolDefinition,
+  type AgentBuiltinIntegrationToolDefinition,
+  type AgentBuiltinWebToolDefinition,
+  type AgentHttpToolAuth,
+  type AgentHttpToolDefinition,
+  type AgentMcpToolDefinition,
+  type AgentToolDefinition,
+  type BuiltinIntegrationProvider,
+  type ToolParameterProperty,
+  type ToolParameterSchema,
 } from "./agent-tools.js";
 
 export type { ToolCallRecord, ToolCallStatus, UpsertToolCallBody } from "./tool-calls.js";
@@ -124,20 +128,31 @@ export {
   DEFAULT_AGENT_VOICE_SETTINGS,
   DEFAULT_VOICE_DEADLINE_MS,
   DEFAULT_VOICE_MODE,
+  PHONE_NUMBER_STATUSES,
+  PHONE_NUMBER_TYPES,
   TELEPHONY_PROVIDER_IDS,
   VOICE_MODES,
   isCallState,
   isVoiceMode,
   s2sProfileAllowed,
   type AgentVoiceSettings,
+  type AvailablePhoneNumber,
   type CallDirection,
   type CallRecord,
   type CallStageTimings,
   type CallState,
   type CallTranscriptSegment,
+  type PhoneNumberCapabilities,
+  type PhoneNumberSearchFilters,
+  type PhoneNumberSearchResult,
+  type PhoneNumberStatus,
+  type PhoneNumberType,
+  type PurchasePhoneNumberInput,
   type TelephonyProviderId,
+  type UpdatePhoneNumberInput,
   type VoiceMode,
   type VoiceTurnRequestBody,
+  type WorkspacePhoneNumber,
 } from "./voice.js";
 
 export {

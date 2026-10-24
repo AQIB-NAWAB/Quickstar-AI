@@ -13,6 +13,8 @@ export type CreateSpeechBundleInput = {
   profile: SpeechProfile;
   openaiApiKey?: string;
   openaiBaseUrl?: string;
+  openaiSttModel?: string;
+  openaiTtsModel?: string;
   deepgramApiKey?: string;
   deepgramModel?: string;
   fishApiKey?: string;
@@ -107,6 +109,7 @@ export function createSpeechBundle(input: CreateSpeechBundleInput): SpeechBundle
       : new OpenAiTextToSpeech({
           apiKey: input.openaiApiKey!,
           baseUrl: input.openaiBaseUrl,
+          model: input.openaiTtsModel,
           timeoutMs: input.httpTimeoutMs,
           fetchImpl: input.fetchImpl,
         });
@@ -130,12 +133,14 @@ export function createSpeechBundle(input: CreateSpeechBundleInput): SpeechBundle
   const rawStt = new OpenAiSpeechToText({
     apiKey,
     baseUrl: input.openaiBaseUrl,
+    model: input.openaiSttModel,
     timeoutMs: input.httpTimeoutMs,
     fetchImpl: input.fetchImpl,
   });
   const rawTts = new OpenAiTextToSpeech({
     apiKey,
     baseUrl: input.openaiBaseUrl,
+    model: input.openaiTtsModel,
     timeoutMs: input.httpTimeoutMs,
     fetchImpl: input.fetchImpl,
   });

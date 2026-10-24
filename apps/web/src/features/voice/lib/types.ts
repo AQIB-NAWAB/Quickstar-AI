@@ -76,6 +76,93 @@ export type RepositoryResult<T> =
   | { status: "not_found"; message: string }
   | { status: "error"; message: string };
 
+export type PhoneNumberStatus =
+  | "pending"
+  | "available"
+  | "provisioning"
+  | "active"
+  | "releasing"
+  | "released"
+  | "error";
+
+export type PhoneNumberType = "local" | "national" | "toll_free" | "mobile";
+
+export interface WorkspacePhoneNumber {
+  id: string;
+  workspace_id: string | null;
+  phone_number: string;
+  friendly_name: string | null;
+  provider: string;
+  provider_number_id: string | null;
+  provider_connection_id: string | null;
+  assigned_agent_id: string | null;
+  status: PhoneNumberStatus;
+  inbound_status: PhoneNumberStatus;
+  livekit_trunk_id: string | null;
+  livekit_dispatch_rule_id: string | null;
+  country_code: string | null;
+  number_type: PhoneNumberType | null;
+  region: string | null;
+  locality: string | null;
+  monthly_cost: number | null;
+  currency: string | null;
+  capabilities: { voice: boolean; sms: boolean };
+  provisioning_error: string | null;
+  purchased_at: string | null;
+  released_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AvailablePhoneNumber {
+  phone_number: string;
+  country_code: string;
+  number_type: PhoneNumberType;
+  region?: string | null;
+  locality?: string | null;
+  area_code?: string | null;
+  monthly_cost?: number | null;
+  upfront_cost?: number | null;
+  currency?: string | null;
+  features?: string[];
+  owned?: boolean;
+  number_id?: string | null;
+}
+
+export interface PhoneNumberSearchFilters {
+  country_code?: string;
+  area_code?: string;
+  locality?: string;
+  state?: string;
+  number_type?: PhoneNumberType;
+  limit?: number;
+}
+
+export interface PhoneNumbersSnapshot {
+  configured: boolean;
+  numbers: WorkspacePhoneNumber[];
+  pool: WorkspacePhoneNumber[];
+}
+
+export interface AvailablePhoneNumbersResult {
+  configured: boolean;
+  numbers: AvailablePhoneNumber[];
+  pool: WorkspacePhoneNumber[];
+}
+
+export interface PurchasePhoneNumberInput {
+  e164: string;
+  agent_id?: string | null;
+  friendly_name?: string | null;
+  country_code?: string;
+  number_type?: PhoneNumberType;
+}
+
+export interface UpdatePhoneNumberInput {
+  assigned_agent_id?: string | null;
+  friendly_name?: string | null;
+}
+
 export interface CallLogFilters {
   q?: string;
   status?: string;
@@ -133,4 +220,36 @@ export interface VoiceRepository {
       processingTurns?: ProcessingTurn[];
     }>
   >;
+
+  listPhoneNumbers(
+    workspaceId: string,
+    options?: { sync?: boolean },
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<PhoneNumbersSnapshot>>;
+
+  searchAvailablePhoneNumbers(
+    workspaceId: string,
+    filters?: PhoneNumberSearchFilters,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<AvailablePhoneNumbersResult>>;
+
+  purchasePhoneNumber(
+    workspaceId: string,
+    input: PurchasePhoneNumberInput,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>>;
+
+  updatePhoneNumber(
+    workspaceId: string,
+    numberId: string,
+    input: UpdatePhoneNumberInput,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>>;
+
+  releasePhoneNumber(
+    workspaceId: string,
+    numberId: string,
+    mode: "pool" | "provider",
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>>;
 }
