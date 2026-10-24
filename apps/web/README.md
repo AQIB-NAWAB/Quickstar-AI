@@ -58,6 +58,22 @@ Protected routes: `/workspaces/[workspaceId]/*` (middleware + silent refresh).
 
 ## Website chat widget (Feature 17)
 
+To use the widget on the QuickStart landing page, set these browser-visible
+variables for the web app (locally in `apps/web/.env.local`, or in the frontend
+deployment) and rebuild:
+
+```env
+NEXT_PUBLIC_GATEWAY_URL=https://YOUR-QUICKSTART-GATEWAY
+NEXT_PUBLIC_LANDING_WIDGET_PUBLISHABLE_KEY=pk_live_...
+NEXT_PUBLIC_LANDING_WIDGET_AGENT_ID=PUBLISHED_AGENT_UUID
+```
+
+Create the publishable key in workspace settings and allow the landing page's
+exact origin, including its scheme and port if present. The widget appears on
+the landing page when all three variables are set. It uses the same published
+agent and public gateway routes as a customer-site embed. Do not use an
+organization API key here.
+
 The static browser bundle is published at `/quickstart-widget.js`. It has no
 runtime dependency on React and can be loaded on a customer site with a
 workspace publishable key:

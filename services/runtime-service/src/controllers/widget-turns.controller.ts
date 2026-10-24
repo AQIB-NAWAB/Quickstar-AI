@@ -28,6 +28,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
         modality?: "text" | "voice";
         reply_language?: string;
         reply_gender?: "female" | "male" | "neutral";
+        deadline_ms?: number;
       };
       const text = body.message ?? body.text ?? "";
       const rawHeaderKey = req.headers["idempotency-key"];
@@ -58,6 +59,7 @@ export function createWidgetTurnsController(turnsService: TurnsService) {
           modality: body.modality,
           replyLanguage: body.reply_language,
           replyGender: body.reply_gender,
+          deadlineMs: body.deadline_ms,
           signal,
         });
 

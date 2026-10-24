@@ -1,0 +1,79 @@
+.marketing-use-cases-section { background:#fff; color:#292929; padding:48px 0; scroll-margin-top:88px; }
+.marketing-use-cases-container { max-width:1240px; margin:auto; padding:0 24px; }
+.marketing-use-cases-header { text-align:center; margin-bottom:38px; }
+.marketing-use-cases-eyebrow { margin:0 0 22px; font-size:11px; font-weight:400; text-transform:uppercase; letter-spacing:.14em; color:#666; }
+.marketing-use-cases-title { margin:0; font-size:clamp(32px,2.5vw,44px); line-height:1.15; font-weight:600; letter-spacing:-.04em; }
+.marketing-use-cases-title em { color:#fa5d19; font-style:normal; }
+.marketing-use-cases-description { font-size:18px; color:#737373; line-height:1.55; margin:20px 0 0; }
+.marketing-use-cases-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:28px 32px; }
+.marketing-use-cases-card { min-width:0; }
+.marketing-use-cases-card:nth-child(n+4) { border-top:1px solid #e9e9e9; padding-top:28px; }
+.marketing-use-cases-request { display:flex; align-items:center; gap:12px; min-height:66px; margin-bottom:15px; }
+.marketing-use-cases-request img { width:40px; height:40px; object-fit:cover; border-radius:50%; flex-shrink:0; }
+.marketing-use-cases-request > div > span { font-size:11px; color:#777; }
+.marketing-use-cases-request h3 { font-size:18px; line-height:1.35; font-weight:500; letter-spacing:-.025em; margin:5px 0 0; }
+.marketing-use-cases-outcome { height:158px; border-radius:12px; background:#fff9f5; padding:18px; box-sizing:border-box; transition:background .45s; display:flex; align-items:center; }
+.marketing-use-cases-card:hover .marketing-use-cases-outcome { background:#fff5ee; }
+.marketing-use-cases-category { margin:10px 0 0; text-align:center; color:#777; font-size:12px; }
+.jobs-appointment { display:flex; gap:18px; align-items:center; width:100%; }
+.jobs-date { background:white; border-radius:10px; width:84px; height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 3px 12px #29292905; }
+.jobs-date > span { text-transform:uppercase; font-size:12px; color:#777; }
+.jobs-date strong { font-size:44px; line-height:1.2; font-weight:500; }
+.jobs-times { flex:1; min-width:0; }
+.jobs-times > div { display:grid; gap:5px; }
+.jobs-times button { padding:4px 10px; background:#f1efed; color:#777; border:1px solid transparent; border-radius:5px; text-align:left; font-size:11px; cursor:pointer; transition:background .35s,color .35s,border-color .35s; }
+.jobs-times button[aria-pressed=true] { border-color:#fa5d19; color:#fa5d19; background:#ffeadc; }
+.jobs-times p { display:flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap; margin:9px 0 0; }
+.jobs-order { display:flex; align-items:center; gap:16px; width:100%; }
+.jobs-order > svg { flex-shrink:0; color:#777; }
+.jobs-order > div { flex:1; min-width:0; }
+.jobs-order p { font-size:12px; color:#737373; margin:0 0 22px; }
+.jobs-tracker { display:flex; justify-content:space-between; position:relative; gap:8px; }
+.jobs-tracker::before { content:""; height:2px; background:#d5d5d5; position:absolute; top:6px; left:10px; right:10px; }
+.jobs-tracker span { font-size:11px; text-align:center; position:relative; display:flex; flex-direction:column; align-items:center; gap:13px; color:#777; white-space:nowrap; }
+.jobs-tracker i { width:12px; height:12px; border:1px solid #c7c7c7; background:#ddd; border-radius:50%; }
+.jobs-tracker .current { color:#292929; }
+.jobs-tracker .current i { background:#fa5d19; border-color:#fa5d19; box-shadow:inset 0 0 0 3px #ffb58e; }
+.jobs-lead { width:100%; }
+.jobs-lead-heading { display:flex; align-items:center; gap:10px; position:relative; }
+.jobs-company { width:38px; height:38px; background:#f0eeeb; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+.jobs-lead strong { font-size:13px; font-weight:600; }
+.jobs-lead p { font-size:12px; color:#777; margin:5px 0 0; }
+.jobs-fit { position:absolute; right:0; top:-21px; font-size:11px; color:#fa5d19; border:1px solid #fa5d19; border-radius:12px; padding:3px 7px; background:white; }
+.jobs-lead-details { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+.jobs-lead-details span { font-size:11px; color:#737373; background:white; border-radius:14px; padding:6px 9px; }
+.jobs-followup { width:100%; }
+.jobs-audio { display:flex; align-items:center; gap:18px; }
+.jobs-phone { width:50px; height:50px; border-radius:50%; background:white; display:flex; align-items:center; justify-content:center; color:#fa5d19; flex-shrink:0; }
+.jobs-wave { display:flex; align-items:center; justify-content:space-between; gap:3px; height:48px; flex:1; overflow:hidden; }
+.jobs-wave i { width:3px; background:#fa5d19; border-radius:2px; flex-shrink:0; }
+.jobs-wave i:nth-child(n+13) { opacity:.35; }
+.jobs-followup > p { display:flex; align-items:center; gap:7px; background:#fff; border-radius:16px; width:max-content; margin:18px auto 0; padding:6px 10px; font-size:12px; }
+.jobs-afterhours { width:100%; padding:0 12px; }
+.jobs-afterhours > p { color:#929292; font-size:11px; display:flex; align-items:center; gap:12px; margin:0 0 18px; }
+.jobs-afterhours > div { display:flex; align-items:center; gap:16px; }
+.jobs-answer { background:#fff; border-radius:18px 18px 18px 4px; padding:12px 15px; font-size:16px; white-space:nowrap; }
+.jobs-typing { display:flex; align-items:center; gap:5px; background:white; border-radius:16px; padding:11px; }
+.jobs-typing i { width:5px; height:5px; border-radius:50%; background:#b6b6b6; }
+.jobs-app { width:100%; }
+.jobs-browser { height:118px; position:relative; background:#fff; border:1px solid #e7e7e7; border-radius:8px; }
+.jobs-browser-top { height:20px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:4px; padding:0 8px; background:#fafafa; border-radius:8px 8px 0 0; }
+.jobs-browser-top i { width:5px; height:5px; border-radius:50%; background:#ccc; }
+.jobs-skeleton { padding:14px; display:flex; gap:12px; }
+.jobs-skeleton > span { background:#f0f0f0; width:42px; height:52px; border-radius:4px; }
+.jobs-skeleton div { display:grid; align-content:start; gap:8px; padding-top:5px; }
+.jobs-skeleton i { height:5px; width:95px; background:#eee; border-radius:4px; }
+.jobs-skeleton i:nth-child(2) { width:120px; }
+.jobs-help { position:absolute; bottom:49px; right:-8px; padding:9px 12px; border-radius:9px; background:white; box-shadow:0 3px 15px #2929290c; font-size:12px; }
+.jobs-launcher { position:absolute; bottom:8px; right:10px; width:37px; height:37px; background:#fa5d19; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.marketing-use-cases-cta-wrapper { display:flex; justify-content:center; margin-top:30px; }
+.marketing-use-cases-primary-cta { display:flex; align-items:center; gap:18px; border-radius:9px; padding:13px 22px; min-height:46px; box-sizing:border-box; background:#fa5d19; color:#fff; font-size:15px; text-decoration:none; transition:background .35s; }
+.marketing-use-cases-primary-cta:hover { background:#e95113; }
+.marketing-use-cases-section button:focus-visible,.marketing-use-cases-primary-cta:focus-visible { outline:2px solid #fa5d19; outline-offset:4px; }
+.marketing-use-cases-card:hover .jobs-wave i { animation:jobs-wave .8s ease-in-out infinite alternate; }
+.marketing-use-cases-card:hover .jobs-typing i { animation:jobs-wave .8s ease-in-out infinite alternate; }
+.jobs-typing i:nth-child(2) { animation-delay:.2s!important; }.jobs-typing i:nth-child(3) { animation-delay:.4s!important; }
+@keyframes jobs-wave { to { transform:scaleY(.6); opacity:.5; } }
+@media(max-width:1050px) { .marketing-use-cases-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .marketing-use-cases-card:nth-child(n+3) { border-top:1px solid #e9e9e9; padding-top:28px; } }
+@media(max-width:650px) { .marketing-use-cases-section { padding:40px 0; } .marketing-use-cases-grid { grid-template-columns:1fr; gap:24px; } .marketing-use-cases-card:nth-child(n+2) { border-top:1px solid #e9e9e9; padding-top:24px; } .marketing-use-cases-request { min-height:52px; } .marketing-use-cases-outcome { height:166px; } .marketing-use-cases-header { margin-bottom:26px; } }
+@media(prefers-reduced-motion:reduce) { .marketing-use-cases-section * { animation:none!important; transition:none!important; } }

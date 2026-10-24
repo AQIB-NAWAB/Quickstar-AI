@@ -1,63 +1,85 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { HeroBusinessConveyor } from "./hero-business-conveyor";
+import { useEffect, useRef, useState } from "react";
+import "../styles/hero-journey.css";
+
+const stages = ["Find a lead", "Start a conversation", "Take the next action"];
 
 export function Hero() {
+  const heroRef = useRef<HTMLElement>(null);
+  const [demoTarget, setDemoTarget] = useState("#how-it-works");
+  const [motionActive, setMotionActive] = useState(false);
+
+  useEffect(() => {
+    if (document.getElementById("demo")) setDemoTarget("#demo");
+    const section = heroRef.current;
+    if (!section) return;
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let inView = false;
+    const update = () => setMotionActive(inView && !document.hidden && !preference.matches);
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      update();
+    }, { threshold: 0.1 });
+    observer.observe(section);
+    document.addEventListener("visibilitychange", update);
+    preference.addEventListener("change", update);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", update);
+      preference.removeEventListener("change", update);
+    };
+  }, []);
+
   return (
-    <section className="relative w-full bg-[#FAFAF8] quickstart-hero pt-8 sm:pt-10 lg:pt-12 pb-10 sm:pb-14 lg:pb-16">
-      {/* Centered Editorial Composition Container (~1400px max) */}
-      <div className="landing-container flex flex-col items-center text-center">
-
-        {/* 1. Centered Eyebrow (y ≈ 40–52px) */}
-        <div className="inline-flex items-center justify-center mb-4 sm:mb-5 lg:mb-6">
-          <span className="landing-eyebrow landing-eyebrow-muted">
-            THE OPERATING LAYER FOR MODERN BUSINESS
-          </span>
+    <section ref={heroRef} id="hero" className="journey-hero" aria-labelledby="journey-headline" data-motion={motionActive}>
+      <div className="journey-intro">
+        <p className="journey-eyebrow">AI AGENTS FOR YOUR BUSINESS</p>
+        <h1 id="journey-headline"><span>AI agents that find, call,</span>{" "}<span>and <em>get work done.</em></span></h1>
+        <p className="journey-description">One agent for your website, calls, and campaigns. Built around your business, with your team in control.</p>
+        <div className="journey-actions">
+          <Link href="/register" className="journey-button journey-primary">Start building<ArrowRight size={18} aria-hidden="true" /></Link>
+          <a href={demoTarget} className="journey-button journey-secondary">See it in action<ArrowUpRight size={18} aria-hidden="true" /></a>
         </div>
-
-        {/* 2. Semantic Two-Line Headline (y ≈ 75–195px) */}
-        <h1 className="hero-title text-[36px] sm:text-[48px] md:text-[54px] lg:text-[60px] xl:text-[64px] font-bold text-[#262626] tracking-[-0.035em] leading-[1.05] max-w-[1080px] mb-5 sm:mb-6 lg:mb-8">
-          <span className="sm:block">AI agents that find, call,</span>{" "}
-          <span className="sm:block">
-            and <span className="text-[#FF571A]">get work done.</span>
-          </span>
-        </h1>
-
-        {/* 3. Centered Supporting Paragraph (y ≈ 218–260px) */}
-        <p className="hero-description landing-description max-w-[760px] mb-8 sm:mb-10 lg:mb-12">
-          QuickStart brings lead generation, voice, conversations, tools, campaigns,
-          and automation into one place — so your agents can do more than talk.
-        </p>
-
-        {/* 4. Compact Centered CTA Row (y ≈ 278–322px) */}
-        <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-5 mb-12 sm:mb-14 lg:mb-16">
-          {/* Primary CTA: Start building → */}
-          <Link
-            href="/register"
-            className="group inline-flex items-center justify-center gap-2 h-[44px] px-5 sm:px-6 rounded-[8px] bg-[#FF571A] hover:bg-[#E04810] text-[15px] font-semibold text-white transition-all duration-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-          >
-            <span>Start building</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.2] transition-transform duration-200 group-hover:translate-x-1" />
-          </Link>
-
-          {/* Secondary CTA: See how it works ↗ */}
-          <Link
-            href="#how-it-works"
-            className="group inline-flex items-center justify-center gap-1.5 h-[44px] px-4 text-[15px] font-medium text-[#262626] hover:text-[#FF571A] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-          >
-            <span>See how it works</span>
-            <ArrowUpRight className="w-4 h-4 stroke-[2] transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
-        </div>
-
-        {/* 5. Isometric Business Conveyor Scene (y ≈ 300–655px) */}
-        <div className="w-full flex justify-center mt-2 sm:mt-4 pt-8 sm:pt-10 lg:pt-12 border-t border-[#E8E6E1]/80 max-w-[min(100%,1200px)]">
-          <HeroBusinessConveyor />
-        </div>
-
       </div>
+      <figure className="journey-figure">
+        <div id="hero-illustration" className="journey-art">
+          <span id="playground" className="journey-legacy-anchor" aria-hidden="true" />
+          <Image
+            src="/marketing/hero-roadmap/hero-journey-neutral-hd.webp"
+            width={2172} height={724}
+            sizes="(max-width: 599px) 100vw, (max-width: 1099px) 94vw, 1160px"
+            priority unoptimized className="journey-art-image"
+            alt="Illustrative workflow: an example business lead, a phone conversation, and a booked appointment connected by a shared pipeline."
+          />
+          {/* Decorative signals follow the artwork's existing conduits, not live activity. */}
+          <svg className="journey-signals" viewBox="0 0 2048 683" fill="none" aria-hidden="true" focusable="false">
+            <path className="journey-signal journey-signal-lead" pathLength="100" d="M650 302 C671 313 687 325 704 337" />
+            <path className="journey-signal journey-signal-call" pathLength="100" d="M756 371 C775 383 790 391 809 397" />
+            <path className="journey-signal journey-signal-booking" pathLength="100" d="M1393 336 L1461 287" />
+            <g className="journey-phone-bars" stroke="#fa5d19" strokeWidth="5" strokeLinecap="round">
+              <path className="journey-phone-bar" d="M973 434 L973 455" />
+              <path className="journey-phone-bar" d="M997 410 L997 461" />
+              <path className="journey-phone-bar" d="M1021 416 L1021 466" />
+              <path className="journey-phone-bar" d="M1068 420 L1068 466" />
+              <path className="journey-phone-bar" d="M1093 436 L1093 466" />
+            </g>
+            <circle className="journey-booking-check" cx="1697" cy="117" r="26" stroke="#fa5d19" strokeWidth="2" />
+          </svg>
+        </div>
+        <figcaption className="journey-captions">
+          {stages.map((label, index) => (
+            <div key={label} className="journey-caption">
+              <span className="journey-number">0{index + 1}</span>
+              <span className="journey-caption-rule" aria-hidden="true" />
+              <span>{label}</span>
+            </div>
+          ))}
+        </figcaption>
+      </figure>
     </section>
   );
 }

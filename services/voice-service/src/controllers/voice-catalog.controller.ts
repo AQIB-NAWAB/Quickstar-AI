@@ -19,7 +19,8 @@ export function createVoiceCatalogController(catalog: CatalogTextToSpeech | null
       if (!catalog) {
         throw new AppError({
           code: ErrorCode.UPSTREAM_UNAVAILABLE,
-          message: "No TTS provider key is set. Add UPLIFT_AI_API_KEY, CARTESIA_API_KEY, or FISH_AUDIO_API_KEY.",
+          message:
+            "No TTS provider key is set. Add UPLIFT_AI_API_KEY, CARTESIA_API_KEY, FISH_AUDIO_API_KEY, ELEVENLABS_API_KEY, or OPENAI_API_KEY.",
         });
       }
       const body = req.body as { voice_id?: string; text?: string };

@@ -1,0 +1,40 @@
+/* Native SVG illustration and restrained, keyboard-accessible controls. */
+.hero-call-routing-wrapper { position:relative; width:100%; isolation:isolate; }
+.hero-call-routing-atmosphere { position:absolute; z-index:-1; pointer-events:none; inset:-7% -9% -2% -18%; background:radial-gradient(ellipse at 71% 30%,#ffd1a9b3 0%,#ffe4c987 34%,#fff0e349 55%,transparent 74%); }
+.hero-call-routing-stage { width:100%; scroll-margin-top:100px; }
+.hero-call-routing-svg { display:block; width:100%; height:auto; overflow:visible; }
+.scenario-controls-container { display:flex; align-items:center; justify-content:flex-end; gap:28px; padding:0 28px 0 0; margin-top:-14px; position:relative; z-index:1; }
+.routing-tabs { display:flex; align-items:center; gap:30px; }
+.landing-page .scenario-tab-button { position:relative; display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:8px 0 14px; border:0; border-radius:0; outline:none; box-shadow:none; background:transparent; color:#85858a; font:inherit; font-size:15px; font-weight:400; line-height:20px; white-space:nowrap; cursor:pointer; transition:color 160ms ease; }
+.landing-page .scenario-tab-button::after { content:""; position:absolute; height:2px; background:#fa5d19; border-radius:2px; bottom:1px; left:0; right:0; transform:scaleX(0); transition:transform 220ms ease; }
+.landing-page .scenario-tab-button[aria-selected="true"] { color:#222; font-weight:500; }
+.landing-page .scenario-tab-button[aria-selected="true"]::after { transform:scaleX(1); }
+.landing-page .scenario-tab-button:hover { color:#262626; outline:none; box-shadow:none; }
+.landing-page .scenario-tab-button:focus:not(:focus-visible) { outline:none; box-shadow:none; }
+.landing-page .scenario-tab-button:focus-visible { outline:2px solid #fa5d19; outline-offset:5px; border-radius:3px; }
+.scenario-pause-button { display:grid; place-items:center; flex:none; width:40px; height:40px; border:1px solid #dddde0; border-radius:50%; background:#ffffffb3; color:#909096; cursor:pointer; }
+.scenario-pause-button:hover { color:#262626; background:#fff; }
+.scenario-pause-button:focus-visible { outline:2px solid #fa5d19; outline-offset:5px; }
+@media(max-width:1099px) { .hero-call-routing-wrapper { max-width:780px; margin:0 auto; } .scenario-controls-container { margin-top:0; padding-right:20px; } }
+@media(max-width:599px) { .hero-call-routing-atmosphere { inset:0 -12% -5%; } .scenario-controls-container { justify-content:center; gap:18px; padding:0; } .routing-tabs { gap:18px; } .landing-page .scenario-tab-button { font-size:12px; } .scenario-pause-button { width:36px; height:36px; } }
+@media(prefers-reduced-motion:reduce) { .hero-call-routing-wrapper *, .hero-call-routing-wrapper *::after { animation:none!important; transition:none!important; } }
+
+/* Native vector mechanisms: fixed outer mounts, animated inner groups. */
+.routing-vector-wave { transform-box:fill-box; transform-origin:50% 100%; animation:routing-vector-breathe 2.7s ease-in-out infinite; }
+.routing-vector-wave-1 { animation-delay:-.5s; } .routing-vector-wave-2 { animation-delay:-1.2s; } .routing-vector-wave-3 { animation-delay:-.8s; } .routing-vector-wave-4 { animation-delay:-1.9s; } .routing-vector-wave-5 { animation-delay:-1.5s; }
+@keyframes routing-vector-breathe { 0%,100% { transform:scaleY(1); } 50% { transform:scaleY(.68); } }
+.routing-vector-signal { animation:routing-vector-travel 4.2s ease-in-out infinite; }
+@keyframes routing-vector-travel { 0%,100% { transform:translate(-9px,5px); } 50% { transform:translate(28px,-16px); } }
+.routing-vector-contact { animation:routing-vector-contact 5s ease-in-out infinite; }
+@keyframes routing-vector-contact { 0%,100% { transform:translate(0,0); } 50% { transform:translate(13px,-7px); } }
+.routing-vector-sheet { transition:transform 650ms cubic-bezier(.22,.72,.2,1); }
+.routing-vector-sheet[data-lifted="true"] { transform:translateY(-12px); }
+.routing-vector-handset { transform-origin:840px 650px; animation:routing-vector-receiver 4.2s ease-in-out infinite; }
+@keyframes routing-vector-receiver { 0%,12%,32%,100% { transform:translateY(0) rotate(0); } 18%,26% { transform:translateY(-3px) rotate(-.6deg); } 22% { transform:translateY(-2px) rotate(.4deg); } }
+.routing-vector-date { animation:routing-vector-date 3.2s ease-in-out infinite; }
+@keyframes routing-vector-date { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+@media(hover:hover) { .routing-vector-handset:hover { animation-duration:1.8s; } }
+.routing-vector-calendar { transition:transform 450ms ease; }
+.hero-call-routing-wrapper[data-scenario="campaigns"] .routing-vector-calendar { transform:translateY(-3px); }
+.hero-call-routing-wrapper[data-paused="true"] :is(.routing-vector-wave,.routing-vector-signal,.routing-vector-contact,.routing-vector-handset,.routing-vector-date) { animation-play-state:paused; }
+@media(prefers-reduced-motion:reduce) { .hero-call-routing-wrapper :is(.routing-vector-wave,.routing-vector-signal,.routing-vector-contact,.routing-vector-calendar,.routing-vector-sheet,.routing-vector-handset,.routing-vector-date) { animation:none!important; transition:none!important; } }

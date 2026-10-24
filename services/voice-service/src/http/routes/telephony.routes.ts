@@ -7,8 +7,16 @@ import type { VoiceHttpContext } from "../context.js";
  */
 export const createTelephonyPublicRoutes: RouteModule<VoiceHttpContext> = (ctx) => {
   const router = createServiceRouter();
-  const { telephonyCtrl } = ctx;
+  const { telephonyCtrl, inboundCallsCtrl } = ctx;
 
+  router.post(
+    "/voice/telephony/telnyx/webhook",
+    asyncHandler(inboundCallsCtrl.telnyxWebhook),
+  );
+  router.post(
+    "/voice/telephony/livekit/webhook",
+    asyncHandler(inboundCallsCtrl.livekitWebhook),
+  );
   router.post(
     "/voice/telephony/:providerId/inbound",
     asyncHandler(telephonyCtrl.cpaasInbound),

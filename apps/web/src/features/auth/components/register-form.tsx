@@ -56,7 +56,7 @@ export function RegisterForm() {
             id="organization_name"
             name="organization_name"
             autoComplete="organization"
-            placeholder="Acme Support"
+            placeholder="Your business"
             required
             value={organizationName}
             onChange={(e) => setOrganizationName(e.target.value)}

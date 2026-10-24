@@ -23,11 +23,15 @@ export function VoiceSubnav({
   const baseOutbound = isPreview
     ? "/preview/voice/outbound"
     : `/workspaces/${workspaceId}/voice/outbound`;
+  const baseNumbers = isPreview
+    ? "/preview/voice/numbers"
+    : `/workspaces/${workspaceId}/voice/numbers`;
 
   // Detect active tab
   const isLive = pathname.endsWith("/live");
   const isOutbound = pathname.includes("/voice/outbound");
-  const isCallLogs = !isLive && !isOutbound;
+  const isNumbers = pathname.includes("/voice/numbers");
+  const isCallLogs = !isLive && !isOutbound && !isNumbers;
 
   return (
     <div className="flex items-center gap-1 border-b border-border-faint text-xs font-medium">
@@ -40,6 +44,17 @@ export function VoiceSubnav({
         }`}
       >
         Call logs
+      </Link>
+
+      <Link
+        href={baseNumbers}
+        className={`px-3.5 py-2 border-b-2 transition-colors ${
+          isNumbers
+            ? "border-heat-100 text-heat-100 font-semibold"
+            : "border-transparent text-neutral-600 hover:text-accent-black hover:border-neutral-300"
+        }`}
+      >
+        Numbers
       </Link>
 
       <Link

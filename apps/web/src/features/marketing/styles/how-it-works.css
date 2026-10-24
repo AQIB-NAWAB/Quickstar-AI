@@ -1,0 +1,44 @@
+/* Four separately rendered objects explain the setup without a dashboard. */
+.hiw-section { position:relative; padding-block:64px 72px; background:#fff; scroll-margin-top:88px; overflow:hidden; }
+.hiw-container { max-width:1240px; padding-inline:24px; margin-inline:auto; }
+.hiw-header-block { max-width:800px; margin-right:auto; text-align:left; }
+.hiw-eyebrow { margin:0 0 16px; color:#454545; font-family:inherit; font-size:11px; font-weight:500; line-height:18px; letter-spacing:.13em; }
+.hiw-heading { margin:0; color:#262626; font-family:inherit; font-size:clamp(30px,2.5vw,44px); font-weight:700; line-height:1.12; letter-spacing:-.045em; }
+.hiw-heading em { color:#fa5d19; font-style:normal; }
+.hiw-description { margin:18px 0 0; color:#686868; font-size:18px; line-height:1.5; letter-spacing:-.02em; text-wrap:balance; }
+.hiw-journey-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:26px; list-style:none; padding:0; margin:0; position:relative; }
+.hiw-journey-step { min-width:0; position:relative; }
+.hiw-journey-step figure { margin:0; position:relative; }
+.hiw-journey-art { position:relative; aspect-ratio:1; }
+.hiw-journey-art img { display:block; width:100%; height:100%; object-fit:contain; position:relative; z-index:1; }
+.hiw-journey-step figcaption { padding-top:14px; text-align:left; }
+.hiw-journey-number { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:#f0f1f3; color:#262626; font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; margin-bottom:13px; }
+.hiw-journey-step[data-active="true"] .hiw-journey-number { color:#fff; background:#fa5d19; }
+.hiw-journey-step h3 { margin:0; color:#262626; font-size:clamp(17px,1.6vw,21px); font-weight:600; line-height:1.3; letter-spacing:-.03em; }
+.hiw-journey-step figcaption p { margin:9px 0 0; color:#737373; font-size:15px; line-height:1.5; }
+@media(min-width:600px) and (max-width:999px) {
+ .hiw-journey-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:34px 30px; }
+ .hiw-journey-step h3 { font-size:22px; }
+}
+@media(max-width:599px) {
+ .hiw-section { padding-block:48px 56px; }
+ .hiw-container { padding-inline:20px; }
+ .hiw-heading { font-size:30px; }
+ .hiw-description { font-size:16px; }
+ .hiw-journey-grid { grid-template-columns:minmax(0,1fr); gap:38px; }
+ .hiw-journey-art { max-width:340px; margin-inline:auto; }
+ .hiw-journey-step figure { max-width:380px; margin-inline:auto; }
+ .hiw-journey-step figcaption { padding-top:8px; }
+ .hiw-journey-step h3 { font-size:23px; }
+ .hiw-journey-step figcaption p { font-size:16px; }
+}
+.hiw-journey-scene { position:relative; margin-top:32px; isolation:isolate; }
+.hiw-journey-route { position:absolute; inset:0; z-index:-1; overflow:visible; pointer-events:none; }
+.hiw-journey-route path { fill:none; stroke:#d0d0d0; stroke-width:1.5; }
+.hiw-journey-route circle { fill:#fa5d19; }
+.hiw-journey-number { transition:color 450ms ease,background-color 450ms ease,box-shadow 450ms ease; }
+.hiw-journey-step h3 { transition:color 450ms ease; }
+.hiw-journey-step[data-active="true"] h3 { color:#fa5d19; }
+.hiw-journey-step[data-active="true"] .hiw-journey-number { box-shadow:0 0 0 5px #fff3ec; }
+@media(max-width:599px) { .hiw-journey-scene { margin-top:28px; }.hiw-journey-grid { margin-top:0; padding-left:18px; } }
+@media(prefers-reduced-motion:reduce) { .hiw-journey-number,.hiw-journey-step h3 { transition:none; } }

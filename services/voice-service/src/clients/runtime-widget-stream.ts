@@ -13,6 +13,8 @@ export async function streamWidgetTurn(
     requestId: string;
     modality?: "text" | "voice";
     replyLanguage?: string;
+    /** Server-side budget for the whole turn (tool loop + model). */
+    deadlineMs?: number;
     signal?: AbortSignal;
     onNudge?: (text: string) => void;
     onTransfer?: () => void;
@@ -36,6 +38,7 @@ export async function streamWidgetTurn(
       actor_id: input.actorId,
       modality: input.modality ?? "voice",
       reply_language: input.replyLanguage,
+      ...(input.deadlineMs ? { deadline_ms: input.deadlineMs } : {}),
     }),
     signal: input.signal,
   });

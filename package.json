@@ -23,6 +23,7 @@
     "widget:test:prepare": "node scripts/prepare-widget-test.mjs",
     "widget:test:serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory fixtures/widget-test",
     "widget:real-llm": "node --env-file=.env scripts/configure-demo-agent-real-llm.mjs",
+    "voice:inbound-proof": "node scripts/check-voice-inbound-numbers-proof.mjs",
     "start:agent-inbox": "bash scripts/start-agent-inbox.sh",
     "stop:agent-inbox": "bash scripts/stop-agent-inbox.sh",
     "start:workspaces": "bash scripts/start-workspaces.sh",

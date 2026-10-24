@@ -1,0 +1,58 @@
+/* Technology logos use the repository's SVG geometry as a single-color mask. */
+.built-on-strip { position: relative; width: 100%; padding: 34px 0 38px; background: #fff; color: #383838; scroll-margin-top: 88px; overflow: hidden; font-family: "Inter", sans-serif; }
+.built-on-container { width: min(1440px,calc(100% - 48px)); margin-inline: auto; }
+.built-on-strip::before, .built-on-strip::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); width: min(1440px,calc(100% - 48px)); height: 1px; background: #ededed; pointer-events: none; }
+.built-on-strip::before { top: 0; }
+.built-on-strip::after { bottom: 0; }
+.built-on-heading-row { display: flex; justify-content: center; margin-bottom: 30px; }
+.built-on-title { margin: 0; font: 400 14px/1.5 "Inter",sans-serif; color: #666; letter-spacing: -.015em; text-align: center; text-transform: none; }
+.built-on-viewport { position: relative; width: 100%; overflow: hidden; }
+.built-on-viewport::before, .built-on-viewport::after { content: ""; position: absolute; inset-block: 0; width: 36px; z-index: 1; pointer-events: none; }
+.built-on-viewport::before { left: 0; background: linear-gradient(to right,#fff,transparent); }
+.built-on-viewport::after { right: 0; background: linear-gradient(to left,#fff,transparent); }
+.built-on-track { display: flex; width: max-content; align-items: center; }
+.built-on-track[data-animated="true"] { animation: built-on-marquee 70s linear infinite; }
+.built-on-track[data-paused="true"],
+.built-on-strip:has(.built-on-item:hover) .built-on-track,
+.built-on-strip:focus-within .built-on-track { animation-play-state: paused; }
+.built-on-track[data-animated="true"][data-paused="false"] { will-change: transform; }
+@keyframes built-on-marquee { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
+.built-on-group { display: flex; flex-shrink: 0; align-items: center; gap: 58px; padding: 0 58px 0 0; margin: 0; list-style: none; }
+.built-on-item { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 3px; color: #383838; white-space: nowrap; user-select: none; outline: none; transition: color 520ms cubic-bezier(.25,.1,.25,1); }
+.built-on-logo { display: block; flex: 0 0 30px; width: 30px; height: 30px; background-color: currentColor; -webkit-mask: var(--provider-logo) center/contain no-repeat; mask: var(--provider-logo) center/contain no-repeat; }
+.built-on-provider-name { font: 500 25px/1.2 "Inter",sans-serif; letter-spacing: -.035em; }
+.built-on-item[data-provider="Anthropic"] .built-on-provider-name { font-size: 21px; letter-spacing: -.025em; text-transform: uppercase; }
+.built-on-item[data-provider="Twilio"] .built-on-provider-name { font-weight: 650; }
+.built-on-item:is([data-provider="Google Calendar"],[data-provider="Google Sheets"]) .built-on-provider-name { font-size: 23px; }
+.built-on-item:hover, .built-on-item:focus-visible { color: #fa5d19; }
+.built-on-item:focus-visible { outline: 2px solid #fa5d19; outline-offset: -1px; border-radius: 5px; }
+/* Reduced-motion and no-script layouts keep every provider visible without a loop. */
+.built-on-track[data-animated="false"] { width: 100%; }
+.built-on-track[data-animated="false"] .built-on-group { width: 100%; flex-shrink: 1; flex-wrap: wrap; justify-content: center; gap: 20px 40px; padding: 0; }
+.built-on-track[data-animated="false"] .built-on-duplicate { display: none; }
+.built-on-strip[data-animated="false"] .built-on-viewport::before,
+.built-on-strip[data-animated="false"] .built-on-viewport::after { display: none; }
+@media (max-width:1099px) {
+  .built-on-group { gap: 42px; padding-right: 42px; }
+  .built-on-provider-name { font-size: 23px; }
+}
+@media (max-width:599px) {
+  .built-on-strip { padding: 28px 0 30px; }
+  .built-on-container, .built-on-strip::before, .built-on-strip::after { width: calc(100% - 32px); }
+  .built-on-heading-row { margin-bottom: 20px; }
+  .built-on-title { font-size: 13px; }
+  .built-on-group { gap: 32px; padding-right: 32px; }
+  .built-on-logo { flex-basis: 26px; width: 26px; height: 26px; }
+  .built-on-provider-name { font-size: 22px; }
+  .built-on-item:is([data-provider="Google Calendar"],[data-provider="Google Sheets"]) .built-on-provider-name { font-size: 20px; }
+  .built-on-viewport::before, .built-on-viewport::after { width: 16px; }
+}
+@media (prefers-reduced-motion:reduce), (scripting:none) {
+  .built-on-track { animation: none !important; transform: none !important; width: 100%; }
+  .built-on-group { width: 100%; flex-shrink: 1; flex-wrap: wrap; justify-content: center; gap: 20px 36px; padding: 0; }
+  .built-on-duplicate, .built-on-viewport::before, .built-on-viewport::after { display: none !important; }
+  .built-on-item { transition: none; }
+}
+
+/* Hover is an intentional pause interaction. */
+.built-on-item { cursor: pointer; }

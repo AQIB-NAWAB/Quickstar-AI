@@ -46,6 +46,7 @@
   let pendingRequest = null;
   let lastSeq = 0;
   let pollTimer = null;
+  let destroyed = false;
   const seenIds = new Set();
   /** True while a local turn is in flight (stream + typewriter). Poll must not duplicate UI. */
   let outboundTurnActive = false;
@@ -68,6 +69,7 @@
 
   const host = document.createElement("div");
   host.setAttribute("data-quickstart-widget", "");
+  if (script.dataset.widgetInstance) host.dataset.widgetInstance = script.dataset.widgetInstance;
   document.body.append(host);
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -646,7 +648,7 @@
   }
 
   function startPolling() {
-    if (pollTimer) return;
+    if (pollTimer || destroyed) return;
     pollTimer = window.setInterval(() => void pollNewMessages(), 2000);
   }
 
@@ -1277,7 +1279,7 @@
   }
 
   async function startLiveVoice() {
-    if (voiceLiveActive || busy || !conversationId) return;
+    if (destroyed || voiceLiveActive || busy || !conversationId) return;
     stopVoicePlayback();
     voiceLiveActive = true;
     voiceLiveUserShown = "";
@@ -1454,4 +1456,15 @@
       input.focus();
     }
   });
+
+  // The landing page can unmount during client-side navigation.
+  host.addEventListener("quickstart:destroy", () => {
+    destroyed = true;
+    if (pollTimer) window.clearInterval(pollTimer);
+    pollTimer = null;
+    root.querySelectorAll(".message.assistant").forEach(cancelAssistantStream);
+    stopVoicePlayback();
+    if (voiceLiveActive) void stopLiveVoice().catch(() => {});
+    host.remove();
+  }, { once: true });
 })();

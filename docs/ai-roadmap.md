@@ -1022,7 +1022,7 @@ Same as roadmap §25B for adapter v1: fixture inbound + outbound each complete o
 
 ### Still unsafe (extended)
 
-No live Media Streams PSTN until staging secrets. No real Telnyx adapter. No AMD/opt-out (23). No number inventory UI.
+No live PSTN until Telnyx + LiveKit Cloud secrets. No outbound PSTN dialing through Telnyx yet (typed error). No AMD/opt-out (23). Number inventory + LiveKit SIP inbound path shipped in ADR 0023.
 
 ---
 

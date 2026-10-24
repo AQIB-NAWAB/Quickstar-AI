@@ -36,11 +36,15 @@ test("assertSpeechBootAllowed fails closed when real speech required", () => {
   );
 });
 
-test("OpenAI STT uses fixture fetch and never requires live network", async () => {
+test("OpenAI STT uses fixture fetch and the current transcription model", async () => {
   const seenAuth: string[] = [];
+  let seenModel = "";
   const fetchImpl: typeof fetch = async (_url, init) => {
     const headers = init?.headers as Record<string, string> | undefined;
     if (headers?.Authorization) seenAuth.push(headers.Authorization);
+    if (init?.body instanceof FormData) {
+      seenModel = String(init.body.get("model") ?? "");
+    }
     return new Response(JSON.stringify({ text: "fixture transcript" }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -54,14 +58,19 @@ test("OpenAI STT uses fixture fetch and never requires live network", async () =
   assert.equal(result.text, "fixture transcript");
   assert.equal(result.provider, "openai-stt");
   assert.equal(seenAuth[0], "Bearer sk-secret-should-not-leak");
+  assert.equal(seenModel, "gpt-4o-transcribe");
 });
 
-test("OpenAI TTS fixture path returns mp3 bytes", async () => {
-  const fetchImpl: typeof fetch = async () =>
-    new Response(Buffer.from("ID3fixture-mp3"), {
+test("OpenAI TTS fixture path returns mp3 bytes with the current TTS model", async () => {
+  let seenModel = "";
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+    seenModel = body.model ?? "";
+    return new Response(Buffer.from("ID3fixture-mp3"), {
       status: 200,
       headers: { "content-type": "audio/mpeg" },
     });
+  };
   const tts = new OpenAiTextToSpeech({
     apiKey: "sk-secret-should-not-leak",
     fetchImpl,
@@ -70,6 +79,29 @@ test("OpenAI TTS fixture path returns mp3 bytes", async () => {
   assert.equal(result.provider, "openai-tts");
   assert.equal(result.audio.encoding, "mp3");
   assert.ok(result.audio.bytes.length > 0);
+  assert.equal(seenModel, "gpt-4o-mini-tts");
+});
+
+test("OpenAI TTS streaming emits audio before the full clip is ready", async () => {
+  const chunks: Buffer[] = [];
+  const fetchImpl: typeof fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3]));
+          controller.enqueue(new Uint8Array([4, 5]));
+          controller.close();
+        },
+      }),
+      { status: 200, headers: { "content-type": "audio/mpeg" } },
+    );
+  const tts = new OpenAiTextToSpeech({ apiKey: "sk-test", fetchImpl });
+  const metrics = await tts.streamSynthesize("hello", "alloy", (audio) =>
+    chunks.push(audio.bytes),
+  );
+  assert.equal(chunks.length, 2);
+  assert.deepEqual([...chunks[0]], [1, 2, 3]);
+  assert.ok(metrics.firstChunkLatencyMs > 0);
 });
 
 test("policy retries once on upstream failure before billable output", async () => {
