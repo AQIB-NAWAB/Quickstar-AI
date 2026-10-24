@@ -1,0 +1,521 @@
+.marketing-security-section { background:#fff; color:#292929; padding:56px 0; scroll-margin-top:88px; }
+.marketing-security-container { max-width:1240px; margin:auto; padding:0 24px; display:grid; grid-template-columns:1fr 1fr; gap:54px; align-items:center; }
+.marketing-security-eyebrow { text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:400; color:#666; margin:0 0 22px; }
+.marketing-security-copy h2 { font-size:clamp(32px,2.5vw,44px); line-height:1.15; font-weight:600; letter-spacing:-.04em; margin:0; }
+.marketing-security-copy h2 em { color:#fa5d19; font-style:normal; }
+.marketing-security-description { font-size:18px; line-height:1.55; color:#6b6b6b; margin:22px 0 0; }
+.marketing-security-benefits { list-style:none; padding:0; margin:38px 0; display:grid; gap:27px; }
+.marketing-security-benefits li { display:flex; align-items:flex-start; gap:20px; }
+.marketing-security-benefits li > svg { width:27px; height:27px; flex-shrink:0; color:#666; stroke-width:1.5; margin-top:3px; }
+.marketing-security-benefits h3 { font-size:16px; font-weight:600; line-height:1.4; margin:0 0 5px; }
+.marketing-security-benefits p { font-size:14px; line-height:1.55; margin:0; color:#777; }
+.marketing-security-actions { display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+.marketing-security-primary,.marketing-security-contact { display:inline-flex; align-items:center; gap:14px; cursor:pointer; font-size:14px; min-height:44px; }
+.marketing-security-primary { border:1px solid #fa5d19; border-radius:9px; padding:11px 18px; background:#fa5d19; color:white; transition:background .35s; }
+.marketing-security-primary:hover { background:#e95113; }
+.marketing-security-contact { border:0; padding:8px 0; background:none; color:#626262; text-decoration:underline; text-underline-offset:5px; transition:color .35s; }
+.marketing-security-contact:hover { color:#fa5d19; }
+.marketing-security-visual { position:relative; min-width:0; padding-bottom:0; }
+.marketing-security-art { width:112%; max-width:none; height:auto; display:block; margin-left:-6%; }
+.marketing-security-team-card { position:relative; background:#fff; border:1px solid #e8e8e8; border-radius:16px; padding:20px; width:min(340px,90%); margin:-34px 12px 0 auto; box-shadow:0 8px 24px #29292908; }
+.marketing-security-team-card h3 { margin:0; font-size:17px; font-weight:600; }
+.marketing-security-team-subtitle { margin:4px 0 18px; font-size:13px; color:#777; }
+.marketing-security-team-list { list-style:none; margin:0; padding:0; display:grid; gap:15px; }
+.marketing-security-team-list > li { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.marketing-security-person { display:flex; align-items:center; gap:12px; font-size:14px; }
+.marketing-security-person img { border-radius:50%; width:34px; height:34px; object-fit:cover; }
+.marketing-security-preview-owner,.marketing-security-role-picker > button { width:128px; min-height:34px; padding:7px 11px; border:1px solid #e3e3e3; border-radius:7px; display:flex; align-items:center; gap:10px; background:#fff; font-size:13px; color:#505050; }
+.marketing-security-role-picker { position:relative; }
+.marketing-security-role-picker > button { justify-content:space-between; cursor:pointer; transition:background .35s,border-color .35s; }
+.marketing-security-role-picker > button:hover { background:#fff6f1; border-color:#ffc6ab; }
+.marketing-security-role-menu { position:absolute; top:calc(100% + 6px); right:0; min-width:158px; padding:5px; background:#fff; border:1px solid #e5e5e5; border-radius:10px; box-shadow:0 8px 24px #29292912; z-index:5; }
+.marketing-security-role-menu button { display:flex; justify-content:space-between; align-items:center; width:100%; border:0; border-radius:6px; padding:8px 10px; font-size:13px; color:#505050; background:none; cursor:pointer; }
+.marketing-security-role-menu button:hover,.marketing-security-role-menu button[aria-checked=true] { color:#fa5d19; background:#fff2e9; }
+.marketing-security-manage-btn { border:0; border-top:1px solid #eee; margin-top:18px; padding:15px 0 0; width:100%; background:none; display:flex; align-items:center; gap:10px; color:#737373; font-size:13px; cursor:pointer; transition:color .35s; }
+.marketing-security-manage-btn:hover { color:#fa5d19; }
+.marketing-security-section button:focus-visible { outline:2px solid #fa5d19; outline-offset:3px; }
+@media(max-width:1000px) { .marketing-security-container { gap:30px; } .marketing-security-actions { gap:12px; } }
+@media(max-width:767px) { .marketing-security-section { padding:40px 0; } .marketing-security-container { grid-template-columns:1fr; gap:24px; } .marketing-security-team-card { margin:-20px auto 0; } .marketing-security-art { width:100%; margin:0; } .marketing-security-benefits { margin:28px 0; gap:22px; } }
+@media(prefers-reduced-motion:reduce) { .marketing-security-section * { transition:none!important; animation:none!important; } }
+.marketing-security-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(16, 24, 40, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.marketing-security-dialog-card {
+  --marketing-security-orange: #fa5d19;
+  --marketing-security-charcoal: #262626;
+  --marketing-security-gray: #666666;
+  --marketing-security-border: #e6e6e6;
+  --marketing-security-bg: #ffffff;
+
+  background-color: var(--marketing-security-bg);
+  border: 1px solid var(--marketing-security-border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 620px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.2);
+  outline: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.marketing-security-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 16px;
+}
+
+.marketing-security-dialog-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.marketing-security-dialog-icon {
+  color: #fa5d19;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.marketing-security-dialog-title {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.marketing-security-dialog-subtitle {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.marketing-security-dialog-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.marketing-security-dialog-close:hover {
+  background-color: #f5f5f5;
+  color: #262626;
+}
+
+.marketing-security-dialog-close:focus-visible {
+  outline: 2px solid #fa5d19;
+  outline-offset: 2px;
+}
+
+.marketing-security-dialog-body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.marketing-security-dialog-body-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.marketing-security-dialog-lead {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #404040;
+  margin: 0;
+}
+
+/* Notice Banner */
+.marketing-security-preview-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  border: 1px solid #ededed;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  color: #555555;
+  line-height: 1.45;
+}
+
+.marketing-security-preview-notice svg {
+  color: #fa5d19;
+  flex-shrink: 0;
+}
+
+/* Manage Access Members List */
+.marketing-security-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.marketing-security-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #ededed;
+  background-color: #fafafa;
+  gap: 16px;
+}
+
+.marketing-security-member-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.marketing-security-member-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  border: 1px solid #e4e4e4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  flex-shrink: 0;
+}
+
+.marketing-security-member-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.marketing-security-member-name {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 2px;
+}
+
+.marketing-security-member-role-desc {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 12.5px;
+  color: #666666;
+  line-height: 1.4;
+}
+
+.marketing-security-member-controls {
+  flex-shrink: 0;
+}
+
+.marketing-security-role-fixed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.marketing-security-role-tag {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background-color: #f0f0f0;
+  border: 1px solid #e0e0e0;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.marketing-security-fixed-hint {
+  font-size: 12px;
+  color: #888888;
+}
+
+.marketing-security-select-wrap {
+  display: inline-block;
+}
+
+.marketing-security-role-select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid #dcdcdc;
+  background-color: #ffffff;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #262626;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.marketing-security-role-select:focus {
+  border-color: #fa5d19;
+  outline: 2px solid rgba(250, 93, 25, 0.2);
+}
+
+.marketing-security-dialog-sub-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.marketing-security-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #555555;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.marketing-security-reset-btn:hover {
+  background-color: #f5f5f5;
+  color: #262626;
+  border-color: #d8d8d8;
+}
+
+.marketing-security-reset-btn:focus-visible {
+  outline: 2px solid #fa5d19;
+  outline-offset: 2px;
+}
+
+/* Verified Facts Grid */
+.marketing-security-facts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.marketing-security-fact-card {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid #ededed;
+  background-color: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marketing-security-fact-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.marketing-security-fact-icon {
+  color: #fa5d19;
+  flex-shrink: 0;
+}
+
+.marketing-security-fact-title {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+}
+
+.marketing-security-fact-detail {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #555555;
+  margin: 0;
+}
+
+.marketing-security-fact-ref {
+  font-family: var(--font-jetbrains-mono, "JetBrains Mono", monospace);
+  font-size: 11.5px;
+  color: #888888;
+  letter-spacing: 0.02em;
+}
+
+.marketing-security-status-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 12.5px;
+  color: #777777;
+  padding: 4px 0;
+}
+
+.marketing-security-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #fa5d19;
+  flex-shrink: 0;
+}
+
+/* Requirements Draft Form */
+.marketing-security-draft-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketing-security-draft-label {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.marketing-security-draft-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #dcdcdc;
+  background-color: #ffffff;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 14px;
+  color: #262626;
+  line-height: 1.5;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 110px;
+  transition: border-color 0.15s ease;
+}
+
+.marketing-security-draft-textarea:focus {
+  outline: 2px solid rgba(250, 93, 25, 0.2);
+  border-color: #fa5d19;
+}
+
+.marketing-security-draft-counter {
+  display: flex;
+  justify-content: flex-end;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 12px;
+  color: #888888;
+}
+
+.marketing-security-copy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.marketing-security-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  height: 38px;
+  border-radius: 8px;
+  background-color: #262626;
+  border: 1px solid #262626;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.marketing-security-copy-btn:hover:not(:disabled) {
+  background-color: #404040;
+  border-color: #404040;
+}
+
+.marketing-security-copy-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.marketing-security-copy-btn:focus-visible {
+  outline: 2px solid #fa5d19;
+  outline-offset: 2px;
+}
+
+.marketing-security-copy-note {
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 12px;
+  color: #888888;
+}
+
+.marketing-security-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 28px;
+  border-top: 1px solid #f0f0f0;
+  background-color: #fafafa;
+}
+
+.marketing-security-dialog-dismiss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  border: 1px solid #dcdcdc;
+  font-family: var(--font-inter, Inter, sans-serif);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #262626;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.marketing-security-dialog-dismiss-btn:hover {
+  background-color: #f5f5f5;
+  border-color: #cfcfcf;
+}
+
+.marketing-security-dialog-dismiss-btn:focus-visible {
+  outline: 2px solid #fa5d19;
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Layout & Breakpoints
+   -------------------------------------------------------------------------- */
+
+/* Compact desktop preserves the full section below the sticky navigation. */

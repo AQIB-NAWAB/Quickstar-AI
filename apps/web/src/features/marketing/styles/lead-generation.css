@@ -1,0 +1,17 @@
+/* Business match and supporting source, with native editorial copy. */
+.lead-research-section { background:#fff; padding-block:64px; scroll-margin-top:88px; overflow:hidden; }
+.lead-research-container { max-width:1240px; padding-inline:24px; margin-inline:auto; display:grid; grid-template-columns:minmax(0,1.16fr) minmax(0,1fr); align-items:center; column-gap:42px; }
+.lead-research-copy { grid-column:2; grid-row:1; }
+.lead-research-header { text-align:left; }
+.lead-research-eyebrow { margin:0 0 20px; color:#454545; font-family:inherit; font-size:11px; font-weight:500; line-height:18px; letter-spacing:.13em; }
+.lead-research-heading { margin:0; color:#262626; font-size:clamp(30px,2.5vw,44px); font-weight:700; line-height:1.12; letter-spacing:-.045em; }
+.lead-research-heading em { color:#fa5d19; font-style:normal; }
+.lead-research-description { margin:22px 0 0; max-width:470px; color:#686868; font-size:18px; line-height:1.6; letter-spacing:-.02em; }
+.lead-research-stages { padding:0; margin:34px 0 0; list-style:none; display:flex; flex-direction:column; gap:22px; }
+.lead-research-stages li { display:flex; align-items:baseline; gap:20px; }
+.lead-research-stages li > span { color:#fa5d19; font-size:20px; font-weight:500; font-variant-numeric:tabular-nums; }
+.lead-research-stages h3 { margin:0; color:#262626; font-size:20px; font-weight:600; line-height:1.4; letter-spacing:-.025em; }
+.lead-research-stage { grid-column:1; grid-row:1; margin:0; min-width:0; }
+.lead-research-stage img { display:block; width:100%; height:auto; }
+@media(min-width:768px) and (max-width:1099px) { .lead-research-container { column-gap:24px; }.lead-research-heading { font-size:32px; }.lead-research-description { font-size:16px; margin-top:18px; }.lead-research-stages { gap:16px; margin-top:24px; }.lead-research-stages h3 { font-size:17px; } }
+@media(max-width:767px) { .lead-research-section { padding-block:48px; }.lead-research-container { grid-template-columns:minmax(0,1fr); padding-inline:20px; gap:28px; }.lead-research-copy { grid-column:1; grid-row:1; }.lead-research-stage { grid-column:1; grid-row:2; max-width:580px; margin-inline:auto; }.lead-research-heading { font-size:32px; }.lead-research-eyebrow { margin-bottom:16px; }.lead-research-description { font-size:16px; margin-top:18px; }.lead-research-stages { gap:16px; margin-top:24px; }.lead-research-stages h3 { font-size:18px; }.lead-research-stages li > span { font-size:18px; } }

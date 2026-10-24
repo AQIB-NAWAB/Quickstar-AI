@@ -1,0 +1,280 @@
+.marketing-developers-section { background:#fff; color:#292929; padding:40px 0; scroll-margin-top:88px; }
+.marketing-developers-container { max-width:1240px; margin:auto; padding:0 24px; }
+.marketing-developers-header { text-align:center; }
+.marketing-developers-eyebrow { margin:0 0 22px; text-transform:uppercase; font-size:11px; font-weight:400; letter-spacing:.14em; color:#626262; }
+.marketing-developers-title { margin:0; font-size:clamp(32px,2.5vw,44px); line-height:1.15; font-weight:600; letter-spacing:-.04em; }
+.marketing-developers-title em { color:#fa5d19; font-style:normal; }
+.marketing-developers-description { margin:20px 0 0; font-size:18px; line-height:1.55; color:#6b6b6b; }
+.marketing-developers-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:40px; margin:20px 0 30px; }
+.marketing-developers-choice { min-width:0; border:0; padding:0 0 14px; background:none; color:inherit; cursor:pointer; text-align:center; position:relative; }
+.marketing-developers-choice img { width:100%; height:210px; object-fit:contain; display:block; transition:transform .52s cubic-bezier(.22,1,.36,1); }
+.marketing-developers-choice-title { display:block; font-size:20px; line-height:1.4; font-weight:600; letter-spacing:-.025em; transition:color .4s; }
+.marketing-developers-choice-description { display:block; color:#777; font-size:15px; line-height:1.5; margin-top:8px; }
+.marketing-developers-choice::after { content:""; height:2px; width:66px; background:#fa5d19; position:absolute; bottom:0; left:calc(50% - 33px); transform:scaleX(0); transition:transform .4s ease; }
+.marketing-developers-choice.active::after { transform:scaleX(1); }
+.marketing-developers-choice:hover img { transform:scale(1.05); }
+.marketing-developers-choice:hover .marketing-developers-choice-title { color:#fa5d19; }
+.marketing-developers-panel { border:1px solid #e1e1e1; border-radius:16px; overflow:hidden; margin:0 24px; }
+.marketing-developers-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px 22px; background:#fff; border-bottom:1px solid #e8e8e8; }
+.marketing-developers-filename { display:flex; align-items:center; gap:14px; font-size:14px; min-width:0; }
+.marketing-developers-filename strong { font-weight:600; }
+.marketing-developers-filename > span { border-left:1px solid #ddd; padding-left:18px; color:#777; font-size:13px; }
+.marketing-developers-copy-btn { display:flex; align-items:center; justify-content:center; gap:9px; min-width:88px; padding:8px 12px; border:1px solid #ddd; border-radius:8px; background:white; font-size:13px; color:#292929; cursor:pointer; transition:background .35s,border-color .35s; }
+.marketing-developers-copy-btn:hover { border-color:#ffbd9e; background:#fff5ef; }
+.marketing-developers-body { background:#fafafa; }
+.marketing-developers-body[hidden] { display:none; }
+.marketing-developers-code-scroll { overflow-x:auto; padding:20px 24px; min-height:258px; }
+.marketing-developers-pre { margin:0; font-size:14px; line-height:1.85; tab-size:2; }
+.marketing-developers-code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+.marketing-developers-code-line { display:flex; min-width:max-content; }
+.marketing-developers-line-number { flex:0 0 38px; color:#a0a0a0; user-select:none; }
+.marketing-developers-line-content { white-space:pre; }
+.marketing-developers-token-attr { color:#707070; }
+.marketing-developers-token-string { color:#e95113; }
+.marketing-developers-token-tag,.marketing-developers-token-punct,.marketing-developers-token-plain { color:#343434; }
+.marketing-developers-actions { margin-top:28px; display:flex; justify-content:center; gap:16px; }
+.marketing-developers-btn { display:inline-flex; align-items:center; justify-content:center; gap:20px; min-height:46px; padding:10px 22px; border:1px solid #ddd; border-radius:9px; background:#fff; color:#292929; font-size:15px; cursor:pointer; transition:background .35s,transform .35s; }
+.marketing-developers-btn-primary { background:#fa5d19; border-color:#fa5d19; color:#fff; }
+.marketing-developers-btn-primary:hover { background:#e95113; }
+.marketing-developers-btn-secondary:hover { background:#fafafa; }
+.marketing-developers-section button:focus-visible,.marketing-developers-code-scroll:focus-visible { outline:2px solid #fa5d19; outline-offset:4px; }
+@media(max-width:767px) { .marketing-developers-section { padding:40px 0; } .marketing-developers-choices { gap:20px; grid-template-columns:1fr; max-width:380px; margin:24px auto 32px; } .marketing-developers-choice img { max-height:230px; object-fit:contain; } .marketing-developers-panel { margin:0; } .marketing-developers-toolbar { padding:12px; } .marketing-developers-filename { gap:8px; } .marketing-developers-filename > span { display:none; } .marketing-developers-code-scroll { padding:16px 12px; } .marketing-developers-pre { font-size:12px; } .marketing-developers-actions { gap:12px; flex-wrap:wrap; } .marketing-developers-btn { font-size:14px; padding:10px 16px; gap:12px; } }
+@media(prefers-reduced-motion:reduce) { .marketing-developers-section *, .marketing-developers-section *::after { transition:none!important; animation:none!important; } }
+/* Modal Dialog */
+.marketing-developers-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+
+.marketing-developers-dialog-card {
+  width: 100%;
+  max-width: 540px;
+  background: #ffffff;
+  border: 1px solid var(--dev-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.14);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.marketing-developers-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.marketing-developers-dialog-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.marketing-developers-dialog-icon {
+  color: var(--dev-heat);
+}
+
+.marketing-developers-dialog-title-group h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--dev-ink);
+}
+
+.marketing-developers-dialog-close {
+  background: transparent;
+  border: none;
+  color: var(--dev-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+}
+
+.marketing-developers-dialog-close:hover {
+  color: var(--dev-ink);
+  background: #f5f5f5;
+}
+
+.marketing-developers-dialog-close:focus-visible {
+  outline: 2px solid var(--dev-heat);
+  outline-offset: 2px;
+}
+
+.marketing-developers-dialog-body {
+  padding: 22px 24px;
+}
+
+.marketing-developers-dialog-lead {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--dev-ink);
+  margin: 0 0 16px;
+}
+
+.marketing-developers-dialog-detail-box {
+  background: var(--dev-code-bg);
+  border: 1px solid var(--dev-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.marketing-developers-dialog-detail-item {
+  margin-bottom: 14px;
+}
+
+.marketing-developers-dialog-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.marketing-developers-dialog-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dev-ink);
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+
+.marketing-developers-dialog-detail-header svg {
+  color: var(--dev-heat);
+}
+
+.marketing-developers-dialog-detail-item p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--dev-muted);
+  padding-left: 24px;
+}
+
+.marketing-developers-dialog-subheading {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dev-ink);
+  margin: 0 0 10px;
+}
+
+.marketing-developers-dialog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.marketing-developers-dialog-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dev-muted);
+}
+
+.marketing-developers-dialog-list li svg {
+  color: var(--dev-heat);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.marketing-developers-dialog-list li strong {
+  color: var(--dev-ink);
+}
+
+.marketing-developers-dialog-endpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.marketing-developers-dialog-endpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+}
+
+.marketing-developers-dialog-method-post {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.marketing-developers-dialog-method-get {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.marketing-developers-dialog-footnote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dev-muted);
+  line-height: 1.5;
+  border-top: 1px solid var(--dev-border);
+  padding-top: 10px;
+}
+
+.marketing-developers-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 24px;
+  border-top: 1px solid var(--dev-border);
+  background: #fdfdfd;
+  border-radius: 0 0 12px 12px;
+}
+
+.marketing-developers-dialog-dismiss-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid var(--dev-border-strong);
+  color: var(--dev-ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.marketing-developers-dialog-dismiss-btn:hover {
+  background: #f7f7f7;
+  border-color: #d4d4d4;
+}
+
+.marketing-developers-dialog-dismiss-btn:focus-visible {
+  outline: 2px solid var(--dev-heat);
+  outline-offset: 2px;
+}
+
+
+.marketing-developers-dialog-overlay { --dev-border:#e5e5e5; --dev-border-strong:#d4d4d4; --dev-ink:#292929; --dev-muted:#737373; --dev-heat:#fa5d19; --dev-surface:#fff; }
+.marketing-developers-dialog-card { max-width:min(680px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto; }
+.marketing-developers-dialog-endpoint-row { flex-wrap:wrap; }
+.marketing-developers-dialog-endpoint-row code { overflow-wrap:anywhere; }

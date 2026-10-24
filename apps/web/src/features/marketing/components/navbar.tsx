@@ -1,333 +1,248 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, X } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  ArrowRight, CalendarDays, ChevronDown, Database, Headphones,
+  Menu, MessageCircle, Moon, Plug, ShieldCheck, Target, Users,
+  Workflow, X, type LucideIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import "../styles/navbar.css";
 
-interface NavLink {
-  label: string;
-  href: string;
-  sectionId: string;
-}
+type MenuName = "product" | "use-cases";
+type NavigationItem = { label: string; description: string; href: string; icon: LucideIcon };
 
-const NAV_LINKS: NavLink[] = [
-  { label: "Product", href: "#platform", sectionId: "platform" },
-  { label: "How it works", href: "#how-it-works", sectionId: "how-it-works" },
-  { label: "See it in action", href: "#playground", sectionId: "playground" },
-  { label: "Pricing", href: "#pricing", sectionId: "pricing" },
+// Row order follows the approved two-column dropdown.
+const menus: Record<MenuName, { label: string; items: NavigationItem[] }> = {
+  product: {
+    label: "Product",
+    items: [
+      { label: "Visual builder", description: "Build your agent’s workflow", href: "#builder", icon: Workflow },
+      { label: "Human handoff", description: "Bring your team into the conversation", href: "#inbox", icon: Users },
+      { label: "Knowledge & memory", description: "Give answers business context", href: "#knowledge", icon: Database },
+      { label: "Integrations", description: "Connect your tools", href: "#integrations", icon: Plug },
+      { label: "Chat & voice", description: "Meet customers where they are", href: "#channels", icon: MessageCircle },
+      { label: "Security & control", description: "Manage workspace access", href: "#security", icon: ShieldCheck },
+    ],
+  },
+  "use-cases": {
+    label: "Use cases",
+    items: [
+      { label: "Customer support", description: "Answer everyday questions", href: "#use-case-customer-questions", icon: Headphones },
+      { label: "Appointment booking", description: "Help customers book a time", href: "#use-case-appointment-booking", icon: CalendarDays },
+      { label: "Lead generation", description: "Find businesses that fit", href: "#lead-generation", icon: Users },
+      { label: "Sales outreach", description: "Start the next conversation", href: "#use-case-follow-up-call", icon: Target },
+      { label: "Website chat", description: "Help visitors in the moment", href: "#channels", icon: MessageCircle },
+      { label: "After-hours support", description: "Answer beyond business hours", href: "#use-case-after-hours", icon: Moon },
+    ],
+  },
+};
+const directLinks = [
+  { label: "How it works", href: "#how-it-works" },
+  { label: "Developers", href: "#developers" },
+  { label: "Pricing", href: "#pricing" },
 ];
 
 export function Navbar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<MenuName | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-
   const headerRef = useRef<HTMLElement>(null);
-  const menuToggleRef = useRef<HTMLButtonElement>(null);
-  const mobileNavRef = useRef<HTMLDivElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
+  const desktopTriggerRefs = useRef<Partial<Record<MenuName, HTMLButtonElement | null>>>({});
+  const mobileTriggerRefs = useRef<Partial<Record<MenuName, HTMLButtonElement | null>>>({});
+  const focusFirstItem = useRef(false);
 
-  const closeMenu = useCallback(() => {
-    setMobileMenuOpen(false);
-    menuToggleRef.current?.focus();
-  }, []);
+  const closeAll = () => { setOpenMenu(null); setMobileOpen(false); };
+  const activeGroup = activeSection === "use-cases" || activeSection === "lead-generation" || activeSection?.startsWith("use-case-")
+    ? "use-cases"
+    : ["builder", "inbox", "knowledge", "integrations", "channels", "security", "quality", "scale"].includes(activeSection ?? "")
+      ? "product" : null;
 
-  // Close mobile menu on Escape key press
   useEffect(() => {
-    if (!mobileMenuOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeMenu();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileMenuOpen, closeMenu]);
-
-  // Close mobile menu when resizing to desktop breakpoint (>= 1100px)
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1100 && mobileMenuOpen) {
-        setMobileMenuOpen(false);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [mobileMenuOpen]);
-
-  // Use one viewport probe so selection does not depend on observer callback batches.
-  useEffect(() => {
-    const sections = NAV_LINKS.map((link) => ({
-      id: link.sectionId,
-      element: document.getElementById(link.sectionId),
-    })).filter((section) => section.element !== null);
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("main > section[id], main [id^='use-case-']"));
     let frame: number | null = null;
     const update = () => {
       frame = null;
-      const headerHeight = headerRef.current?.offsetHeight ?? 72;
-      const probe = headerHeight + Math.min(160, window.innerHeight * 0.2);
-      const visible = sections
-        .filter(({ element }) => {
-          const bounds = element!.getBoundingClientRect();
-          return bounds.top <= probe && bounds.bottom > headerHeight;
-        })
-        .sort(
-          (a, b) => b.element!.getBoundingClientRect().top - a.element!.getBoundingClientRect().top,
-        );
-      setActiveSection(visible[0]?.id ?? null);
+      const headerHeight = headerRef.current?.getBoundingClientRect().height ?? 76;
+      const probe = headerHeight + Math.min(160, window.innerHeight * .2);
+      const current = sections.filter((section) => {
+        const bounds = section.getBoundingClientRect();
+        return bounds.top <= probe && bounds.bottom > headerHeight;
+      }).sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top)[0];
+      setActiveSection(current?.id ?? null);
     };
-    const schedule = () => {
-      if (frame === null) frame = requestAnimationFrame(update);
-    };
+    const schedule = () => { if (frame === null) frame = requestAnimationFrame(update); };
     schedule();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
-      if (frame !== null) cancelAnimationFrame(frame);
     };
   }, []);
 
   useEffect(() => {
-    if (!mobileMenuOpen) return;
-    const header = headerRef.current;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const siblings = Array.from(header?.parentElement?.children ?? []).filter(
-      (element): element is HTMLElement => element instanceof HTMLElement && element !== header,
-    );
-    const previousInert = siblings.map((element) => element.inert);
-    siblings.forEach((element) => {
-      element.inert = true;
-    });
-    mobileNavRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
-    const containFocus = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const controls = Array.from(
-        header?.querySelectorAll<HTMLElement>("a[href], button") ?? [],
-      ).filter((element) => element.getClientRects().length > 0);
-      const first = controls[0],
-        last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+    // Mobile navigation scrolls internally; only page scrolling dismisses desktop menus.
+    if (!openMenu || mobileOpen) return;
+    const dismiss = () => {
+      const panel = document.getElementById(`qs-desktop-${openMenu}`);
+      if (panel?.contains(document.activeElement)) desktopTriggerRefs.current[openMenu]?.focus({ preventScroll: true });
+      setOpenMenu(null);
+    };
+    window.addEventListener("scroll", dismiss, { passive: true });
+    return () => window.removeEventListener("scroll", dismiss);
+  }, [openMenu, mobileOpen]);
+
+
+  useEffect(() => {
+    if (!openMenu || !focusFirstItem.current) return;
+    headerRef.current?.querySelector<HTMLAnchorElement>(`#qs-desktop-${openMenu} a`)?.focus();
+    focusFirstItem.current = false;
+  }, [openMenu]);
+
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !headerRef.current?.contains(event.target)) setOpenMenu(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (openMenu) {
         event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
+        (mobileOpen ? mobileTriggerRefs : desktopTriggerRefs).current[openMenu]?.focus();
+        setOpenMenu(null);
+      } else if (mobileOpen) {
+        setMobileOpen(false);
+        mobileToggleRef.current?.focus();
       }
     };
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !header?.contains(event.target)) closeMenu();
-    };
-    document.addEventListener("keydown", containFocus);
     document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
     return () => {
-      document.body.style.overflow = overflow;
-      siblings.forEach((element, index) => {
-        element.inert = previousInert[index];
-      });
-      document.removeEventListener("keydown", containFocus);
       document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
     };
-  }, [mobileMenuOpen, closeMenu]);
+  }, [openMenu, mobileOpen]);
 
-  const handleNavClick = (sectionId: string) => {
-    setActiveSection(sectionId);
-    if (mobileMenuOpen) {
-      setMobileMenuOpen(false);
-    }
-  };
+  useEffect(() => {
+    const breakpoint = window.matchMedia("(min-width: 1100px)");
+    const reset = () => { setMobileOpen(false); setOpenMenu(null); };
+    breakpoint.addEventListener("change", reset);
+    return () => breakpoint.removeEventListener("change", reset);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const header = headerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const siblings = Array.from(header?.parentElement?.children ?? []).filter(
+      (element): element is HTMLElement => element instanceof HTMLElement && element !== header
+    );
+    const inertStates = siblings.map((element) => element.inert);
+    siblings.forEach((element) => { element.inert = true; });
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const controls = Array.from(header?.querySelectorAll<HTMLElement>("a[href], button") ?? [])
+        .filter((element) => element.getClientRects().length > 0 && !element.closest("[inert]"));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", trapFocus);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      siblings.forEach((element, index) => { element.inert = inertStates[index]; });
+      document.removeEventListener("keydown", trapFocus);
+    };
+  }, [mobileOpen]);
+
+  function renderItems(name: MenuName) {
+    return menus[name].items.map(({ label, description, href, icon: Icon }) => (
+      <Link key={label} href={href} className="qs-nav-option" aria-current={href === `#${activeSection}` ? "location" : undefined} onClick={closeAll}>
+        <span className="qs-nav-option-icon"><Icon size={20} strokeWidth={1.65} aria-hidden="true" /></span>
+        <span className="qs-nav-option-copy">
+          <span className="qs-nav-option-title">{label}</span>
+          <span className="qs-nav-option-description">{description}</span>
+        </span>
+        <ArrowRight className="qs-nav-option-arrow" size={16} aria-hidden="true" />
+      </Link>
+    ));
+  }
 
   return (
-    <header
-      ref={headerRef}
-      className="sticky top-0 z-40 w-full bg-[#FAFAF8] border-b border-[#DEDED8]"
-    >
-      {/* Main Bar: Max width ~1304px matching site composition */}
-      <div className="landing-container h-[68px] min-[1100px]:h-[72px] flex items-center justify-between">
-        {/* Left Section: Brand + Divider + Navigation Links */}
-        <div className="flex items-center min-w-0">
-          {/* Brand Lockup */}
-          <Link
-            href="/"
-            aria-label="QuickStartAI home"
-            className="inline-flex items-center gap-2.5 min-[1100px]:min-w-[244px] xl:min-w-[272px] group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-sm select-none"
-          >
-            <BrandLogo
-              size={28}
-              animated
-              fillColor="#fa5d19"
-              className="w-6 h-6 min-[1100px]:w-7 min-[1100px]:h-7 shrink-0 transition-transform duration-150 motion-reduce:transition-none group-hover:scale-105"
-              aria-hidden="true"
-            />
-            <span className="text-[20px] sm:text-[22px] min-[1100px]:text-[26px] font-bold tracking-tight text-[#262626] leading-none">
-              QuickStart<span className="text-[#FF571A]"> AI</span>
-            </span>
-          </Link>
-
-          {/* Desktop-only Vertical Divider (24px high, 1px grey) */}
-          <div
-            className="hidden min-[1100px]:block w-[1px] h-6 bg-[#DEDED8] mx-7 xl:mx-8 shrink-0"
-            aria-hidden="true"
-          />
-
-          {/* Desktop Navigation Links (Immediately following divider, >=1100px) */}
-          <nav
-            aria-label="Main navigation"
-            className="hidden min-[1100px]:flex items-center gap-5 xl:gap-7 whitespace-nowrap text-[15px] font-medium text-[#262626]"
-          >
-            {NAV_LINKS.map((link) => {
-              const isActive = activeSection === link.sectionId;
-              return (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  onClick={() => handleNavClick(link.sectionId)}
-                  aria-current={isActive ? "location" : undefined}
-                  className="relative h-[44px] flex items-center text-[#262626] hover:text-[#FF571A] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-sm select-none group"
-                >
-                  <span className="relative py-1">
-                    {link.label}
-                    {/* Active orange underline beneath text width */}
-                    {isActive && (
-                      <span
-                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF571A] rounded-full"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Right Section: Desktop Account Actions (>=1100px) */}
-        <div className="hidden min-[1100px]:flex items-center">
-          {/* Sign in */}
-          <Link
-            href="/login"
-            className="text-[15px] font-medium text-[#262626] hover:text-[#FF571A] min-h-[44px] px-2 flex items-center mr-6 xl:mr-7 transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] rounded-sm"
-          >
-            Sign in
-          </Link>
-
-          {/* Split Compartment Get started CTA */}
-          <Link
-            href="/register"
-            className="group inline-flex items-center h-[44px] rounded-[8px] overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A] select-none"
-          >
-            {/* Compartment 1: Orange text box */}
-            <span className="h-full px-5 min-w-[124px] bg-[#FF571A] group-hover:bg-[#E04810] text-white text-[15px] font-semibold flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none">
-              Get started
-            </span>
-
-            {/* Compartment 2: Deeper orange arrow box (exactly 44px wide) */}
-            <span className="w-[44px] h-full bg-[#E04810] group-hover:bg-[#C93F0E] flex items-center justify-center shrink-0 border-l border-white/15 transition-colors duration-150 motion-reduce:transition-none">
-              <ArrowRight
-                className="w-4 h-4 text-white stroke-[2.2] transition-transform duration-150 motion-reduce:transform-none group-hover:translate-x-0.5"
-                aria-hidden="true"
-              />
-            </span>
-          </Link>
-        </div>
-
-        {/* Mobile Control (<1100px): Outlined 2-line menu button */}
-        <div className="flex min-[1100px]:hidden items-center">
-          <button
-            ref={menuToggleRef}
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="w-11 h-11 rounded-[8px] border border-[#DEDED8] bg-white flex items-center justify-center text-[#262626] hover:border-[#262626] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-            aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-nav-dropdown"
-          >
-            {mobileMenuOpen ? (
-              <X className="w-5 h-5 text-[#262626]" aria-hidden="true" />
-            ) : (
-              /* Two horizontal graphite lines matching approved reference */
-              <svg
-                width="18"
-                height="12"
-                viewBox="0 0 18 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <line x1="1" y1="2" x2="17" y2="2" />
-                <line x1="1" y1="10" x2="17" y2="10" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Open State: Attached Dropdown out of normal flow */}
-      {mobileMenuOpen && (
-        <div
-          id="mobile-nav-dropdown"
-          ref={mobileNavRef}
-          className="min-[1100px]:hidden absolute top-full left-0 right-0 bg-[#FAFAF8] border-b border-[#DEDED8] z-50 max-h-[calc(100dvh-68px)] overflow-y-auto"
-        >
-          <nav aria-label="Mobile navigation">
-            {NAV_LINKS.map((link) => {
-              const isActive = activeSection === link.sectionId;
-              return (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  onClick={() => handleNavClick(link.sectionId)}
-                  aria-current={isActive ? "location" : undefined}
-                  className="w-full h-[54px] flex items-center px-5 sm:px-6 border-b border-[#DEDED8] text-[16px] font-medium text-[#262626] hover:text-[#FF571A] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-                >
-                  <span className="relative py-1">
-                    {link.label}
-                    {isActive && (
-                      <span
-                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF571A] rounded-full"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </span>
-                </Link>
-              );
-            })}
-
-            {/* Bottom Account Row: Sign in left, Split Get started CTA right */}
-            <div className="px-5 sm:px-6 py-5 flex items-center justify-between gap-4">
-              <Link
-                href="/login"
-                onClick={closeMenu}
-                className="text-[16px] font-medium text-[#262626] hover:text-[#FF571A] min-h-[44px] flex items-center transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-              >
-                Sign in
-              </Link>
-
-              <Link
-                href="/register"
-                onClick={closeMenu}
-                className="group inline-flex items-center h-[44px] rounded-[8px] overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
-              >
-                <span className="h-full px-4 sm:px-5 bg-[#FF571A] group-hover:bg-[#E04810] text-white text-[14.5px] sm:text-[15px] font-semibold flex items-center justify-center transition-colors duration-150 motion-reduce:transition-none">
-                  Get started
-                </span>
-                <span className="w-[44px] h-full bg-[#E04810] group-hover:bg-[#C93F0E] flex items-center justify-center shrink-0 border-l border-white/15 transition-colors duration-150 motion-reduce:transition-none">
-                  <ArrowRight
-                    className="w-4 h-4 text-white stroke-[2.2] transition-transform duration-150 motion-reduce:transform-none group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Link>
+    <header ref={headerRef} className="qs-navbar" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenMenu(null);
+    }}>
+      <div className="landing-container qs-nav-bar">
+        <Link href="/" className="qs-nav-brand" aria-label="QuickStart AI home" onClick={closeAll}>
+          <BrandLogo size={34} animated fillColor="#fa5d19" aria-hidden="true" />
+          <span>QuickStart<span className="qs-nav-brand-ai"> AI</span></span>
+        </Link>
+        <nav className="qs-nav-desktop" aria-label="Main navigation">
+          {(Object.keys(menus) as MenuName[]).map((name) => (
+            <div key={name} className="qs-nav-menu">
+              <button ref={(element) => { desktopTriggerRefs.current[name] = element; }} type="button"
+                className="qs-nav-link qs-nav-trigger" data-active={activeGroup === name} aria-expanded={openMenu === name}
+                aria-controls={`qs-desktop-${name}`} onClick={() => setOpenMenu(openMenu === name ? null : name)}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  if (openMenu === name) headerRef.current?.querySelector<HTMLAnchorElement>(`#qs-desktop-${openMenu} a`)?.focus();
+                  else { focusFirstItem.current = true; setOpenMenu(name); }
+                }}>
+                {menus[name].label}<ChevronDown size={13} aria-hidden="true" />
+              </button>
+              <div id={`qs-desktop-${name}`} className="qs-nav-dropdown"
+                data-open={openMenu === name && !mobileOpen}
+                aria-hidden={openMenu !== name || mobileOpen}
+                ref={(element) => { if (element) element.inert = openMenu !== name || mobileOpen; }}
+                aria-label={`${menus[name].label} links`}>
+                {renderItems(name)}
+                {name === "use-cases" && <Link href="#use-cases" className="qs-nav-view-all" onClick={closeAll}>View all use cases<ArrowRight size={15} aria-hidden="true" /></Link>}
+              </div>
             </div>
-          </nav>
+          ))}
+          {directLinks.map(({ label, href }) => <Link key={href} className="qs-nav-link" aria-current={href === `#${activeSection}` ? "location" : undefined} href={href} onClick={closeAll}>{label}</Link>)}
+        </nav>
+        <div className="qs-nav-account">
+          <Link href="/login" className="qs-nav-link">Log in</Link>
+          <Link href="/register" className="qs-nav-cta">Start building<ArrowRight size={17} aria-hidden="true" /></Link>
         </div>
-      )}
+        <button ref={mobileToggleRef} type="button" className="qs-nav-mobile-toggle"
+          aria-expanded={mobileOpen} aria-controls="qs-mobile-navigation" aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+          onClick={() => { setMobileOpen(!mobileOpen); setOpenMenu(null); }}>
+          {mobileOpen ? <X size={21} aria-hidden="true" /> : <Menu size={21} aria-hidden="true" />}
+        </button>
+      </div>
+      <nav id="qs-mobile-navigation" className="qs-nav-mobile" aria-label="Mobile navigation"
+        data-open={mobileOpen} aria-hidden={!mobileOpen}
+        ref={(element) => { if (element) element.inert = !mobileOpen; }}>
+          {(Object.keys(menus) as MenuName[]).map((name) => (
+            <div key={name} className="qs-nav-mobile-group">
+              <button ref={(element) => { mobileTriggerRefs.current[name] = element; }} type="button" className="qs-nav-mobile-heading" data-active={activeGroup === name}
+                aria-expanded={openMenu === name} aria-controls={`qs-mobile-${name}`}
+                onClick={() => setOpenMenu(openMenu === name ? null : name)}>
+                {menus[name].label}<ChevronDown size={16} aria-hidden="true" />
+              </button>
+              <div id={`qs-mobile-${name}`} className="qs-nav-mobile-reveal" data-open={openMenu === name}
+                aria-hidden={openMenu !== name}
+                ref={(element) => { if (element) element.inert = openMenu !== name; }}>
+                <div className="qs-nav-mobile-reveal-inner">
+                  <div className="qs-nav-mobile-options">{renderItems(name)}</div>
+                  {name === "use-cases" && <Link href="#use-cases" className="qs-nav-view-all" onClick={closeAll}>View all use cases<ArrowRight size={15} aria-hidden="true" /></Link>}
+                </div>
+              </div>
+            </div>
+          ))}
+          {directLinks.map(({ label, href }) => <Link key={href} className="qs-nav-mobile-heading" aria-current={href === `#${activeSection}` ? "location" : undefined} href={href} onClick={closeAll}>{label}</Link>)}
+          <div className="qs-nav-mobile-account">
+            <Link href="/login" className="qs-nav-link" onClick={closeAll}>Log in</Link>
+            <Link href="/register" className="qs-nav-cta" onClick={closeAll}>Start building<ArrowRight size={17} aria-hidden="true" /></Link>
+          </div>
+      </nav>
     </header>
   );
 }

@@ -2,12 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { X, Check, Minus, Info, ChevronDown } from "lucide-react";
-
-interface FeatureItem {
-  text: string;
-  isIncluded: boolean;
-}
+import { createPortal } from "react-dom";
+import { Check, ChevronRight, ChevronDown, X, UserRound, Plug, Layers, Building2 } from "lucide-react";
+import "@/features/marketing/styles/pricing.css";
 
 interface PlanTier {
   id: "free" | "starter" | "scale" | "enterprise";
@@ -15,47 +12,195 @@ interface PlanTier {
   desc: string;
   price: string;
   period?: string;
-  features: FeatureItem[];
+  actionText: string;
+  actionHref?: string;
+  features: string[];
+  isDiscussionTopic?: boolean;
   detailsTitle: string;
   detailsSummary: string;
   detailsItems: string[];
 }
 
+const PLANS: PlanTier[] = [
+  {
+    id: "free",
+    name: "Free",
+    desc: "Try your first agent.",
+    price: "$0",
+    period: "/ month",
+    actionText: "Start free",
+    actionHref: "/register",
+    features: [
+      "Build an agent",
+      "Publish your agent",
+      "Review conversations",
+    ],
+    detailsTitle: "What’s in Free",
+    detailsSummary:
+      "Designed for prototype validation and local exploration. Build and test published agents with standard workspace boundaries.",
+    detailsItems: [
+      "Single workspace sandbox with RBAC role defaults",
+      "Agent draft editing and version publishing",
+      "Conversation turns via runtime API",
+      "Example company documentation sources",
+      "Standard community discussions and tracking",
+    ],
+  },
+  {
+    id: "starter",
+    name: "Starter",
+    desc: "Connect your business tools.",
+    price: "$49",
+    period: "/ month",
+    actionText: "Choose Starter",
+    actionHref: "/register",
+    features: [
+      "Add your business information",
+      "Connect tools",
+      "Give your team access",
+    ],
+    detailsTitle: "What’s in Starter",
+    detailsSummary:
+      "For teams integrating published agents into production applications with authenticated API tools and secrets vaulting.",
+    detailsItems: [
+      "Connected company knowledge and API tools",
+      "Multi-member workspace roles (Owner, Admin, Analyst)",
+      "Envelope-encrypted external API tool credentials",
+      "Standard turn limits and automated retry policies",
+      "Platform notices and email updates",
+    ],
+  },
+  {
+    id: "scale",
+    name: "Scale",
+    desc: "Manage more agents.",
+    price: "$199",
+    period: "/ month",
+    actionText: "Choose Scale",
+    actionHref: "/register",
+    features: [
+      "Create multiple agents",
+      "Manage workspace access",
+      "Choose how models are used",
+    ],
+    detailsTitle: "What’s in Scale",
+    detailsSummary:
+      "For high-volume multi-agent environments needing resilient model gateway routing and customized workspace quotas.",
+    detailsItems: [
+      "Multiple concurrent agent versions across workspaces",
+      "Configured fallback and circuit-breaker model routing",
+      "Extended knowledge collection quotas",
+      "Increased inflight request concurrency limits",
+      "Priority configuration guidance",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    desc: "Plan a custom setup.",
+    price: "Custom",
+    actionText: "Talk to us",
+    features: [
+      "Discuss deployment",
+      "Review security needs",
+      "Arrange support",
+    ],
+    isDiscussionTopic: true,
+    detailsTitle: "Enterprise requirements",
+    detailsSummary:
+      "Custom configurations for organizations with strict compliance, tenancy, or dedicated infrastructure requirements.",
+    detailsItems: [
+      "Dedicated workspace partition and VPC routing discussion",
+      "Custom SAML / SSO and directory role mapping",
+      "Custom provider credential injection and audit logging",
+      "Tailored turn volume and model routing policies",
+      "Direct architecture review and engineering coordination",
+    ],
+  },
+];
+
+const COMPARISON_ROWS = [
+  {
+    feature: "Agent Configuration & Releases",
+    free: "Single agent (draft + published)",
+    starter: "Multiple versions",
+    scale: "Multiple concurrent agents",
+    enterprise: "Custom organization scope",
+  },
+  {
+    feature: "Company Knowledge Ingestion",
+    free: "Example docs",
+    starter: "Standard sources (hybrid search)",
+    scale: "High-volume collections",
+    enterprise: "Custom data sources",
+  },
+  {
+    feature: "Connected API Tools & Secrets",
+    free: "Simulated tools",
+    starter: "Vaulted credentials",
+    scale: "Vaulted credentials",
+    enterprise: "Dedicated secure connectors",
+  },
+  {
+    feature: "Team Access & Workspaces",
+    free: "Single workspace sandbox",
+    starter: "Roles (Owner, Admin, Analyst)",
+    scale: "Granular workspace controls",
+    enterprise: "Custom SSO & directory sync",
+  },
+  {
+    feature: "Model Routing & Resilience",
+    free: "Standard routing",
+    starter: "Timeouts & basic retries",
+    scale: "Fallback & circuit breaker",
+    enterprise: "Custom provider failover",
+  },
+  {
+    feature: "Concurrency & Throughput",
+    free: "Standard limits",
+    starter: "Standard limits",
+    scale: "Higher capacity (to be confirmed)",
+    enterprise: "Dedicated throughput to agree",
+  },
+  {
+    feature: "Commercial Status",
+    free: "Proposed $0/mo",
+    starter: "Proposed $49/mo",
+    scale: "Proposed $199/mo",
+    enterprise: "Terms to be agreed",
+  },
+];
+
 export function PricingSection() {
   const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null);
-  const [activePlanId, setActivePlanId] = useState<PlanTier["id"]>("starter");
   const [showComparison, setShowComparison] = useState<boolean>(false);
 
-  const triggerButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const modalRef = useRef<HTMLDivElement>(null);
-  const lastActiveTriggerId = useRef<string | null>(null);
-  const previousOverflow = useRef<string>("");
+  const activeTriggerRef = useRef<HTMLElement | null>(null);
 
-  // Modal accessibility: Escape key, scroll locking, focus management
-  const closeModal = useCallback(() => {
-    setSelectedPlan(null);
-    document.body.style.overflow = previousOverflow.current;
-    // Return focus to trigger button
-    if (lastActiveTriggerId.current && triggerButtonRefs.current[lastActiveTriggerId.current]) {
-      triggerButtonRefs.current[lastActiveTriggerId.current]?.focus();
-    }
-  }, []);
-
-  const openModal = useCallback((plan: PlanTier) => {
-    lastActiveTriggerId.current = plan.id;
-    previousOverflow.current = document.body.style.overflow;
+  const closeModal = useCallback(() => setSelectedPlan(null), []);
+  const openModal = useCallback((plan: PlanTier, trigger: HTMLElement) => {
+    activeTriggerRef.current = trigger;
     setSelectedPlan(plan);
-    document.body.style.overflow = "hidden";
   }, []);
+
+
 
   useEffect(() => {
     if (!selectedPlan) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const background = Array.from(document.body.children).filter(
+      (node): node is HTMLElement => node instanceof HTMLElement &&
+        !node.contains(modalRef.current) && !node.hasAttribute("inert")
+    );
+    background.forEach(node => node.setAttribute("inert", ""));
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         closeModal();
       } else if (e.key === "Tab" && modalRef.current) {
-        // Focus trap
         const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
@@ -76,7 +221,6 @@ export function PricingSection() {
 
     window.addEventListener("keydown", handleKeyDown);
 
-    // Initial focus into modal close button
     const timer = setTimeout(() => {
       if (modalRef.current) {
         const closeBtn = modalRef.current.querySelector<HTMLElement>(
@@ -89,321 +233,177 @@ export function PricingSection() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       clearTimeout(timer);
-      document.body.style.overflow = previousOverflow.current;
+      document.body.style.overflow = originalOverflow;
+      background.forEach(node => node.removeAttribute("inert"));
+      activeTriggerRef.current?.focus({ preventScroll: true });
     };
   }, [selectedPlan, closeModal]);
 
-  const plans: PlanTier[] = [
-    {
-      id: "free",
-      name: "Free",
-      desc: "For exploring your first agent",
-      price: "$0",
-      period: "/ month",
-      features: [
-        { text: "Set up an agent", isIncluded: true },
-        { text: "Publish a version", isIncluded: true },
-        { text: "Conversation history", isIncluded: true },
-        { text: "Example company information", isIncluded: true },
-      ],
-      detailsTitle: "Free Tier Scope (Proposed)",
-      detailsSummary:
-        "Designed for prototype validation and local exploration. Build and test published agents with standard workspace boundaries.",
-      detailsItems: [
-        "Single workspace sandbox with RBAC role defaults",
-        "Agent draft editing and version publishing",
-        "Conversation turns via runtime API",
-        "Example company documentation sources",
-        "Standard community discussions and tracking",
-      ],
-    },
-    {
-      id: "starter",
-      name: "Starter",
-      desc: "For a growing project",
-      price: "$49",
-      period: "/ month",
-      features: [
-        { text: "Company information & tools", isIncluded: true },
-        { text: "Team roles", isIncluded: true },
-        { text: "Stored tool credentials", isIncluded: true },
-        { text: "Usage limits to be confirmed", isIncluded: false },
-      ],
-      detailsTitle: "Starter Tier Scope (Proposed)",
-      detailsSummary:
-        "For teams integrating published agents into production applications with authenticated API tools and secrets vaulting.",
-      detailsItems: [
-        "Connected company knowledge and API tools",
-        "Multi-member workspace roles (Owner, Admin, Analyst)",
-        "Envelope-encrypted external API tool credentials",
-        "Standard turn limits and automated retry policies",
-        "Platform notices and email updates",
-      ],
-    },
-    {
-      id: "scale",
-      name: "Scale",
-      desc: "For larger agent workloads",
-      price: "$199",
-      period: "/ month",
-      features: [
-        { text: "Multiple agents", isIncluded: true },
-        { text: "Workspace controls", isIncluded: true },
-        { text: "Model routing options", isIncluded: true },
-        { text: "Capacity to be confirmed", isIncluded: false },
-      ],
-      detailsTitle: "Scale Tier Scope (Proposed)",
-      detailsSummary:
-        "For high-volume multi-agent environments needing resilient model gateway routing and customized workspace quotas.",
-      detailsItems: [
-        "Multiple concurrent agent versions across workspaces",
-        "Configured fallback and circuit-breaker model routing",
-        "Extended knowledge collection quotas",
-        "Increased inflight request concurrency limits",
-        "Priority configuration guidance",
-      ],
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      desc: "For specific business needs",
-      price: "Custom",
-      features: [
-        { text: "Deployment requirements", isIncluded: false },
-        { text: "Security requirements", isIncluded: false },
-        { text: "Support requirements", isIncluded: false },
-        { text: "Terms to be agreed", isIncluded: false },
-      ],
-      detailsTitle: "Enterprise Inquiry & Requirements",
-      detailsSummary:
-        "Custom configurations for organizations with strict compliance, tenancy, or dedicated infrastructure requirements.",
-      detailsItems: [
-        "Dedicated workspace partition and VPC routing discussion",
-        "Custom SAML / SSO and directory role mapping",
-        "Custom provider credential injection and audit logging",
-        "Tailored turn volume and model routing policies",
-        "Direct architecture review and engineering coordination",
-      ],
-    },
-  ];
-
-  const comparisonRows = [
-    {
-      feature: "Agent Configuration & Releases",
-      free: "Single agent (draft + published)",
-      starter: "Multiple versions",
-      scale: "Multiple concurrent agents",
-      enterprise: "Custom organization scope",
-    },
-    {
-      feature: "Company Knowledge Ingestion",
-      free: "Example docs",
-      starter: "Standard sources (hybrid search)",
-      scale: "High-volume collections",
-      enterprise: "Custom data sources",
-    },
-    {
-      feature: "Connected API Tools & Secrets",
-      free: "Simulated tools",
-      starter: "Vaulted credentials",
-      scale: "Vaulted credentials",
-      enterprise: "Dedicated secure connectors",
-    },
-    {
-      feature: "Team Access & Workspaces",
-      free: "Single workspace sandbox",
-      starter: "Roles (Owner, Admin, Analyst)",
-      scale: "Granular workspace controls",
-      enterprise: "Custom SSO & directory sync",
-    },
-    {
-      feature: "Model Routing & Resilience",
-      free: "Standard routing",
-      starter: "Timeouts & basic retries",
-      scale: "Fallback & circuit breaker",
-      enterprise: "Custom provider failover",
-    },
-    {
-      feature: "Concurrency & Throughput",
-      free: "Standard limits",
-      starter: "Standard limits",
-      scale: "Higher capacity (to be confirmed)",
-      enterprise: "Dedicated throughput to agree",
-    },
-    {
-      feature: "Commercial Status",
-      free: "Proposed $0/mo",
-      starter: "Proposed $49/mo",
-      scale: "Proposed $199/mo",
-      enterprise: "Terms to be agreed",
-    },
-  ];
-
   return (
-    <section id="pricing" className="quickstart-pricing-section landing-section" aria-label="Plans and pricing">
-      <div className="quickstart-pricing-container landing-container">
+    <section
+
+      id="pricing"
+      className="marketing-pricing-section"
+      aria-labelledby="pricing-heading"
+    >
+      <div className="marketing-pricing-container">
         {/* ============================================================== */}
-        {/* 1. CENTERED COMPACT HEADER GROUP */}
+        {/* 1. CENTERED HEADER                                             */}
         {/* ============================================================== */}
-        <div className="quickstart-pricing-header">
-          {/* Eyebrow */}
-          <span className="landing-eyebrow select-none">
-            PLANS &amp; PRICING
-          </span>
-
-          {/* Heading */}
-          <h2 className="quickstart-pricing-title landing-title">Start small. Plan for what’s next.</h2>
-
-          {/* Description */}
-          <p className="quickstart-pricing-description landing-description landing-description-spaced">
-            Explore the options for your project or team.
-          </p>
-
-          {/* Single Understated Disclosure */}
-          <div className="quickstart-pricing-disclosure">
-            <Info
-              className="w-3.5 h-3.5 text-[#858585] stroke-[1.75] shrink-0"
-              aria-hidden="true"
-            />
-            <span>
-              Proposed pricing. Prices, included usage, and availability are not yet final.
-            </span>
+        <div className="marketing-pricing-header">
+          <div className="marketing-pricing-eyebrow">
+            <span>PRICING</span>
           </div>
+
+          <h2 id="pricing-heading" className="marketing-pricing-title">
+            Choose where <em>to start.</em>
+          </h2>
+
+          <p className="marketing-pricing-description">Start small. Choose the setup that fits your team.</p>
         </div>
 
         {/* ============================================================== */}
-        {/* 2. FOUR ALIGNED PRICING CARDS */}
+        {/* 2. FOUR EQUAL-HEIGHT CARDS                                     */}
         {/* ============================================================== */}
-        <div
-          className="quickstart-pricing-grid"
-          role="radiogroup"
-          aria-label="Choose a proposed plan"
-        >
-          {plans.map((plan) => (
-            <article
-              key={plan.id}
-              className="quickstart-pricing-card"
-              data-selected={activePlanId === plan.id}
-            >
-              <label className="quickstart-pricing-select">
-                <input
-                  type="radio"
-                  name="quickstart-pricing-plan"
-                  value={plan.id}
-                  checked={activePlanId === plan.id}
-                  onChange={() => setActivePlanId(plan.id)}
-                  aria-label={`Select ${plan.name} plan`}
-                />
-              </label>
-              <div className="quickstart-pricing-card-content">
-                <h3>{plan.name}</h3>
-                <p className="quickstart-pricing-plan-description">{plan.desc}</p>
-                <div className="quickstart-pricing-price">
-                  <span>{plan.price}</span>
-                  {plan.period && <span>{plan.period}</span>}
+        <div className="marketing-pricing-grid" role="list" aria-label="Available pricing plans">
+          {PLANS.map((plan) => {
+            const isStarter = plan.id === "starter";
+            const PlanIcon = {free:UserRound,starter:Plug,scale:Layers,enterprise:Building2}[plan.id];
+            return (
+              <article
+                key={plan.id}
+                role="listitem"
+                className={`marketing-pricing-card ${
+                  isStarter ? "marketing-pricing-card--starter" : ""
+                }`}
+              >
+                {/* Plan Name */}
+                <h3 className="marketing-pricing-card-name"><PlanIcon size={20} aria-hidden="true" />{plan.name}</h3>
+
+                {/* Audience Description */}
+                <p className="marketing-pricing-card-desc">{plan.desc}</p>
+
+                {/* Price block */}
+                <div className="marketing-pricing-card-price-block">
+                  <span
+                    className={`marketing-pricing-card-price ${
+                      plan.price === "Custom" ? "marketing-pricing-card-price--custom" : ""
+                    }`}
+                  >
+                    {plan.price}
+                  </span>
+                  {plan.period && (
+                    <span className="marketing-pricing-card-period">{plan.period}</span>
+                  )}
                 </div>
-                <button
-                  ref={(element) => {
-                    triggerButtonRefs.current[plan.id] = element;
-                  }}
-                  type="button"
-                  aria-label={`View ${plan.name} plan details`}
-                  onClick={() => {
-                    setActivePlanId(plan.id);
-                    openModal(plan);
-                  }}
-                  className="quickstart-pricing-details"
-                >
-                  View plan details
-                </button>
-                <div className="quickstart-pricing-divider" aria-hidden="true" />
-                <p className="quickstart-pricing-feature-label">PROPOSED FEATURES</p>
-                <ul className="quickstart-pricing-features">
+
+                {/* Primary Action Button */}
+                {plan.actionHref ? (
+                  <Link
+                    href={plan.actionHref}
+                    className={`marketing-pricing-card-btn ${
+                      isStarter
+                        ? "marketing-pricing-card-btn--solid"
+                        : "marketing-pricing-card-btn--outline"
+                    }`}
+                  >
+                    {plan.actionText}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(event) => openModal(plan, event.currentTarget)}
+                    className="marketing-pricing-card-btn marketing-pricing-card-btn--outline"
+                  >
+                    {plan.actionText}
+                  </button>
+                )}
+
+                {/* Card Divider */}
+                <hr className="marketing-pricing-card-divider" aria-hidden="true" />
+
+                {/* Features List */}
+                <ul className="marketing-pricing-features">
                   {plan.features.map((feature) => (
-                    <li key={feature.text} data-included={feature.isIncluded}>
-                      {feature.isIncluded ? (
-                        <Check aria-hidden="true" />
-                      ) : (
-                        <Minus aria-hidden="true" />
-                      )}
-                      <span>{feature.text}</span>
+                    <li key={feature} className="marketing-pricing-feature-item">
+                      <Check className="marketing-pricing-feature-icon" aria-hidden="true" />
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
-            </article>
-          ))}
+
+                {/* Pinned View Details Control */}
+                <button
+                  type="button"
+                  onClick={(event) => openModal(plan, event.currentTarget)}
+                  aria-label={`View ${plan.name} plan details`}
+                  className="marketing-pricing-details-btn"
+                >
+                  <span>Plan details</span>
+                  <ChevronRight
+                    className="marketing-pricing-details-chevron"
+                    aria-hidden="true"
+                  />
+                </button>
+              </article>
+            );
+          })}
         </div>
 
         {/* ============================================================== */}
-        {/* 3. CENTERED COMPARISON TOGGLE & QUIET USAGE NOTE */}
+        {/* 3. SHARED USAGE NOTE & DISCLOSURE TRIGGER                     */}
         {/* ============================================================== */}
-        <div className="quickstart-pricing-footer">
+        <div className="marketing-pricing-footer">
+
           <button
             type="button"
             onClick={() => setShowComparison(!showComparison)}
             aria-expanded={showComparison}
             aria-controls="pricing-comparison-table"
-            className="quickstart-pricing-compare"
+            className="marketing-pricing-compare-btn"
           >
-            <span>Compare plan details</span>
+            <span>Compare all plans</span>
             <ChevronDown
-              className={`w-4 h-4 transition-transform duration-200 ${
-                showComparison ? "rotate-180" : ""
+              className={`marketing-pricing-compare-chevron ${
+                showComparison ? "marketing-pricing-compare-chevron--rotated" : ""
               }`}
               aria-hidden="true"
             />
           </button>
-
-          {/* Quiet usage note */}
-          <p className="quickstart-pricing-usage">
-            Model and tool usage may affect your requirements.
-          </p>
         </div>
 
         {/* ============================================================== */}
-        {/* 4. EXPANDABLE TECHNICAL COMPARISON TABLE */}
+        {/* 4. EXPANDABLE TECHNICAL COMPARISON TABLE                       */}
         {/* ============================================================== */}
         {showComparison && (
           <div
             id="pricing-comparison-table"
-            className="mt-6 rounded-[12px] border border-[#E8E8E5] bg-white p-4.5 sm:p-6 shadow-xs animate-in fade-in duration-200 overflow-x-auto"
+            className="marketing-pricing-comparison-wrap"
+            role="region"
+            aria-label="Proposed plan comparison"
+            tabIndex={0}
           >
-            <div className="text-xs font-semibold uppercase tracking-wider text-[#FF571A] mb-1 select-none">
-              PROPOSED SPECIFICATIONS
-            </div>
-            <h3 className="text-xl sm:text-2xl font-semibold text-[#262626] mb-5">
-              Compare Proposed Platform Dimensions
-            </h3>
-
-            <table className="w-full text-left text-sm border-collapse min-w-[640px]">
+            <table className="marketing-pricing-table">
+              <caption className="sr-only">Proposed features and prices by plan. Final allowances are not confirmed.</caption>
               <thead>
-                <tr className="border-b border-[#E8E8E5] text-xs font-medium text-[#858585] uppercase tracking-wider">
-                  <th scope="col" className="py-3 pr-4">
-                    Capability
-                  </th>
-                  <th scope="col" className="py-3 px-4">
-                    Free ($0)
-                  </th>
-                  <th scope="col" className="py-3 px-4 text-[#FF571A]">
+                <tr>
+                  <th scope="col">Capability</th>
+                  <th scope="col">Free ($0)</th>
+                  <th scope="col" className="marketing-pricing-table-th--starter">
                     Starter ($49)
                   </th>
-                  <th scope="col" className="py-3 px-4">
-                    Scale ($199)
-                  </th>
-                  <th scope="col" className="py-3 pl-4">
-                    Enterprise
-                  </th>
+                  <th scope="col">Scale ($199)</th>
+                  <th scope="col">Enterprise</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E8E5]">
-                {comparisonRows.map((r) => (
-                  <tr key={r.feature} className="hover:bg-[#FAFAF8] transition-colors">
-                    <td className="py-3 pr-4 font-medium text-[#262626]">{r.feature}</td>
-                    <td className="py-3 px-4 text-[#666666]">{r.free}</td>
-                    <td className="py-3 px-4 text-[#262626] font-medium">{r.starter}</td>
-                    <td className="py-3 px-4 text-[#666666]">{r.scale}</td>
-                    <td className="py-3 pl-4 text-[#262626] font-medium">{r.enterprise}</td>
+              <tbody>
+                {COMPARISON_ROWS.map((row) => (
+                  <tr key={row.feature}>
+                    <th scope="row">{row.feature}</th>
+                    <td className="text-[#666666]">{row.free}</td>
+                    <td className="marketing-pricing-table-td--starter">{row.starter}</td>
+                    <td className="text-[#666666]">{row.scale}</td>
+                    <td className="font-medium text-[#262626]">{row.enterprise}</td>
                   </tr>
                 ))}
               </tbody>
@@ -413,95 +413,100 @@ export function PricingSection() {
       </div>
 
       {/* ============================================================== */}
-      {/* 5. ACCESSIBLE PLAN DETAILS MODAL */}
+      {/* 5. ACCESSIBLE PLAN DETAILS MODAL                               */}
       {/* ============================================================== */}
-      {selectedPlan && (
+      {selectedPlan && createPortal(
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby="plan-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200"
+          aria-labelledby="pricing-modal-title"
+          className="marketing-pricing-modal-backdrop"
           onClick={closeModal}
         >
           <div
             ref={modalRef}
-            className="w-full max-w-lg rounded-[14px] bg-white border border-[#E8E8E5] shadow-xl p-6 sm:p-7 relative max-h-[90vh] overflow-y-auto"
+            className="marketing-pricing-modal-card"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-[#E8E8E5]">
+            <div className="marketing-pricing-modal-header">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-[#FF571A] mb-1 select-none">
+                <div className="marketing-pricing-modal-eyebrow">
                   PROPOSED PLAN DETAILS
                 </div>
-                <h3 id="plan-modal-title" className="text-2xl font-semibold text-[#262626]">
-                  {selectedPlan.name} Tier (Proposed)
+                <h3 id="pricing-modal-title" className="marketing-pricing-modal-title">
+                  {selectedPlan.detailsTitle}
                 </h3>
-                <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl font-bold text-[#262626]">{selectedPlan.price}</span>
+                <div className="marketing-pricing-modal-price">
+                  <span>{selectedPlan.price}</span>
                   {selectedPlan.period && (
-                    <span className="text-xs text-[#858585]">{selectedPlan.period}</span>
+                    <span className="marketing-pricing-modal-period">
+                      {selectedPlan.period}
+                    </span>
                   )}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
-                className="p-1.5 text-[#858585] hover:text-[#262626] transition-colors rounded-[6px] hover:bg-[#F5F5F3] focus-visible:outline-2 focus-visible:outline-[#FF571A]"
+                className="marketing-pricing-modal-close-btn"
                 aria-label="Close plan details"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="mt-5 space-y-4 text-sm text-[#404040]">
-              <p className="leading-relaxed text-[#666666]">{selectedPlan.detailsSummary}</p>
+            {/* Modal Body */}
+            <div className="marketing-pricing-modal-body">
+              <p className="marketing-pricing-modal-summary">
+                {selectedPlan.detailsSummary}
+              </p>
 
-              <div className="pt-2">
-                <div className="text-xs font-medium uppercase tracking-wider text-[#858585] mb-3 select-none">
+              <div>
+                <div className="marketing-pricing-modal-scope-title">
                   Proposed Scope &amp; Capabilities
                 </div>
-                <ul className="space-y-2.5">
+                <ul className="marketing-pricing-modal-items">
                   {selectedPlan.detailsItems.map((item) => (
-                    <li key={item} className="flex items-start gap-2.5">
+                    <li key={item} className="marketing-pricing-modal-item">
                       <Check
-                        className="w-4 h-4 text-[#FF571A] stroke-[2.2] shrink-0 mt-0.5"
+                        className="marketing-pricing-modal-check"
                         aria-hidden="true"
                       />
-                      <span className="text-[#262626] leading-snug">{item}</span>
+                      <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
               {/* Informational notice */}
-              <div className="mt-5 p-3.5 rounded-[8px] bg-[#FFF5EF] border border-[#FFD8C7] text-xs text-[#262626] leading-relaxed">
+              <div className="marketing-pricing-modal-notice">
                 These plan details and pricing represent proposed specifications. Final usage
                 allowances and commercial availability are not yet confirmed.
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="mt-6 pt-4 border-t border-[#E8E8E5] flex items-center justify-between">
+            {/* Modal Footer */}
+            <div className="marketing-pricing-modal-footer">
               <button
                 type="button"
                 onClick={closeModal}
-                className="px-4 py-2 text-sm text-[#666666] hover:text-[#262626] transition-colors font-medium rounded-[6px] hover:bg-[#F5F5F3]"
+                className="marketing-pricing-modal-dismiss-btn"
               >
                 Close
               </button>
               <Link
                 href="/register"
                 onClick={closeModal}
-                className="px-4 py-2.5 bg-[#FF571A] text-white hover:bg-[#E04810] transition-colors rounded-[8px] text-sm font-semibold inline-flex items-center gap-1.5 shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF571A]"
+                className="marketing-pricing-modal-action-btn"
               >
                 <span>Create account</span>
                 <span>&rarr;</span>
               </Link>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );
