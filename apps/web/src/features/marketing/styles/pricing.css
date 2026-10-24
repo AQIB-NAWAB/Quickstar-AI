@@ -1,0 +1,290 @@
+.marketing-pricing-section { background:#fff; color:#292929; padding:48px 0; scroll-margin-top:88px; }
+.marketing-pricing-container { max-width:1240px; margin:auto; padding:0 24px; }
+.marketing-pricing-header { text-align:center; margin-bottom:36px; }
+.marketing-pricing-eyebrow { font-size:11px; font-weight:400; letter-spacing:.14em; color:#666; margin-bottom:22px; }
+.marketing-pricing-title { margin:0; font-size:clamp(32px,2.5vw,44px); font-weight:600; line-height:1.15; letter-spacing:-.04em; }
+.marketing-pricing-title em { font-style:normal; color:#fa5d19; }
+.marketing-pricing-description { font-size:18px; color:#737373; line-height:1.55; margin:20px 0 0; }
+.marketing-pricing-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:22px; align-items:stretch; }
+.marketing-pricing-card { position:relative; min-width:0; border:1px solid #e1e1e1; border-radius:14px; padding:24px 20px; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+.marketing-pricing-card--starter { border-color:#ffad86; }
+.marketing-pricing-card--starter::before { content:""; position:absolute; top:0; left:0; right:0; height:104px; background:#fff6f0; pointer-events:none; }
+.marketing-pricing-card > * { position:relative; }
+.marketing-pricing-card-name { display:flex; align-items:center; gap:12px; font-size:20px; font-weight:600; letter-spacing:-.025em; line-height:1.4; margin:0; }
+.marketing-pricing-card-name svg { color:#686868; stroke-width:1.5; flex-shrink:0; }
+.marketing-pricing-card-desc { font-size:14px; color:#777; line-height:1.5; margin:12px 0 0; min-height:42px; }
+.marketing-pricing-card-price-block { min-height:80px; display:flex; align-items:baseline; gap:7px; padding-top:20px; box-sizing:border-box; margin:0 0 18px; }
+.marketing-pricing-card-price { font-size:40px; line-height:1.1; font-weight:600; letter-spacing:-.04em; }
+.marketing-pricing-card-price--custom { font-size:36px; }
+.marketing-pricing-card-period { font-size:12px; color:#777; white-space:nowrap; }
+.marketing-pricing-card-btn { border:1px solid #d7d7d7; border-radius:8px; min-height:44px; padding:10px 12px; display:flex; align-items:center; justify-content:center; text-align:center; font-size:14px; font-weight:500; background:#fff; color:#292929; text-decoration:none; cursor:pointer; transition:background .35s,border-color .35s; box-sizing:border-box; }
+.marketing-pricing-card-btn:hover { background:#fafafa; border-color:#aaa; }
+.marketing-pricing-card-btn--solid { background:#fa5d19; border-color:#fa5d19; color:#fff; }
+.marketing-pricing-card-btn--solid:hover { background:#e95113; border-color:#e95113; }
+.marketing-pricing-card-divider { width:100%; border:0; border-top:1px solid #e7e7e7; margin:22px 0; }
+.marketing-pricing-features { list-style:none; padding:0; margin:0 0 30px; display:grid; gap:12px; }
+.marketing-pricing-feature-item { display:flex; align-items:flex-start; gap:9px; font-size:13px; line-height:1.5; color:#626262; }
+.marketing-pricing-feature-icon { width:14px; height:14px; color:#777; flex-shrink:0; margin-top:3px; stroke-width:1.7; }
+.marketing-pricing-details-btn { margin-top:auto; align-self:flex-start; display:flex; align-items:center; gap:9px; border:0; padding:5px 0; background:none; font-size:13px; color:#777; cursor:pointer; transition:color .35s; }
+.marketing-pricing-details-btn:hover { color:#fa5d19; }
+.marketing-pricing-details-chevron { width:14px; height:14px; }
+.marketing-pricing-footer { text-align:center; margin-top:28px; }
+.marketing-pricing-compare-btn { display:inline-flex; align-items:center; gap:12px; min-height:40px; padding:6px 10px; background:none; border:0; font-size:14px; color:#626262; cursor:pointer; }
+.marketing-pricing-compare-chevron { width:15px; height:15px; transition:transform .35s; }
+.marketing-pricing-compare-chevron--rotated { transform:rotate(180deg); }
+.marketing-pricing-section button:focus-visible,.marketing-pricing-card-btn:focus-visible { outline:2px solid #fa5d19; outline-offset:4px; }
+@media(max-width:1000px) { .marketing-pricing-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .marketing-pricing-section { padding:40px 0; } .marketing-pricing-grid { grid-template-columns:1fr; gap:18px; } .marketing-pricing-card { padding:24px; } .marketing-pricing-card-desc { min-height:0; } }
+@media(prefers-reduced-motion:reduce) { .marketing-pricing-section * { animation:none!important; transition:none!important; } }
+.marketing-pricing-comparison-wrap {
+  margin-top: 24px;
+  width: 100%;
+  border: 1px solid #dfe1e5;
+  border-radius: 12px;
+  background-color: #ffffff;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.marketing-pricing-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.marketing-pricing-table th {
+  padding: 12px 16px;
+  border-bottom: 1px solid #dfe1e5;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.marketing-pricing-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0ee;
+  color: #262626;
+  line-height: 1.4;
+}
+
+.marketing-pricing-table tr:hover td {
+  background-color: #fafaf8;
+}
+
+.marketing-pricing-table-th--starter,
+.marketing-pricing-table-td--starter {
+  color: #fa5d19;
+  font-weight: 600;
+}
+
+/* ============================================================== */
+/* MODAL / DIALOG STYLES                                          */
+/* ============================================================== */
+.marketing-pricing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.marketing-pricing-modal-card {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 14px;
+  background-color: #ffffff;
+  border: 1px solid #dfe1e5;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  padding: 28px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.marketing-pricing-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #dfe1e5;
+}
+
+.marketing-pricing-modal-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fa5d19;
+  margin-bottom: 4px;
+}
+
+.marketing-pricing-modal-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #262626;
+  margin: 0;
+}
+
+.marketing-pricing-modal-price {
+  margin-top: 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #262626;
+}
+
+.marketing-pricing-modal-period {
+  font-size: 13px;
+  color: #666666;
+  font-weight: 400;
+}
+
+.marketing-pricing-modal-close-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  color: #666666;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.marketing-pricing-modal-close-btn:hover {
+  background-color: #f0f0ee;
+  color: #262626;
+}
+
+.marketing-pricing-modal-close-btn:focus-visible {
+  outline: 2px solid #fa5d19;
+  outline-offset: 2px;
+}
+
+.marketing-pricing-modal-body {
+  padding-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.marketing-pricing-modal-summary {
+  color: #666666;
+  margin: 0;
+}
+
+.marketing-pricing-modal-scope-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666666;
+  margin-bottom: 10px;
+}
+
+.marketing-pricing-modal-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.marketing-pricing-modal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #262626;
+}
+
+.marketing-pricing-modal-check {
+  width: 16px;
+  height: 16px;
+  stroke: #fa5d19;
+  stroke-width: 2.2;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.marketing-pricing-modal-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background-color: #fff5ef;
+  border: 1px solid #ffd8c7;
+  font-size: 12px;
+  color: #262626;
+  line-height: 1.5;
+}
+
+.marketing-pricing-modal-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #dfe1e5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.marketing-pricing-modal-dismiss-btn {
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666666;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.marketing-pricing-modal-dismiss-btn:hover {
+  background-color: #f0f0ee;
+  color: #262626;
+}
+
+.marketing-pricing-modal-action-btn {
+  background-color: #fa5d19;
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.marketing-pricing-modal-action-btn:hover {
+  background-color: #e04810;
+}
+
+.marketing-pricing-modal-action-btn:focus-visible {
+  outline: 2px solid #262626;
+  outline-offset: 2px;
+}
+
+/* ============================================================== */
+/* RESPONSIVE BREAKPOINTS                                         */
+/* ============================================================== */
+
+/* Short desktop viewport (~1366 x 768) */

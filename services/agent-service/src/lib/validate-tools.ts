@@ -5,6 +5,7 @@ import type {
   CustomToolInput,
 } from "@quickstart/contracts";
 import {
+  BUILTIN_INTEGRATION_ACTIONS,
   MAX_TOOL_TIMEOUT_MS,
   MAX_TOOLS_PER_AGENT,
   DEFAULT_TOOL_TIMEOUT_MS,
@@ -219,10 +220,44 @@ export function validateAgentTools(tools: AgentToolDefinition[]): AgentToolDefin
         });
       }
     } else if (tool.type === "builtin_leads") {
-      if (!["start", "status", "results", "cancel"].includes(tool.action)) {
+      if (
+        !["start", "status", "results", "cancel", "capture", "request_callback"].includes(
+          tool.action,
+        )
+      ) {
         throw new AppError({
           code: ErrorCode.VALIDATION_FAILED,
           message: "Invalid builtin_leads action",
+        });
+      }
+    } else if (tool.type === "builtin_calendar") {
+      if (!["check_availability", "book_slot", "cancel_event"].includes(tool.action)) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "Invalid builtin_calendar action",
+        });
+      }
+      if (
+        tool.slot_minutes !== undefined &&
+        (tool.slot_minutes < 5 || tool.slot_minutes > 240)
+      ) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "builtin_calendar slot_minutes must be between 5 and 240",
+        });
+      }
+    } else if (tool.type === "builtin_integration") {
+      const allowed = BUILTIN_INTEGRATION_ACTIONS[tool.provider];
+      if (!allowed) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "Invalid builtin_integration provider",
+        });
+      }
+      if (!(allowed as readonly string[]).includes(tool.action)) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: `Invalid ${tool.provider} action '${tool.action}'`,
         });
       }
     } else if (tool.type === "mcp") {

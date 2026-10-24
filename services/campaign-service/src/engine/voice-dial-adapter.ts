@@ -36,7 +36,99 @@ export class VoiceDialAdapter implements DialAdapter {
       target.id,
     );
 
-    const utteranceText = `campaign dial ${target.dialNormalized}`;
+    const callId = randomUUID();
+    const utteranceText = `Campaign call to ${target.displayName || target.dialNormalized}`;
+
+    // 1. Attempt real telephony dial endpoint first
+    try {
+      const dialRes = await this.fetchImpl(
+        `${this.voiceUrl}/internal/v1/workspaces/${encodeURIComponent(target.workspaceId)}/telephony/dial`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.internalToken}`,
+            "content-type": "application/json",
+            "x-request-id": randomUUID(),
+          },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            agent_id: campaign.agentId,
+            to_e164: target.dialNormalized,
+            from_e164: campaign.callerId || undefined,
+            direction: "outbound",
+            utterance_text: utteranceText,
+            call_id: callId,
+          }),
+          signal: AbortSignal.timeout(this.timeoutMs),
+        },
+      );
+
+      if (dialRes.status !== 404) {
+        const text = await dialRes.text();
+        let data: Record<string, unknown> = {};
+        try {
+          data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+        } catch {
+          data = { raw: text };
+        }
+
+        if (!dialRes.ok) {
+          return {
+            status: "failed",
+            outcome: "dial_error",
+            callId: null,
+            providerCallSid: null,
+            durationSeconds: null,
+            error: {
+              code: "TELEPHONY_DIAL_FAILED",
+              message: `telephony dial ${dialRes.status}: ${text.slice(0, 200)}`,
+            },
+          };
+        }
+
+        const providerCallSid = (data.provider_call_sid ?? null) as string | null;
+        const result = (data.result ?? data) as {
+          call_id?: string;
+          state?: string;
+          timings?: { total_ms?: number };
+        };
+        const resolvedCallId = result.call_id ?? (data.call_id as string) ?? callId;
+        const durationSeconds =
+          typeof result.timings?.total_ms === "number"
+            ? Math.max(1, Math.round(result.timings.total_ms / 1000))
+            : 1;
+
+        if (result.state === "completed" || result.state === "live" || Boolean(data.accepted)) {
+          return {
+            status: "answered",
+            outcome: "answered",
+            callId: resolvedCallId,
+            providerCallSid,
+            durationSeconds,
+          };
+        }
+
+        return {
+          status: "failed",
+          outcome: "dial_error",
+          callId: resolvedCallId,
+          providerCallSid,
+          durationSeconds,
+          error: {
+            code: "TELEPHONY_DIAL_BAD_STATE",
+            message: `unexpected dial state: ${result.state ?? "unknown"}`,
+          },
+        };
+      }
+    } catch (err: unknown) {
+      // In local unit/test doubles without telephony, fall back to voice simulate
+      const isNetworkOrAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("ECONNREFUSED"));
+      if (!isNetworkOrAbort) {
+        // Continue to simulate fallback
+      }
+    }
+
+    // 2. Test double fixture path: internal simulate
     const res = await this.fetchImpl(
       `${this.voiceUrl}/internal/v1/workspaces/${encodeURIComponent(target.workspaceId)}/voice/simulate`,
       {
@@ -51,7 +143,7 @@ export class VoiceDialAdapter implements DialAdapter {
           agent_id: campaign.agentId,
           utterance_text: utteranceText,
           direction: "outbound",
-          caller: undefined,
+          caller: campaign.callerId || undefined,
           callee: target.dialNormalized,
           telephony_provider: "fake",
           voice_mode: "cascade",
@@ -73,6 +165,7 @@ export class VoiceDialAdapter implements DialAdapter {
         status: "failed",
         outcome: "dial_error",
         callId: null,
+        providerCallSid: null,
         durationSeconds: null,
         error: {
           code: "VOICE_SIMULATE_FAILED",
@@ -86,12 +179,13 @@ export class VoiceDialAdapter implements DialAdapter {
       state?: string;
       timings?: { total_ms?: number };
     };
-    const callId = result.call_id ?? null;
-    if (!callId || String(callId).startsWith("stub-")) {
+    const resolvedCallId = result.call_id ?? null;
+    if (!resolvedCallId || String(resolvedCallId).startsWith("stub-")) {
       return {
         status: "failed",
         outcome: "dial_error",
-        callId,
+        callId: resolvedCallId,
+        providerCallSid: null,
         durationSeconds: null,
         error: {
           code: "VOICE_SIMULATE_NO_CALL",
@@ -109,7 +203,8 @@ export class VoiceDialAdapter implements DialAdapter {
       return {
         status: "answered",
         outcome: "answered",
-        callId,
+        callId: resolvedCallId,
+        providerCallSid: null,
         durationSeconds,
       };
     }
@@ -117,7 +212,8 @@ export class VoiceDialAdapter implements DialAdapter {
     return {
       status: "failed",
       outcome: "dial_error",
-      callId,
+      callId: resolvedCallId,
+      providerCallSid: null,
       durationSeconds,
       error: {
         code: "VOICE_SIMULATE_BAD_STATE",

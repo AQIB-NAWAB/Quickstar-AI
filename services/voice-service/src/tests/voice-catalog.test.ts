@@ -4,11 +4,11 @@ import { VOICE_CATALOG } from "@quickstart/contracts";
 import { CatalogTextToSpeech } from "../speech/catalog-tts.js";
 import { eagerCommitDelayMs, frameEnergy } from "../turn-detection/eager-commit.js";
 
-test("catalog stays at six voices across uplift, cartesia, and fish", () => {
-  assert.equal(VOICE_CATALOG.length, 6);
+test("catalog includes the best current providers", () => {
+  assert.equal(VOICE_CATALOG.length, 7);
   assert.deepEqual(
     [...new Set(VOICE_CATALOG.map((voice) => voice.provider))].sort(),
-    ["cartesia", "fish", "uplift"],
+    ["cartesia", "elevenlabs", "fish", "uplift"],
   );
 });
 
@@ -23,14 +23,19 @@ test("catalog routes a preview to the matching provider", async () => {
     cartesiaApiKey: "cartesia-test",
     fishApiKey: "fish-test",
     fishReferenceId: "fish-voice-1",
+    elevenLabsApiKey: "elevenlabs-test",
+    elevenLabsVoiceId: "el-voice-1",
     fetchImpl,
   });
   const uplift = await catalog.synthesize("سلام", "uplift:v_8eelc901");
   const cartesia = await catalog.synthesize("Hello", "cartesia:6c756032-11c3-4be8-a120-74f9673fb700");
+  const elevenLabs = await catalog.synthesize("Hello", "elevenlabs:reference");
   assert.equal(uplift.provider, "uplift-tts");
   assert.equal(cartesia.provider, "cartesia-tts");
+  assert.equal(elevenLabs.provider, "elevenlabs-tts");
   assert.ok(seen.some((url) => url.includes("upliftai.org")));
   assert.ok(seen.some((url) => url.includes("cartesia.ai")));
+  assert.ok(seen.some((url) => url.includes("api.elevenlabs.io")));
 });
 
 test("eager end of turn waits when the phrase is still open", () => {

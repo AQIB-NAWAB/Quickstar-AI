@@ -232,16 +232,23 @@ export function createWorkflowsController(workflows: WorkflowsService) {
       const limit = typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : undefined;
       const offset =
         typeof req.query.offset === "string" ? parseInt(req.query.offset, 10) : undefined;
+      const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+      const from = typeof req.query.from === "string" ? req.query.from : undefined;
+      const to = typeof req.query.to === "string" ? req.query.to : undefined;
 
       const result = await workflows.listRuns(workspaceId, workflowId, {
         status,
         search,
         limit,
         offset,
+        cursor,
+        from,
+        to,
       });
       sendPlatformJson(res, 200, {
         runs: result.runs.map(toApiRun),
         total: result.total,
+        next_cursor: result.nextCursor ?? null,
       });
     }) as RequestHandler,
 
@@ -259,6 +266,21 @@ export function createWorkflowsController(workflows: WorkflowsService) {
       await workflows.getRun(workspaceId, routeParam(req.params.workflowId), runId);
       const ok = await workflows.cancelRun(workspaceId, runId);
       sendPlatformJson(res, 200, { canceled: ok });
+    }) as RequestHandler,
+
+    replayRun: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const workflowId = routeParam(req.params.workflowId);
+      const runId = routeParam(req.params.runId);
+      const actorUserId = res.locals.actorUserId ?? (res.locals.tenantContext as any)?.actorId;
+      const replay = await workflows.replayRun(workspaceId, workflowId, runId, actorUserId);
+      sendPlatformJson(res, 201, { run: toApiRun(replay) });
+    }) as RequestHandler,
+
+    recoverRuns: (async (req, res) => {
+      const workspaceId = routeParam(req.params.workspaceId);
+      const result = await workflows.recoverAbandonedRuns(workspaceId);
+      sendPlatformJson(res, 200, result);
     }) as RequestHandler,
 
     catalog: ((_req, res) => {

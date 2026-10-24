@@ -7,6 +7,7 @@ export type ServiceConfig = {
   httpRequestTimeoutMs: number;
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
+  kafkaBrokers: string[];
 };
 
 export function loadServiceConfig(): ServiceConfig {
@@ -30,5 +31,8 @@ export function loadServiceConfig(): ServiceConfig {
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
+    kafkaBrokers: process.env.KAFKA_BROKERS
+      ? process.env.KAFKA_BROKERS.split(",").map((b) => b.trim()).filter(Boolean)
+      : [],
   };
 }

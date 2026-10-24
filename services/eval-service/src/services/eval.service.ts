@@ -9,6 +9,8 @@ import type {
   EvalPolicy,
   EvalRun,
   EvalSummary,
+  EvaluationGateCheckRequest,
+  EvaluationGateCheckResponse,
   ExpectedToolCall,
   FixtureResponse,
   ScoringMethod,
@@ -19,6 +21,8 @@ import {
   deterministicVector,
   meanScorePercent,
   scoreExactMatch,
+  scoreRetrievalQuality,
+  scoreSafetyRefusal,
   scoreSemanticSimilarity,
   scoreToolTrace,
 } from "../utils/score.js";
@@ -487,6 +491,13 @@ export class EvalService {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Compared runs must evaluate the same agent" });
     }
 
+    if (baselineRun.datasetId && candidateRun.datasetId && baselineRun.datasetId !== candidateRun.datasetId) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Compared runs must evaluate against the same dataset for trustworthy comparison",
+      });
+    }
+
     const candidateMap = new Map<string, EvalCaseResult>();
     for (const r of candidateResults) {
       candidateMap.set(r.caseId, r);
@@ -587,9 +598,16 @@ export class EvalService {
   /* Embeddings Helper                                                          */
   /* ========================================================================== */
 
-  private async getEmbedding(text: string): Promise<number[]> {
+  private async getEmbedding(text: string): Promise<number[] | null> {
+    const isExplicitTestMode =
+      process.env.NODE_ENV === "test" ||
+      this.limits.embeddingProvider === "fake" ||
+      process.env.EVAL_TEST_MODE === "true";
+
     if (this.limits.embeddingProvider === "openai" && this.limits.openaiApiKey) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.limits.caseTimeoutMs || 10000);
         const res = await fetch("https://api.openai.com/v1/embeddings", {
           method: "POST",
           headers: {
@@ -600,7 +618,9 @@ export class EvalService {
             model: "text-embedding-3-small",
             input: text.slice(0, 8000),
           }),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (res.ok) {
           const body = (await res.json()) as { data?: Array<{ embedding: number[] }> };
           if (body.data?.[0]?.embedding) {
@@ -608,10 +628,16 @@ export class EvalService {
           }
         }
       } catch {
-        // Fall back to deterministic normalized hash vector
+        // Scorer provider unreachable or timed out
       }
     }
-    return deterministicVector(text);
+
+    if (isExplicitTestMode) {
+      return deterministicVector(text);
+    }
+
+    // In production, NEVER publish fake semantic vectors. Distinguish scorer unavailability.
+    return null;
   }
 
   /* ========================================================================== */
@@ -625,6 +651,7 @@ export class EvalService {
     let passedCount = 0;
     let failedCount = 0;
     let erroredCount = 0;
+    let unavailableCount = 0;
     let totalLatency = 0;
     let latencyReportedCount = 0;
     let hardError: string | null = null;
@@ -680,6 +707,8 @@ export class EvalService {
         let scoreVal = 0;
         let isPassed = false;
         let failureReason: string | null = null;
+        let executionError: string | null = null;
+        let scorerUnavailable = false;
 
         if (method === "exact_match") {
           const res = scoreExactMatch(snap.expectedOutput, actualOutput);
@@ -690,10 +719,19 @@ export class EvalService {
           const threshold = Number(policy.config.threshold ?? 0.85);
           const expVec = await this.getEmbedding(snap.expectedOutput);
           const actVec = await this.getEmbedding(actualOutput);
-          const res = scoreSemanticSimilarity(expVec, actVec, threshold);
-          isPassed = res.passed;
-          scoreVal = res.score;
-          failureReason = res.failureReason;
+          if (!expVec || !actVec) {
+            isPassed = false;
+            scoreVal = 0;
+            scorerUnavailable = true;
+            failureReason = "Scorer unavailable: embedding provider failed or was not configured";
+            executionError = "SCORER_UNAVAILABLE: Embedding provider unreachable or unconfigured in production";
+            unavailableCount++;
+          } else {
+            const res = scoreSemanticSimilarity(expVec, actVec, threshold);
+            isPassed = res.passed;
+            scoreVal = res.score;
+            failureReason = res.failureReason;
+          }
         } else if (method === "tool_trace") {
           const res = scoreToolTrace(snap.expectedTools, actualTools, {
             requireOrder: policy.config.requireOrder !== false,
@@ -702,6 +740,38 @@ export class EvalService {
           isPassed = res.passed;
           scoreVal = res.score;
           failureReason = res.failureReason;
+        } else if (method === "safety_refusal") {
+          const res = scoreSafetyRefusal(
+            policy.config.expectedRefusal ?? true,
+            actualOutput,
+            actualTools,
+            policy.config.forbiddenTools ?? [],
+          );
+          isPassed = res.passed;
+          scoreVal = res.score;
+          failureReason = res.failureReason;
+        } else if (method === "retrieval_relevance") {
+          const expectedList = policy.config.expectedKeywords ?? [snap.expectedOutput];
+          const res = scoreRetrievalQuality(
+            expectedList,
+            actualOutput,
+            Number(policy.config.threshold ?? 0.8),
+          );
+          isPassed = res.passed;
+          scoreVal = res.score;
+          failureReason = res.failureReason;
+        }
+
+        // Latency threshold enforcement if configured
+        if (
+          isPassed &&
+          typeof policy.config.maxLatencyMs === "number" &&
+          caseLatency !== null &&
+          caseLatency > policy.config.maxLatencyMs
+        ) {
+          isPassed = false;
+          scoreVal = 0;
+          failureReason = `Latency ${caseLatency}ms exceeded policy threshold of ${policy.config.maxLatencyMs}ms`;
         }
 
         if (isPassed) {
@@ -724,7 +794,8 @@ export class EvalService {
           score: scoreVal,
           scoringMethod: method,
           failureReason,
-          executionError: null,
+          executionError,
+          scorerUnavailable,
           latencyMs: caseLatency,
           tokenUsage: caseTokens,
         });
@@ -749,6 +820,7 @@ export class EvalService {
           scoringMethod: method,
           failureReason: `Execution error: ${errMsg}`,
           executionError: errMsg,
+          scorerUnavailable: false,
           latencyMs: null,
           tokenUsage: null,
         });
@@ -770,6 +842,11 @@ export class EvalService {
     const avgLatency =
       latencyReportedCount > 0 ? Math.round(totalLatency / latencyReportedCount) : null;
 
+    const unavailableReason =
+      unavailableCount > 0
+        ? `${unavailableCount} of ${snapshots.length} cases could not be scored due to scorer unavailability.`
+        : null;
+
     // Run status semantics:
     // "Completed" means execution processed cases. Individual case assertions failing is normal.
     // "Failed" is only for execution-level failure when 0 cases could be evaluated due to hard infrastructure error.
@@ -782,6 +859,8 @@ export class EvalService {
       passedCount,
       failedCount,
       erroredCount,
+      unavailableCount,
+      unavailableReason,
       averageLatencyMs: avgLatency,
       totalCost: null,
       tokenUsage:
@@ -792,8 +871,122 @@ export class EvalService {
               total_tokens: totalPromptTokens + totalCompletionTokens,
             }
           : null,
-      error: isRunFailed ? hardError : null,
+      error: isRunFailed ? hardError : unavailableReason,
     });
+  }
+
+  /* ========================================================================== */
+  /* Evaluation Promotion & Regression Gate Checking                            */
+  /* ========================================================================== */
+
+  async evaluatePromotionGate(
+    workspaceId: string,
+    input: EvaluationGateCheckRequest,
+  ): Promise<EvaluationGateCheckResponse> {
+    const runsRes = await this.repo.listRuns(workspaceId, {
+      agentId: input.agentId,
+      versionId: input.candidateVersionId,
+      limit: 10,
+    });
+
+    const candidateRun = runsRes.runs.find((r) => r.status === "completed");
+    const reasons: string[] = [];
+
+    if (!candidateRun) {
+      reasons.push(`No completed evaluation run found for version ${input.candidateVersionId}`);
+    } else {
+      const minPassRate = input.gateConfig?.minPassRatePercent ?? 90;
+      if (candidateRun.score === null || candidateRun.score < minPassRate) {
+        reasons.push(
+          `Candidate pass rate ${candidateRun.score ?? 0}% is below required gate threshold of ${minPassRate}%`,
+        );
+      }
+
+      if (
+        input.gateConfig?.disallowUnavailableScorers !== false &&
+        (candidateRun.unavailableCount ?? 0) > 0
+      ) {
+        reasons.push(
+          `Evaluation run contained ${candidateRun.unavailableCount} case(s) with unavailable scorers`,
+        );
+      }
+
+      if (
+        typeof input.gateConfig?.maxAverageLatencyMs === "number" &&
+        candidateRun.averageLatencyMs !== null &&
+        candidateRun.averageLatencyMs > input.gateConfig.maxAverageLatencyMs
+      ) {
+        reasons.push(
+          `Average latency ${candidateRun.averageLatencyMs}ms exceeded threshold of ${input.gateConfig.maxAverageLatencyMs}ms`,
+        );
+      }
+    }
+
+    let regressedCount = 0;
+    if (candidateRun && input.baselineVersionId) {
+      const baselineRuns = await this.repo.listRuns(workspaceId, {
+        agentId: input.agentId,
+        versionId: input.baselineVersionId,
+        limit: 10,
+      });
+      const baselineRun = baselineRuns.runs.find((r) => r.status === "completed");
+      if (baselineRun) {
+        const comparison = await this.createOrGetComparison(workspaceId, {
+          baselineRunId: baselineRun.id,
+          candidateRunId: candidateRun.id,
+        });
+        regressedCount = comparison.regressedCount;
+        const maxRegressed = input.gateConfig?.maxRegressedCases ?? 0;
+        if (regressedCount > maxRegressed) {
+          reasons.push(
+            `Found ${regressedCount} regressed test cases against baseline release (maximum allowed: ${maxRegressed})`,
+          );
+        }
+      }
+    }
+
+    const gatePassed = reasons.length === 0;
+    const isOverridden = !gatePassed && Boolean(input.override?.approved && input.override.reason?.trim());
+    const blocked = !gatePassed && !isOverridden;
+
+    const metrics = {
+      candidatePassRatePercent: candidateRun?.score ?? null,
+      candidateRunId: candidateRun?.id ?? null,
+      regressedCasesCount: regressedCount,
+      averageLatencyMs: candidateRun?.averageLatencyMs ?? null,
+      unavailableCasesCount: candidateRun?.unavailableCount ?? 0,
+    };
+
+    let overrideAudit: EvaluationGateCheckResponse["overrideAudit"] = undefined;
+    if (isOverridden && input.override) {
+      overrideAudit = {
+        actorUserId: input.override.actorUserId,
+        reason: input.override.reason,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    await this.repo.recordGateAudit({
+      workspaceId,
+      agentId: input.agentId,
+      agentVersionId: input.candidateVersionId,
+      gatePassed,
+      blocked,
+      reasons,
+      overridden: isOverridden,
+      overrideActorId: input.override?.actorUserId ?? null,
+      overrideReason: input.override?.reason ?? null,
+      metrics,
+    });
+
+    return {
+      passed: gatePassed || isOverridden,
+      blocked,
+      reasons,
+      metrics,
+      overridden: isOverridden,
+      overrideAudit,
+    };
   }
 
   /* ========================================================================== */

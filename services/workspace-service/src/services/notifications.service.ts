@@ -118,4 +118,43 @@ export class NotificationsService {
     const count = await this.repo.dismissRead(workspaceId);
     return { count };
   }
+
+  async createNotification(params: {
+    workspaceId: string;
+    recipientUserId?: string | null;
+    category?: string;
+    severity?: NotificationSeverity;
+    type?: string;
+    title: string;
+    description: string;
+    sourceType?: string | null;
+    sourceId?: string | null;
+    sourceName?: string | null;
+    actionUrl?: string | null;
+    actionLabel?: string | null;
+    deduplicationKey?: string | null;
+  }): Promise<WorkspaceNotificationItem> {
+    if (!UUID_REGEX.test(params.workspaceId)) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Valid workspace UUID required",
+      });
+    }
+    const row = await this.repo.createNotification({
+      workspaceId: params.workspaceId,
+      recipientUserId: params.recipientUserId,
+      category: params.category ?? "system",
+      severity: params.severity ?? "info",
+      type: params.type ?? "system",
+      title: params.title,
+      description: params.description,
+      sourceType: params.sourceType,
+      sourceId: params.sourceId,
+      sourceName: params.sourceName,
+      actionUrl: params.actionUrl,
+      actionLabel: params.actionLabel,
+      deduplicationKey: params.deduplicationKey,
+    });
+    return toNotificationItem(row);
+  }
 }

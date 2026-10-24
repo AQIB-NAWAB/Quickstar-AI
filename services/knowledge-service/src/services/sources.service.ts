@@ -161,7 +161,21 @@ export class SourcesService {
     },
   ): Promise<KnowledgeSource> {
     const fileName = input.fileName?.trim() || "document";
-    const extraction = await extractDocumentText(input.buffer, fileName, input.mimeType);
+    const isRichDoc =
+      fileName.endsWith(".pdf") || fileName.endsWith(".docx") || input.buffer.length > 50 * 1024;
+
+    let extractionText: string | null = null;
+    let charCount = 0;
+
+    try {
+      const extraction = await extractDocumentText(input.buffer, fileName, input.mimeType);
+      extractionText = extraction.text;
+      charCount = extraction.charCount;
+    } catch (err: unknown) {
+      if (!isRichDoc) {
+        throw err;
+      }
+    }
 
     const derivedName =
       input.name?.trim() || fileName.replace(/\.[^/.]+$/, "") || "Uploaded Document";
@@ -173,24 +187,17 @@ export class SourcesService {
       workspaceId,
       name: derivedName,
       kind: "file",
-      contentText: this.contentStore ? null : extraction.text,
+      contentText: this.contentStore ? null : extractionText,
       storageKey: null,
       contentType: "text/plain; charset=utf-8",
       fileName,
       fileSizeBytes: input.buffer.length,
-      charCount: extraction.charCount,
+      charCount,
     });
 
     if (this.contentStore) {
       storageKey = storageKeyForSource(workspaceId, source.id, source.version);
       rawStorageKey = rawStorageKeyForSource(workspaceId, source.id, source.version, fileName);
-
-      // Store extracted normalized text for indexing & inspection
-      await this.contentStore.putObject(
-        storageKey,
-        Buffer.from(extraction.text, "utf8"),
-        "text/plain; charset=utf-8",
-      );
 
       // Store raw binary upload
       await this.contentStore.putObject(
@@ -199,19 +206,38 @@ export class SourcesService {
         input.mimeType || "application/octet-stream",
       );
 
+      if (extractionText) {
+        // Store extracted normalized text for indexing & inspection
+        await this.contentStore.putObject(
+          storageKey,
+          Buffer.from(extractionText, "utf8"),
+          "text/plain; charset=utf-8",
+        );
+      }
+
       const stored = await this.repo.assignStorage(
         workspaceId,
         source.id,
         storageKey,
         "text/plain; charset=utf-8",
         rawStorageKey,
-        extraction.charCount,
+        charCount,
       );
-      await this.enqueueIngest(workspaceId, stored);
+
+      if (extractionText) {
+        await this.enqueueIngest(workspaceId, stored);
+      } else {
+        // Enqueue into asynchronous extraction queue
+        await this.repo.enqueueExtraction(workspaceId, source.id);
+      }
       return stored;
     }
 
-    await this.enqueueIngest(workspaceId, source);
+    if (extractionText) {
+      await this.enqueueIngest(workspaceId, source);
+    } else {
+      await this.repo.enqueueExtraction(workspaceId, source.id);
+    }
     return source;
   }
 
@@ -399,7 +425,7 @@ export class SourcesService {
     return { ready_count: count };
   }
 
-  private async enqueueIngest(workspaceId: string, source: KnowledgeSource): Promise<void> {
+  async enqueueIngest(workspaceId: string, source: KnowledgeSource): Promise<void> {
     await this.queue.send({
       action: "ingest",
       source_id: source.id,

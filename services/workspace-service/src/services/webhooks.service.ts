@@ -5,6 +5,7 @@ import type {
   WebhookEndpointItem,
   WebhookStatus,
 } from "@quickstart/contracts";
+import { safeFetch } from "../utils/ssrf.js";
 import type {
   WebhookDeliveryAttemptRow,
   WebhookDeliveryRow,
@@ -261,22 +262,16 @@ export class WebhooksService {
 
     const start = performance.now();
     try {
-      // In production or live environments with valid URLs, execute HTTP POST
-      // with a short timeout to prevent hanging.
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const res = await fetch(endpoint.url, {
+      const res = await safeFetch(endpoint.url, {
         method: "POST",
         headers: requestHeaders,
         body: bodyStr,
-        signal: controller.signal,
+        timeoutMs: 10_000,
       });
-      clearTimeout(timeoutId);
 
       latencyMs = Math.round(performance.now() - start);
       httpStatus = res.status;
-      res.headers.forEach((v, k) => {
+      res.headers.forEach((v: string, k: string) => {
         responseHeaders[k] = v;
       });
       responseBody = await res.text().catch(() => "");
@@ -307,19 +302,13 @@ export class WebhooksService {
       responseBody,
     });
 
-    // Update overall delivery status and endpoint health
-    await this.repo.incrementDeliveryAttempt(delivery.id, {
-      status: outcome,
-      lastHttpStatus: httpStatus,
-      lastLatencyMs: latencyMs,
-      lastError: error,
-    });
-
-    await this.repo.updateEndpointHealth(
-      endpoint.id,
-      httpStatus ?? 500,
-      outcome === "failed",
-    );
+    if (outcome === "success") {
+      await this.repo.completeDelivery(delivery.id, httpStatus, latencyMs);
+      await this.repo.updateEndpointHealth(endpoint.id, httpStatus, false);
+    } else {
+      await this.repo.updateEndpointHealth(endpoint.id, httpStatus ?? 500, true);
+      await this.repo.retryDelivery(delivery.id, 60, httpStatus, latencyMs, error ?? "");
+    }
 
     const updated = await this.repo.getDelivery(workspaceId, deliveryId);
     return toDeliveryItem(updated!);

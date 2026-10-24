@@ -10,6 +10,11 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "./types";
+import type {
+  BillingSummaryResponse,
+  CreateCheckoutSessionResponse,
+  CreateCustomerPortalSessionResponse,
+} from "@quickstart/contracts";
 
 type BffResponse<T> = { data?: T; error?: ApiError; status: number };
 
@@ -377,3 +382,73 @@ export async function deleteCustomTool(
   if (error) return { success: false, error };
   return { success: Boolean(data?.deleted) };
 }
+
+export async function getBillingSummary(
+  orgId: string,
+): Promise<{ data?: BillingSummaryResponse; error?: ApiError }> {
+  const { data, error } = await bff<BillingSummaryResponse>(
+    `/api/organizations/${encodeURIComponent(orgId)}/billing`,
+  );
+  if (error) return { error };
+  return { data };
+}
+
+export async function createCheckoutSession(
+  orgId: string,
+  planId: string,
+  interval: "month" | "year",
+): Promise<{ data?: CreateCheckoutSessionResponse; error?: ApiError }> {
+  const successUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/settings?tab=billing&session=success`
+    : "";
+  const cancelUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/settings?tab=billing&session=canceled`
+    : "";
+  const { data, error } = await bff<CreateCheckoutSessionResponse>(
+    `/api/organizations/${encodeURIComponent(orgId)}/billing/checkout`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        plan_id: planId,
+        interval,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      }),
+    },
+  );
+  if (error) return { error };
+  return { data };
+}
+
+export async function createCustomerPortalSession(
+  orgId: string,
+): Promise<{ data?: CreateCustomerPortalSessionResponse; error?: ApiError }> {
+  const returnUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/settings?tab=billing`
+    : "";
+  const { data, error } = await bff<CreateCustomerPortalSessionResponse>(
+    `/api/organizations/${encodeURIComponent(orgId)}/billing/portal`,
+    {
+      method: "POST",
+      body: JSON.stringify({ return_url: returnUrl }),
+    },
+  );
+  if (error) return { error };
+  return { data };
+}
+
+export async function cancelSubscription(
+  orgId: string,
+  immediately = false,
+): Promise<{ error?: ApiError }> {
+  const { error } = await bff(
+    `/api/organizations/${encodeURIComponent(orgId)}/billing/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({ immediately }),
+    },
+  );
+  if (error) return { error };
+  return {};
+}
+

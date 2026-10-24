@@ -231,15 +231,9 @@ export const HttpInspector: React.FC<HttpInspectorProps> = ({
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs bg-white outline-none"
               >
                 <option value="none">None / Public API</option>
-                <option disabled value="bearer">
-                  Bearer Token
-                </option>
-                <option disabled value="basic">
-                  Basic Auth (Username / Password)
-                </option>
-                <option disabled value="secret">
-                  Secret Vault Reference
-                </option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth (Username / Password)</option>
+                <option value="secret">Secret Vault Reference</option>
               </select>
             </div>
 
@@ -250,10 +244,34 @@ export const HttpInspector: React.FC<HttpInspectorProps> = ({
                   type="password"
                   value={cfg.token || ""}
                   onChange={(e) => onUpdateConfig({ ...cfg, token: e.target.value })}
-                  disabled
-                  placeholder="Managed credentials must be connected first"
+                  placeholder="e.g. sk_live_... or {{event.token}}"
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none"
                 />
+              </div>
+            )}
+
+            {authType === "basic" && (
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Username</label>
+                  <input
+                    type="text"
+                    value={cfg.username || ""}
+                    onChange={(e) => onUpdateConfig({ ...cfg, username: e.target.value })}
+                    placeholder="API key or username"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Password</label>
+                  <input
+                    type="password"
+                    value={cfg.password || ""}
+                    onChange={(e) => onUpdateConfig({ ...cfg, password: e.target.value })}
+                    placeholder="Secret or password"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none"
+                  />
+                </div>
               </div>
             )}
 
@@ -262,14 +280,19 @@ export const HttpInspector: React.FC<HttpInspectorProps> = ({
                 <label className="font-semibold text-neutral-700">Secret Vault Key Name</label>
                 <input
                   type="text"
-                  value={cfg.secret_ref || ""}
-                  onChange={(e) => onUpdateConfig({ ...cfg, secret_ref: e.target.value })}
-                  placeholder="e.g. HUBSPOT_API_KEY"
+                  value={cfg.secret_ref || cfg.connection_credential_id || ""}
+                  onChange={(e) =>
+                    onUpdateConfig({
+                      ...cfg,
+                      secret_ref: e.target.value,
+                      connection_credential_id: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. integration_slack_credentials or HUBSPOT_API_KEY"
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs font-mono outline-none"
                 />
                 <p className="text-[11px] text-neutral-500">
-                  Secret values are resolved securely at runtime and never exposed in client
-                  bundles.
+                  Secret values are resolved securely at runtime via secrets-service and injected into headers.
                 </p>
               </div>
             )}

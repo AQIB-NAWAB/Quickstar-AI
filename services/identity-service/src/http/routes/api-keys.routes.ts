@@ -1,4 +1,4 @@
-import { asyncHandler, createServiceRouter, requestIdFromResponse, type RouteModule } from "@quickstart/http-server";
+import { asyncHandler, createServiceRouter, requestIdFromResponse, sendPlatformJson, type RouteModule } from "@quickstart/http-server";
 import * as apiKeysController from "../../controllers/api-keys.controller.js";
 import { routeParam } from "../../utils/route-param.js";
 import { requireUuid } from "../../utils/uuid-param.js";
@@ -59,6 +59,26 @@ export const createApiKeysRoutes: RouteModule<IdentityHttpContext> = (ctx) => {
         services.apiKeys,
         requestId,
       );
+    }),
+  );
+
+  router.post(
+    "/internal/v1/api-keys/verify",
+    asyncHandler(async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const { api_key } = (req.body ?? {}) as { api_key?: string };
+      if (!api_key || typeof api_key !== "string") {
+        sendPlatformJson(res, 400, {
+          request_id: requestId,
+          error: { code: "VALIDATION_FAILED", message: "api_key is required" },
+        });
+        return;
+      }
+      const result = await services.apiKeys.verifyApiKey(api_key);
+      sendPlatformJson(res, 200, {
+        request_id: requestId,
+        ...result,
+      });
     }),
   );
 

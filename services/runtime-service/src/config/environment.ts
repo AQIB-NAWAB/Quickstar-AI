@@ -13,6 +13,9 @@ export type RuntimeConfig = {
   webFetchInternalToken: string;
   secretsServiceUrl: string;
   secretsInternalToken: string;
+  leadServiceUrl: string;
+  leadInternalToken: string;
+  workspaceInternalToken: string;
   redisUrl: string;
   jwtAccessSecret: string;
   workspaceUrl: string;
@@ -86,6 +89,19 @@ export function loadRuntimeConfig(): RuntimeConfig {
     ).replace(/\/$/, ""),
     secretsInternalToken:
       process.env.SECRETS_INTERNAL_TOKEN ??
+      process.env.INTERNAL_TOKEN ??
+      "local-dev-token-at-least-32-characters-long",
+    leadServiceUrl: (
+      process.env.LEAD_SERVICE_URL ??
+      process.env.LEAD_URL ??
+      "http://127.0.0.1:3014"
+    ).replace(/\/$/, ""),
+    leadInternalToken:
+      process.env.LEAD_INTERNAL_TOKEN ??
+      process.env.INTERNAL_TOKEN ??
+      "local-dev-token-at-least-32-characters-long",
+    workspaceInternalToken:
+      process.env.WORKSPACE_INTERNAL_TOKEN ??
       process.env.INTERNAL_TOKEN ??
       "local-dev-token-at-least-32-characters-long",
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",

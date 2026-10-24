@@ -8,12 +8,14 @@ import { createInternalRoutes } from "./internal.routes.js";
 import { createOrgWorkspacesRoutes } from "./org-workspaces.routes.js";
 import { createPublishableKeysRoutes } from "./publishable-keys.routes.js";
 import { createWorkspaceTenantRoutes } from "./workspace-tenant.routes.js";
+import { createInvitesRoutes } from "./invites.routes.js";
 
 const workspaceRouteModules = [
   createHealthRoutes,
   createInternalRoutes,
   createOrgWorkspacesRoutes,
   createWorkspaceTenantRoutes,
+  createInvitesRoutes,
   createPublishableKeysRoutes,
   createIntegrationsRoutes,
   createNotificationsRoutes,

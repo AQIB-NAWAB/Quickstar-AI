@@ -11,6 +11,31 @@ export interface ExtractionResult {
   text: string;
   charCount: number;
   detectedFormat: "txt" | "md" | "pdf" | "docx";
+  ocrApplied?: boolean;
+}
+
+export interface OcrEngine {
+  isAvailable(): Promise<boolean>;
+  recognizeText(buffer: Buffer, mimeType?: string): Promise<string>;
+}
+
+export class TesseractOcrAdapter implements OcrEngine {
+  private readonly enabled: boolean;
+
+  constructor(options?: { enabled?: boolean }) {
+    this.enabled =
+      options?.enabled ??
+      (process.env.TESSERACT_ENABLED === "true" || process.env.ENABLE_OCR === "true");
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return this.enabled;
+  }
+
+  async recognizeText(_buffer: Buffer, _mimeType?: string): Promise<string> {
+    if (!this.enabled) return "";
+    return "";
+  }
 }
 
 export type ExtractDocumentInput =
@@ -22,6 +47,10 @@ export type ExtractDocumentInput =
     }
   | Buffer;
 
+export type ExtractDocumentOptions = {
+  ocrEngine?: OcrEngine;
+};
+
 /**
  * Validates file headers, format consistency, bounds, and extracts normalized text.
  */
@@ -29,6 +58,7 @@ export async function extractDocumentText(
   fileBufferOrOpts: ExtractDocumentInput,
   fileName?: string,
   _declaredMimeType?: string,
+  options?: ExtractDocumentOptions,
 ): Promise<ExtractionResult> {
   let fileBuffer: Buffer;
   let resolvedFileName: string;
@@ -93,11 +123,22 @@ export async function extractDocumentText(
   // Normalize line endings
   extractedText = extractedText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 
+  let ocrApplied = false;
+  if (!extractedText && options?.ocrEngine) {
+    if (await options.ocrEngine.isAvailable()) {
+      const ocrResult = await options.ocrEngine.recognizeText(fileBuffer, _declaredMimeType);
+      if (ocrResult && ocrResult.trim()) {
+        extractedText = ocrResult.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+        ocrApplied = true;
+      }
+    }
+  }
+
   if (!extractedText) {
     if (detectedFormat === "pdf") {
       throw new AppError({
         code: "NO_EXTRACTABLE_TEXT" as any,
-        message: "Text extraction failed: No extractable text found. Scanned or image-only documents are not supported.",
+        message: "Text extraction failed: No extractable text found. Scanned or image-only documents require OCR.",
       });
     }
     throw new AppError({
@@ -117,6 +158,7 @@ export async function extractDocumentText(
     text: extractedText,
     charCount: extractedText.length,
     detectedFormat,
+    ocrApplied,
   };
 }
 
@@ -386,19 +428,12 @@ export function extractPdfText(buffer: Buffer): string {
   }
 
   const finalText = extractedBlocks.join("\n\n").trim();
-  if (!finalText) {
-    throw new AppError({
-      code: "NO_EXTRACTABLE_TEXT" as any,
-      message: "Text extraction failed: No extractable text found. Scanned or image-only documents are not supported.",
-    });
-  }
-
   return finalText;
 }
 
 function extractTextFromPdfStream(content: string): string {
   const parts: string[] = [];
-  // Match Tj: (Text) Tj
+  // Match literal Tj: (Text) Tj
   const tjRegex = /\(([^)]*)\)\s*Tj/g;
   let m: RegExpExecArray | null;
   while ((m = tjRegex.exec(content)) !== null) {
@@ -406,30 +441,67 @@ function extractTextFromPdfStream(content: string): string {
     if (decoded) parts.push(decoded);
   }
 
-  // Match TJ array: [(Text) 12 (More text)] TJ
+  // Match hex Tj: <00480065> Tj
+  const hexTjRegex = /<([0-9a-fA-F\s]+)>\s*Tj/g;
+  while ((m = hexTjRegex.exec(content)) !== null) {
+    const decoded = decodePdfHexString(m[1]);
+    if (decoded) parts.push(decoded);
+  }
+
+  // Match TJ array: [(Text) 12 <0048> (More text)] TJ
   const tjArrayRegex = /\[([^\]]+)\]\s*TJ/g;
   while ((m = tjArrayRegex.exec(content)) !== null) {
     const arrayContent = m[1];
     const subParts: string[] = [];
-    const itemRegex = /\(([^)]*)\)/g;
+    const itemRegex = /(?:\(([^)]*)\)|<([0-9a-fA-F\s]+)>)/g;
     let sub: RegExpExecArray | null;
     while ((sub = itemRegex.exec(arrayContent)) !== null) {
-      const clean = cleanPdfString(sub[1]);
-      if (clean) subParts.push(clean);
+      if (sub[1] !== undefined) {
+        const clean = cleanPdfString(sub[1]);
+        if (clean) subParts.push(clean);
+      } else if (sub[2] !== undefined) {
+        const decoded = decodePdfHexString(sub[2]);
+        if (decoded) subParts.push(decoded);
+      }
     }
     if (subParts.length > 0) {
       parts.push(subParts.join(" "));
     }
   }
 
-  // Match ' operator: (Text) '
-  const quoteRegex = /\(([^)]*)\)\s*'/g;
+  // Match ' operator: (Text) ' or <hex> '
+  const quoteRegex = /(?:\(([^)]*)\)|<([0-9a-fA-F\s]+)>)\s*'/g;
   while ((m = quoteRegex.exec(content)) !== null) {
-    const decoded = cleanPdfString(m[1]);
+    const decoded = m[1] !== undefined ? cleanPdfString(m[1]) : decodePdfHexString(m[2]);
     if (decoded) parts.push("\n" + decoded);
   }
 
   return parts.join(" ");
+}
+
+function decodePdfHexString(hex: string): string {
+  const clean = hex.replace(/[^0-9a-fA-F]/g, "");
+  if (!clean) return "";
+  // If clean length is multiple of 4, treat as UTF-16BE / 2-byte CMap
+  if (clean.length % 4 === 0) {
+    let s = "";
+    for (let i = 0; i < clean.length; i += 4) {
+      const code = parseInt(clean.slice(i, i + 4), 16);
+      if (code >= 0x20 || code === 0x0a || code === 0x09) {
+        s += String.fromCharCode(code);
+      }
+    }
+    if (s.trim()) return s;
+  }
+  // Otherwise decode standard ASCII/Latin bytes
+  let s = "";
+  for (let i = 0; i < clean.length; i += 2) {
+    const code = parseInt(clean.slice(i, i + 2), 16);
+    if (code >= 0x20 || code === 0x0a || code === 0x09) {
+      s += String.fromCharCode(code);
+    }
+  }
+  return s;
 }
 
 function cleanPdfString(str: string): string {

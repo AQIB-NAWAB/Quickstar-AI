@@ -311,4 +311,31 @@ export class MemoryConversationStore implements ConversationStore {
         t.turnIdempotencyKey === turnIdempotencyKey,
     );
   }
+
+  async updateTags(
+    workspaceId: string,
+    conversationId: string,
+    tags: string[],
+    mode: "add" | "remove" | "replace" = "add",
+  ): Promise<string[]> {
+    const conv = await this.getConversation(workspaceId, conversationId);
+    if (!conv) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Conversation not found",
+      });
+    }
+    const cleanTags = tags.map((t) => t.trim().toLowerCase()).filter(Boolean);
+    const existing = (conv as unknown as { tags?: string[] }).tags ?? [];
+    let updated: string[];
+    if (mode === "replace") {
+      updated = cleanTags;
+    } else if (mode === "remove") {
+      updated = existing.filter((t) => !cleanTags.includes(t));
+    } else {
+      updated = Array.from(new Set([...existing, ...cleanTags]));
+    }
+    (conv as unknown as { tags: string[] }).tags = updated;
+    return updated;
+  }
 }

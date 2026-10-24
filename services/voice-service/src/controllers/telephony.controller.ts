@@ -125,6 +125,60 @@ export function createTelephonyController(
       );
       const agentId = String(params.agent_id ?? body.agent_id ?? "") || undefined;
 
+      const isTwilioVoiceWebhook =
+        providerId === "twilio" &&
+        !params.utterance_text &&
+        !body.utterance_text &&
+        Boolean(req.headers["x-twilio-signature"] || req.headers["content-type"]?.includes("x-www-form-urlencoded"));
+
+      if (isTwilioVoiceWebhook) {
+        const host = req.headers["x-forwarded-host"] || req.headers.host || "127.0.0.1:3004";
+        const isSecure = req.headers["x-forwarded-proto"] !== "http";
+        const protocol = isSecure ? "wss" : "ws";
+        const streamUrl = `${protocol}://${host}/media-stream`;
+        const activeCallId = params.call_id ? String(params.call_id) : callSid;
+
+        // Record call in DB
+        await calls.create({
+          id: activeCallId,
+          workspaceId,
+          conversationId,
+          agentId,
+          direction: "inbound",
+          caller: caller || null,
+          callee: callee || null,
+          telephonyProvider: "twilio",
+          providerCallSid: callSid,
+        }).catch(() => undefined);
+
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${streamUrl}">
+      <Parameter name="workspaceId" value="${workspaceId}" />
+      <Parameter name="conversationId" value="${conversationId}" />
+      <Parameter name="callId" value="${activeCallId}" />
+      <Parameter name="agentId" value="${agentId || ""}" />
+      <Parameter name="caller" value="${caller}" />
+      <Parameter name="callee" value="${callee}" />
+    </Stream>
+  </Connect>
+</Response>`;
+
+        res.status(200);
+        if (typeof (res as any).setHeader === "function") {
+          (res as any).setHeader("Content-Type", "text/xml");
+        } else if (typeof (res as any).set === "function") {
+          (res as any).set("Content-Type", "text/xml");
+        }
+        if (typeof (res as any).send === "function") {
+          (res as any).send(twiml);
+        } else {
+          res.json({ twiml });
+        }
+        return;
+      }
+
       try {
         await provider.attachMedia(callSid, {
           async onAudio() {
@@ -252,9 +306,34 @@ export function createTelephonyController(
               idempotency_key: `telephony:${workspaceId}:${callId}:completed`,
               request_id: callSid,
               source_id: callId,
-              detail: { call_id: callId, event: eventType },
             });
           }
+
+          // Reconcile attempt in campaign-service if linked by providerCallSid
+          const campaignUrl = process.env.CAMPAIGN_SERVICE_URL ?? "http://127.0.0.1:3013";
+          const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? "internal-dev-token";
+          const mappedStatus =
+            eventType === "completed"
+              ? "answered"
+              : eventType === "busy"
+                ? "busy"
+                : eventType === "no-answer"
+                  ? "no_answer"
+                  : "failed";
+          void fetch(`${campaignUrl.replace(/\/$/, "")}/internal/v1/campaigns/attempts/reconcile`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${internalToken}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              provider_call_sid: callSid,
+              status: mappedStatus,
+              duration_seconds: Math.round(Number(params.CallDuration ?? body.CallDuration ?? 0)),
+              hangup_cause: String(params.SipResponseCode ?? body.SipResponseCode ?? eventType),
+              amd_result: String(params.AnsweredBy ?? body.AnsweredBy ?? ""),
+            }),
+          }).catch(() => {});
         }
       }
 

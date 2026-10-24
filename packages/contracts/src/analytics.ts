@@ -46,12 +46,23 @@ export type AnalyticsServiceUsage = {
   is_unpriced: boolean;
 };
 
+export type MetricCoverage = "complete" | "partial" | "unavailable";
+
+export type MetricCoverageIndicators = {
+  tokens: MetricCoverage;
+  latency: MetricCoverage;
+  spend: MetricCoverage;
+  conversations: MetricCoverage;
+  voice: MetricCoverage;
+};
+
 export type AnalyticsResponse = {
   range: {
     from: string;
     to: string;
     timezone: string;
   };
+  coverage?: MetricCoverageIndicators;
   summary: AnalyticsSummary;
   daily_tokens: AnalyticsDailyTokenBucket[];
   daily_latency: AnalyticsDailyLatencyBucket[];

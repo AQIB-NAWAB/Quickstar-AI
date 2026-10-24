@@ -678,22 +678,58 @@ export class WorkflowsRepository {
       mode?: "live" | "dry_run";
       replayOfRunId?: string | null;
       definitionSnapshot?: Record<string, unknown> | null;
+      leaseOwner?: string;
+      leaseTtlMs?: number;
+      maxConcurrentRuns?: number;
     },
-  ): Promise<{ id: string; created: boolean; status: RunStatus; currentStepIndex: number } | null> {
+  ): Promise<{
+    id: string;
+    created: boolean;
+    status: RunStatus;
+    currentStepIndex: number;
+    leaseToken?: string | null;
+    throttled?: boolean;
+  } | null> {
+    if (input.maxConcurrentRuns && input.maxConcurrentRuns > 0) {
+      const runningCheck = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM workflow_runs WHERE workflow_id = $1 AND status = 'running'`,
+        [input.workflowId],
+      );
+      if (Number(runningCheck.rows[0]?.count ?? 0) >= input.maxConcurrentRuns) {
+        return {
+          id: "",
+          created: false,
+          status: "queued",
+          currentStepIndex: 0,
+          throttled: true,
+          leaseToken: null,
+        };
+      }
+    }
+
     const id = randomUUID();
     const mode = input.mode ?? "live";
+    const leaseToken = randomUUID();
+    const leaseTtl = Math.max(5000, input.leaseTtlMs ?? 30000);
+    const leaseOwner = input.leaseOwner ?? "workflow-runner";
+
     const insert = await client.query<{
       id: string;
       status: RunStatus;
       current_step_index: number;
+      lease_token: string | null;
     }>(
       `INSERT INTO workflow_runs (
          id, workspace_id, workflow_id, definition_version, event_id,
          trigger_event_type, event_payload, status, current_step_index, steps_total,
-         version_id, mode, replay_of_run_id, definition_snapshot
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,'running',0,$8,$9,$10,$11,$12::jsonb)
+         version_id, mode, replay_of_run_id, definition_snapshot,
+         lease_owner, lease_token, lease_expires_at, attempt_count, last_heartbeat_at
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7::jsonb,'running',0,$8,$9,$10,$11,$12::jsonb,
+         $13,$14::uuid,NOW() + ($15 || ' milliseconds')::interval,1,NOW()
+       )
        ON CONFLICT (workflow_id, event_id) DO NOTHING
-       RETURNING id, status, current_step_index`,
+       RETURNING id, status, current_step_index, lease_token`,
       [
         id,
         input.workspaceId,
@@ -707,6 +743,9 @@ export class WorkflowsRepository {
         mode,
         input.replayOfRunId ?? null,
         input.definitionSnapshot ? JSON.stringify(input.definitionSnapshot) : null,
+        leaseOwner,
+        leaseToken,
+        leaseTtl,
       ],
     );
     if (insert.rows[0]) {
@@ -715,6 +754,7 @@ export class WorkflowsRepository {
         created: true,
         status: insert.rows[0].status,
         currentStepIndex: insert.rows[0].current_step_index,
+        leaseToken: insert.rows[0].lease_token,
       };
     }
 
@@ -722,8 +762,9 @@ export class WorkflowsRepository {
       id: string;
       status: RunStatus;
       current_step_index: number;
+      lease_token: string | null;
     }>(
-      `SELECT id, status, current_step_index FROM workflow_runs
+      `SELECT id, status, current_step_index, lease_token FROM workflow_runs
        WHERE workflow_id = $1 AND event_id = $2`,
       [input.workflowId, input.eventId],
     );
@@ -734,7 +775,63 @@ export class WorkflowsRepository {
       created: false,
       status: row.status,
       currentStepIndex: row.current_step_index,
+      leaseToken: row.lease_token,
     };
+  }
+
+  async heartbeatRun(runId: string, leaseToken: string, leaseTtlMs = 30000): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE workflow_runs
+       SET lease_expires_at = NOW() + ($3 || ' milliseconds')::interval,
+           last_heartbeat_at = NOW()
+       WHERE id = $1 AND lease_token = $2::uuid AND status = 'running'`,
+      [runId, leaseToken, leaseTtlMs],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async claimAbandonedRun(
+    workspaceId: string,
+    runId: string,
+    newLeaseOwner: string,
+    leaseTtlMs = 30000,
+  ): Promise<{ claimed: boolean; leaseToken?: string; attemptCount?: number }> {
+    const newLeaseToken = randomUUID();
+    const res = await this.pool.query<{ id: string; lease_token: string; attempt_count: number }>(
+      `UPDATE workflow_runs
+       SET lease_owner = $3,
+           lease_token = $4::uuid,
+           lease_expires_at = NOW() + ($5 || ' milliseconds')::interval,
+           attempt_count = attempt_count + 1,
+           last_heartbeat_at = NOW()
+       WHERE id = $2 AND workspace_id = $1 AND status = 'running'
+         AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
+       RETURNING id, lease_token, attempt_count`,
+      [workspaceId, runId, newLeaseOwner, newLeaseToken, leaseTtlMs],
+    );
+    if (res.rows[0]) {
+      return {
+        claimed: true,
+        leaseToken: res.rows[0].lease_token,
+        attemptCount: res.rows[0].attempt_count,
+      };
+    }
+    return { claimed: false };
+  }
+
+  async findAbandonedRuns(
+    workspaceId: string,
+  ): Promise<Array<{ id: string; workflowId: string; attemptCount: number }>> {
+    const { rows } = await this.pool.query<{ id: string; workflow_id: string; attempt_count: number }>(
+      `SELECT id, workflow_id, attempt_count
+       FROM workflow_runs
+       WHERE workspace_id = $1 AND status = 'running'
+         AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
+       ORDER BY triggered_at ASC
+       LIMIT 20`,
+      [workspaceId],
+    );
+    return rows.map((r) => ({ id: r.id, workflowId: r.workflow_id, attemptCount: r.attempt_count }));
   }
 
   async upsertStep(
@@ -795,17 +892,21 @@ export class WorkflowsRepository {
       error?: Record<string, unknown> | null;
       complete?: boolean;
       handledErrors?: boolean;
+      leaseToken?: string | null;
     },
-  ): Promise<void> {
-    await client.query(
+  ): Promise<boolean> {
+    const res = await client.query(
       `UPDATE workflow_runs SET
          status = $2,
          current_step_index = $3,
          steps_completed = $4,
          error = $5::jsonb,
          handled_errors = COALESCE($7, handled_errors),
-         completed_at = CASE WHEN $6 THEN NOW() ELSE completed_at END
-       WHERE id = $1 AND status <> 'canceled'`,
+         completed_at = CASE WHEN $6 THEN NOW() ELSE completed_at END,
+         last_heartbeat_at = NOW(),
+         lease_expires_at = CASE WHEN $6 THEN NULL ELSE NOW() + INTERVAL '30 seconds' END
+       WHERE id = $1 AND status <> 'canceled' AND status NOT IN ('succeeded', 'failed', 'skipped')
+         AND ($8::uuid IS NULL OR lease_token = $8::uuid)`,
       [
         input.runId,
         input.status,
@@ -814,8 +915,109 @@ export class WorkflowsRepository {
         JSON.stringify(input.error ?? null),
         input.complete ?? false,
         input.handledErrors ?? false,
+        input.leaseToken ?? null,
       ],
     );
+    return (res?.rowCount ?? 0) > 0;
+  }
+
+  async listCompletedSteps(runId: string): Promise<Map<string, StepRunRecord>> {
+    const steps = await this.listSteps(runId);
+    const completedMap = new Map<string, StepRunRecord>();
+    for (const s of steps) {
+      if (s.status === "succeeded" || s.status === "skipped") {
+        completedMap.set(s.stepId, s);
+      }
+    }
+    return completedMap;
+  }
+
+  async replayRun(
+    workspaceId: string,
+    workflowId: string,
+    originalRunId: string,
+    actorUserId?: string | null,
+    options?: { dryRun?: boolean; definitionSnapshot?: Record<string, unknown>; versionId?: string },
+  ): Promise<WorkflowRunRecord> {
+    const origRes = await this.pool.query<{
+      id: string;
+      workspace_id: string;
+      workflow_id: string;
+      definition_version: number;
+      version_id: string | null;
+      mode: "live" | "dry_run";
+      event_id: string;
+      trigger_event_type: string;
+      event_payload: Record<string, unknown>;
+      steps_total: number;
+      definition_snapshot: Record<string, unknown> | null;
+    }>(
+      `SELECT * FROM workflow_runs WHERE id = $1 AND workspace_id = $2 AND workflow_id = $3`,
+      [originalRunId, workspaceId, workflowId],
+    );
+    const orig = origRes.rows[0];
+    if (!orig) {
+      throw new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: "Original workflow run not found for replay",
+      });
+    }
+
+    // Resolve immutable snapshot from workflow_versions or definition_snapshot
+    let snapshot = orig.definition_snapshot;
+    let versionId = orig.version_id;
+    if (versionId) {
+      const vRes = await this.pool.query<{
+        definition_snapshot: any;
+        graph_snapshot: any;
+        settings_snapshot: any;
+      }>(
+        `SELECT * FROM workflow_versions WHERE id = $1 AND workspace_id = $2`,
+        [versionId, workspaceId],
+      );
+      if (vRes.rows[0]) {
+        snapshot = {
+          ...vRes.rows[0].definition_snapshot,
+          draftGraph: vRes.rows[0].graph_snapshot,
+          settings: vRes.rows[0].settings_snapshot,
+        };
+      }
+    }
+
+    const newRunId = randomUUID();
+    const replayEventId = randomUUID(); // Fresh event ID for unique constraint
+    const mode = options?.dryRun ? "dry_run" : "live";
+    const leaseToken = randomUUID();
+
+    await this.pool.query(
+      `INSERT INTO workflow_runs (
+         id, workspace_id, workflow_id, definition_version, event_id,
+         trigger_event_type, event_payload, status, current_step_index, steps_total,
+         version_id, mode, replay_of_run_id, definition_snapshot,
+         lease_owner, lease_token, lease_expires_at, attempt_count, last_heartbeat_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,'running',0,$8,$9,$10,$11,$12::jsonb,'replay-worker',$13::uuid,NOW() + INTERVAL '30 seconds',1,NOW())`,
+      [
+        newRunId,
+        workspaceId,
+        workflowId,
+        orig.definition_version,
+        replayEventId,
+        orig.trigger_event_type,
+        JSON.stringify({ ...(orig.event_payload || {}), replayed_by: actorUserId ?? null }),
+        orig.steps_total,
+        versionId,
+        mode,
+        orig.id, // lineage to original run
+        snapshot ? JSON.stringify(snapshot) : null,
+        leaseToken,
+      ],
+    );
+
+    const fullRun = await this.getRun(workspaceId, workflowId, newRunId);
+    if (!fullRun) {
+      throw new Error("Failed to retrieve created replay run");
+    }
+    return fullRun;
   }
 
   async insertSideEffect(
@@ -884,8 +1086,11 @@ export class WorkflowsRepository {
       search?: string;
       limit?: number;
       offset?: number;
+      cursor?: string;
+      from?: string;
+      to?: string;
     },
-  ): Promise<{ runs: WorkflowRunRecord[]; total: number }> {
+  ): Promise<{ runs: WorkflowRunRecord[]; total: number; nextCursor?: string | null }> {
     const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
     const offset = Math.max(options?.offset ?? 0, 0);
 
@@ -900,6 +1105,36 @@ export class WorkflowsRepository {
     if (options?.status && options.status !== "all") {
       params.push(options.status);
       conditions.push(`status = $${params.length}`);
+    }
+
+    if (options?.from) {
+      const fromDate = new Date(options.from);
+      if (!isNaN(fromDate.getTime())) {
+        params.push(fromDate);
+        conditions.push(`triggered_at >= $${params.length}`);
+      }
+    }
+
+    if (options?.to) {
+      const toDate = new Date(options.to);
+      if (!isNaN(toDate.getTime())) {
+        params.push(toDate);
+        conditions.push(`triggered_at <= $${params.length}`);
+      }
+    }
+
+    if (options?.cursor) {
+      try {
+        const decoded = Buffer.from(options.cursor, "base64url").toString("utf8");
+        const [cursorTime, cursorId] = decoded.split(":");
+        const cursorDate = new Date(cursorTime);
+        if (!isNaN(cursorDate.getTime()) && cursorId) {
+          params.push(cursorDate, cursorId);
+          conditions.push(`(triggered_at, id) < ($${params.length - 1}, $${params.length})`);
+        }
+      } catch {
+        // Invalid cursor format: ignore
+      }
     }
 
     if (options?.search && options.search.trim()) {
@@ -939,7 +1174,7 @@ export class WorkflowsRepository {
               steps_total, handled_errors, definition_snapshot
        FROM workflow_runs
        WHERE ${whereClause}
-       ORDER BY triggered_at DESC
+       ORDER BY triggered_at DESC, id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
@@ -949,7 +1184,14 @@ export class WorkflowsRepository {
       const steps = await this.listSteps(row.id);
       runs.push(this.toRunRecord(row, steps));
     }
-    return { runs, total };
+
+    let nextCursor: string | null = null;
+    if (rows.length === limit && rows.length > 0) {
+      const last = rows[rows.length - 1];
+      nextCursor = Buffer.from(`${last.triggered_at.toISOString()}:${last.id}`).toString("base64url");
+    }
+
+    return { runs, total, nextCursor };
   }
 
   async getRun(
@@ -972,10 +1214,15 @@ export class WorkflowsRepository {
       steps_total: number;
       handled_errors: boolean;
       definition_snapshot: Record<string, unknown> | null;
+      event_id?: string;
+      trigger_event_type?: string;
+      event_payload?: Record<string, unknown>;
+      lease_token?: string | null;
     }>(
       `SELECT id, workspace_id, workflow_id, definition_version, version_id, mode,
               replay_of_run_id, status, triggered_at, completed_at, steps_completed,
-              steps_total, handled_errors, definition_snapshot
+              steps_total, handled_errors, definition_snapshot, event_id,
+              trigger_event_type, event_payload, lease_token
        FROM workflow_runs
        WHERE id = $1 AND workspace_id = $2 AND workflow_id = $3`,
       [runId, workspaceId, workflowId],
@@ -1057,6 +1304,10 @@ export class WorkflowsRepository {
       steps_total: number;
       handled_errors?: boolean;
       definition_snapshot?: Record<string, unknown> | null;
+      event_id?: string;
+      trigger_event_type?: string;
+      event_payload?: Record<string, unknown>;
+      lease_token?: string | null;
     },
     steps: StepRunRecord[],
   ): WorkflowRunRecord {
@@ -1080,6 +1331,10 @@ export class WorkflowsRepository {
       totalSteps: row.steps_total,
       handledErrors: Boolean(row.handled_errors),
       definitionSnapshot: row.definition_snapshot,
+      eventId: row.event_id,
+      triggerEventType: row.trigger_event_type,
+      eventPayload: row.event_payload,
+      leaseToken: row.lease_token,
       stepsSummary:
         row.status === "skipped"
           ? "Condition not matched"

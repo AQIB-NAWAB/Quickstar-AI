@@ -1,5 +1,5 @@
 import { WORKSPACE_PERMISSIONS, type CampaignLeadDelivery } from "@quickstart/contracts";
-import { sendPlatformJson, type RequestHandler } from "@quickstart/http-server";
+import { sendPlatformJson, requestIdFromResponse, type RequestHandler } from "@quickstart/http-server";
 import type {
   CampaignAttempt,
   CampaignDetail,
@@ -103,6 +103,8 @@ function toApiAttempt(a: CampaignAttempt) {
     contact_id: a.targetId,
     campaign_id: a.campaignId,
     call_id: a.callId,
+    provider_call_sid: a.providerCallSid ?? null,
+    provider: a.provider ?? "twilio",
     attempt_number: a.attemptNumber,
     started_at: a.startedAt.toISOString(),
     ended_at: a.endedAt?.toISOString() ?? null,
@@ -367,6 +369,38 @@ export function createCampaignsController(campaigns: CampaignsService) {
         status: detail.status,
         version: detail.version,
         metrics: toApiCampaign(detail).metrics,
+      });
+    }) as RequestHandler,
+
+    reconcileAttempt: (async (req, res) => {
+      const body = (req.body ?? {}) as {
+        provider_call_sid?: string;
+        status?: CampaignAttempt["status"];
+        duration_seconds?: number;
+        hangup_cause?: string;
+        amd_result?: string;
+      };
+      if (!body.provider_call_sid || !body.status) {
+        sendPlatformJson(res, 400, {
+          request_id: requestIdFromResponse(res),
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "provider_call_sid and status are required",
+          },
+        });
+        return;
+      }
+      const attempt = await campaigns.reconcileAttempt({
+        providerCallSid: body.provider_call_sid,
+        status: body.status,
+        durationSeconds: body.duration_seconds,
+        hangupCause: body.hangup_cause,
+        amdResult: body.amd_result,
+      });
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        reconciled: Boolean(attempt),
+        attempt: attempt ? toApiAttempt(attempt) : null,
       });
     }) as RequestHandler,
   };

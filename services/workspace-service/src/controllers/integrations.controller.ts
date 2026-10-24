@@ -5,10 +5,10 @@ import {
 } from "@quickstart/http-server";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { IntegrationProvider } from "@quickstart/contracts";
-import type { IntegrationsService } from "../services/integrations.service.js";
+import type { IntegrationsService, CalendarActionInput } from "../services/integrations.service.js";
 import { routeParam } from "../utils/route-param.js";
 
-function getWorkspaceId(req: { params: Record<string, any> }): string {
+function getWorkspaceId(req: { params: Record<string, string | string[] | undefined> }): string {
   const wid = routeParam(req.params.workspaceId);
   if (!wid) {
     throw new AppError({
@@ -19,7 +19,7 @@ function getWorkspaceId(req: { params: Record<string, any> }): string {
   return wid;
 }
 
-function getProvider(req: { params: Record<string, any> }): IntegrationProvider {
+function getProvider(req: { params: Record<string, string | string[] | undefined> }): IntegrationProvider {
   const p = routeParam(req.params.provider) as IntegrationProvider;
   if (!p) {
     throw new AppError({
@@ -108,6 +108,79 @@ export function createIntegrationsController(service: IntegrationsService) {
       sendPlatformJson(res, 200, {
         request_id: requestIdFromResponse(res),
         integration: result,
+      });
+    }) as RequestHandler,
+
+    sync: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const provider = getProvider(req);
+      const body = (req.body ?? {}) as {
+        operation?: "manual_sync" | "test_connection" | "discover_resources";
+        resourceType?: string;
+        options?: Record<string, unknown>;
+      };
+      const result = await service.syncIntegration(workspaceId, provider, {
+        operation: body.operation || "manual_sync",
+        resourceType: body.resourceType,
+        options: body.options,
+      });
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        ...result,
+      });
+    }) as RequestHandler,
+
+    syncHistory: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const provider = getProvider(req);
+      const history = await service.listSyncHistory(workspaceId, provider);
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        history,
+      });
+    }) as RequestHandler,
+
+    /**
+     * Internal integration action for built-in agent tools. Verified with the
+     * workspace internal token; provider credentials never leave this service.
+     */
+    integrationAction: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const provider = getProvider(req);
+      const body = (req.body ?? {}) as {
+        action?: string;
+        input?: Record<string, unknown>;
+      };
+      const action = body.action?.trim();
+      if (!action) {
+        throw new AppError({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "action is required",
+        });
+      }
+      const result = await service.executeIntegrationAction(
+        workspaceId,
+        provider,
+        action,
+        body.input ?? {},
+      );
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        result,
+      });
+    }) as RequestHandler,
+
+    /**
+     * Internal calendar action for the built-in agent booking tool.
+     * Verified with the workspace internal token, not a staff JWT.
+     */
+    calendarAction: (async (req, res) => {
+      const workspaceId = getWorkspaceId(req);
+      const body = (req.body ?? {}) as CalendarActionInput;
+      const result = await service.executeCalendarAction(workspaceId, body);
+      sendPlatformJson(res, 200, {
+        request_id: requestIdFromResponse(res),
+        result,
       });
     }) as RequestHandler,
   };

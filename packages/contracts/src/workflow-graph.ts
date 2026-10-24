@@ -112,9 +112,10 @@ export type HandoffNodeConfig = {
 };
 
 export type NotificationNodeConfig = {
-  delivery: "inbox" | "email";
+  delivery: "inbox" | "email" | "slack";
   connection_id?: string;
   connection_name?: string;
+  channel_id?: string;
   sender?: string;
   recipients: string[];
   subject?: string;
@@ -125,7 +126,7 @@ export type NotificationNodeConfig = {
 
 export type UpdateTagsNodeConfig = {
   target_resource: "conversation" | "lead";
-  operation: "add" | "remove";
+  operation: "add" | "remove" | "replace";
   tags: string[];
 };
 

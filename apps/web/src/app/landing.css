@@ -15,8 +15,9 @@
   --landing-space-6: 24px;
   --landing-space-8: 32px;
   --landing-space-12: 48px;
-  background: #fafaf8;
+  background: #fff;
 }
+
 
 .landing-page .landing-container {
   width: 100%;
@@ -205,22 +206,6 @@
   max-width: 400px;
 }
 
-.landing-page footer nav h3 {
-  font-size: 12px;
-  line-height: 1.5;
-  letter-spacing: 0.16em;
-  margin-bottom: var(--landing-space-6);
-}
-
-.landing-page footer nav a {
-  font-size: 20px;
-}
-
-.landing-page footer nav > div {
-  column-gap: var(--landing-space-6);
-  row-gap: var(--landing-space-4);
-}
-
 /* Contextual Hairline objects share the page's paper and graphite palette. */
 .team-control-illustration {
   --hairline-plate: #fafaf8;
@@ -299,9 +284,6 @@
     gap: var(--landing-space-12);
   }
 
-  .landing-page footer nav a {
-    font-size: 24px;
-  }
 }
 
 @media (max-width: 1099px) {
@@ -351,4 +333,59 @@
   .landing-page .landing-cta-panel {
     min-height: 0;
   }
+}
+
+/* Approved hero v4: illustration bleeds into the gap, while the copy retains
+   its own readable column. These rules do not change lower landing sections. */
+.quickstart-approved-hero { position:relative; background:#fff; display:flex; align-items:center; min-height:calc(100svh - 76px); padding:20px 0 24px; }
+.approved-hero-container { width:100%; max-width:1600px; padding-inline:clamp(24px,4.85vw,78px); margin-inline:auto; }
+.approved-hero-layout { display:grid; grid-template-columns:41% 59%; align-items:center; }
+.approved-hero-copy { position:relative; z-index:2; min-width:0; padding-bottom:26px; }
+.quickstart-approved-hero .hero-headline { margin:0; font-size:clamp(64px,6.5vw,104px); font-weight:600; line-height:1.035; letter-spacing:-.052em; }
+.quickstart-approved-hero .hero-headline span { white-space:nowrap; }
+.quickstart-approved-hero .hero-subtext { margin:30px 0 0; font-size:clamp(17px,1.58vw,24px); line-height:1.5; letter-spacing:-.025em; color:#80858e; max-width:550px; }
+.quickstart-approved-hero .hero-subtext span { display:block; }
+.approved-hero-actions { display:flex; align-items:center; flex-wrap:wrap; gap:16px; margin-top:42px; }
+.approved-hero-actions a { box-shadow:none; background:#ff5b14; min-width:194px; height:52px; }
+.approved-hero-actions button { padding-inline:8px; }
+.approved-hero-art { width:min(118%,calc((100svh - 160px) * 1.36)); margin-left:-10%; min-width:0; }
+.landing-page > header { background:#fff; backdrop-filter:none; }
+.landing-page > header > .landing-container { max-width:1600px; padding-inline:clamp(24px,4.85vw,78px); }
+@media(min-width:1100px) and (max-height:800px) { .quickstart-approved-hero { padding-block:12px 24px; } .approved-hero-art { width:min(118%,calc((100svh - 150px) * 1.36)); justify-self:center; } .quickstart-approved-hero .hero-headline { font-size:clamp(58px,6.5vw,94px); } .approved-hero-actions { margin-top:30px; } }
+@media(max-width:1099px) { .quickstart-approved-hero { min-height:0; padding-block:52px 36px; } .approved-hero-layout { grid-template-columns:1fr; gap:18px; } .approved-hero-copy { padding-bottom:0; max-width:680px; } .quickstart-approved-hero .hero-headline { font-size:clamp(48px,7.6vw,76px); } .quickstart-approved-hero .hero-subtext { font-size:18px; } .approved-hero-art { width:100%; margin:0; } }
+@media(max-width:599px) { .quickstart-approved-hero { padding-block:34px 28px; } .approved-hero-container { padding-inline:22px; } .quickstart-approved-hero .hero-headline { font-size:clamp(39px,9.7vw,56px); letter-spacing:-.045em; } .quickstart-approved-hero .hero-subtext { margin-top:22px; font-size:16px; letter-spacing:-.015em; } .quickstart-approved-hero .hero-subtext span { display:inline; } .approved-hero-actions { margin-top:26px; gap:10px; } .approved-hero-actions a { min-width:166px; padding-inline:18px; font-size:14px; height:48px; } .approved-hero-actions button { font-size:14px; } .approved-hero-art { width:calc(100% + 20px); margin-left:-10px; } }
+/* The ambient gradient is decorative and must never widen the mobile page. */
+.quickstart-approved-hero { overflow:clip; }
+
+.quickstart-approved-hero { scroll-margin-top:76px; }
+
+/* Keep a consistent, responsive pause between distinct landing compositions. */
+.landing-page main > section + section {
+  margin-block-start: clamp(32px, 4vw, 56px);
+}
+@media (max-width: 599px) {
+  .landing-page main > section + section { margin-block-start: 32px; }
+}
+
+/* Let the carousel's bottom rule meet the Channels surface without a white band.
+   Put its breathing room inside the next section's own background instead. */
+.landing-page main > #built-on + #channels {
+  margin-block-start: 0;
+  padding-top: clamp(48px, 4vw, 72px);
+}
+@media (max-width: 599px) {
+  .landing-page main > #built-on + #channels { padding-top: 40px; }
+}
+
+/* Keep page scrolling available while hiding the landing page's browser gutter. */
+html:has(.landing-page),
+body:has(.landing-page) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html:has(.landing-page)::-webkit-scrollbar,
+body:has(.landing-page)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }

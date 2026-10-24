@@ -76,6 +76,8 @@ type AttemptRow = {
   attempt_number: number;
   idempotency_key: string;
   call_id: string | null;
+  provider?: string;
+  provider_call_sid?: string | null;
   status: CampaignAttempt["status"];
   outcome: string;
   started_at: Date;
@@ -171,6 +173,8 @@ function mapAttempt(row: AttemptRow): CampaignAttempt {
     attemptNumber: row.attempt_number,
     idempotencyKey: row.idempotency_key,
     callId: row.call_id,
+    provider: row.provider,
+    providerCallSid: row.provider_call_sid ?? null,
     status: row.status,
     outcome: row.outcome,
     startedAt: row.started_at,
@@ -898,6 +902,7 @@ export class CampaignsRepository {
     status: CampaignAttempt["status"];
     outcome: string;
     callId?: string | null;
+    providerCallSid?: string | null;
     durationSeconds?: number | null;
     error?: { code: string; message: string } | null;
   }): Promise<CampaignAttempt> {
@@ -906,9 +911,10 @@ export class CampaignsRepository {
        SET status = $2,
            outcome = $3,
            call_id = COALESCE($4, call_id),
+           provider_call_sid = COALESCE($5, provider_call_sid),
            ended_at = NOW(),
-           duration_seconds = $5,
-           error = $6::jsonb
+           duration_seconds = $6,
+           error = $7::jsonb
        WHERE id = $1
        RETURNING *`,
       [
@@ -916,11 +922,41 @@ export class CampaignsRepository {
         input.status,
         input.outcome,
         input.callId ?? null,
+        input.providerCallSid ?? null,
         input.durationSeconds ?? null,
         input.error ? JSON.stringify(input.error) : null,
       ],
     );
     return mapAttempt(result.rows[0]);
+  }
+
+  async reconcileAttemptByCallSid(input: {
+    providerCallSid: string;
+    status: CampaignAttempt["status"];
+    durationSeconds?: number;
+    hangupCause?: string;
+    amdResult?: string;
+  }): Promise<CampaignAttempt | null> {
+    const result = await this.pool.query<AttemptRow>(
+      `UPDATE campaign_attempts
+       SET status = $2,
+           duration_seconds = COALESCE($3, duration_seconds),
+           hangup_cause = COALESCE($4, hangup_cause),
+           amd_result = COALESCE($5, amd_result),
+           reconciled_at = NOW(),
+           reconciliation_status = 'reconciled',
+           ended_at = COALESCE(ended_at, NOW())
+       WHERE provider_call_sid = $1
+       RETURNING *`,
+      [
+        input.providerCallSid,
+        input.status,
+        input.durationSeconds ?? null,
+        input.hangupCause ?? null,
+        input.amdResult ?? null,
+      ],
+    );
+    return result.rows[0] ? mapAttempt(result.rows[0]) : null;
   }
 
   async completeTargetAttempt(input: {

@@ -1,0 +1,18 @@
+.marketing-final-cta-section { background:#fff; color:#292929; padding:40px 0; scroll-margin-top:88px; }
+.marketing-final-cta-container { max-width:1240px; margin:auto; padding:0 24px; }
+.marketing-final-cta-panel { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; background:#fcfaf8; border-radius:20px; padding:48px; }
+.marketing-final-cta-copy h2 { margin:0; font-size:clamp(32px,2.5vw,44px); line-height:1.15; font-weight:600; letter-spacing:-.04em; }
+.marketing-final-cta-copy h2 em { color:#fa5d19; font-style:normal; }
+.marketing-final-cta-copy p { font-size:18px; color:#737373; line-height:1.55; margin:24px 0 0; max-width:410px; }
+.marketing-final-cta-actions { display:flex; align-items:center; gap:24px; flex-wrap:wrap; margin-top:30px; }
+.marketing-final-cta-btn { display:inline-flex; align-items:center; justify-content:center; gap:18px; min-height:46px; padding:12px 22px; border-radius:9px; color:#fff; background:#fa5d19; font-size:15px; text-decoration:none; box-sizing:border-box; transition:background .35s; }
+.marketing-final-cta-btn:hover { background:#e95113; }
+.marketing-final-cta-docs-link { display:inline-flex; align-items:center; gap:12px; min-height:44px; font-size:14px; color:#505050; text-decoration:none; transition:color .35s; }
+.marketing-final-cta-docs-link:hover { color:#fa5d19; }
+.marketing-final-cta-section a:focus-visible { outline:2px solid #fa5d19; outline-offset:5px; }
+.marketing-final-cta-artwork { position:relative; width:112%; margin-left:-6%; }
+.marketing-final-cta-art { display:block; width:100%; height:auto; }
+.marketing-final-cta-art-brand { position:absolute; width:16.6%; aspect-ratio:1; left:41.05%; top:36.45%; transform:translate(-50%,-50%) rotate(7deg); border-radius:50%; background:#ff5b05; display:flex; align-items:center; justify-content:center; }
+@media(max-width:1000px) { .marketing-final-cta-panel { padding:36px; gap:20px; } .marketing-final-cta-actions { gap:16px; } }
+@media(max-width:767px) { .marketing-final-cta-section { padding:30px 0; } .marketing-final-cta-panel { grid-template-columns:1fr; padding:28px 24px; gap:18px; } .marketing-final-cta-artwork { width:100%; max-width:440px; margin:0 auto; } .marketing-final-cta-copy p { margin-top:20px; } .marketing-final-cta-actions { margin-top:24px; } }
+@media(prefers-reduced-motion:reduce) { .marketing-final-cta-section * { transition:none!important; } }

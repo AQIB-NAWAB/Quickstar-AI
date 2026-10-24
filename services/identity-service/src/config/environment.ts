@@ -9,6 +9,7 @@ export type ServiceConfig = {
   httpRateLimitWindowMs: number;
   httpRateLimitMax: number;
   httpAuthRateLimitMax: number;
+  appUrl: string;
 };
 
 export function loadServiceConfig(): ServiceConfig {
@@ -29,5 +30,6 @@ export function loadServiceConfig(): ServiceConfig {
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
     httpRateLimitMax: Number(process.env.HTTP_RATE_LIMIT_MAX ?? 120),
     httpAuthRateLimitMax: Number(process.env.HTTP_AUTH_RATE_LIMIT_MAX ?? 20),
+    appUrl: process.env.APP_URL ?? "http://localhost:3015",
   };
 }

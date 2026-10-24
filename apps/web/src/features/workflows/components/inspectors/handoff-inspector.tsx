@@ -80,22 +80,15 @@ export const HandoffInspector: React.FC<HandoffInspectorProps> = ({
         {/* Queue Selection */}
         <div className="space-y-1.5">
           <label className="font-semibold text-neutral-700">Destination Queue</label>
-          <select
-            disabled
+          <input
+            type="text"
             value={queueId}
             onChange={(e) => onUpdateConfig({ ...cfg, queue_id: e.target.value })}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs bg-white outline-none focus:ring-1 focus:ring-[#FA5D19]"
-          >
-            <option value={queueId}>{queueId || "Queue integration unavailable"}</option>
-            {QUEUES.map((q) => (
-              <option key={q.id} value={q.id}>
-                {q.name} ({q.agentsOnline} online)
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] text-amber-700">
-            Queue membership and availability are not connected. Activation is blocked for this
-            action.
+            placeholder="e.g. default, tier-1-support, or queue UUID"
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-[#FA5D19]"
+          />
+          <p className="text-[11px] text-neutral-500">
+            Leave blank to route to the workspace default operator queue.
           </p>
         </div>
 

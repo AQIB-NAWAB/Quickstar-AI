@@ -27,5 +27,7 @@ export type WorkspaceInvite = {
   tokenHash: string;
   invitedBy: string;
   expiresAt: Date;
+  acceptedAt?: Date | null;
+  acceptedBy?: string | null;
   createdAt: Date;
 };

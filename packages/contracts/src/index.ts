@@ -15,14 +15,18 @@ export {
   type WorkspaceRole,
 } from "./workspace-permissions.js";
 
-export type {
-  AgentBuiltinWebToolDefinition,
-  AgentHttpToolAuth,
-  AgentHttpToolDefinition,
-  AgentMcpToolDefinition,
-  AgentToolDefinition,
-  ToolParameterProperty,
-  ToolParameterSchema,
+export {
+  BUILTIN_INTEGRATION_ACTIONS,
+  type AgentBuiltinCalendarToolDefinition,
+  type AgentBuiltinIntegrationToolDefinition,
+  type AgentBuiltinWebToolDefinition,
+  type AgentHttpToolAuth,
+  type AgentHttpToolDefinition,
+  type AgentMcpToolDefinition,
+  type AgentToolDefinition,
+  type BuiltinIntegrationProvider,
+  type ToolParameterProperty,
+  type ToolParameterSchema,
 } from "./agent-tools.js";
 
 export type { ToolCallRecord, ToolCallStatus, UpsertToolCallBody } from "./tool-calls.js";
@@ -124,20 +128,31 @@ export {
   DEFAULT_AGENT_VOICE_SETTINGS,
   DEFAULT_VOICE_DEADLINE_MS,
   DEFAULT_VOICE_MODE,
+  PHONE_NUMBER_STATUSES,
+  PHONE_NUMBER_TYPES,
   TELEPHONY_PROVIDER_IDS,
   VOICE_MODES,
   isCallState,
   isVoiceMode,
   s2sProfileAllowed,
   type AgentVoiceSettings,
+  type AvailablePhoneNumber,
   type CallDirection,
   type CallRecord,
   type CallStageTimings,
   type CallState,
   type CallTranscriptSegment,
+  type PhoneNumberCapabilities,
+  type PhoneNumberSearchFilters,
+  type PhoneNumberSearchResult,
+  type PhoneNumberStatus,
+  type PhoneNumberType,
+  type PurchasePhoneNumberInput,
   type TelephonyProviderId,
+  type UpdatePhoneNumberInput,
   type VoiceMode,
   type VoiceTurnRequestBody,
+  type WorkspacePhoneNumber,
 } from "./voice.js";
 
 export {
@@ -249,6 +264,8 @@ export type {
   AnalyticsDailyLatencyBucket,
   AnalyticsServiceUsage,
   AnalyticsResponse,
+  MetricCoverage,
+  MetricCoverageIndicators,
 } from "./analytics.js";
 
 export {
@@ -258,8 +275,12 @@ export {
   type IntegrationCategory,
   type IntegrationStatus,
   type IntegrationCatalogItem,
+  type IntegrationConnection,
+  type ProviderCapabilities,
   type IntegrationAuthorizeResponse,
   type IntegrationsListResponse,
+  type IntegrationSyncRequest,
+  type IntegrationSyncResult,
 } from "./integrations.js";
 
 export type {
@@ -279,3 +300,41 @@ export type {
   WebhooksListResponse,
   WebhookDeliveriesListResponse,
 } from "./webhooks.js";
+
+export type {
+  BillingPlanInterval,
+  BillingPlanTier,
+  BillingSubscriptionStatus,
+  BillingPlanFeature,
+  BillingPlan,
+  BillingSubscription,
+  BillingInvoice,
+  OrganizationEntitlements,
+  BillingSummaryResponse,
+  CreateCheckoutSessionRequest,
+  CreateCheckoutSessionResponse,
+  CreateCustomerPortalSessionRequest,
+  CreateCustomerPortalSessionResponse,
+  CancelSubscriptionRequest,
+  BillingReservation,
+  AcquireReservationRequest,
+  AcquireReservationResponse,
+  CommitReservationRequest,
+  BillingCredit,
+  SpendControls,
+} from "./billing.js";
+
+export type {
+  QueuePriority,
+  HandoffStatus,
+  OperatorQueue,
+  OperatorQueueMember,
+  ConversationHandoffRecord,
+  CreateQueueRequest,
+  UpdateQueueRequest,
+  EnqueueConversationRequest,
+  ClaimConversationRequest,
+  QueuesListResponse,
+} from "./operator-queues.js";
+
+

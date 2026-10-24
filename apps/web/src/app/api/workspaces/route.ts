@@ -87,10 +87,35 @@ export async function POST(req: Request) {
     );
   }
 
+  const me = await fetchMe(token);
+  if (!me?.organizations?.length) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "No organization found to create workspace in.",
+          code: "ORGANIZATION_REQUIRED",
+        },
+      },
+      { status: 400 },
+    );
+  }
+
   let targetOrgId = body.orgId;
-  if (!targetOrgId) {
-    const me = await fetchMe(token);
-    targetOrgId = me?.organizations?.[0]?.id;
+  if (targetOrgId) {
+    const isMember = me.organizations.some((o) => o.id === targetOrgId);
+    if (!isMember) {
+      return NextResponse.json(
+        {
+          error: {
+            message: "Access denied: not a member of the specified organization",
+            code: "FORBIDDEN",
+          },
+        },
+        { status: 403 },
+      );
+    }
+  } else {
+    targetOrgId = me.organizations[0]?.id;
   }
 
   if (!targetOrgId) {

@@ -35,6 +35,18 @@ export interface IntegrationsRepository {
     workspaceId: string,
     provider: IntegrationProvider,
   ): Promise<RepositoryResult<IntegrationCatalogItem>>;
+
+  sync(
+    workspaceId: string,
+    provider: IntegrationProvider,
+    operation?: string,
+    options?: Record<string, unknown>,
+  ): Promise<RepositoryResult<{ success: boolean; recordsSynced?: number; durationMs?: number; resources?: any[] }>>;
+
+  getSyncHistory(
+    workspaceId: string,
+    provider: IntegrationProvider,
+  ): Promise<RepositoryResult<Array<{ id: string; operation: string; status: string; records_synced: number; duration_ms: number; created_at: string }>>>;
 }
 
 export class ApiIntegrationsRepository implements IntegrationsRepository {
@@ -182,6 +194,76 @@ export class ApiIntegrationsRepository implements IntegrationsRepository {
 
       return { status: "ready", data: body.integration };
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      return { status: "error", message: err instanceof Error ? err.message : "Network error" };
+    }
+  }
+
+  async sync(
+    workspaceId: string,
+    provider: IntegrationProvider,
+    operation = "manual_sync",
+    options?: Record<string, unknown>,
+  ): Promise<RepositoryResult<{ success: boolean; recordsSynced?: number; durationMs?: number; resources?: any[] }>> {
+    try {
+      const res = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/integrations/${encodeURIComponent(provider)}/sync`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operation, options }),
+        },
+      );
+
+      const body = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        recordsSynced?: number;
+        durationMs?: number;
+        resources?: any[];
+        error?: { message?: string };
+      };
+
+      if (!res.ok) {
+        return { status: "error", message: body.error?.message ?? "Sync operation failed" };
+      }
+
+      return {
+        status: "ready",
+        data: {
+          success: Boolean(body.success ?? true),
+          recordsSynced: body.recordsSynced,
+          durationMs: body.durationMs,
+          resources: body.resources,
+        },
+      };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      return { status: "error", message: err instanceof Error ? err.message : "Network error" };
+    }
+  }
+
+  async getSyncHistory(
+    workspaceId: string,
+    provider: IntegrationProvider,
+  ): Promise<RepositoryResult<Array<{ id: string; operation: string; status: string; records_synced: number; duration_ms: number; created_at: string }>>> {
+    try {
+      const res = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/integrations/${encodeURIComponent(provider)}/history`,
+        { cache: "no-store" },
+      );
+
+      const body = (await res.json().catch(() => ({}))) as {
+        history?: Array<any>;
+        error?: { message?: string };
+      };
+
+      if (!res.ok) {
+        return { status: "error", message: body.error?.message ?? "Failed to fetch sync history" };
+      }
+
+      return { status: "ready", data: body.history ?? [] };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
       return { status: "error", message: err instanceof Error ? err.message : "Network error" };
     }
   }

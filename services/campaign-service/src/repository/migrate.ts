@@ -7,6 +7,7 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../migra
 const MIGRATION_FILES = [
   "001_campaigns.sql",
   "002_campaign_scheduling_and_pacing.sql",
+  "003_campaign_attempts_and_reconciliation.sql",
 ] as const;
 
 export async function runCampaignMigrations(pool: Pool): Promise<void> {

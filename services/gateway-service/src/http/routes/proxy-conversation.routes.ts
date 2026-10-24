@@ -14,5 +14,10 @@ export const createConversationProxyRoutes: RouteModule<GatewayHttpContext> = (c
   router.post("/v1/workspaces/:workspaceId/conversations/:conversationId/messages", ...chain);
   router.get("/v1/workspaces/:workspaceId/conversations/:conversationId/messages", ...chain);
 
+  router.all("/v1/workspaces/:workspaceId/operator-queues/*", ...chain);
+  router.all("/v1/workspaces/:workspaceId/operator-queues", ...chain);
+  router.all("/v1/workspaces/:workspaceId/operator-queue-items/*", ...chain);
+  router.all("/v1/workspaces/:workspaceId/operator-queue-items", ...chain);
+
   return router;
 };

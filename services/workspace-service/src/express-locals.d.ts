@@ -7,6 +7,10 @@ declare global {
       actorUserId?: string;
       tenantContext?: TenantContext;
       memberRole?: WorkspaceRole;
+      authContext?: import("@quickstart/auth").AuthContext;
+      tokenOrgId?: string;
+      actorEmail?: string;
+      accessToken?: import("@quickstart/auth").AccessTokenClaims;
     }
   }
 }

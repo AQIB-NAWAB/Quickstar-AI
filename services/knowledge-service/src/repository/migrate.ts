@@ -9,6 +9,7 @@ const MIGRATION_FILES = [
   "001_knowledge_sources.sql",
   "002_knowledge_storage.sql",
   "003_knowledge_rich_sources.sql",
+  "004_knowledge_async_extraction.sql",
 ] as const;
 
 export async function runKnowledgeMigrations(pool: Pool): Promise<void> {

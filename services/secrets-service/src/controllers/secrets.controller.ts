@@ -67,7 +67,7 @@ export function createSecretsController(secrets: SecretsService) {
   };
 }
 
-/** Internal controller — decrypts and returns plaintext to trusted callers */
+/** Internal controller — decrypts and returns plaintext to trusted callers, and handles internal service secret management */
 export function createInternalSecretsController(secrets: SecretsService) {
   return {
     /** GET /internal/workspaces/:workspaceId/secrets/:name/value */
@@ -77,6 +77,34 @@ export function createInternalSecretsController(secrets: SecretsService) {
       const name = routeParam(req.params.name);
       const value = await secrets.revealValue(workspaceId, name);
       sendPlatformJson(res, 200, { request_id: requestId, value });
+    }) as RequestHandler,
+
+    /** POST /internal/workspaces/:workspaceId/secrets */
+    create: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const workspaceId = routeParam(req.params.workspaceId);
+      const body = req.body as { name?: string; value?: string };
+      const secret = await secrets.create(
+        workspaceId,
+        {
+          name: body.name ?? "",
+          value: body.value ?? "",
+        },
+        { actorUserId: "internal-service", requestId },
+      );
+      sendPlatformJson(res, 201, { request_id: requestId, secret });
+    }) as RequestHandler,
+
+    /** DELETE /internal/workspaces/:workspaceId/secrets/:name */
+    deleteByName: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const workspaceId = routeParam(req.params.workspaceId);
+      const name = routeParam(req.params.name);
+      await secrets.delete(workspaceId, name, {
+        actorUserId: "internal-service",
+        requestId,
+      });
+      sendPlatformJson(res, 200, { request_id: requestId, deleted: true });
     }) as RequestHandler,
   };
 }

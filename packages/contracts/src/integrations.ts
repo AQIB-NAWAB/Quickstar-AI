@@ -1,5 +1,5 @@
 /**
- * Workspace Integrations Catalog and OAuth Contracts
+ * Workspace Integrations Catalog, Connection Models, and Operation Contracts
  */
 
 export const INTEGRATION_PROVIDERS = [
@@ -36,6 +36,19 @@ export type IntegrationStatus =
   | "incomplete"
   | "error";
 
+export type ProviderCapabilities = {
+  authorizationSupport: "oauth2" | "credentials" | "api_key";
+  credentialVerification: boolean;
+  accountDiscovery: boolean;
+  refreshSupport: boolean;
+  revocationSupport: boolean;
+  supportedOperations: string[];
+  syncDirections: Array<"inbound" | "outbound" | "bidirectional">;
+  requiredScopes: string[];
+  optionalScopes?: string[];
+  rateLimitPerMinute?: number;
+};
+
 export type IntegrationCatalogItem = {
   id: IntegrationProvider;
   name: string;
@@ -44,12 +57,42 @@ export type IntegrationCatalogItem = {
   description: string;
   connectionType: "oauth" | "credentials";
   status: IntegrationStatus;
+  connectionId?: string | null;
   accountIdentifier?: string | null;
   accountEmail?: string | null;
+  accountName?: string | null;
   grantedScopes?: string[];
+  capabilities?: ProviderCapabilities;
   connectedAt?: string | null;
   updatedAt?: string | null;
+  lastVerifiedAt?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
   requiredScopes?: string[];
+  configurationRequired?: boolean;
+  configurationHelpUrl?: string;
+};
+
+export type IntegrationConnection = {
+  id: string;
+  workspaceId: string;
+  provider: IntegrationProvider;
+  status: IntegrationStatus;
+  providerAccountId?: string | null;
+  accountIdentifier?: string | null;
+  accountEmail?: string | null;
+  accountName?: string | null;
+  grantedScopes: string[];
+  secretReferenceId?: string | null;
+  tokenExpiresAt?: string | null;
+  lastVerifiedAt?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+  revision: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  disconnectedAt?: string | null;
 };
 
 export type IntegrationAuthorizeResponse = {
@@ -67,3 +110,20 @@ export type IntegrationsListResponse = {
     count: number;
   }[];
 };
+
+export type IntegrationSyncRequest = {
+  operation: "manual_sync" | "test_connection" | "discover_resources";
+  resourceType?: string;
+  options?: Record<string, unknown>;
+};
+
+export type IntegrationSyncResult = {
+  success: boolean;
+  provider: IntegrationProvider;
+  recordsSynced?: number;
+  durationMs: number;
+  message?: string;
+  resources?: Array<{ id: string; name: string; type: string; metadata?: Record<string, unknown> }>;
+  error?: { code: string; message: string };
+};
+

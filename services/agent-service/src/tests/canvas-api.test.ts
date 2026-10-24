@@ -29,9 +29,6 @@ test("canvas HTTP save, reload, stale revision, validation, publish and snapshot
   await withAgentServer(async ({ port, createToken }) => {
     const token = await createToken("00000000-0000-4000-8000-000000000001");
     const headers = {
-      "x-quickstart-auth-context": Buffer.from(
-        JSON.stringify({ tenant_id: "org", actor_id: "spoofed", roles: [], request_id: "test" }),
-      ).toString("base64url"),
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
     };

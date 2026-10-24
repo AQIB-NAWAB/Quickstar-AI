@@ -1,60 +1,791 @@
 openapi: 3.0.3
 info:
-  title: QuickStart public API (gateway)
-  version: 0.1.0
+  title: QuickStart AI Public API
+  version: 1.0.0
   description: |
-    External surface exposed by the API gateway (Slot 06).
-    Internal identity/workspace ports are not part of this contract.
+    Comprehensive Public REST & Streaming API for QuickStart AI Platform.
+    Exposed through the API Gateway for external SDKs and customer integrations.
 servers:
   - url: http://127.0.0.1:3000
     description: Local gateway
+  - url: https://api.quickstart.ai
+    description: Production gateway
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
 paths:
   /healthz:
     get:
-      summary: Gateway liveness
+      summary: Gateway health and readiness
+      tags: [System]
+      security: []
       responses:
         "200":
-          description: OK
+          description: Service is healthy
+
   /v1/register:
     post:
-      summary: Register user and organization
+      summary: Register a new user and organization
       tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, org_name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                org_name:
+                  type: string
+      responses:
+        "201":
+          description: User and organization created
+
   /v1/login:
     post:
-      summary: Login
+      summary: Authenticate with email and password
       tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: JWT token pair returned
+
   /v1/me:
     get:
-      summary: Current user
+      summary: Get current authenticated identity
       tags: [Auth]
-      security:
-        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile and organizational claims
+
   /v1/orgs/{orgId}/workspaces:
-    post:
-      summary: Create workspace
-      tags: [Workspaces]
-      security:
-        - bearerAuth: []
     get:
-      summary: List workspaces in org
+      summary: List workspaces in organization
       tags: [Workspaces]
-      security:
-        - bearerAuth: []
-  /v1/workspaces/{workspaceId}/invites:
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of workspaces
     post:
-      summary: Create workspace invite
-      tags: [Members]
-      security:
-        - bearerAuth: []
-  /v1/workspaces/{workspaceId}/members/{userId}:
+      summary: Create a new workspace
+      tags: [Workspaces]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+      responses:
+        "201":
+          description: Workspace created
+
+  /v1/workspaces/{workspaceId}/agents:
+    get:
+      summary: List agents in workspace
+      tags: [Agents]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of agents
+    post:
+      summary: Create a new conversational agent
+      tags: [Agents]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, system_prompt]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                system_prompt:
+                  type: string
+                model:
+                  type: string
+                temperature:
+                  type: number
+                voice_id:
+                  type: string
+      responses:
+        "201":
+          description: Agent created
+
+  /v1/workspaces/{workspaceId}/agents/{agentId}:
+    get:
+      summary: Get agent details
+      tags: [Agents]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Agent details
     patch:
-      summary: Update member role
-      tags: [Members]
-      security:
-        - bearerAuth: []
+      summary: Update agent configuration
+      tags: [Agents]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Agent updated
+
+  /v1/workspaces/{workspaceId}/conversations:
+    get:
+      summary: List conversations in workspace
+      tags: [Conversations]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of conversations
+    post:
+      summary: Start a new conversation
+      tags: [Conversations]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id]
+              properties:
+                agent_id:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        "201":
+          description: Conversation created
+
+  /v1/workspaces/{workspaceId}/conversations/{conversationId}/turns:
+    post:
+      summary: Send a message turn to conversation
+      tags: [Conversations]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                stream:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Agent response turn or Server-Sent Events stream
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+
+  /v1/workspaces/{workspaceId}/telephony/numbers:
+    get:
+      summary: List phone numbers bound to workspace
+      tags: [Telephony]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of phone numbers
+    post:
+      summary: Bind an E.164 phone number to an agent
+      tags: [Telephony]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, agent_id]
+              properties:
+                phone_number:
+                  type: string
+                agent_id:
+                  type: string
+                provider:
+                  type: string
+                  default: twilio
+      responses:
+        "201":
+          description: Number bound successfully
+
+  /v1/workspaces/{workspaceId}/telephony/dial:
+    post:
+      summary: Initiate an outbound voice call
+      tags: [Telephony]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation_id, to_e164]
+              properties:
+                conversation_id:
+                  type: string
+                to_e164:
+                  type: string
+                from_e164:
+                  type: string
+                agent_id:
+                  type: string
+                utterance_text:
+                  type: string
+      responses:
+        "201":
+          description: Call placed via CPaaS provider
+
+  /v1/workspaces/{workspaceId}/campaigns:
+    get:
+      summary: List outbound campaigns
+      tags: [Campaigns]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of campaigns
+    post:
+      summary: Create an outbound campaign
+      tags: [Campaigns]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, agent_id]
+              properties:
+                name:
+                  type: string
+                agent_id:
+                  type: string
+                caller_id:
+                  type: string
+                schedule:
+                  type: object
+                pacing:
+                  type: object
+                retry_policy:
+                  type: object
+      responses:
+        "201":
+          description: Campaign created
+
+  /v1/workspaces/{workspaceId}/campaigns/{campaignId}/targets:
+    post:
+      summary: Add contacts/targets to a campaign
+      tags: [Campaigns]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targets]
+              properties:
+                targets:
+                  type: array
+                  items:
+                    type: object
+                    required: [phone]
+                    properties:
+                      phone:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      timezone:
+                        type: string
+                      custom_fields:
+                        type: object
+      responses:
+        "201":
+          description: Targets imported
+
+  /v1/workspaces/{workspaceId}/workflows:
+    get:
+      summary: List workflow automation graphs
+      tags: [Workflows]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of workflows
+    post:
+      summary: Create workflow graph
+      tags: [Workflows]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, graph]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                graph:
+                  type: object
+      responses:
+        "201":
+          description: Workflow created
+
+  /v1/workspaces/{workspaceId}/integrations:
+    get:
+      summary: List integrations catalog and connected accounts
+      tags: [Integrations]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Integrations catalog and connections
+
+  /v1/workspaces/{workspaceId}/integrations/{providerId}/sync:
+    post:
+      summary: Trigger manual bidirectional sync for integration
+      tags: [Integrations]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                direction:
+                  type: string
+                  enum: [inbound, outbound, bidirectional]
+      responses:
+        "200":
+          description: Sync job enqueued
+
+  /v1/workspaces/{workspaceId}/knowledge/sources:
+    get:
+      summary: List knowledge base sources
+      tags: [Knowledge]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of knowledge sources
+    post:
+      summary: Create a knowledge source (URL, raw text, or file)
+      tags: [Knowledge]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                kind:
+                  type: string
+                  enum: [text, url, file]
+                content:
+                  type: string
+                source_url:
+                  type: string
+      responses:
+        "201":
+          description: Knowledge source created and queued for extraction
+
+  /v1/workspaces/{workspaceId}/knowledge/retrieve:
+    post:
+      summary: Semantic vector search across knowledge base
+      tags: [Knowledge]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                top_k:
+                  type: integer
+                  default: 5
+      responses:
+        "200":
+          description: Relevant chunks and relevance scores
+
+  /v1/workspaces/{workspaceId}/webhooks:
+    get:
+      summary: List webhook subscriptions
+      tags: [Webhooks]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of webhooks
+    post:
+      summary: Register webhook endpoint with HMAC secret
+      tags: [Webhooks]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Webhook registered with signing secret
+
+  /v1/workspaces/{workspaceId}/analytics:
+    get:
+      summary: Get accurate usage and latency analytics
+      tags: [Analytics]
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: timezone
+          in: query
+          schema:
+            type: string
+            default: UTC
+      responses:
+        "200":
+          description: Accurate analytics summary, daily buckets, and metric coverage
+
+  /v1/organizations/{orgId}/billing:
+    get:
+      summary: Get organization subscription and quota entitlements
+      tags: [Billing]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Billing summary, current plan, and invoices
+
+  /v1/organizations/{orgId}/billing/checkout:
+    post:
+      summary: Create Stripe checkout session
+      tags: [Billing]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id, success_url, cancel_url]
+              properties:
+                plan_id:
+                  type: string
+                interval:
+                  type: string
+                  enum: [month, year]
+                  default: month
+                success_url:
+                  type: string
+                cancel_url:
+                  type: string
+      responses:
+        "201":
+          description: Checkout session created
+
+  /v1/organizations/{orgId}/billing/portal:
+    post:
+      summary: Create Stripe customer portal session
+      tags: [Billing]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [return_url]
+              properties:
+                return_url:
+                  type: string
+      responses:
+        "200":
+          description: Customer portal URL
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Staff and operator user JWT token
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Machine-to-machine API key

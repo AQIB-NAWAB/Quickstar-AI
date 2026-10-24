@@ -5,6 +5,8 @@ import type {
   AnalyticsResponse,
   AnalyticsServiceUsage,
   AnalyticsSummary,
+  MetricCoverage,
+  MetricCoverageIndicators,
 } from "@quickstart/contracts";
 
 export type AnalyticsQueryOpts = {
@@ -26,6 +28,9 @@ export class AnalyticsRepository {
     const priorFromIso = new Date(opts.from.getTime() - durationMs).toISOString();
     const priorToIso = fromIso;
 
+    // Validate IANA timezone or default to UTC
+    const tz = opts.timezone && /^[a-zA-Z0-9_+\-/]+$/.test(opts.timezone) ? opts.timezone : "UTC";
+
     // 1. Current interval summary query
     const summaryRes = await this.pool.query<{
       total_tokens: string | null;
@@ -40,11 +45,16 @@ export class AnalyticsRepository {
       voice_units: string | null;
       voice_calls: string | null;
       acquisition_units: string | null;
+      model_with_token_detail: string | null;
+      total_model_turns: string | null;
+      turns_with_latency: string | null;
+      total_entries: string | null;
+      unpriced_count: string | null;
     }>(
       `SELECT
          COALESCE(SUM(CASE WHEN kind = 'model' THEN units ELSE 0 END), 0)::text AS total_tokens,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, units * 0.75) ELSE 0 END), 0)::text AS input_tokens,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, units * 0.25) ELSE 0 END), 0)::text AS output_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, (detail->>'prompt_tokens')::numeric, 0) ELSE 0 END), 0)::text AS input_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, (detail->>'completion_tokens')::numeric, 0) ELSE 0 END), 0)::text AS output_tokens,
          COUNT(DISTINCT COALESCE(source_id, detail->>'conversation_id', id::text))::text AS conversations,
          percentile_cont(0.5) WITHIN GROUP (ORDER BY NULLIF((detail->>'latency_ms')::numeric, 0))::text AS p50_latency_ms,
          percentile_cont(0.95) WITHIN GROUP (ORDER BY NULLIF((detail->>'latency_ms')::numeric, 0))::text AS p95_latency_ms,
@@ -52,8 +62,13 @@ export class AnalyticsRepository {
          COALESCE(SUM(CASE WHEN kind = 'voice' THEN price_micros ELSE 0 END), 0)::text AS voice_price_micros,
          COALESCE(SUM(price_micros), 0)::text AS total_price_micros,
          COALESCE(SUM(CASE WHEN kind = 'voice' THEN units ELSE 0 END), 0)::text AS voice_units,
-         COUNT(CASE WHEN kind = 'voice' THEN 1 ELSE NULL END)::text AS voice_calls,
-         COALESCE(SUM(CASE WHEN kind = 'acquisition' THEN units ELSE 0 END), 0)::text AS acquisition_units
+         COUNT(DISTINCT CASE WHEN kind = 'voice' THEN COALESCE(source_id, detail->>'call_id', id::text) ELSE NULL END)::text AS voice_calls,
+         COALESCE(SUM(CASE WHEN kind = 'acquisition' THEN units ELSE 0 END), 0)::text AS acquisition_units,
+         COUNT(CASE WHEN kind = 'model' AND (detail->>'input_tokens' IS NOT NULL OR detail->>'prompt_tokens' IS NOT NULL) THEN 1 ELSE NULL END)::text AS model_with_token_detail,
+         COUNT(CASE WHEN kind = 'model' THEN 1 ELSE NULL END)::text AS total_model_turns,
+         COUNT(CASE WHEN NULLIF((detail->>'latency_ms')::numeric, 0) IS NOT NULL THEN 1 ELSE NULL END)::text AS turns_with_latency,
+         COUNT(*)::text AS total_entries,
+         COUNT(CASE WHEN units > 0 AND price_micros = 0 THEN 1 ELSE NULL END)::text AS unpriced_count
        FROM usage_entries
        WHERE workspace_id = $1
          AND created_at >= $2
@@ -78,7 +93,7 @@ export class AnalyticsRepository {
       [workspaceId, priorFromIso, priorToIso],
     );
 
-    // 3. Daily token and latency aggregations
+    // 3. Daily token and latency aggregations in requested IANA timezone
     const dailyRes = await this.pool.query<{
       bucket_date: string;
       total_tokens: string | null;
@@ -90,24 +105,24 @@ export class AnalyticsRepository {
       turns_count: string | null;
     }>(
       `SELECT
-         to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS bucket_date,
+         to_char(created_at AT TIME ZONE $4, 'YYYY-MM-DD') AS bucket_date,
          COALESCE(SUM(CASE WHEN kind = 'model' THEN units ELSE 0 END), 0)::text AS total_tokens,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, units * 0.75) ELSE 0 END), 0)::text AS input_tokens,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, units * 0.25) ELSE 0 END), 0)::text AS output_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, (detail->>'prompt_tokens')::numeric, 0) ELSE 0 END), 0)::text AS input_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, (detail->>'completion_tokens')::numeric, 0) ELSE 0 END), 0)::text AS output_tokens,
          COALESCE(SUM(price_micros), 0)::text AS cost_micros,
          percentile_cont(0.5) WITHIN GROUP (ORDER BY NULLIF((detail->>'latency_ms')::numeric, 0))::text AS p50_latency_ms,
          percentile_cont(0.95) WITHIN GROUP (ORDER BY NULLIF((detail->>'latency_ms')::numeric, 0))::text AS p95_latency_ms,
-         COUNT(*)::text AS turns_count
+         COUNT(CASE WHEN kind = 'model' THEN 1 ELSE NULL END)::text AS turns_count
        FROM usage_entries
        WHERE workspace_id = $1
          AND created_at >= $2
          AND created_at < $3
        GROUP BY bucket_date
        ORDER BY bucket_date ASC`,
-      [workspaceId, fromIso, toIso],
+      [workspaceId, fromIso, toIso, tz],
     );
 
-    // 4. Usage breakdown by service/model
+    // 4. Usage breakdown by service/model without artificial token ratio
     const breakdownRes = await this.pool.query<{
       kind: string;
       provider: string | null;
@@ -125,8 +140,8 @@ export class AnalyticsRepository {
          model,
          unit_label,
          COALESCE(SUM(units), 0)::text AS units,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, units * 0.75) ELSE 0 END), 0)::text AS input_tokens,
-         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, units * 0.25) ELSE 0 END), 0)::text AS output_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'input_tokens')::numeric, (detail->>'prompt_tokens')::numeric, 0) ELSE 0 END), 0)::text AS input_tokens,
+         COALESCE(SUM(CASE WHEN kind = 'model' THEN COALESCE((detail->>'output_tokens')::numeric, (detail->>'completion_tokens')::numeric, 0) ELSE 0 END), 0)::text AS output_tokens,
          COALESCE(SUM(price_micros), 0)::text AS cost_micros,
          COUNT(CASE WHEN units > 0 AND price_micros = 0 THEN 1 ELSE NULL END)::text AS unpriced_count
        FROM usage_entries
@@ -173,46 +188,54 @@ export class AnalyticsRepository {
     const dailyTokens: AnalyticsDailyTokenBucket[] = [];
     const dailyLatency: AnalyticsDailyLatencyBucket[] = [];
 
-    // Iterate through calendar days from start to end
+    // Format calendar dates using requested IANA timezone
+    const dtf = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    const seenDates = new Set<string>();
     const cur = new Date(opts.from);
-    cur.setUTCHours(0, 0, 0, 0);
     const end = new Date(opts.to);
-    end.setUTCHours(0, 0, 0, 0);
 
     while (cur <= end) {
-      const dKey = cur.toISOString().slice(0, 10);
-      const row = dailyMap.get(dKey);
+      const dKey = dtf.format(cur);
+      if (!seenDates.has(dKey)) {
+        seenDates.add(dKey);
+        const row = dailyMap.get(dKey);
 
-      dailyTokens.push({
-        date: dKey,
-        input_tokens: row ? Math.round(Number(row.input_tokens)) : 0,
-        output_tokens: row ? Math.round(Number(row.output_tokens)) : 0,
-        total_tokens: row ? Math.round(Number(row.total_tokens)) : 0,
-        estimated_cost_usd: row ? Number(row.cost_micros) / 1_000_000 : 0,
-      });
+        dailyTokens.push({
+          date: dKey,
+          input_tokens: row ? Math.round(Number(row.input_tokens)) : 0,
+          output_tokens: row ? Math.round(Number(row.output_tokens)) : 0,
+          total_tokens: row ? Math.round(Number(row.total_tokens)) : 0,
+          estimated_cost_usd: row ? Number(row.cost_micros) / 1_000_000 : 0,
+        });
 
-      dailyLatency.push({
-        date: dKey,
-        p50_ms: row?.p50_latency_ms ? Math.round(Number(row.p50_latency_ms)) : null,
-        p95_ms: row?.p95_latency_ms ? Math.round(Number(row.p95_latency_ms)) : null,
-        concurrent_turns: row ? Number(row.turns_count) : 0,
-      });
-
-      cur.setUTCDate(cur.getUTCDate() + 1);
+        dailyLatency.push({
+          date: dKey,
+          p50_ms: row?.p50_latency_ms ? Math.round(Number(row.p50_latency_ms)) : null,
+          p95_ms: row?.p95_latency_ms ? Math.round(Number(row.p95_latency_ms)) : null,
+          concurrent_turns: row ? Number(row.turns_count) : 0,
+        });
+      }
+      cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
     }
 
     const usageByService: AnalyticsServiceUsage[] = breakdownRes.rows.map((r) => {
       const isVoice = r.kind === "voice";
       const isAcquisition = r.kind === "acquisition";
       let serviceName = r.model ?? r.provider ?? r.kind;
-      let unitLabel = r.unit_label ?? (isVoice ? "characters" : isAcquisition ? "units" : "tokens");
+      let unitLabel = r.unit_label ?? (isVoice ? "minutes" : isAcquisition ? "units" : "tokens");
       if (isVoice && !r.model) {
-        serviceName = "voice-synthesis";
+        serviceName = "voice-telephony";
       }
 
       return {
         service: serviceName,
-        provider: r.provider ?? (isVoice ? "ElevenLabs" : "OpenAI"),
+        provider: r.provider ?? (isVoice ? "twilio" : "openai"),
         kind: r.kind,
         units: Math.round(Number(r.units ?? 0)),
         unit_label: unitLabel,
@@ -223,12 +246,56 @@ export class AnalyticsRepository {
       };
     });
 
+    // Calculate metric coverage indicators
+    const totalModelTurns = Number(sRow?.total_model_turns ?? 0);
+    const modelWithTokenDetail = Number(sRow?.model_with_token_detail ?? 0);
+    const turnsWithLatency = Number(sRow?.turns_with_latency ?? 0);
+    const totalEntries = Number(sRow?.total_entries ?? 0);
+    const unpricedCount = Number(sRow?.unpriced_count ?? 0);
+    const voiceCallsCount = Number(sRow?.voice_calls ?? 0);
+
+    const tokenCoverage: MetricCoverage =
+      totalModelTurns === 0
+        ? "complete"
+        : modelWithTokenDetail === totalModelTurns
+          ? "complete"
+          : modelWithTokenDetail > 0
+            ? "partial"
+            : "unavailable";
+
+    const latencyCoverage: MetricCoverage =
+      totalEntries === 0
+        ? "complete"
+        : turnsWithLatency === totalEntries
+          ? "complete"
+          : turnsWithLatency > 0
+            ? "partial"
+            : "unavailable";
+
+    const spendCoverage: MetricCoverage =
+      totalEntries === 0
+        ? "complete"
+        : unpricedCount === 0
+          ? "complete"
+          : unpricedCount < totalEntries
+            ? "partial"
+            : "unavailable";
+
+    const coverage: MetricCoverageIndicators = {
+      tokens: tokenCoverage,
+      latency: latencyCoverage,
+      spend: spendCoverage,
+      conversations: "complete",
+      voice: voiceCallsCount > 0 ? "complete" : "unavailable",
+    };
+
     return {
       range: {
         from: fromIso.slice(0, 10),
         to: toIso.slice(0, 10),
-        timezone: opts.timezone ?? "UTC",
+        timezone: tz,
       },
+      coverage,
       summary,
       daily_tokens: dailyTokens,
       daily_latency: dailyLatency,
@@ -243,3 +310,4 @@ export class AnalyticsRepository {
     };
   }
 }
+

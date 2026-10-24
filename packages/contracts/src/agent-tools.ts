@@ -53,11 +53,57 @@ export type AgentMcpToolDefinition = AgentToolDefinitionBase & {
 
 export type AgentBuiltinLeadToolDefinition = AgentToolDefinitionBase & {
   type: "builtin_leads";
-  action: "start" | "status" | "results" | "cancel";
+  /**
+   * start/status/results/cancel manage lead-generation research runs.
+   * capture saves the current conversation as a qualified lead.
+   * request_callback saves a qualified lead with a callback time for the team.
+   */
+  action: "start" | "status" | "results" | "cancel" | "capture" | "request_callback";
+};
+
+/**
+ * Appointment booking through the workspace's connected Google Calendar.
+ * `check_availability` returns open slots, `book_slot` creates the event, and
+ * `cancel_event` removes it. The workspace must connect Google Calendar first.
+ */
+export type AgentBuiltinCalendarToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_calendar";
+  action: "check_availability" | "book_slot" | "cancel_event";
+  calendar_id?: string;
+  timezone?: string;
+  slot_minutes?: number;
+  working_hours?: {
+    start?: string;
+    end?: string;
+  };
+};
+
+/**
+ * Built-in actions on the workspace's connected integrations. The agent never
+ * receives provider credentials; workspace-service resolves them.
+ */
+export const BUILTIN_INTEGRATION_ACTIONS = {
+  zendesk: ["create_ticket", "get_ticket", "add_comment"],
+  slack: ["post_message"],
+  hubspot: ["create_or_update_contact"],
+  salesforce: ["create_lead"],
+  google_sheets: ["append_row"],
+  mailchimp: ["add_subscriber"],
+  twilio: ["send_sms"],
+} as const;
+
+export type BuiltinIntegrationProvider = keyof typeof BUILTIN_INTEGRATION_ACTIONS;
+
+export type AgentBuiltinIntegrationToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_integration";
+  provider: BuiltinIntegrationProvider;
+  action: (typeof BUILTIN_INTEGRATION_ACTIONS)[BuiltinIntegrationProvider][number];
 };
 
 export type AgentToolDefinition =
   | AgentBuiltinLeadToolDefinition
+  | AgentBuiltinCalendarToolDefinition
+  | AgentBuiltinIntegrationToolDefinition
   | AgentHttpToolDefinition
   | AgentBuiltinWebToolDefinition
   | AgentMcpToolDefinition;

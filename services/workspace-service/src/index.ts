@@ -15,6 +15,8 @@ import { IntegrationsRepository } from "./repository/integrations.repository.js"
 import { NotificationsRepository } from "./repository/notifications.repository.js";
 import { WebhooksRepository } from "./repository/webhooks.repository.js";
 import { createTypeOrmWorkspaceStore } from "./repository/typeorm/workspace-typeorm-store.js";
+import { createPlatformEventsConsumer } from "./events/platform-events-consumer.js";
+import { createWebhookDeliveryWorker } from "./workers/webhook-delivery.worker.js";
 import { createWorkspaceServices } from "./services/index.js";
 
 
@@ -74,10 +76,30 @@ export async function startWorkspaceServer(): Promise<{
     const httpServer = app.listen(config.port, "0.0.0.0", () => resolve(httpServer));
   });
 
-  logger.info("listening", { port: config.port, service: SERVICE_NAME });
+  const platformEventsConsumer = createPlatformEventsConsumer({
+    brokers: config.kafkaBrokers,
+    groupId: "quickstart-workspace-webhooks",
+    webhooksRepo,
+    logger,
+  });
+  try {
+    await platformEventsConsumer.start();
+  } catch (err) {
+    logger.warn("webhooks.consumer.failed_to_start", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  const webhookDeliveryWorker = createWebhookDeliveryWorker({
+    webhooksRepo,
+    logger,
+  });
+  webhookDeliveryWorker.start();
 
   const shutdown = async () => {
     logger.info("shutdown", { service: SERVICE_NAME });
+    await webhookDeliveryWorker.stop();
+    await platformEventsConsumer.stop();
     await new Promise<void>((resolve, reject) => {
       server.close((err?: Error) => (err ? reject(err) : resolve()));
     });

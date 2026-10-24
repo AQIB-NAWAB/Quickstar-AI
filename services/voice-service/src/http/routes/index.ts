@@ -4,6 +4,7 @@ import { createHealthRoutes } from "./health.routes.js";
 import { createCallsRoutes } from "./calls.routes.js";
 import { createInternalRoutes } from "./internal.routes.js";
 import { createCampaignsRoutes } from "./campaigns.routes.js";
+import { createPhoneNumbersRoutes } from "./phone-numbers.routes.js";
 import { createTelephonyPublicRoutes } from "./telephony.routes.js";
 import { createWidgetLiveStaffRoutes } from "./widget-live-staff.routes.js";
 import { createVoiceCatalogRoutes } from "./voice-catalog.routes.js";
@@ -13,6 +14,7 @@ const voiceRouteModules = [
   createCallsRoutes,
   createCampaignsRoutes,
   createInternalRoutes,
+  createPhoneNumbersRoutes,
   createTelephonyPublicRoutes,
   createWidgetLiveStaffRoutes,
   createVoiceCatalogRoutes,

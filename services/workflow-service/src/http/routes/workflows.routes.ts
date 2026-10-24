@@ -139,6 +139,18 @@ export const createWorkflowsRoutes: RouteModule<WorkflowHttpContext> = (ctx) => 
     edit,
     asyncHandler(ctrl.cancelRun),
   );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/:workflowId/runs/:runId/replay",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.replayRun),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/workflows/recover-abandoned",
+    ...chain,
+    edit,
+    asyncHandler(ctrl.recoverRuns),
+  );
 
   return router;
 };

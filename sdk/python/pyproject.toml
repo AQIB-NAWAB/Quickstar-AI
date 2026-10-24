@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quickstart-ai"
+version = "1.0.0"
+description = "Official Python SDK for QuickStart AI Platform"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "QuickStart AI", email = "engineering@quickstart.ai" }
+]
+keywords = ["ai", "agents", "conversations", "telephony", "sdk", "quickstart"]
+dependencies = [
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["quickstart_ai"]

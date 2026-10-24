@@ -34,6 +34,11 @@ export async function startWorkflowServer(): Promise<{
     logger,
     allowHttpWebhooks: config.webhookAllowHttp,
     webhookTimeoutMs: config.webhookTimeoutMs,
+    workspaceUrl: config.workspaceUrl,
+    conversationUrl: config.conversationUrl,
+    secretsUrl: config.secretsUrl,
+    leadUrl: config.leadUrl,
+    internalToken: config.internalToken,
   });
 
   const redisClient = createRedisClient(config.redisUrl);

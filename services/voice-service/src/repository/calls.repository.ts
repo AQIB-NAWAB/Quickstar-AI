@@ -29,6 +29,16 @@ export type VoiceCallRow = {
   caller_recording_offset_ms?: number;
   started_at: Date;
   ended_at: Date | null;
+  provider_call_sid?: string | null;
+  stream_sid?: string | null;
+  recording_url?: string | null;
+  duration_seconds?: number | null;
+  amd_status?: string | null;
+  hangup_cause?: string | null;
+  livekit_room_name?: string | null;
+  livekit_participant_sid?: string | null;
+  phone_number_id?: string | null;
+  sip_call_id?: string | null;
 };
 
 export type CreateCallInput = {
@@ -37,11 +47,16 @@ export type CreateCallInput = {
   agentId?: string | null;
   agentVersionId?: string | null;
   direction: CallDirection;
-  voiceMode: VoiceMode;
+  voiceMode?: VoiceMode;
   telephonyProvider: TelephonyProviderId | string;
   caller?: string | null;
   callee?: string | null;
   id?: string;
+  providerCallSid?: string | null;
+  streamSid?: string | null;
+  livekitRoomName?: string | null;
+  phoneNumberId?: string | null;
+  sipCallId?: string | null;
 };
 
 export type VoiceInboundSummary = {
@@ -70,6 +85,7 @@ export interface CallsRepository {
       conversationId: string | null;
       agentId: string | null;
       agentVersionId: string | null;
+      caller: string | null;
       failureCode: string | null;
       timeToFirstAudioMs: number | null;
       recordingObjectKey: string | null;
@@ -78,9 +94,20 @@ export interface CallsRepository {
       stereoAvailable: boolean;
       disconnectReason: string | null;
       endedAt: Date | null;
+      providerCallSid?: string | null;
+      streamSid?: string | null;
+      recordingUrl?: string | null;
+      durationSeconds?: number | null;
+      amdStatus?: string | null;
+      hangupCause?: string | null;
+      livekitRoomName?: string | null;
+      livekitParticipantSid?: string | null;
+      phoneNumberId?: string | null;
+      sipCallId?: string | null;
     }>,
   ): Promise<VoiceCallRow | null>;
   get(workspaceId: string, callId: string): Promise<VoiceCallRow | null>;
+  findByLivekitRoom(roomName: string): Promise<VoiceCallRow | null>;
   list(
     workspaceId: string,
     opts: {
@@ -121,8 +148,9 @@ export class PgCallsRepository implements CallsRepository {
     const { rows } = await this.pool.query<VoiceCallRow>(
       `INSERT INTO voice_calls (
         id, workspace_id, conversation_id, agent_id, agent_version_id,
-        direction, state, voice_mode, telephony_provider, caller, callee
-      ) VALUES ($1,$2,$3,$4,$5,$6,'ringing',$7,$8,$9,$10)
+        direction, state, voice_mode, telephony_provider, caller, callee,
+        provider_call_sid, stream_sid, livekit_room_name, phone_number_id, sip_call_id
+      ) VALUES ($1,$2,$3,$4,$5,$6,'ringing',$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *`,
       [
         id,
@@ -131,10 +159,15 @@ export class PgCallsRepository implements CallsRepository {
         input.agentId ?? null,
         input.agentVersionId ?? null,
         input.direction,
-        input.voiceMode,
+        input.voiceMode ?? "cascade",
         input.telephonyProvider,
         input.caller ?? null,
         input.callee ?? null,
+        input.providerCallSid ?? null,
+        input.streamSid ?? null,
+        input.livekitRoomName ?? null,
+        input.phoneNumberId ?? null,
+        input.sipCallId ?? null,
       ],
     );
     return rows[0];
@@ -148,10 +181,21 @@ export class PgCallsRepository implements CallsRepository {
       conversationId: string | null;
       agentId: string | null;
       agentVersionId: string | null;
+      caller: string | null;
       failureCode: string | null;
       timeToFirstAudioMs: number | null;
       recordingObjectKey: string | null;
       endedAt: Date | null;
+      providerCallSid?: string | null;
+      streamSid?: string | null;
+      recordingUrl?: string | null;
+      durationSeconds?: number | null;
+      amdStatus?: string | null;
+      hangupCause?: string | null;
+      livekitRoomName?: string | null;
+      livekitParticipantSid?: string | null;
+      phoneNumberId?: string | null;
+      sipCallId?: string | null;
     }>,
   ): Promise<VoiceCallRow | null> {
     const { rows } = await this.pool.query<VoiceCallRow>(
@@ -164,6 +208,17 @@ export class PgCallsRepository implements CallsRepository {
         time_to_first_audio_ms = COALESCE($8, time_to_first_audio_ms),
         recording_object_key = COALESCE($9, recording_object_key),
         ended_at = COALESCE($10, ended_at),
+        provider_call_sid = COALESCE($11, provider_call_sid),
+        stream_sid = COALESCE($12, stream_sid),
+        recording_url = COALESCE($13, recording_url),
+        duration_seconds = COALESCE($14, duration_seconds),
+        amd_status = COALESCE($15, amd_status),
+        hangup_cause = COALESCE($16, hangup_cause),
+        livekit_room_name = COALESCE($17, livekit_room_name),
+        livekit_participant_sid = COALESCE($18, livekit_participant_sid),
+        phone_number_id = COALESCE($19, phone_number_id),
+        sip_call_id = COALESCE($20, sip_call_id),
+        caller = COALESCE($21, caller),
         updated_at = NOW()
       WHERE workspace_id = $1 AND id = $2
       RETURNING *`,
@@ -178,6 +233,17 @@ export class PgCallsRepository implements CallsRepository {
         patch.timeToFirstAudioMs === undefined ? null : patch.timeToFirstAudioMs,
         patch.recordingObjectKey === undefined ? null : patch.recordingObjectKey,
         patch.endedAt === undefined ? null : patch.endedAt,
+        patch.providerCallSid === undefined ? null : patch.providerCallSid,
+        patch.streamSid === undefined ? null : patch.streamSid,
+        patch.recordingUrl === undefined ? null : patch.recordingUrl,
+        patch.durationSeconds === undefined ? null : patch.durationSeconds,
+        patch.amdStatus === undefined ? null : patch.amdStatus,
+        patch.hangupCause === undefined ? null : patch.hangupCause,
+        patch.livekitRoomName === undefined ? null : patch.livekitRoomName,
+        patch.livekitParticipantSid === undefined ? null : patch.livekitParticipantSid,
+        patch.phoneNumberId === undefined ? null : patch.phoneNumberId,
+        patch.sipCallId === undefined ? null : patch.sipCallId,
+        patch.caller === undefined ? null : patch.caller,
       ],
     );
     return rows[0] ?? null;
@@ -187,6 +253,17 @@ export class PgCallsRepository implements CallsRepository {
     const { rows } = await this.pool.query<VoiceCallRow>(
       `SELECT * FROM voice_calls WHERE workspace_id = $1 AND id = $2`,
       [workspaceId, callId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async findByLivekitRoom(roomName: string): Promise<VoiceCallRow | null> {
+    const { rows } = await this.pool.query<VoiceCallRow>(
+      `SELECT * FROM voice_calls
+       WHERE livekit_room_name = $1
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [roomName],
     );
     return rows[0] ?? null;
   }
@@ -424,7 +501,7 @@ export class MemoryCallsRepository implements CallsRepository {
       agent_version_id: input.agentVersionId ?? null,
       direction: input.direction,
       state: "ringing",
-      voice_mode: input.voiceMode,
+      voice_mode: input.voiceMode ?? "cascade",
       telephony_provider: input.telephonyProvider,
       caller: input.caller ?? null,
       callee: input.callee ?? null,
@@ -433,6 +510,9 @@ export class MemoryCallsRepository implements CallsRepository {
       recording_object_key: null,
       started_at: new Date(),
       ended_at: null,
+      livekit_room_name: input.livekitRoomName ?? null,
+      phone_number_id: input.phoneNumberId ?? null,
+      sip_call_id: input.sipCallId ?? null,
     };
     this.calls.set(row.id, row);
     return { ...row };
@@ -446,10 +526,21 @@ export class MemoryCallsRepository implements CallsRepository {
       conversationId: string | null;
       agentId: string | null;
       agentVersionId: string | null;
+      caller: string | null;
       failureCode: string | null;
       timeToFirstAudioMs: number | null;
       recordingObjectKey: string | null;
       endedAt: Date | null;
+      providerCallSid?: string | null;
+      streamSid?: string | null;
+      recordingUrl?: string | null;
+      durationSeconds?: number | null;
+      amdStatus?: string | null;
+      hangupCause?: string | null;
+      livekitRoomName?: string | null;
+      livekitParticipantSid?: string | null;
+      phoneNumberId?: string | null;
+      sipCallId?: string | null;
     }>,
   ): Promise<VoiceCallRow | null> {
     const row = this.calls.get(callId);
@@ -458,10 +549,23 @@ export class MemoryCallsRepository implements CallsRepository {
     if (patch.conversationId !== undefined) row.conversation_id = patch.conversationId;
     if (patch.agentId !== undefined) row.agent_id = patch.agentId;
     if (patch.agentVersionId !== undefined) row.agent_version_id = patch.agentVersionId;
+    if (patch.caller !== undefined) row.caller = patch.caller;
     if (patch.failureCode !== undefined) row.failure_code = patch.failureCode;
     if (patch.timeToFirstAudioMs !== undefined) row.time_to_first_audio_ms = patch.timeToFirstAudioMs;
     if (patch.recordingObjectKey !== undefined) row.recording_object_key = patch.recordingObjectKey;
     if (patch.endedAt !== undefined) row.ended_at = patch.endedAt;
+    if (patch.providerCallSid !== undefined) row.provider_call_sid = patch.providerCallSid;
+    if (patch.streamSid !== undefined) row.stream_sid = patch.streamSid;
+    if (patch.recordingUrl !== undefined) row.recording_url = patch.recordingUrl;
+    if (patch.durationSeconds !== undefined) row.duration_seconds = patch.durationSeconds;
+    if (patch.amdStatus !== undefined) row.amd_status = patch.amdStatus;
+    if (patch.hangupCause !== undefined) row.hangup_cause = patch.hangupCause;
+    if (patch.livekitRoomName !== undefined) row.livekit_room_name = patch.livekitRoomName;
+    if (patch.livekitParticipantSid !== undefined) {
+      row.livekit_participant_sid = patch.livekitParticipantSid;
+    }
+    if (patch.phoneNumberId !== undefined) row.phone_number_id = patch.phoneNumberId;
+    if (patch.sipCallId !== undefined) row.sip_call_id = patch.sipCallId;
     return { ...row };
   }
 
@@ -469,6 +573,11 @@ export class MemoryCallsRepository implements CallsRepository {
     const row = this.calls.get(callId);
     if (!row || row.workspace_id !== workspaceId) return null;
     return { ...row };
+  }
+
+  async findByLivekitRoom(roomName: string): Promise<VoiceCallRow | null> {
+    const row = [...this.calls.values()].find((call) => call.livekit_room_name === roomName);
+    return row ? { ...row } : null;
   }
 
   async list(

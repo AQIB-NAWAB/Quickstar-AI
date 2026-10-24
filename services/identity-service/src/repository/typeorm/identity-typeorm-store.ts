@@ -6,6 +6,7 @@ import { OrgMembershipEntity } from "../entities/org-membership.entity.js";
 import { OrganizationEntity } from "../entities/organization.entity.js";
 import { RefreshTokenEntity } from "../entities/refresh-token.entity.js";
 import { UserEntity } from "../entities/user.entity.js";
+import { PasswordResetEntity } from "../entities/password-reset.entity.js";
 import type { IdentityStore } from "../types.js";
 import {
   toApiKeyRecord,
@@ -13,6 +14,7 @@ import {
   toOrganizationRecord,
   toRefreshTokenRecord,
   toUserRecord,
+  toPasswordResetRecord,
 } from "./mappers.js";
 
 export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStore {
@@ -70,6 +72,29 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
       const entity = await dataSource.manager.findOne(OrganizationEntity, {
         where: { id: orgId },
       });
+      return entity ? toOrganizationRecord(entity) : null;
+    },
+
+    async createOrganization(input) {
+      return dataSource.transaction(async (manager) => {
+        const orgEntity = manager.create(OrganizationEntity, {
+          id: input.orgId,
+          name: input.name,
+        });
+        await manager.save(orgEntity);
+        const memEntity = manager.create(OrgMembershipEntity, {
+          orgId: input.orgId,
+          userId: input.userId,
+          role: "owner",
+        });
+        await manager.save(memEntity);
+        return toOrganizationRecord(orgEntity);
+      });
+    },
+
+    async updateOrganization(orgId, name) {
+      await dataSource.manager.update(OrganizationEntity, { id: orgId }, { name });
+      const entity = await dataSource.manager.findOne(OrganizationEntity, { where: { id: orgId } });
       return entity ? toOrganizationRecord(entity) : null;
     },
 
@@ -136,6 +161,53 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
       await dataSource.manager.update(RefreshTokenEntity, { sessionId }, { revokedAt: new Date() });
     },
 
+    async revokeAllUserTokens(userId) {
+      await dataSource.manager.update(RefreshTokenEntity, { userId }, { revokedAt: new Date() });
+    },
+
+    async createPasswordReset(record) {
+      await dataSource.manager.save(PasswordResetEntity, {
+        id: record.id,
+        userId: record.userId,
+        tokenHash: record.tokenHash,
+        expiresAt: record.expiresAt,
+        usedAt: null,
+      });
+    },
+
+    async findPasswordResetByHash(tokenHash) {
+      const entity = await dataSource.manager.findOne(PasswordResetEntity, {
+        where: { tokenHash },
+      });
+      return entity ? toPasswordResetRecord(entity) : null;
+    },
+
+    async consumePasswordReset(tokenHash, newPasswordHash) {
+      return await dataSource.transaction(async (manager) => {
+        const reset = await manager.findOne(PasswordResetEntity, {
+          where: { tokenHash },
+          lock: { mode: "pessimistic_write" },
+        });
+
+        if (!reset || reset.usedAt || reset.expiresAt.getTime() < Date.now()) {
+          return { success: false };
+        }
+
+        reset.usedAt = new Date();
+        await manager.save(reset);
+
+        await manager.update(UserEntity, { id: reset.userId }, {
+          passwordHash: newPasswordHash,
+        });
+
+        await manager.update(RefreshTokenEntity, { userId: reset.userId }, {
+          revokedAt: new Date(),
+        });
+
+        return { success: true, userId: reset.userId };
+      });
+    },
+
     async createApiKey(record, audit) {
       await dataSource.transaction(async (manager) => {
         await manager.save(ApiKeyEntity, {
@@ -170,6 +242,13 @@ export function createTypeOrmIdentityStore(dataSource: DataSource): IdentityStor
         order: { createdAt: "DESC" },
       });
       return entities.map(toApiKeyRecord);
+    },
+
+    async findApiKeyByPrefix(keyPrefix) {
+      const entity = await dataSource.manager.findOne(ApiKeyEntity, {
+        where: { keyPrefix, revokedAt: IsNull() },
+      });
+      return entity ? toApiKeyRecord(entity) : null;
     },
 
     async revokeApiKey(orgId, keyId, audit) {

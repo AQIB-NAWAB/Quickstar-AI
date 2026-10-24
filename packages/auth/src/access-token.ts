@@ -4,6 +4,7 @@ export type AccessTokenClaims = {
   sub: string;
   org_id: string;
   sid: string;
+  email?: string;
 };
 
 export type AccessTokenVerifyResult = AccessTokenClaims & {
@@ -38,6 +39,7 @@ export async function verifyAccessToken(
   const sub = payload.sub;
   const org_id = payload.org_id;
   const sid = payload.sid;
+  const email = typeof payload.email === "string" ? payload.email : undefined;
 
   if (typeof sub !== "string" || typeof org_id !== "string" || typeof sid !== "string") {
     throw new Error("invalid access token claims");
@@ -47,6 +49,7 @@ export async function verifyAccessToken(
     sub,
     org_id,
     sid,
+    email,
     exp: typeof payload.exp === "number" ? payload.exp : 0,
     iat: typeof payload.iat === "number" ? payload.iat : 0,
   };

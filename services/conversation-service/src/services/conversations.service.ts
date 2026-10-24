@@ -220,4 +220,19 @@ export class ConversationsService {
     }
     return this.store.listToolCalls(workspaceId, conversationId, key);
   }
+
+  async updateTags(
+    workspaceId: string,
+    conversationId: string,
+    tags: string[],
+    mode: "add" | "remove" | "replace" = "add",
+  ): Promise<string[]> {
+    if (!workspaceId?.trim() || !conversationId?.trim()) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "workspaceId and conversationId are required",
+      });
+    }
+    return this.store.updateTags(workspaceId, conversationId, tags, mode);
+  }
 }
