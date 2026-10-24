@@ -26,7 +26,7 @@ export function DevelopersSection() {
 
   return (
     <section
-     
+
       id="developers"
       aria-labelledby="developers-heading"
       className="marketing-developers-section"

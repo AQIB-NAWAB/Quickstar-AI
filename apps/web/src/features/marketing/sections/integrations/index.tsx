@@ -43,7 +43,7 @@ export function IntegrationsSection() {
 
   return (
     <section
-     
+
       id="integrations"
       aria-labelledby="integrations-heading"
       className="marketing-integrations-section"

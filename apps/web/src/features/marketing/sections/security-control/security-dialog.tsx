@@ -274,7 +274,7 @@ export function SecurityDialog({
                       <h4 className="marketing-security-fact-title">{fact.title}</h4>
                     </div>
                     <p className="marketing-security-fact-detail">{fact.detail}</p>
-                    
+
                   </div>
                 ))}
               </div>

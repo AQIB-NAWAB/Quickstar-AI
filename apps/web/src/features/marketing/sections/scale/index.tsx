@@ -10,7 +10,7 @@ export function ScaleSection() {
 
   return (
     <section
-     
+
       id="scale"
       aria-labelledby="scale-heading"
       className="marketing-scale-section"
