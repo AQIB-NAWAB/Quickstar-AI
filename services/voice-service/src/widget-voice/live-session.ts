@@ -4,9 +4,23 @@ import type { Logger } from "@quickstart/logging";
 import type { AudioChunk, TextToSpeech } from "../speech/types.js";
 import { textForSpeech } from "../services/widget-voice.service.js";
 import { streamWidgetTurn } from "../clients/runtime-widget-stream.js";
-import { BARGE_IN_ENERGY, eagerCommitDelayMs, frameEnergy } from "../turn-detection/eager-commit.js";
+import { eagerCommitDelayMs, frameEnergy } from "../turn-detection/eager-commit.js";
+import {
+  BargeInDetector,
+  NoiseFloorTracker,
+  PRE_READY_FRAME_LIMIT,
+  SPEECH_ENERGY_THRESHOLD,
+  SPEECH_TAIL_SILENCE_MS,
+  firstSpeakableCut,
+  isFillerOnly,
+  speechTailDelayMs,
+} from "../turn-detection/live-turn-policy.js";
 
 const TOOL_NUDGE = "Let me check that for you.";
+const DEFAULT_SPOKEN_FALLBACK = "Sorry, I am having trouble right now. Please try again.";
+const DEFAULT_TURN_TIMEOUT_MS = 20_000;
+/** Wait briefly before speaking the tool acknowledgement so fast tools stay silent. */
+const TOOL_NUDGE_DELAY_MS = 250;
 const toolNudgeCache = new WeakMap<TextToSpeech, Map<string, Promise<AudioChunk[]>>>();
 
 function prewarmToolNudge(tts: TextToSpeech, voiceId: string): Promise<AudioChunk[]> {
@@ -36,13 +50,6 @@ function prewarmToolNudge(tts: TextToSpeech, voiceId: string): Promise<AudioChun
 }
 
 /** Speak the first clause as soon as it exists so TTS overlaps the rest of the reply. */
-function firstSpeakableCut(pending: string): number {
-  const punct = pending.search(/[.!?،۔؟]/);
-  if (punct >= 4) return punct + 1;
-  const words = pending.trim().split(/\s+/);
-  if (words.length >= 3 && pending.endsWith(" ")) return pending.length;
-  return 0;
-}
 
 export type VoiceLiveEvent =
   | { type: "ready" }
@@ -74,7 +81,16 @@ export class WidgetVoiceLiveSession {
   private openInterim = "";
   private commitTimer: ReturnType<typeof setTimeout> | null = null;
   private turnAbort: AbortController | null = null;
-  private bargeFrames = 0;
+  private turnDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+  private nudgeTimer: ReturnType<typeof setTimeout> | null = null;
+  private bargeDetector = new BargeInDetector();
+  private noiseFloor = new NoiseFloorTracker();
+  private lastVoiceAt = 0;
+  private preReadyFrames: Buffer[] = [];
+  private turnStartedAt = 0;
+  private firstTokenAt = 0;
+  private firstAudioAt = 0;
+  private nudgeSpoken = false;
   private resolvedVoiceId = "uplift:v_8eelc901";
   private replyLanguage = "en";
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
@@ -93,6 +109,14 @@ export class WidgetVoiceLiveSession {
       tts: TextToSpeech;
       ttsVoiceId: Promise<string>;
       replyLanguage: Promise<string>;
+      /** Overall wall-clock budget for one caller turn. */
+      turnTimeoutMs?: number;
+      /** Deepgram endpointing window; lower is faster but more eager. */
+      endpointingMs?: number;
+      /** Silence required after the last caller voice frame before commit. */
+      speechTailMs?: number;
+      /** Spoken when the turn times out. */
+      spokenFallback?: string;
       onTransferSpoken?: () => void;
       logger: Logger;
     },
@@ -114,30 +138,39 @@ export class WidgetVoiceLiveSession {
   }
 
   async start(): Promise<void> {
-    const [replyLanguage, voiceId] = await Promise.all([
+    // Open STT immediately. The agent brief (conversation/agent/knowledge) is
+    // fetched in parallel so its HTTP hops never delay the first caller words.
+    this.openDeepgram();
+    void Promise.all([
       this.input.replyLanguage.catch(() => "en"),
       this.input.ttsVoiceId.catch(() => this.resolvedVoiceId),
-    ]);
-    this.replyLanguage = replyLanguage;
-    if (voiceId) this.resolvedVoiceId = voiceId;
-    if (!replyLanguage.toLowerCase().startsWith("ur")) {
-      void prewarmToolNudge(this.input.tts, this.resolvedVoiceId).then(
-        () =>
-          this.input.logger.info("widget.voice.tool_nudge_ready", {
-            voice_id: this.resolvedVoiceId,
-          }),
-        (err) =>
-          this.input.logger.warn("widget.voice.tool_nudge_prewarm_failed", {
-            message: err instanceof Error ? err.message : "TTS prewarm failed",
-          }),
-      );
-    }
-    this.openDeepgram();
+    ]).then(([replyLanguage, voiceId]) => {
+      if (this.closed) return;
+      this.replyLanguage = replyLanguage;
+      if (voiceId) this.resolvedVoiceId = voiceId;
+      this.input.logger.info("widget.voice.brief_ready", {
+        language: replyLanguage,
+        voice_id: this.resolvedVoiceId,
+        stt_ready: this.ready,
+      });
+      if (!replyLanguage.toLowerCase().startsWith("ur")) {
+        void prewarmToolNudge(this.input.tts, this.resolvedVoiceId).then(
+          () =>
+            this.input.logger.info("widget.voice.tool_nudge_ready", {
+              voice_id: this.resolvedVoiceId,
+            }),
+          (err) =>
+            this.input.logger.warn("widget.voice.tool_nudge_prewarm_failed", {
+              message: err instanceof Error ? err.message : "TTS prewarm failed",
+            }),
+        );
+      }
+    });
   }
 
   private openDeepgram(): void {
     if (this.closed) return;
-    const configuredModel = this.input.deepgramModel || "nova-2";
+    const configuredModel = this.input.deepgramModel || "nova-3";
     const model = configuredModel;
     const params = new URLSearchParams({
       model,
@@ -148,7 +181,9 @@ export class WidgetVoiceLiveSession {
       punctuate: "true",
       smart_format: "true",
       language: "en",
-      endpointing: "200",
+      // Aggressive endpointing lowers dead air; the local speech-tail guard in
+      // scheduleCommit prevents cutting off a caller who is still talking.
+      endpointing: String(this.input.endpointingMs ?? 100),
       // Deepgram rejects values below its configured step size; 1000 ms is
       // the minimum supported value for this streaming configuration.
       utterance_end_ms: "1000",
@@ -169,6 +204,7 @@ export class WidgetVoiceLiveSession {
       }
       this.ready = true;
       this.emit({ type: "ready" });
+      this.flushPreReadyFrames();
       if (!this.keepAliveTimer) {
         this.keepAliveTimer = setInterval(() => {
           if (this.closed || !this.dgSocket || this.dgSocket.readyState !== WebSocket.OPEN) return;
@@ -191,7 +227,19 @@ export class WidgetVoiceLiveSession {
         return;
       }
       if (msg.type === "UtteranceEnd") {
-        if (!this.commitTimer) this.scheduleCommit(eagerCommitDelayMs(this.currentUtterance()));
+        if (!this.commitTimer) {
+          const text = this.currentUtterance();
+          this.scheduleCommit(
+            Math.max(
+              eagerCommitDelayMs(text),
+              speechTailDelayMs(
+                this.lastVoiceAt,
+                Date.now(),
+                this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
+              ),
+            ),
+          );
+        }
         return;
       }
       const transcript = msg.channel?.alternatives?.[0]?.transcript?.trim() ?? "";
@@ -209,7 +257,19 @@ export class WidgetVoiceLiveSession {
         interim: true,
       });
       if (msg.speech_final) {
-        this.scheduleCommit(40);
+        // Do not hard-commit at 40 ms: an open-ended phrase ("...and", "..."),
+        // a short utterance, or a still-active speech tail should wait longer.
+        this.scheduleCommit(
+          Math.max(
+            40,
+            eagerCommitDelayMs(this.currentUtterance()),
+            speechTailDelayMs(
+              this.lastVoiceAt,
+              Date.now(),
+              this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
+            ),
+          ),
+        );
       }
     });
 
@@ -334,6 +394,9 @@ export class WidgetVoiceLiveSession {
   }
 
   private emitAudio(audio: AudioChunk): void {
+    if (!this.firstAudioAt && this.turnStartedAt) {
+      this.firstAudioAt = Date.now();
+    }
     const pcm = audio.encoding === "pcm16";
     this.emit({
       type: "audio",
@@ -348,23 +411,55 @@ export class WidgetVoiceLiveSession {
     const level = frameEnergy(int16);
     this.emit({ type: "level", value: level });
     if (this.held) return;
-    if (!this.dgSocket || this.dgSocket.readyState !== WebSocket.OPEN) return;
-    if (this.processingTurn) {
-      if (level >= BARGE_IN_ENERGY) {
-        this.bargeFrames += 1;
-        if (this.bargeFrames >= 3) this.bargeIn();
-      } else {
-        this.bargeFrames = 0;
-      }
+
+    if (level >= SPEECH_ENERGY_THRESHOLD) {
+      this.lastVoiceAt = Date.now();
+    } else {
+      this.noiseFloor.update(level);
     }
-    this.dgSocket.send(int16);
+
+    if (this.processingTurn && this.bargeDetector.push(level, this.noiseFloor.value)) {
+      this.bargeIn(level);
+    }
+
+    const socket = this.dgSocket;
+    if (!this.ready || !socket || socket.readyState !== WebSocket.OPEN) {
+      if (this.preReadyFrames.length >= PRE_READY_FRAME_LIMIT) this.preReadyFrames.shift();
+      this.preReadyFrames.push(Buffer.from(int16));
+      return;
+    }
+    socket.send(int16);
   }
 
-  private bargeIn(): void {
-    this.bargeFrames = 0;
+  private flushPreReadyFrames(): void {
+    const socket = this.dgSocket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const frames = this.preReadyFrames;
+    this.preReadyFrames = [];
+    for (const frame of frames) socket.send(frame);
+    if (frames.length > 0) {
+      this.input.logger.info("widget.voice.stt_prebuffer_flushed", {
+        frames: frames.length,
+        buffered_ms: frames.length * 20,
+      });
+    }
+  }
+
+  private bargeIn(level: number): void {
+    this.bargeDetector.reset();
+    this.clearTurnTimers();
     this.turnAbort?.abort();
     this.turnAbort = null;
     this.processingTurn = false;
+    // A caller repeating the same words after interrupting must not be
+    // suppressed by the duplicate-transcript guard.
+    this.lastProcessedText = "";
+    this.lastProcessedAt = 0;
+    this.input.logger.info("widget.voice.barge_in", {
+      level: Number(level.toFixed(3)),
+      noise_floor: Number(this.noiseFloor.value.toFixed(3)),
+      turn_elapsed_ms: this.turnStartedAt ? Date.now() - this.turnStartedAt : null,
+    });
     this.emit({ type: "interrupt" });
   }
 
@@ -394,24 +489,52 @@ export class WidgetVoiceLiveSession {
     this.utteranceParts = [];
     this.openInterim = "";
     if (!text || this.processingTurn || this.closed || this.held) return;
-    if (/^(um+|uh+|hmm+|ah+|er+|mm+)$/i.test(text)) return;
+    if (isFillerOnly(text)) return;
     const now = Date.now();
-    if (text === this.lastProcessedText && now - this.lastProcessedAt < 1_500) return;
+    // Only suppress the exact same final transcript arriving twice from STT,
+    // not a caller who deliberately repeats an answer after a barge-in.
+    if (text === this.lastProcessedText && now - this.lastProcessedAt < 800) return;
     if (text.length < 2) return;
     this.processingTurn = true;
-    this.bargeFrames = 0;
+    this.bargeDetector.reset();
     this.lastProcessedText = text;
     this.lastProcessedAt = now;
+    this.turnStartedAt = now;
+    this.firstTokenAt = 0;
+    this.firstAudioAt = 0;
+    this.nudgeSpoken = false;
     const turnAbort = new AbortController();
     this.turnAbort = turnAbort;
     const requestId = randomUUID();
     const idempotencyKey = randomUUID();
-    const turnStartedAt = Date.now();
-    let firstTokenLogged = false;
+    const turnTimeoutMs =
+      this.input.turnTimeoutMs && this.input.turnTimeoutMs > 0
+        ? this.input.turnTimeoutMs
+        : DEFAULT_TURN_TIMEOUT_MS;
+    let timedOut = false;
     let assistantBuffer = "";
 
     this.emit({ type: "transcript", text, interim: false });
     this.emit({ type: "thinking" });
+
+    // Bound the entire turn (tool loop + model + streaming), not just the
+    // HTTP connect. A hung runtime must not leave the caller in silence.
+    this.turnDeadlineTimer = setTimeout(() => {
+      if (this.turnAbort !== turnAbort) return;
+      timedOut = true;
+      this.input.logger.warn("widget.voice.turn_timeout", {
+        request_id: requestId,
+        timeout_ms: turnTimeoutMs,
+      });
+      turnAbort.abort();
+    }, turnTimeoutMs);
+
+    const cancelNudge = () => {
+      if (this.nudgeTimer) {
+        clearTimeout(this.nudgeTimer);
+        this.nudgeTimer = null;
+      }
+    };
 
     try {
       let pending = "";
@@ -429,13 +552,23 @@ export class WidgetVoiceLiveSession {
           requestId,
           modality: "voice",
           replyLanguage: this.replyLanguage,
+          deadlineMs: turnTimeoutMs,
           signal: turnAbort.signal,
           onNudge: (line) => {
-            this.input.logger.info("widget.voice.tool_nudge_detected", {
-              request_id: requestId,
-              elapsed_ms: Date.now() - turnStartedAt,
-            });
-            speak(line);
+            // Fast tools do not need "let me check that": wait briefly and let
+            // the first model token cancel the acknowledgement.
+            if (this.nudgeTimer || this.nudgeSpoken) return;
+            this.nudgeTimer = setTimeout(() => {
+              this.nudgeTimer = null;
+              if (this.closed || turnAbort.signal.aborted) return;
+              this.nudgeSpoken = true;
+              this.input.logger.info("widget.voice.tool_nudge_played", {
+                request_id: requestId,
+                elapsed_ms: Date.now() - this.turnStartedAt,
+                delayed: true,
+              });
+              speak(line);
+            }, TOOL_NUDGE_DELAY_MS);
           },
           onTransfer: () => {
             this.held = true;
@@ -443,11 +576,12 @@ export class WidgetVoiceLiveSession {
           },
         },
         (delta) => {
-          if (!firstTokenLogged) {
-            firstTokenLogged = true;
+          cancelNudge();
+          if (!this.firstTokenAt) {
+            this.firstTokenAt = Date.now();
             this.input.logger.info("widget.voice.turn_first_token", {
               request_id: requestId,
-              elapsed_ms: Date.now() - turnStartedAt,
+              elapsed_ms: this.firstTokenAt - this.turnStartedAt,
             });
           }
           assistantBuffer += delta;
@@ -460,21 +594,59 @@ export class WidgetVoiceLiveSession {
           }
         },
       );
+      cancelNudge();
       const assistantText = turn.assistant_text || assistantBuffer;
       if (pending.trim()) speak(pending);
       this.emit({ type: "assistant_done", text: assistantText });
       await this.speakChain;
       this.emit({ type: "turn_done" });
+      this.logTurnCompleted(requestId, "completed");
     } catch (err) {
-      if (turnAbort.signal.aborted || this.closed) return;
+      cancelNudge();
+      if (turnAbort.signal.aborted && !timedOut) return; // barge-in owns this path
+      if (this.closed) return;
       const message = err instanceof Error ? err.message : "Voice turn failed";
-      this.input.logger.warn("widget.voice.live_turn_failed", { message });
+      this.input.logger.warn("widget.voice.live_turn_failed", {
+        message,
+        timed_out: timedOut,
+      });
       this.emit({ type: "error", message });
+      if (timedOut) {
+        const fallback = this.input.spokenFallback?.trim() || DEFAULT_SPOKEN_FALLBACK;
+        this.speak(fallback);
+        await this.speakChain.catch(() => undefined);
+      }
+      this.logTurnCompleted(requestId, timedOut ? "timeout" : "failed");
     } finally {
+      this.clearTurnTimers();
       if (this.turnAbort === turnAbort) {
         this.turnAbort = null;
         this.processingTurn = false;
       }
+      this.turnStartedAt = 0;
+    }
+  }
+
+  private logTurnCompleted(requestId: string, outcome: string): void {
+    if (!this.turnStartedAt) return;
+    this.input.logger.info("widget.voice.turn_complete", {
+      request_id: requestId,
+      outcome,
+      first_token_ms: this.firstTokenAt ? this.firstTokenAt - this.turnStartedAt : null,
+      first_audio_ms: this.firstAudioAt ? this.firstAudioAt - this.turnStartedAt : null,
+      total_ms: Date.now() - this.turnStartedAt,
+      nudge: this.nudgeSpoken,
+    });
+  }
+
+  private clearTurnTimers(): void {
+    if (this.turnDeadlineTimer) {
+      clearTimeout(this.turnDeadlineTimer);
+      this.turnDeadlineTimer = null;
+    }
+    if (this.nudgeTimer) {
+      clearTimeout(this.nudgeTimer);
+      this.nudgeTimer = null;
     }
   }
 
@@ -484,6 +656,9 @@ export class WidgetVoiceLiveSession {
     this.turnAbort = null;
     this.processingTurn = false;
     this.cancelCommit();
+    this.clearTurnTimers();
+    this.bargeDetector.reset();
+    this.preReadyFrames = [];
     if (this.keepAliveTimer) {
       clearInterval(this.keepAliveTimer);
       this.keepAliveTimer = null;

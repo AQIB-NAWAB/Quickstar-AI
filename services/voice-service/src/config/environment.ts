@@ -33,8 +33,12 @@ export type VoiceConfig = {
   speechProfile: SpeechProfile;
   speechOpenaiApiKey?: string;
   speechOpenaiBaseUrl?: string;
+  speechOpenaiSttModel?: string;
+  speechOpenaiTtsModel?: string;
   deepgramApiKey?: string;
   deepgramModel?: string;
+  deepgramEndpointingMs: number;
+  speechTailMs: number;
   fishAudioApiKey?: string;
   fishAudioModel?: string;
   fishAudioReferenceId?: string;
@@ -44,8 +48,15 @@ export type VoiceConfig = {
   upliftApiKey?: string;
   cartesiaApiKey?: string;
   cartesiaModel?: string;
+  elevenLabsApiKey?: string;
+  elevenLabsModel?: string;
+  elevenLabsVoiceId?: string;
+  elevenLabsRealtimeModel?: string;
   geminiApiKey?: string;
   geminiLiveModel?: string;
+  openaiRealtimeModel?: string;
+  /** auto = prefer cascade when configured, otherwise Gemini/OpenAI/ElevenLabs. */
+  s2sProvider: "auto" | "gemini" | "openai" | "elevenlabs" | "none";
   requireRealSpeech: boolean;
   speechCircuitFailureThreshold: number;
   speechCircuitCooldownMs: number;
@@ -54,6 +65,16 @@ export type VoiceConfig = {
   twilioAccountSid?: string;
   twilioAuthToken?: string;
   twilioFromNumber?: string;
+  telnyxApiKey?: string;
+  telnyxPublicKey?: string;
+  telnyxSipConnectionId?: string;
+  telnyxSipConnectionName: string;
+  telnyxWebhookToleranceSec: number;
+  livekitUrl?: string;
+  livekitApiKey?: string;
+  livekitApiSecret?: string;
+  livekitSipEndpoint?: string;
+  livekitBridgeEnabled: boolean;
   voicePublicBaseUrl: string;
   requireRealTelephony: boolean;
   /** Fire-and-forget ledger ingest (Feature 26). */
@@ -67,6 +88,22 @@ function parseSpeechProfile(raw: string | undefined): SpeechProfile {
   if (value === "deepgram-fish" || value === "deepgram_fish") return "deepgram-fish";
   if (value === "fake" || value === "") return "fake";
   throw new Error(`SPEECH_PROFILE must be fake|openai|deepgram-fish, got: ${raw}`);
+}
+
+function parseS2sProvider(
+  raw: string | undefined,
+): "auto" | "gemini" | "openai" | "elevenlabs" | "none" {
+  const value = (raw ?? "auto").trim().toLowerCase();
+  if (
+    value === "auto" ||
+    value === "gemini" ||
+    value === "openai" ||
+    value === "elevenlabs" ||
+    value === "none"
+  ) {
+    return value;
+  }
+  return "auto";
 }
 
 export function loadVoiceConfig(): VoiceConfig {
@@ -87,6 +124,15 @@ export function loadVoiceConfig(): VoiceConfig {
 
   const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || undefined;
   const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN?.trim() || undefined;
+  const telnyxApiKey = process.env.TELNYX_API_KEY?.trim() || undefined;
+  const telnyxPublicKey = process.env.TELNYX_PUBLIC_KEY?.trim() || undefined;
+  const livekitUrl = process.env.LIVEKIT_URL?.trim() || undefined;
+  const livekitApiKey = process.env.LIVEKIT_API_KEY?.trim() || undefined;
+  const livekitApiSecret = process.env.LIVEKIT_API_SECRET?.trim() || undefined;
+  const livekitSipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT?.trim() || undefined;
+  const livekitConfigured = Boolean(
+    livekitUrl && livekitApiKey && livekitApiSecret && livekitSipEndpoint,
+  );
   const voicePublicBaseUrl = (
     process.env.VOICE_PUBLIC_BASE_URL ??
     process.env.VOICE_URL ??
@@ -128,8 +174,15 @@ export function loadVoiceConfig(): VoiceConfig {
     speechProfile: parseSpeechProfile(process.env.SPEECH_PROFILE),
     speechOpenaiApiKey,
     speechOpenaiBaseUrl: process.env.SPEECH_OPENAI_BASE_URL?.replace(/\/$/, "") || undefined,
+    speechOpenaiSttModel: process.env.SPEECH_OPENAI_STT_MODEL?.trim() || undefined,
+    speechOpenaiTtsModel: process.env.SPEECH_OPENAI_TTS_MODEL?.trim() || undefined,
     deepgramApiKey: process.env.DEEPGRAM_API_KEY?.trim() || undefined,
     deepgramModel: process.env.DEEPGRAM_MODEL?.trim() || undefined,
+    deepgramEndpointingMs: Math.max(
+      10,
+      Number(process.env.DEEPGRAM_ENDPOINTING_MS ?? 100) || 100,
+    ),
+    speechTailMs: Math.max(0, Number(process.env.VOICE_SPEECH_TAIL_MS ?? 180) || 180),
     fishAudioApiKey: process.env.FISH_AUDIO_API_KEY?.trim() || undefined,
     fishAudioModel: process.env.FISH_AUDIO_MODEL?.trim() || undefined,
     fishAudioReferenceId: process.env.FISH_AUDIO_REFERENCE_ID?.trim() || undefined,
@@ -139,11 +192,18 @@ export function loadVoiceConfig(): VoiceConfig {
     upliftApiKey: process.env.UPLIFT_AI_API_KEY?.trim() || process.env.UPLIFTAI_API_KEY?.trim() || undefined,
     cartesiaApiKey: process.env.CARTESIA_API_KEY?.trim() || undefined,
     cartesiaModel: process.env.CARTESIA_MODEL?.trim() || undefined,
+    elevenLabsApiKey: process.env.ELEVENLABS_API_KEY?.trim() || undefined,
+    elevenLabsModel: process.env.ELEVENLABS_MODEL?.trim() || undefined,
+    elevenLabsVoiceId: process.env.ELEVENLABS_VOICE_ID?.trim() || undefined,
+    elevenLabsRealtimeModel:
+      process.env.ELEVENLABS_REALTIME_MODEL?.trim() || "eleven_realtime_v1_mini",
     geminiApiKey:
       process.env.GEMINI_API_KEY?.trim() ||
       process.env.GOOGLE_API_KEY?.trim() ||
       undefined,
     geminiLiveModel: process.env.GEMINI_LIVE_MODEL?.trim() || undefined,
+    openaiRealtimeModel: process.env.OPENAI_REALTIME_MODEL?.trim() || undefined,
+    s2sProvider: parseS2sProvider(process.env.VOICE_S2S_PROVIDER),
     requireRealSpeech: process.env.VOICE_REQUIRE_REAL_SPEECH === "1",
     speechCircuitFailureThreshold: Number(process.env.SPEECH_CIRCUIT_FAILURE_THRESHOLD ?? 5),
     speechCircuitCooldownMs: Number(process.env.SPEECH_CIRCUIT_COOLDOWN_MS ?? 30_000),
@@ -153,10 +213,23 @@ export function loadVoiceConfig(): VoiceConfig {
     telephonyProfile: resolveTelephonyProfile(
       process.env.TELEPHONY_PROFILE,
       Boolean(twilioAccountSid && twilioAuthToken),
+      Boolean(telnyxApiKey && telnyxPublicKey && livekitConfigured),
     ),
     twilioAccountSid,
     twilioAuthToken,
     twilioFromNumber: process.env.TWILIO_FROM_NUMBER?.trim() || undefined,
+    telnyxApiKey,
+    telnyxPublicKey,
+    telnyxSipConnectionId: process.env.TELNYX_SIP_CONNECTION_ID?.trim() || undefined,
+    telnyxSipConnectionName:
+      process.env.TELNYX_SIP_CONNECTION_NAME?.trim() || "QuickStart Inbound",
+    telnyxWebhookToleranceSec: Number(process.env.TELNYX_WEBHOOK_TOLERANCE_SEC ?? 300),
+    livekitUrl,
+    livekitApiKey,
+    livekitApiSecret,
+    livekitSipEndpoint,
+    livekitBridgeEnabled:
+      process.env.LIVEKIT_BRIDGE_ENABLED === "0" ? false : livekitConfigured,
     voicePublicBaseUrl,
     requireRealTelephony: process.env.TELEPHONY_REQUIRE_REAL === "1",
     usageUrl: (process.env.USAGE_URL ?? process.env.USAGE_SERVICE_URL ?? "http://127.0.0.1:3017").replace(

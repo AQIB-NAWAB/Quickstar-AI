@@ -15,6 +15,10 @@ test("a normal voice question does not open tools", () => {
   assert.equal(utteranceRequestsAction("what is the price"), false);
   assert.equal(utteranceRequestsAction("tell me about the product"), false);
   assert.equal(utteranceRequestsAction("please look up order 14"), true);
+  assert.equal(utteranceRequestsAction("would this work for our team"), true);
+  assert.equal(utteranceRequestsAction("can I book Friday"), true);
+  assert.equal(utteranceRequestsAction("do you have anything open Thursday"), true);
+  assert.equal(utteranceRequestsAction("can you call me tomorrow"), true);
 });
 
 test("only an explicit request for a person is a transfer", () => {

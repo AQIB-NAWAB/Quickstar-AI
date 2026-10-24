@@ -14,6 +14,9 @@ import { ModelGatewayClient } from "./clients/model-gateway.client.js";
 import { SecretsClient } from "./clients/secrets.client.js";
 import { ToolCallsClient } from "./clients/tool-calls.client.js";
 import { WebFetchClient } from "./clients/web-fetch.client.js";
+import { LeadClient } from "./clients/lead.client.js";
+import { CalendarClient } from "./clients/calendar.client.js";
+import { IntegrationClient } from "./clients/integration.client.js";
 import { loadRuntimeConfig } from "./config/environment.js";
 import { createHttpServer, SERVICE_NAME } from "./http/create-server.js";
 import { McpToolRunner } from "./services/mcp-tool-runner.js";
@@ -78,6 +81,21 @@ export async function main(): Promise<void> {
     webFetchClient,
     new McpToolRunner(config.httpRequestTimeoutMs),
     secretsClient,
+    new LeadClient(
+      config.leadServiceUrl,
+      config.leadInternalToken,
+      config.httpRequestTimeoutMs,
+    ),
+    new CalendarClient(
+      config.workspaceUrl,
+      config.workspaceInternalToken,
+      config.httpRequestTimeoutMs,
+    ),
+    new IntegrationClient(
+      config.workspaceUrl,
+      config.workspaceInternalToken,
+      config.httpRequestTimeoutMs,
+    ),
   );
   const toolLoop = new ToolLoop(modelGatewayClient, toolCallsClient, toolExecutor);
 

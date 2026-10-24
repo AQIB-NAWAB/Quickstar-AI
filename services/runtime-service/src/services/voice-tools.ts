@@ -21,7 +21,7 @@ export function utteranceRequestsAction(text: string | undefined): boolean {
   if (!value) return false;
   return (
     visitorRequestsToolAction(value) ||
-    /\b(look\s*up|lookup|fetch|check (my|the|this|that|available|open)|find (my|the)|search for|scrape|create|update|delete|cancel|order status|post id|track my|book a|book an|book the|run the|slots|slot|appointment|appointments)\b|چیک کرو|ڈھونڈ|کینسل|بک کرو|بک کریں|\b(?:check karo|check karein|dekh ke batao|dhoondo|dhoondho|booking karni|book kar|book karein|cancel kar|cancel karein|slot check|appointment book)\b/i.test(
+    /\b(look\s*up|lookup|fetch|check (my|the|this|that|available|open)|find (my|the)|search for|scrape|create|update|delete|cancel|order status|post id|track my|book|book a|book an|book the|run the|slots|slot|appointment|appointments|call me|call back|callback|phone me|ring me|schedule a call|availability|anything (open|available)|open (slot|slots)|free (slot|slots)|opening|openings|quote|demo|trial|sign up|signup|interested|our team|for our team|work for our|would this work)\b|چیک کرو|ڈھونڈ|کینسل|بک کرو|بک کریں|کال کریں|کال بیک|\b(?:check karo|check karein|dekh ke batao|dhoondo|dhoondho|booking karni|book kar|book karein|cancel kar|cancel karein|slot check|appointment book|call karo|call karein)\b/i.test(
       value,
     )
   );
@@ -35,6 +35,15 @@ export function visitorRequestsToolAction(text: string | undefined): boolean {
     value,
   ) ||
     /\b(?:details?|information)\s+(?:of|for|about)\s+(?:(?:the|a|an|my|this|that)\s+)?(?:order|post|ticket|invoice|run|record|account|shipment|booking|payment|lead|customer)\b/i.test(
+      value,
+    ) ||
+    /\b(?:call|phone|ring)\s+(?:me|us)\b|\bcall\s*back\b|\bcallback\b|\bschedule\s+(?:a\s+)?call\b|کال کریں|کال بیک|\b(?:call karo|call karein)\b/i.test(
+      value,
+    ) ||
+    /\b(?:availability|anything (?:open|available)|open (?:slot|slots)|free (?:slot|slots)|opening|openings)\b/i.test(
+      value,
+    ) ||
+    /\b(?:book|quote|demo|trial|sign up|signup|interested|our team|for our team|work for our|would this work)\b/i.test(
       value,
     );
 }

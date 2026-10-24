@@ -344,6 +344,7 @@ export class ToolLoop {
           toolCallKey,
           timeoutMs,
           authorization: input.authHeaders.authorization,
+          conversationId: input.conversationId,
         });
 
         await this.remember(input, {

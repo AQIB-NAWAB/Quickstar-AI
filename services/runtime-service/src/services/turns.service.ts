@@ -605,6 +605,8 @@ export class TurnsService {
     modality?: "text" | "voice";
     replyLanguage?: string;
     replyGender?: "female" | "male" | "neutral";
+    /** Voice agents bound the whole turn so a hung tool/model cannot stall the call. */
+    deadlineMs?: number;
     signal?: AbortSignal;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
@@ -615,6 +617,7 @@ export class TurnsService {
       widgetModality: input.modality ?? "text",
       replyLanguage: input.replyLanguage,
       replyGender: input.replyGender,
+      deadlineMs: input.deadlineMs,
     });
   }
 
@@ -1029,7 +1032,10 @@ export class TurnsService {
           ? await Promise.race([
               retrievalPromise,
               new Promise<Awaited<ReturnType<KnowledgeClient["retrieve"]>>>((resolve) =>
-                setTimeout(() => resolve([]), 350),
+                setTimeout(() => {
+                  retrievalAbort.abort();
+                  resolve([]);
+                }, Math.max(50, Number(process.env.VOICE_RETRIEVAL_TIMEOUT_MS ?? 250) || 250)),
               ),
             ])
           : await retrievalPromise;
@@ -1094,6 +1100,75 @@ export class TurnsService {
       );
     }
 
+    // Booking and callback tools accept concrete dates/times. Give the model the
+    // tool's timezone and the current local date so "Friday" or "tomorrow" do not
+    // get guessed from stale training data.
+    const calendarTool = modelTools.find((tool) => tool.type === "builtin_calendar");
+    const callbackTool = modelTools.find(
+      (tool) => tool.type === "builtin_leads" && tool.action === "request_callback",
+    );
+    if (calendarTool || callbackTool) {
+      const timeZone =
+        (calendarTool && calendarTool.timezone?.trim()) ||
+        process.env.DEFAULT_AGENT_TIMEZONE?.trim() ||
+        "UTC";
+      const nowLabel = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }).format(new Date());
+      systemParts.push(
+        `CURRENT DATE AND TIME (${timeZone}): ${nowLabel}. Resolve relative dates such as "today", "tomorrow", or "Friday" against this date. Pass dates to tools as YYYY-MM-DD and use ${timeZone} unless the visitor names another timezone.`,
+      );
+    }
+
+    const leadCaptureTool = modelTools.find(
+      (tool) => tool.type === "builtin_leads" && tool.action === "capture",
+    );
+    if (calendarTool) {
+      systemParts.push(
+        "APPOINTMENTS: Use check_calendar_availability before offering any time. Only offer slots returned by the tool. Use book_calendar_slot only after the visitor confirms a specific returned slot. If the tool returns no slots or says the calendar is not connected, say so plainly and offer a callback or handoff. Never invent availability or a confirmation.",
+      );
+    }
+    if (callbackTool) {
+      systemParts.push(
+        "CALLBACKS: When the visitor asks for a call, collect a phone number and a preferred time, then call request_callback. Tell them the team will call at that time. Do not promise an automated call or name a specific person.",
+      );
+    }
+    if (leadCaptureTool) {
+      systemParts.push(
+        "LEADS: When a visitor is evaluating the product, collect their name, one contact method, what they need, and their timeline. Once you have those, call save_qualified_lead once before wrapping up. Never save a lead without a name and an email or phone number.",
+      );
+    }
+
+    const integrationTools = modelTools.filter(
+      (tool) => tool.type === "builtin_integration",
+    );
+    if (integrationTools.length > 0) {
+      systemParts.push(
+        "INTEGRATIONS: Only claim an external action succeeded when the tool returned status ok. If a tool returns integration_not_connected, apologize and offer a handoff instead of pretending it worked. Ask for the fields the tool needs before calling it.",
+      );
+      if (
+        integrationTools.some(
+          (tool) => tool.provider === "zendesk" && tool.action === "create_ticket",
+        )
+      ) {
+        systemParts.push(
+          "ESCALATION: If you cannot resolve the visitor's issue, offer to create a support ticket. Collect a subject, description, name, and email, then call create_support_ticket.",
+        );
+      }
+      if (integrationTools.some((tool) => tool.provider === "slack")) {
+        systemParts.push(
+          "TEAM ALERTS: Use post_team_message only when the visitor asks for a human or the issue is urgent. Do not send duplicate notifications.",
+        );
+      }
+    }
+
     if (agentTools.length > 0 && widgetModality !== "voice") {
       systemParts.push(CONVERSATION_PRIORITY);
     }
@@ -1109,7 +1184,17 @@ export class TurnsService {
     }
 
     const modelSettings = version.snapshot.model_settings ?? {};
-    const { profile, modelId } = resolveChatModel(modelSettings);
+    const voiceModelId = voiceTurn ? process.env.VOICE_MODEL_ID?.trim() : "";
+    const voiceModelProfile = voiceTurn ? process.env.VOICE_MODEL_PROFILE?.trim() : "";
+    const { profile, modelId } = resolveChatModel(
+      voiceModelId || voiceModelProfile
+        ? {
+            ...modelSettings,
+            ...(voiceModelId ? { model_id: voiceModelId } : {}),
+            ...(voiceModelProfile ? { profile: voiceModelProfile } : {}),
+          }
+        : modelSettings,
+    );
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 

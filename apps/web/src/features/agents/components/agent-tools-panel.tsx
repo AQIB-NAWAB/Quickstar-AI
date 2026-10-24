@@ -2,15 +2,24 @@
 
 import { useMemo, useState, type ComponentType } from "react";
 import {
+  CalendarDays,
   Check,
   ChevronDown,
   Globe,
   Grid,
+  LifeBuoy,
   List,
+  Mail,
+  MessageSquare,
+  PhoneCall,
   Plus,
   Puzzle,
   Search,
+  Send,
   Sliders,
+  Table,
+  UserPlus,
+  Users,
   X,
   XCircle,
   FileText,
@@ -22,7 +31,7 @@ import { CustomToolsModal } from "@/features/settings/components/custom-tools-mo
 import { AgentToolsManageDrawer } from "./agent-tools-manage-drawer";
 import { listSecrets } from "@/features/settings/lib/client";
 
-type CategoryFilter = "all" | "web" | "leads" | "custom";
+type CategoryFilter = "all" | "web" | "calendar" | "leads" | "integrations" | "custom";
 type StatusFilter = "all" | "attached" | "not_attached";
 
 type Props = {
@@ -44,6 +53,20 @@ const FRIENDLY_NAMES: Record<string, { label: string; icon: ComponentType<{ clas
   leads_run_status: { label: "Check progress", icon: List },
   leads_run_results: { label: "Get results", icon: FileText },
   leads_cancel_run: { label: "Cancel research", icon: XCircle },
+  save_qualified_lead: { label: "Save qualified lead", icon: UserPlus },
+  request_callback: { label: "Request a callback", icon: PhoneCall },
+  check_calendar_availability: { label: "Check calendar availability", icon: CalendarDays },
+  book_calendar_slot: { label: "Book an appointment", icon: CalendarDays },
+  cancel_calendar_event: { label: "Cancel an appointment", icon: CalendarDays },
+  create_support_ticket: { label: "Create support ticket", icon: LifeBuoy },
+  get_support_ticket: { label: "Look up support ticket", icon: LifeBuoy },
+  add_support_ticket_comment: { label: "Comment on support ticket", icon: MessageSquare },
+  post_team_message: { label: "Notify team in Slack", icon: Send },
+  save_crm_contact: { label: "Save CRM contact", icon: Users },
+  create_salesforce_lead: { label: "Create Salesforce lead", icon: UserPlus },
+  append_google_sheet_row: { label: "Append Google Sheet row", icon: Table },
+  add_mailchimp_subscriber: { label: "Add Mailchimp subscriber", icon: Mail },
+  send_sms: { label: "Send SMS", icon: MessageSquare },
 };
 
 export function AgentToolsPanel({
@@ -76,14 +99,24 @@ export function AgentToolsPanel({
 
   // Counts for library categories
   const webTools = useMemo(() => BUILTIN_TOOLS.filter((t) => t.type === "builtin_web"), []);
+  const calendarTools = useMemo(
+    () => BUILTIN_TOOLS.filter((t) => t.type === "builtin_calendar"),
+    [],
+  );
   const leadTools = useMemo(() => BUILTIN_TOOLS.filter((t) => t.type === "builtin_leads"), []);
+  const integrationTools = useMemo(
+    () => BUILTIN_TOOLS.filter((t) => t.type === "builtin_integration"),
+    [],
+  );
 
   // Filtered tools based on category, status, and search query
   const filteredTools = useMemo(() => {
     return allTools.filter((tool) => {
       // Category filter
       if (category === "web" && tool.type !== "builtin_web") return false;
+      if (category === "calendar" && tool.type !== "builtin_calendar") return false;
       if (category === "leads" && tool.type !== "builtin_leads") return false;
+      if (category === "integrations" && tool.type !== "builtin_integration") return false;
       if (category === "custom" && tool.type !== "http" && tool.type !== "mcp") return false;
 
       // Status filter
@@ -190,6 +223,23 @@ export function AgentToolsPanel({
               <span className="text-[12px] text-[#667085]">{webTools.length}</span>
             </button>
 
+            {/* Calendar & booking */}
+            <button
+              type="button"
+              onClick={() => setCategory("calendar")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "calendar"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <CalendarDays className="w-4 h-4 text-[#667085]" />
+                <span>Calendar &amp; booking</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{calendarTools.length}</span>
+            </button>
+
             {/* Lead research */}
             <button
               type="button"
@@ -208,6 +258,23 @@ export function AgentToolsPanel({
             </button>
 
             <div className="pt-2 pb-1 border-t border-[#EAECF0] my-1" />
+
+            {/* Connected integrations */}
+            <button
+              type="button"
+              onClick={() => setCategory("integrations")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[6px] text-[14px] font-medium transition-colors ${
+                category === "integrations"
+                  ? "bg-[#EEF0F3] text-[#202125] font-semibold"
+                  : "text-[#475467] hover:bg-[#F8F9FA] hover:text-[#202125]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <LifeBuoy className="w-4 h-4 text-[#667085]" />
+                <span>Integrations</span>
+              </div>
+              <span className="text-[12px] text-[#667085]">{integrationTools.length}</span>
+            </button>
 
             {/* Custom tools */}
             <button
