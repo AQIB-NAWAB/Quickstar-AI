@@ -40,7 +40,7 @@ export function loadConfig() {
     campaignToken: process.env.LEAD_CAMPAIGN_TOKEN ?? "",
     pollMs: 1000,
     leaseSeconds: 120,
-    requestTimeoutMs: 30000,
+    requestTimeoutMs: 45000,
     maxOutputTokens: 1500,
     workersEnabled: process.env.LEAD_WORKERS_ENABLED !== "false",
   };

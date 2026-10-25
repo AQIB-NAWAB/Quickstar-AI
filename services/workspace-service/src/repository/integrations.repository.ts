@@ -91,7 +91,7 @@ export class IntegrationsRepository {
          workspace_id, provider, status, account_identifier, account_email, account_name,
          provider_account_id, granted_scopes, metadata, secret_reference_id, token_expires_at,
          last_error, last_verified_at, connected_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, CASE WHEN $3 = 'connected' THEN now() ELSE NULL END, CASE WHEN $3 = 'connected' THEN now() ELSE NULL END, now())
+       ) VALUES ($1, $2, $3::text, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, CASE WHEN $3::text = 'connected' THEN now() ELSE NULL END, CASE WHEN $3::text = 'connected' THEN now() ELSE NULL END, now())
        ON CONFLICT (workspace_id, provider) DO UPDATE SET
          status = EXCLUDED.status,
          account_identifier = COALESCE(EXCLUDED.account_identifier, workspace_integrations.account_identifier),

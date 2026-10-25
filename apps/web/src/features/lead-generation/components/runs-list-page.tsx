@@ -7,6 +7,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Webhook,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -208,7 +209,7 @@ export function LeadGenerationRunsListPage({ workspaceId }: { workspaceId: strin
           <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">Lead generation</h1>
         </div>
 
-        {/* Action Buttons: Business profile (outlined) + New run (orange) */}
+        {/* Action Buttons: Business profile (outlined) + Inbound Connectors + New run (orange) */}
         <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
           <Link
             href={`/workspaces/${workspaceId}/lead-generation/profile`}
@@ -216,6 +217,14 @@ export function LeadGenerationRunsListPage({ workspaceId }: { workspaceId: strin
           >
             <Building2 className="w-4 h-4 text-neutral-600" />
             <span>Business profile</span>
+          </Link>
+
+          <Link
+            href={`/workspaces/${workspaceId}/lead-generation/connectors`}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-8 text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 shadow-xs transition-colors"
+          >
+            <Webhook className="w-4 h-4 text-neutral-600" />
+            <span>Inbound connectors</span>
           </Link>
 
           <button

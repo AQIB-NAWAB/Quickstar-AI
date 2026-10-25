@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronRight,
+  Download,
   ExternalLink,
   Mail,
   Phone,
@@ -59,6 +60,58 @@ function getCandidateInitials(name?: string | null, domain?: string | null): str
   return "UN";
 }
 
+function renderTruthfulContactBadge(status?: string) {
+  const norm = (status || "").toLowerCase();
+  if (norm === "mail_routable") {
+    return (
+      <span
+        className="inline-flex items-center text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200"
+        title="Domain MX record verified and routable"
+      >
+        Mail Routable
+      </span>
+    );
+  }
+  if (norm === "format_valid") {
+    return (
+      <span
+        className="inline-flex items-center text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200"
+        title="Contact format verified against standards"
+      >
+        Format Valid
+      </span>
+    );
+  }
+  if (norm === "provider_verified") {
+    return (
+      <span
+        className="inline-flex items-center text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200"
+        title="Verified via provider API"
+      >
+        Provider Verified
+      </span>
+    );
+  }
+  if (norm === "observed") {
+    return (
+      <span
+        className="inline-flex items-center text-[10px] font-semibold bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded border border-neutral-200"
+        title="Observed directly on public source"
+      >
+        Observed
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center text-[10px] font-semibold bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded"
+      title="Not independently verified"
+    >
+      Unverified
+    </span>
+  );
+}
+
 function renderCandidateOutcomeBadge(status: string) {
   const norm = (status || "").toLowerCase();
 
@@ -67,6 +120,15 @@ function renderCandidateOutcomeBadge(status: string) {
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
         <span>Accepted</span>
+      </span>
+    );
+  }
+
+  if (["queued", "running", "evaluating", "discovered"].includes(norm)) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-900 border border-blue-200/80">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
+        <span>Provisional</span>
       </span>
     );
   }
@@ -115,11 +177,14 @@ export function LeadGenerationRunDetailPage({
   const [refreshing, setRefreshing] = useState(false);
 
   // Filters & Sorting state
-  const [candidateTab, setCandidateTab] = useState<"all" | "accepted" | "rejected" | "failed">("all");
+  const [candidateTab, setCandidateTab] = useState<
+    "all" | "accepted" | "provisional" | "rejected" | "failed"
+  >("all");
   const [search, setSearch] = useState("");
   const [contactFilter, setContactFilter] = useState<"all" | "email" | "phone" | "contact" | "none">("all");
   const [sortBy, setSortBy] = useState<"outcome" | "score" | "name">("outcome");
   const [deliveriesOpen, setDeliveriesOpen] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const isFetchingRef = useRef(false);
   const hasLoadedRunRef = useRef(false);
@@ -191,9 +256,40 @@ export function LeadGenerationRunDetailPage({
     await load(true);
   }
 
+  async function handleExportCsv() {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/lead-generation/leads/export/csv`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id: runId }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to export CSV");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `leads-run-${runId.slice(0, 8)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err?.message || "CSV Export failed");
+    } finally {
+      setExportingCsv(false);
+    }
+  }
+
   // Derived counts for summary band
   const totalCandidates = results.length;
   const acceptedCount = results.filter((r) => r.status === "accepted").length;
+  const provisionalCount = results.filter((r) =>
+    ["queued", "running", "evaluating", "discovered"].includes(r.status)
+  ).length;
   const rejectedOrDuplicateCount = results.filter(
     (r) => r.status === "duplicate" || r.status === "rejected"
   ).length;
@@ -208,6 +304,12 @@ export function LeadGenerationRunDetailPage({
     const filtered = results.filter((item) => {
       // Tab filter
       if (candidateTab === "accepted" && item.status !== "accepted") return false;
+      if (
+        candidateTab === "provisional" &&
+        !["queued", "running", "evaluating", "discovered"].includes(item.status)
+      ) {
+        return false;
+      }
       if (
         candidateTab === "rejected" &&
         item.status !== "rejected" &&
@@ -306,7 +408,30 @@ export function LeadGenerationRunDetailPage({
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+            {run?.qualification_mode && (
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                  run.qualification_mode === "strict"
+                    ? "bg-purple-50 text-purple-900 border-purple-200"
+                    : "bg-blue-50 text-blue-900 border-blue-200"
+                }`}
+                title={
+                  run.qualification_mode === "strict"
+                    ? "Strict mode: all mandatory criteria require explicit verified evidence"
+                    : "Best Match mode: prospects ranked by fit score with transparent gap analysis"
+                }
+              >
+                <span>{run.qualification_mode === "strict" ? "Strict Mode" : "Best Match Mode"}</span>
+              </span>
+            )}
+
+            {run?.collection_id && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
+                <span>Collection #{run.collection_id.slice(0, 8)}</span>
+              </span>
+            )}
+
             {run && (
               <span
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
@@ -333,6 +458,18 @@ export function LeadGenerationRunDetailPage({
                 <span>{formatStatusLabel(run.status)}</span>
               </span>
             )}
+
+            {/* Export CSV button */}
+            <button
+              type="button"
+              onClick={() => void handleExportCsv()}
+              disabled={exportingCsv || acceptedCount === 0}
+              className="inline-flex items-center gap-1.5 rounded-8 border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-40 shadow-xs"
+              title="Export formula-safe CSV of accepted leads"
+            >
+              <Download className="w-3.5 h-3.5 text-neutral-500" />
+              <span>{exportingCsv ? "Exporting…" : "Export CSV"}</span>
+            </button>
 
             {/* Refresh button */}
             <button
@@ -365,7 +502,59 @@ export function LeadGenerationRunDetailPage({
         {stopReason && !isRunning && (
           <div className="flex items-center gap-2 text-xs font-medium text-amber-800 pt-1">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Research stopped: {stopReason}.</span>
+            <span>Research stopped: {stopReason.replace(/\.+$/, "")}.</span>
+          </div>
+        )}
+
+        {/* Shortfall Explanation Banner */}
+        {run?.shortfall_explanation && !isRunning && (
+          <div className="rounded-8 border border-amber-200 bg-amber-50/70 p-4 text-xs space-y-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-amber-950">
+                  Target Shortfall Analysis ({run.shortfall_explanation.found} of {run.shortfall_explanation.target} target leads acquired, shortfall: {run.shortfall_explanation.shortfall})
+                </p>
+                <p className="text-amber-900 leading-relaxed">
+                  {run.shortfall_explanation.summary}
+                </p>
+                <div className="flex items-center gap-3 text-[11px] text-amber-800 pt-1 flex-wrap">
+                  {run.shortfall_explanation.causes.contact_missing > 0 && (
+                    <span>Missing contact info: {run.shortfall_explanation.causes.contact_missing}</span>
+                  )}
+                  {run.shortfall_explanation.causes.category_mismatch > 0 && (
+                    <span>Category mismatch: {run.shortfall_explanation.causes.category_mismatch}</span>
+                  )}
+                  {run.shortfall_explanation.causes.location_mismatch > 0 && (
+                    <span>Location mismatch: {run.shortfall_explanation.causes.location_mismatch}</span>
+                  )}
+                  {run.shortfall_explanation.causes.provider_limits_hit && (
+                    <span className="font-semibold text-amber-900">Provider query limits reached</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {run.shortfall_explanation.expansion_options && run.shortfall_explanation.expansion_options.length > 0 && (
+              <div className="pt-2 border-t border-amber-200/80">
+                <p className="font-semibold text-amber-950 mb-2">Recommended Criteria Expansions to Reach Target:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {run.shortfall_explanation.expansion_options.map(
+                    (opt: import("../lib/types").ShortfallExpansionOption, idx: number) => (
+                      <div key={idx} className="bg-white/95 border border-amber-200 rounded-6 p-2.5 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-neutral-900">{opt.label}</span>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded uppercase">
+                            {opt.type.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-600 leading-normal">{opt.description}</p>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -421,6 +610,7 @@ export function LeadGenerationRunDetailPage({
           [
             { id: "all", label: "All candidates", count: totalCandidates },
             { id: "accepted", label: "Accepted", count: acceptedCount },
+            { id: "provisional", label: "Provisional Preview", count: provisionalCount },
             { id: "rejected", label: "Rejected / duplicate", count: rejectedOrDuplicateCount },
             { id: "failed", label: "Failed", count: failedCount },
           ] as const
@@ -575,7 +765,23 @@ export function LeadGenerationRunDetailPage({
                             <p className="font-semibold text-neutral-900 leading-tight truncate">
                               {companyName || domain || "Looking up this site"}
                             </p>
-                            {item.status === "rejected" && item.assessment?.reject_reasons?.length ? (
+                            {item.assessment?.person_name && (
+                              <p className="text-[11px] font-medium text-indigo-700 truncate">
+                                👤 {item.assessment.person_name}
+                                {item.assessment.person_role && (
+                                  <span className="text-neutral-500 font-normal"> · {item.assessment.person_role}</span>
+                                )}
+                              </p>
+                            )}
+                            {item.status === "failed" && (item.assessment?.explanation || item.assessment?.fit_reasons?.[0]) ? (
+                              <p className="text-[11px] text-red-600 truncate font-medium">
+                                ⚠ {item.assessment.explanation || item.assessment.fit_reasons?.[0]}
+                              </p>
+                            ) : item.status === "duplicate" && (item.assessment?.explanation || item.assessment?.fit_reasons?.[0]) ? (
+                              <p className="text-[11px] text-amber-700 truncate font-medium">
+                                ℹ {item.assessment.explanation || item.assessment.fit_reasons?.[0]}
+                              </p>
+                            ) : item.status === "rejected" && item.assessment?.reject_reasons?.length ? (
                               <p className="text-[11px] text-neutral-500 truncate">
                                 {item.assessment.reject_reasons[0]}
                               </p>
@@ -617,6 +823,12 @@ export function LeadGenerationRunDetailPage({
                                 >
                                   {email}
                                 </a>
+                                {(() => {
+                                  const cp = (item.assessment as any)?.contact_points?.find(
+                                    (p: any) => p.type === "email" && p.value?.toLowerCase() === email.toLowerCase()
+                                  );
+                                  return renderTruthfulContactBadge(cp?.validation_status || "observed");
+                                })()}
                               </div>
                             )}
                             {phone && (
@@ -629,6 +841,12 @@ export function LeadGenerationRunDetailPage({
                                 >
                                   {phone}
                                 </a>
+                                {(() => {
+                                  const cp = (item.assessment as any)?.contact_points?.find(
+                                    (p: any) => p.type === "phone"
+                                  );
+                                  return renderTruthfulContactBadge(cp?.validation_status || "format_valid");
+                                })()}
                               </div>
                             )}
                           </div>
@@ -755,6 +973,7 @@ export function LeadGenerationRunDetailPage({
         <LeadDetailDrawer
           candidate={selectedCandidate}
           brief={run?.brief}
+          workspaceId={workspaceId}
           onClose={() => setSelectedCandidate(null)}
         />
       )}

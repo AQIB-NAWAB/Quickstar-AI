@@ -178,10 +178,10 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     if (input.temperature !== undefined) body.temperature = input.temperature;
     if (input.maxTokens !== undefined) {
       body.max_tokens = this.config.baseUrl?.includes("groq.com")
-        ? Math.min(input.maxTokens, 220)
+        ? Math.min(input.maxTokens, 2048)
         : input.maxTokens;
     } else if (this.config.baseUrl?.includes("groq.com")) {
-      body.max_tokens = 220;
+      body.max_tokens = 2048;
     }
     if (/gpt-oss/i.test(input.modelId)) {
       body.reasoning_effort = "low";
@@ -226,10 +226,14 @@ export class OpenAiCompatibleProvider implements ChatProvider {
 
       if (!response.ok) {
         const errText = await response.text();
-        const retryable = response.status === 429 || response.status >= 500;
+        const isRateLimit =
+          response.status === 429 ||
+          (response.status === 413 && errText.includes("rate_limit_exceeded"));
+        const effectiveStatus = isRateLimit ? 429 : response.status;
+        const retryable = isRateLimit || response.status >= 500;
 
         // Auto-retry 429 rate limit if wait time is reasonable (<= 12s)
-        if (response.status === 429 && attempt < maxRetries) {
+        if (isRateLimit && attempt < maxRetries) {
           let waitMs = 2500 * Math.pow(1.5, attempt);
           const retryAfterSec = response.headers.get("retry-after");
           if (retryAfterSec) {
@@ -255,7 +259,7 @@ export class OpenAiCompatibleProvider implements ChatProvider {
 
         throw new ProviderError(`upstream ${response.status}: ${errText}`, {
           retryable,
-          httpStatus: response.status,
+          httpStatus: effectiveStatus,
         });
       }
 

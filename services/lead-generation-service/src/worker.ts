@@ -33,14 +33,17 @@ export async function processTask(store: Store, agent: ResearchAgent, t: Task, l
         : e instanceof AppError
           ? e.code
           : "TASK_ERROR";
-    const delay = known && e.retryAfter ? e.retryAfter : code === "PROVIDER_HTTP_429" ? 10 : 0;
-    await store.failed(t, code, known ? e.retryable : false, delay);
+    const delay = known && e.retryAfter ? e.retryAfter : code === "PROVIDER_HTTP_429" || code === "MODEL_RATE_LIMITED" ? 10 : 0;
+    const errorDetail = e instanceof Error ? e.message : String(e);
+    await store.failed(t, code, known ? e.retryable : false, delay, errorDetail);
     logger.warn("lead.task.failed", {
       task_id: t.id,
       run_id: t.run_id,
       kind: t.kind,
       code,
       attempt: t.attempts,
+      error: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
     });
   }
 }

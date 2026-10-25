@@ -83,10 +83,13 @@ export function IntegrationsDirectory({
     }
   }
 
-  // Handle Twilio credentials
+  // Handle Twilio / Apify credentials
   async function handleSaveCredentials(credentials: Record<string, string>) {
     if (!selectedForConfig) return;
-    await apiIntegrationsRepository.saveCredentials(workspaceId, selectedForConfig.id, credentials);
+    const res = await apiIntegrationsRepository.saveCredentials(workspaceId, selectedForConfig.id, credentials);
+    if (res.status === "error") {
+      throw new Error(res.message);
+    }
     await loadData();
   }
 
@@ -170,6 +173,12 @@ export function IntegrationsDirectory({
         return (
           <div className="w-10 h-10 rounded-10 bg-[#FFE01B]/30 text-neutral-800 flex items-center justify-center font-bold text-xs">
             <span>MC</span>
+          </div>
+        );
+      case "apify":
+        return (
+          <div className="w-10 h-10 rounded-10 bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold text-xs">
+            <span>API</span>
           </div>
         );
       default:
@@ -318,7 +327,17 @@ export function IntegrationsDirectory({
                         ? "Configure account"
                         : item.id === "twilio"
                         ? "Configure credentials"
+                        : item.id === "apify"
+                        ? "Configure Apify"
                         : "Configure"}
+                    </button>
+                  ) : item.id === "apify" ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedForConfig(item)}
+                      className="px-3.5 py-1.5 rounded-8 bg-[#FF571A] hover:bg-[#E0460D] text-white text-xs font-semibold transition-colors shadow-xs"
+                    >
+                      Connect Apify
                     </button>
                   ) : item.connectionType === "oauth" ? (
                     <button

@@ -4,10 +4,12 @@ import { DirectHttpAcquisitionProvider } from "./direct-http.provider.js";
 import { FakeAcquisitionProvider } from "./fake.provider.js";
 import { FirecrawlAcquisitionProvider } from "./firecrawl.provider.js";
 import { OlostepAcquisitionProvider } from "./olostep.provider.js";
+import { ApifyAcquisitionProvider } from "./apify.provider.js";
 import type { AcquisitionProvider } from "./types.js";
 
 export type ProviderRegistry = {
   get(profileId: string): AcquisitionProvider;
+  findDriver?(driver: string): AcquisitionProvider | undefined;
   listEnabledProfiles(): AcquisitionProviderProfileView[];
 };
 
@@ -38,6 +40,9 @@ export function createProviderRegistry(config: WebFetchConfig): ProviderRegistry
         break;
       case "firecrawl":
         provider = new FirecrawlAcquisitionProvider(profile, config.scrapeTimeoutMs);
+        break;
+      case "apify":
+        provider = new ApifyAcquisitionProvider(profile, config.scrapeTimeoutMs);
         break;
       default:
         throw new Error(`Unknown driver ${profile.driver as string} for profile ${profile.id}`);
@@ -80,6 +85,12 @@ export function createProviderRegistry(config: WebFetchConfig): ProviderRegistry
         });
       }
       return provider;
+    },
+    findDriver(driver: string): AcquisitionProvider | undefined {
+      for (const p of providers.values()) {
+        if (p.driver === driver) return p;
+      }
+      return undefined;
     },
     listEnabledProfiles(): AcquisitionProviderProfileView[] {
       return views.filter((v) => v.enabled).sort((a, b) => a.priority - b.priority);

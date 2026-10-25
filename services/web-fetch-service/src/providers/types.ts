@@ -10,4 +10,9 @@ export type AcquisitionProvider = {
   readonly driver: string;
   scrape(input: ScrapeProviderInput): Promise<ScrapeProviderOutput>;
   search?(input: SearchProviderInput): Promise<SearchProviderOutput>;
+  enrichBusinessProfile?(input: {
+    businessName: string;
+    location?: string;
+    website?: string;
+  }): Promise<import("./apify.provider.js").EnrichedBusinessProfile | null>;
 };
