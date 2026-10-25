@@ -1,5 +1,6 @@
 import type { RequestHandler } from "@quickstart/http-server";
 import type { createIntegrationsController } from "../controllers/integrations.controller.js";
+import type { createEmailCampaignsController } from "../controllers/email-campaigns.controller.js";
 import type { createNotificationsController } from "../controllers/notifications.controller.js";
 import type { createWebhooksController } from "../controllers/webhooks.controller.js";
 import type { createMembersController } from "../controllers/members.controller.js";
@@ -19,6 +20,7 @@ export type WorkspaceHttpContext = {
   membersCtrl: ReturnType<typeof createMembersController>;
   publishableKeysCtrl: ReturnType<typeof createPublishableKeysController>;
   integrationsCtrl: ReturnType<typeof createIntegrationsController>;
+  emailCampaignsCtrl: ReturnType<typeof createEmailCampaignsController>;
   notificationsCtrl: ReturnType<typeof createNotificationsController>;
   webhooksCtrl: ReturnType<typeof createWebhooksController>;
 };

@@ -2,6 +2,7 @@ import { createApiRouter, type Router } from "@quickstart/http-server";
 import type { WorkspaceHttpContext } from "../context.js";
 import { createHealthRoutes } from "./health.routes.js";
 import { createIntegrationsRoutes } from "./integrations.routes.js";
+import { createEmailCampaignRoutes } from "./email-campaigns.routes.js";
 import { createNotificationsRoutes } from "./notifications.routes.js";
 import { createWebhooksRoutes } from "./webhooks.routes.js";
 import { createInternalRoutes } from "./internal.routes.js";
@@ -17,6 +18,9 @@ const workspaceRouteModules = [
   createWorkspaceTenantRoutes,
   createInvitesRoutes,
   createPublishableKeysRoutes,
+  // Email campaigns must register before the generic integrations module so
+  // /integrations/email-campaigns is not captured by its /:provider route.
+  createEmailCampaignRoutes,
   createIntegrationsRoutes,
   createNotificationsRoutes,
   createWebhooksRoutes,

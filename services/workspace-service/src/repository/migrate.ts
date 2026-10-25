@@ -11,6 +11,9 @@ const MIGRATIONS = [
   { version: "005_webhook_subscriptions_and_deliveries", file: "005_webhook_subscriptions_and_deliveries.sql" },
   { version: "006_integration_credentials_and_sync", file: "006_integration_credentials_and_sync.sql" },
   { version: "007_webhook_deliveries_queue", file: "007_webhook_deliveries_queue.sql" },
+  { version: "009_workspace_email_campaigns", file: "009_workspace_email_campaigns.sql" },
+  { version: "010_workspace_email_campaign_metadata", file: "010_workspace_email_campaign_metadata.sql" },
+  { version: "011_smtp_email_campaigns", file: "011_smtp_email_campaigns.sql" },
 ] as const;
 
 

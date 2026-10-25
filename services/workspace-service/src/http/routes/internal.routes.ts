@@ -9,6 +9,11 @@ export const createInternalRoutes: RouteModule<WorkspaceHttpContext> = (ctx) => 
     asyncHandler(ctx.publishableKeysCtrl.resolveInternal),
   );
   router.post(
+    "/internal/integrations/oauth/callback",
+    ctx.internalAuth,
+    asyncHandler(ctx.integrationsCtrl.internalOAuthCallback),
+  );
+  router.post(
     "/internal/workspaces/:workspaceId/integrations/google_calendar/actions",
     ctx.internalAuth,
     asyncHandler(ctx.integrationsCtrl.calendarAction),
@@ -17,6 +22,11 @@ export const createInternalRoutes: RouteModule<WorkspaceHttpContext> = (ctx) => 
     "/internal/workspaces/:workspaceId/integrations/:provider/actions",
     ctx.internalAuth,
     asyncHandler(ctx.integrationsCtrl.integrationAction),
+  );
+  router.post(
+    "/internal/email-campaigns/unsubscribe",
+    ctx.internalAuth,
+    asyncHandler(ctx.emailCampaignsCtrl.unsubscribeInternal),
   );
   return router;
 };

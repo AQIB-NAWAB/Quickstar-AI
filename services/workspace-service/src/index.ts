@@ -12,11 +12,13 @@ import { createWorkspaceDataSource } from "./repository/typeorm/data-source.js";
 import { PublishableKeysRepository } from "./repository/publishable-keys.repository.js";
 import { publishableKeysPortFromPg } from "./repository/publishable-keys-port.js";
 import { IntegrationsRepository } from "./repository/integrations.repository.js";
+import { EmailCampaignsRepository } from "./repository/email-campaigns.repository.js";
 import { NotificationsRepository } from "./repository/notifications.repository.js";
 import { WebhooksRepository } from "./repository/webhooks.repository.js";
 import { createTypeOrmWorkspaceStore } from "./repository/typeorm/workspace-typeorm-store.js";
 import { createPlatformEventsConsumer } from "./events/platform-events-consumer.js";
 import { createWebhookDeliveryWorker } from "./workers/webhook-delivery.worker.js";
+import { createEmailSenderWorker } from "./workers/email-sender.worker.js";
 import { createWorkspaceServices } from "./services/index.js";
 
 
@@ -50,7 +52,8 @@ export async function startWorkspaceServer(): Promise<{
   const integrationsRepo = new IntegrationsRepository(pgPool);
   const notificationsRepo = new NotificationsRepository(pgPool);
   const webhooksRepo = new WebhooksRepository(pgPool);
-  const services = createWorkspaceServices(store, publishableKeysPort, redisClient, integrationsRepo, notificationsRepo, webhooksRepo);
+  const emailCampaignsRepo = new EmailCampaignsRepository(pgPool);
+  const services = createWorkspaceServices(store, publishableKeysPort, redisClient, integrationsRepo, notificationsRepo, webhooksRepo, emailCampaignsRepo);
 
   const readinessProbes = [
     async () => {
@@ -96,8 +99,16 @@ export async function startWorkspaceServer(): Promise<{
   });
   webhookDeliveryWorker.start();
 
+  const emailSenderWorker = createEmailSenderWorker({
+    repo: emailCampaignsRepo,
+    service: services.emailCampaigns!,
+    logger,
+  });
+  emailSenderWorker.start();
+
   const shutdown = async () => {
     logger.info("shutdown", { service: SERVICE_NAME });
+    await emailSenderWorker.stop();
     await webhookDeliveryWorker.stop();
     await platformEventsConsumer.stop();
     await new Promise<void>((resolve, reject) => {

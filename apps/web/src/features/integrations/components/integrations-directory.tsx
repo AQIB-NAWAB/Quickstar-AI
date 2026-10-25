@@ -24,6 +24,7 @@ export function IntegrationsDirectory({
   const [data, setData] = useState<IntegrationsListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<IntegrationCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +50,20 @@ export function IntegrationsDirectory({
     void loadData();
   }, [workspaceId]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("error");
+    if (connected) setSuccess(`${connected} connected successfully.`);
+    if (oauthError) setError(oauthError);
+    if (connected || oauthError) {
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("connected");
+      clean.searchParams.delete("error");
+      window.history.replaceState({}, "", clean.toString());
+    }
+  }, []);
+
   // Handle Google Calendar OAuth initiation
   async function handleGCalAuthorize() {
     const res = await apiIntegrationsRepository.authorize(workspaceId, "google_calendar");
@@ -71,16 +86,19 @@ export function IntegrationsDirectory({
       setIsGCalModalOpen(true);
       return;
     }
-    const res = await apiIntegrationsRepository.authorize(workspaceId, provider);
+    setError(null);
+    setSuccess(null);
+    const redirectUri = `${window.location.origin}/api/integrations/oauth/callback`;
+    const res = await apiIntegrationsRepository.authorize(
+      workspaceId,
+      provider,
+      redirectUri,
+    );
     if (res.status === "ready") {
-      await apiIntegrationsRepository.callback(
-        workspaceId,
-        provider,
-        "mock_code",
-        res.data.state,
-      );
-      await loadData();
+      window.location.assign(res.data.authorization_url);
+      return;
     }
+    setError("message" in res ? res.message : "Failed to start OAuth authorization");
   }
 
   // Handle Twilio credentials
@@ -241,6 +259,12 @@ export function IntegrationsDirectory({
           );
         })}
       </div>
+
+      {success && (
+        <div className="p-4 bg-[#E9F9EF] border border-green-200 rounded-12 text-xs text-[#027A48]">
+          {success}
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-12 text-xs text-red-700">
