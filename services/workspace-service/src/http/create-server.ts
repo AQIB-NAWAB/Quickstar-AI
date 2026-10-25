@@ -11,11 +11,13 @@ import { createWorkspacesController } from "../controllers/workspaces.controller
 import { createMembersController } from "../controllers/members.controller.js";
 import { createPublishableKeysController } from "../controllers/publishable-keys.controller.js";
 import { createIntegrationsController } from "../controllers/integrations.controller.js";
+import { createEmailCampaignsController } from "../controllers/email-campaigns.controller.js";
 import { createNotificationsController } from "../controllers/notifications.controller.js";
 import { createWebhooksController } from "../controllers/webhooks.controller.js";
 import { createRequireInternalTokenMiddleware } from "../middleware/require-internal-token.js";
 import type { PublishableKeysService } from "../services/publishable-keys.service.js";
 import type { IntegrationsService } from "../services/integrations.service.js";
+import type { EmailCampaignsService } from "../services/email-campaigns.service.js";
 import type { NotificationsService } from "../services/notifications.service.js";
 import type { WebhooksService } from "../services/webhooks.service.js";
 import type { WorkspaceHttpContext } from "./context.js";
@@ -29,6 +31,7 @@ export type WorkspaceServices = {
   authorization: AuthorizationService;
   publishableKeys?: PublishableKeysService;
   integrations?: IntegrationsService;
+  emailCampaigns?: EmailCampaignsService;
   notifications?: NotificationsService;
   webhooks?: WebhooksService;
 };
@@ -64,6 +67,7 @@ export function createHttpServer(options: CreateWorkspaceHttpServerOptions): App
     membersCtrl: createMembersController(services.members),
     publishableKeysCtrl: createPublishableKeysController(services.publishableKeys),
     integrationsCtrl: createIntegrationsController(services.integrations!),
+    emailCampaignsCtrl: createEmailCampaignsController(services.emailCampaigns!),
     notificationsCtrl: createNotificationsController(services.notifications!),
     webhooksCtrl: createWebhooksController(services.webhooks!),
   };

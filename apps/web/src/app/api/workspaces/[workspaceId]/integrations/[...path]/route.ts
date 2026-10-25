@@ -15,7 +15,11 @@ export async function GET(request: Request, { params }: Params) {
     const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description");
-    const targetUrl = new URL(`/workspaces/${encodeURIComponent(params.workspaceId)}/settings/integrations`, url.origin);
+    const proto = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+    const host =
+      request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host;
+    const origin = `${proto}://${host}`;
+    const targetUrl = new URL(`/workspaces/${encodeURIComponent(params.workspaceId)}/integrations`, origin);
 
     if (error) {
       targetUrl.searchParams.set("error", errorDescription || error);

@@ -7,3 +7,6 @@
 - Values realistic, production-grade behavior over placeholder/fake responses — rejects mock/fake replies and wants real model output verified. Confidence: 0.8
 - Cares about avoiding unnecessary/repeated network requests and rate-limit blowups (frequent 429s push him to demand request de-duplication). Confidence: 0.7
 - Prefers background/async execution for long-running or harness-style work rather than blocking foreground processes. Confidence: 0.6
+- Expects shipped functionality to actually deliver what the marketing/landing-page copy promises; when there is a gap, close it in the product rather than softening the copy. Confidence: 0.6
+- For third-party integrations, expects the agent to research the provider's real/official API documentation first and build against actual endpoints and shapes, explicitly asking to "do research" instead of implementing from assumptions. Confidence: 0.7
+- When redesigning or extending an existing module, prefers to preserve existing functionality and data, and avoid unnecessary refactoring or introducing duplicate services. Confidence: 0.7
