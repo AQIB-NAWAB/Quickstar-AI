@@ -33,6 +33,27 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 }
 
+function formatCreatedDateTime(iso?: string | null) {
+  if (!iso) return { date: "—", time: "" };
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return { date: iso, time: "" };
+
+    const date = d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return { date, time };
+  } catch {
+    return { date: iso, time: "" };
+  }
+}
+
 function MetricCard({
   label,
   value,
@@ -339,10 +360,11 @@ export function EmailCampaignsPanel({ workspaceId }: { workspaceId: string }) {
         </div>
       ) : (
         <div className="bg-white border border-border-faint rounded-12 overflow-hidden shadow-xs">
-          <div className="hidden md:grid grid-cols-[minmax(0,1fr)_150px_minmax(220px,1fr)_190px] items-center gap-4 border-b border-border-faint bg-neutral-50/70 px-5 py-2.5 text-[11px] font-semibold text-neutral-500">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_130px_minmax(140px,1fr)_130px_180px] items-center gap-4 border-b border-border-faint bg-neutral-50/70 px-5 py-2.5 text-[11px] font-semibold text-neutral-500">
             <span>Campaign</span>
             <span>Status</span>
             <span>Progress</span>
+            <span>Created</span>
             <span className="text-right">Actions</span>
           </div>
 
@@ -352,10 +374,11 @@ export function EmailCampaignsPanel({ workspaceId }: { workspaceId: string }) {
               const total = campaign.counts.total;
               const progress =
                 total > 0 ? Math.min(100, Math.round((campaign.counts.sent / total) * 100)) : 0;
+              const created = formatCreatedDateTime(campaign.createdAt);
               return (
                 <div
                   key={campaign.id}
-                  className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_150px_minmax(220px,1fr)_190px] md:items-center md:gap-4 px-5 py-4 hover:bg-neutral-50/60 transition-colors"
+                  className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.3fr)_130px_minmax(140px,1fr)_130px_180px] md:items-center md:gap-4 px-5 py-4 hover:bg-neutral-50/60 transition-colors"
                 >
                   <div className="min-w-0">
                     <div className="font-bold text-accent-black text-sm truncate">
@@ -367,7 +390,7 @@ export function EmailCampaignsPanel({ workspaceId }: { workspaceId: string }) {
                         ? ` · ${campaign.schedule.followUps.length} follow-up${campaign.schedule.followUps.length === 1 ? "" : "s"}`
                         : ""}
                       {" · "}
-                      {mailbox?.email ?? "no mailbox"} · {formatDate(campaign.createdAt)}
+                      {mailbox?.email ?? "no mailbox"}
                     </p>
                   </div>
 
@@ -375,26 +398,34 @@ export function EmailCampaignsPanel({ workspaceId }: { workspaceId: string }) {
                     <EmailCampaignStatusBadge status={campaign.status} />
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm whitespace-nowrap">
-                      <span className="font-bold text-accent-black">{campaign.counts.sent}</span>
-                      <span className="text-neutral-400"> / {total}</span>
-                    </span>
+                  <div className="space-y-1.5 w-36">
+                    <div className="flex items-center justify-between text-xs font-semibold text-neutral-900 tabular-nums">
+                      <div>
+                        <span>{campaign.counts.sent}</span>
+                        <span className="text-neutral-400 font-normal"> / {total > 0 ? total : "—"}</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-neutral-500 font-medium">{progress}%</span>
+                    </div>
                     <div
                       role="progressbar"
-                      aria-valuenow={progress}
+                      aria-valuenow={campaign.counts.sent}
                       aria-valuemin={0}
-                      aria-valuemax={100}
+                      aria-valuemax={total}
                       aria-label={`${campaign.counts.sent} of ${total} recipients sent`}
-                      className="h-1.5 min-w-[90px] flex-1 rounded-full bg-neutral-200 overflow-hidden"
+                      className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden"
                     >
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          progress === 100 ? "bg-emerald-500" : "bg-heat-100"
-                        }`}
+                        className="h-full bg-heat-100 rounded-full transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
+                  </div>
+
+                  <div className="text-neutral-500 whitespace-nowrap">
+                    <p className="text-xs font-medium text-neutral-700">{created.date}</p>
+                    {created.time && (
+                      <p className="text-[11px] font-mono text-neutral-400">{created.time}</p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 md:justify-end">
