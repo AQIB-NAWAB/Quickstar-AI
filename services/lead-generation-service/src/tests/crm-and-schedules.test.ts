@@ -163,7 +163,7 @@ test("Phase 5 - Salesforce Adapter: Conflict Preservation and Deduplication", as
 });
 
 test("Phase 5 - Custom Webhook Adapter: HMAC-SHA256 Signature Verification", async (t) => {
-  const adapter = new CustomWebhookAdapter();
+  const adapter = new CustomWebhookAdapter((url, init) => fetch(url, init));
   const originalFetch = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = originalFetch;
@@ -199,7 +199,7 @@ test("Phase 5 - Custom Webhook Adapter: HMAC-SHA256 Signature Verification", asy
   });
 
   assert.equal(result.operation, "created");
-  assert.ok(result.remote_record_id.startsWith("webhook:200:"));
+  assert.equal(result.remote_record_id, "webhook:lead-webhook-99");
 
   const headers = capturedHeaders as Record<string, string>;
   const sigHeader = headers["X-Quickstart-Signature"];
@@ -268,8 +268,8 @@ test("Phase 5 - Database-Coordinated Schedule Execution", async (t) => {
   const scheduleId = crypto.randomUUID();
   await pool.query(
     `INSERT INTO lg_schedules(
-      id, org_id, workspace_id, name, brief, cron_expression, next_run_at, enabled
-    ) VALUES($1,$2,$3,$4,$5,$6,now() - interval '5 minutes',true)`,
+      id, org_id, workspace_id, name, brief, cron_expression, next_run_at, enabled, execution_mode
+    ) VALUES($1,$2,$3,$4,$5,$6,now() - interval '5 minutes',true,'demo')`,
     [
       scheduleId,
       orgId,

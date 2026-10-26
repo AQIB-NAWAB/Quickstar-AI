@@ -24,24 +24,33 @@ type ApifyWebFetchItem = {
 export class ApifyAcquisitionProvider implements AcquisitionProvider {
   readonly profileId: string;
   readonly driver = "apify";
-  private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
 
   constructor(profile: AcquisitionProviderProfileConfig, timeoutMs: number) {
     this.profileId = profile.id;
-    const key = profile.apiKey;
-    if (!key) {
-      throw new Error(`Apify profile ${profile.id} missing API key`);
-    }
-    this.apiKey = key;
     this.baseUrl = (profile.baseUrl ?? "https://api.apify.com").replace(/\/$/, "");
     this.timeoutMs = timeoutMs;
   }
 
+  private async customerKey(workspaceId: string): Promise<string> {
+    const root = (process.env.SECRETS_URL ?? "http://127.0.0.1:3011").replace(/\/$/, "");
+    const response = await fetch(`${root}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets/integration_apify_credentials/value`, {
+      headers: { authorization: `Bearer ${process.env.SECRETS_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? ""}` },
+      signal: AbortSignal.timeout(5000), redirect: "error",
+    });
+    if (!response.ok) throw new ProviderError("Workspace Apify connection required", { retryable: false, httpStatus: 409 });
+    const body = await response.json() as { value?: string };
+    const credentials = JSON.parse(body.value ?? "{}");
+    const key = credentials.apiToken || credentials.apiKey || credentials.api_token || credentials.token;
+    if (typeof key !== "string" || !key.trim()) throw new ProviderError("Workspace Apify credentials missing", { retryable: false, httpStatus: 409 });
+    return key.trim();
+  }
+
   async scrape(input: ScrapeProviderInput): Promise<ScrapeProviderOutput> {
-    // Apify official web-fetch actor: fast, renders pages, bypasses anti-bot/Cloudflare, returns LLM markdown
-    const endpoint = `${this.baseUrl}/v2/acts/apify~web-fetch/run-sync-get-dataset-items?token=${encodeURIComponent(this.apiKey)}`;
+    // Browser fallback; each call resolves the requesting workspace credential.
+    const key = await this.customerKey(input.context.workspaceId);
+    const endpoint = `${this.baseUrl}/v2/acts/apify~web-fetch/run-sync-get-dataset-items`;
 
     const response = await fetchWithPolicy(
       endpoint,
@@ -49,6 +58,7 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
           url: input.url,
@@ -92,7 +102,8 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
   }
 
   async search(input: import("../domain/types.js").SearchProviderInput): Promise<import("../domain/types.js").SearchProviderOutput> {
-    const endpoint = `${this.baseUrl}/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(this.apiKey)}`;
+    const key = await this.customerKey(input.context.workspaceId);
+    const endpoint = `${this.baseUrl}/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items`;
 
     const response = await fetchWithPolicy(
       endpoint,
@@ -100,6 +111,7 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
           queries: input.query,
@@ -141,12 +153,14 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
   }
 
   async enrichBusinessProfile(input: {
+    workspaceId: string;
     businessName: string;
     location?: string;
     website?: string;
   }): Promise<EnrichedBusinessProfile | null> {
     const query = `${input.businessName} ${input.location ?? ""}`.trim();
-    const endpoint = `${this.baseUrl}/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?token=${encodeURIComponent(this.apiKey)}&timeout=25`;
+    const key = await this.customerKey(input.workspaceId);
+    const endpoint = `${this.baseUrl}/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?timeout=25`;
 
     try {
       const response = await fetchWithPolicy(
@@ -155,6 +169,7 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
           method: "POST",
           headers: {
             "content-type": "application/json",
+          authorization: `Bearer ${key}`,
           },
           body: JSON.stringify({
             searchStringsArray: [query],
@@ -174,7 +189,12 @@ export class ApifyAcquisitionProvider implements AcquisitionProvider {
         return null;
       }
 
-      const item = items[0];
+      const expectedHost = input.website ? new URL(input.website).hostname.toLowerCase().replace(/^www\./, "") : null;
+      const item = expectedHost ? items.find((candidate) => {
+        try { return new URL(String(candidate.website)).hostname.toLowerCase().replace(/^www\./, "") === expectedHost; }
+        catch { return false; }
+      }) : items[0];
+      if (!item) return null;
       return {
         title: item.title ?? undefined,
         address: item.address ?? undefined,

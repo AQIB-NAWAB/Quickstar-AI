@@ -118,7 +118,7 @@ export class IntegrationsService {
     this.secrets =
       secretsClient ??
       new SecretsClient({
-        internalToken: process.env.WORKSPACE_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? "internal-token",
+        internalToken: process.env.SECRETS_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? "",
       });
   }
 

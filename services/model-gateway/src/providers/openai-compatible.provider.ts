@@ -175,6 +175,8 @@ export class OpenAiCompatibleProvider implements ChatProvider {
       messages: mapMessages(input.messages),
       stream,
     };
+    if (input.responseFormat) body.response_format = input.responseFormat;
+    if (input.reasoningEffort) body.reasoning_effort = input.reasoningEffort;
     if (input.temperature !== undefined) body.temperature = input.temperature;
     if (input.maxTokens !== undefined) {
       body.max_tokens = this.config.baseUrl?.includes("groq.com")
@@ -183,7 +185,7 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     } else if (this.config.baseUrl?.includes("groq.com")) {
       body.max_tokens = 2048;
     }
-    if (/gpt-oss/i.test(input.modelId)) {
+    if (/gpt-oss/i.test(input.modelId) && !input.reasoningEffort) {
       body.reasoning_effort = "low";
     }
     if (input.tools?.length) {

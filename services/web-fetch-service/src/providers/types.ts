@@ -11,6 +11,7 @@ export type AcquisitionProvider = {
   scrape(input: ScrapeProviderInput): Promise<ScrapeProviderOutput>;
   search?(input: SearchProviderInput): Promise<SearchProviderOutput>;
   enrichBusinessProfile?(input: {
+    workspaceId: string;
     businessName: string;
     location?: string;
     website?: string;

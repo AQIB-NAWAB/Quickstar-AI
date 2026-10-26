@@ -167,13 +167,17 @@ test("Phase 2 - Entity Types, Refresh History, and Multi-Person Domain Separatio
       aliceRes.leadId!,
       "meeting",
       "Meeting scheduled for Tuesday with Alice",
-      { custom_title: "Key Decision Maker" },
+      { custom_title: "Key Decision Maker", person_role: "User-authored role" },
     );
     assert.equal(updatedLead.sales_status, "meeting");
     assert.equal(updatedLead.notes, "Meeting scheduled for Tuesday with Alice");
     assert.equal(updatedLead.user_edits.custom_title, "Key Decision Maker");
     assert.equal(updatedLead.activity_history.length, 1);
     assert.equal(updatedLead.activity_history[0].details.new_status, "meeting");
+
+    const notesOnly = await store.updateLeadSalesStatus(identity, aliceRes.leadId!, undefined,
+      "Meeting scheduled for Tuesday with Alice");
+    assert.equal(notesOnly.sales_status, "meeting", "Notes-only edits must not clear sales status");
 
     // 6. Test Lead Rediscovery & Refresh: user edits and sales status must be preserved!
     const candidateIdAliceRefresh = randomUUID();
@@ -198,6 +202,8 @@ test("Phase 2 - Entity Types, Refresh History, and Multi-Person Domain Separatio
     assert.equal(recheckedAlice.sales_status, "meeting", "Sales status MUST NOT be reset to new on refresh");
     assert.equal(recheckedAlice.notes, "Meeting scheduled for Tuesday with Alice", "User notes MUST NOT be wiped on refresh");
     assert.equal(recheckedAlice.user_edits.custom_title, "Key Decision Maker", "User edited fields MUST be preserved");
+    assert.equal(recheckedAlice.data.person_role, "User-authored role");
+    assert.equal(recheckedAlice.person_role, "User-authored role", "Canonical columns must preserve edits too");
     // Refresh history must contain recorded diff
     assert.ok(Array.isArray(recheckedAlice.refresh_history));
     assert.equal(recheckedAlice.refresh_history.length, 1);

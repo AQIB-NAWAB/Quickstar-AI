@@ -33,7 +33,7 @@ export async function deliverLeadToCrm(
   options?: { preserveConflicts?: boolean },
 ): Promise<CrmPushResult> {
   const adapter = getCrmAdapter(provider);
-  const existingMapping = await store.getCrmMapping(identity, provider, lead.id);
+  const existingMapping = await store.getCrmMapping(identity, lead.id, provider);
 
   const result = await adapter.pushLead(lead, credentials, existingMapping, options);
 
@@ -46,6 +46,10 @@ export async function deliverLeadToCrm(
     external_object_type: provider === "salesforce" ? "Lead" : provider === "hubspot" ? "Contact" : "WebhookEvent",
     last_synced_at: new Date().toISOString(),
     last_synced_payload: {
+      fields: {
+        ...((existingMapping?.last_synced_payload?.fields ?? {}) as Record<string, unknown>),
+        ...((result.details?.written_fields ?? {}) as Record<string, unknown>),
+      },
       status: result.operation,
       remote_record_id: result.remote_record_id,
       conflict_detected: result.conflict_detected || false,

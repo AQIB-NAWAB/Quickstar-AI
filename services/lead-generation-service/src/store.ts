@@ -1,3 +1,4 @@
+import { ResearchError } from "./research-error.js";
 import { randomUUID, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type {
@@ -32,7 +33,7 @@ import {
   escapeCsvField,
 } from "./domain.js";
 import { ErrorCode } from "@quickstart/errors";
-import { syncAcceptedLeadToCrm } from "./crm-sync.js";
+
 import type { Config } from "./config.js";
 
 export type Identity = { orgId: string; workspaceId: string; actorId: string; requestId: string };
@@ -55,7 +56,7 @@ export type Run = {
   policy_snapshot: LeadPolicy;
   policy_version: string;
   status: string;
-  profile_id: string;
+  profile_id: string | null;
   profile_snapshot: { supplied: BusinessInput; researched: Json | null };
   accepted: number;
   errors: number;
@@ -346,6 +347,19 @@ export class Store {
         return { run: prior, deduplicated: true };
       }
       const { policy: p, version } = await this.effective(c, i.orgId);
+      // Until outbound source recipes are actually wired, fail explicitly instead
+      // of silently running company-web searches for a different requested source.
+      if (this.mode === "live") {
+        if (brief.entity_type && brief.entity_type !== "business") fail("SOURCE_CAPABILITY_UNAVAILABLE: Live person/consumer discovery is not connected yet; use an appropriate inbound connector", ErrorCode.CONFLICT);
+        const preferred = brief.source_policy?.preferred_sources ?? [];
+        const disallowed = brief.source_policy?.disallowed_sources ?? [];
+        if (preferred.some((source) => !["web", "google_maps"].includes(source)) || (disallowed.includes("web") && disallowed.includes("google_maps"))) {
+          fail("SOURCE_CAPABILITY_UNAVAILABLE: Only web and customer-connected Google Maps discovery are supported; selected source policy cannot be honored", ErrorCode.CONFLICT);
+        }
+      }
+      if (brief.budget_limits?.max_cost_usd !== undefined) fail("COST_CAP_UNSUPPORTED: Provider spending caps are not enforced by this discovery path", ErrorCode.CONFLICT);
+      if (brief.budget_limits?.max_candidates) p.max_candidates = Math.min(p.max_candidates, brief.budget_limits.max_candidates);
+      if (brief.budget_limits?.max_runtime_seconds) p.run_deadline_seconds = Math.min(p.run_deadline_seconds, brief.budget_limits.max_runtime_seconds);
       if (!p.enabled) fail("Lead generation disabled", ErrorCode.FORBIDDEN);
       if (brief.categories.length > p.max_categories || brief.target_count > p.max_target_count)
         fail("Run exceeds category or target safety limit", ErrorCode.RATE_LIMITED);
@@ -367,7 +381,9 @@ export class Store {
           [i.workspaceId, i.orgId, this.mode],
         )
       ).rows[0];
-      if (!profile) fail("Create a business profile before starting research", ErrorCode.CONFLICT);
+      const profileSnapshot = profile
+        ? { supplied: profile.supplied, researched: profile.researched }
+        : { supplied: { name: "", description: "", offerings: [], target_categories: [], locations: [] }, researched: null };
       if (brief.collection_id) {
         const coll = (
           await c.query(
@@ -396,7 +412,7 @@ export class Store {
           [
             i.orgId,
             i.workspaceId,
-            profile.id,
+            profile?.id ?? null,
             brief,
             p,
             version,
@@ -405,7 +421,7 @@ export class Store {
             i.requestId,
             p.run_deadline_seconds,
             this.mode,
-            { supplied: profile.supplied, researched: profile.researched },
+            profileSnapshot,
             qualificationMode,
             JSON.stringify(priorities),
             brief.collection_id ?? null,
@@ -454,7 +470,11 @@ export class Store {
         [id],
       )
     ).rows;
-    return { ...row, progress };
+    const sourceRuns = (await this.pool.query(
+      "SELECT s.actor_id,s.status,s.state->>'runId' AS external_run_id,s.state->>'datasetId' AS dataset_id,s.state->>'error' AS error FROM lg_source_runs s JOIN lg_tasks t ON t.id=s.task_id WHERE t.run_id=$1 AND s.workspace_id=$2 ORDER BY s.created_at",
+      [id, i.workspaceId],
+    )).rows;
+    return { ...row, progress, source_runs: sourceRuns };
   }
   async list(
     i: Identity,
@@ -592,7 +612,7 @@ export class Store {
         if (count >= p.max_active_tasks) continue;
         const task = (
           await c.query(
-            "SELECT * FROM lg_tasks WHERE org_id=$1 AND state='queued' AND available_at<=now() AND execution_mode=$2 ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1",
+            "SELECT * FROM lg_tasks WHERE org_id=$1 AND state='queued' AND available_at<=now() AND execution_mode=$2 AND (kind<>'search' OR NOT EXISTS (SELECT 1 FROM lg_tasks pending WHERE pending.run_id=lg_tasks.run_id AND pending.kind='candidate' AND pending.state IN ('queued','running'))) ORDER BY (kind='candidate') DESC,created_at,(payload->>'discovery_rank')::int NULLS LAST,id FOR UPDATE SKIP LOCKED LIMIT 1",
             [t.org_id, this.mode],
           )
         ).rows[0];
@@ -657,10 +677,16 @@ export class Store {
     ).rows[0];
     return { run, profile };
   }
-  async reserve(t: Task, action: string, tokens: number) {
+  async reserve(t: Task, action: string, tokens: number, minIntervalSeconds = 0) {
     return this.tx(async (c) => {
       await this.global(c);
       await this.live(c, t);
+      if (action === "model.complete" && minIntervalSeconds > 0) {
+        // The configured gateway model is shared across tenants; serialize admission under the global lock.
+        const timing = (await c.query("SELECT EXTRACT(EPOCH FROM (max(created_at)+$1*interval '1 second'-now())) AS wait FROM lg_usage_events WHERE action='model.complete'", [minIntervalSeconds])).rows[0];
+        const wait = Math.ceil(Number(timing.wait));
+        if (wait > 0) throw new ResearchError("MODEL_PACING_WAIT", true, wait);
+      }
       await this.tenant(c, t.org_id);
       const { policy: p, version } = await this.effective(c, t.org_id);
       const daily = await this.daily(c, t.org_id);
@@ -681,6 +707,25 @@ export class Store {
       return row.id as string;
     });
   }
+  async sourceRun(t: Task) {
+    return (await this.pool.query("SELECT * FROM lg_source_runs WHERE task_id=$1 AND workspace_id=$2", [t.id, t.workspace_id])).rows[0] ?? null;
+  }
+  async beginSourceRun(t: Task, actorId: string) {
+    return this.tx(async (c) => {
+      await this.live(c, t);
+      return (await c.query(
+        "INSERT INTO lg_source_runs(task_id,workspace_id,actor_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING *",
+        [t.id, t.workspace_id, actorId],
+      )).rows[0] ?? null;
+    });
+  }
+  async saveSourceRun(t: Task, status: string, state: Record<string, unknown>) {
+    return this.tx(async (c) => {
+      await this.live(c, t);
+      await c.query("UPDATE lg_source_runs SET status=$3,state=$4,updated_at=now() WHERE task_id=$1 AND workspace_id=$2", [t.id, t.workspace_id, status, JSON.stringify(state)]);
+    });
+  }
+
   async settle(eventId: string, actualTokens: number): Promise<void> {
     await this.tx(async (c) => {
       const e = (await c.query("SELECT * FROM lg_usage_events WHERE id=$1 FOR UPDATE", [eventId]))
@@ -713,7 +758,7 @@ export class Store {
       [t.id, result],
     );
   }
-  async discovered(t: Task, urls: Array<{ url: string; category: string }>) {
+  async discovered(t: Task, urls: Array<{ url: string; category: string; source_page?: { url: string; text: string }; source_record?: Record<string, unknown> }>) {
     await this.tx(async (c) => {
       await this.global(c);
       await this.live(c, t);
@@ -726,7 +771,7 @@ export class Store {
       );
       const { policy: current } = await this.effective(c, t.org_id);
       const cap = Math.min(run.policy_snapshot.max_candidates, current.max_candidates);
-      for (const u of urls) {
+      for (const [discoveryRank, u] of urls.entries()) {
         if (n >= cap) break;
         const host = new URL(u.url).hostname.toLowerCase().replace(/^www\./, "");
         const ownDomain = run.profile_snapshot?.supplied?.website
@@ -751,7 +796,7 @@ export class Store {
               requestId: t.request_id,
             },
             "candidate",
-            { candidate_id: rows[0].id, url: u.url, category: u.category },
+            { candidate_id: rows[0].id, url: u.url, category: u.category, source_page: u.source_page, source_record: u.source_record, discovery_rank: discoveryRank },
             `candidate:${rows[0].id}`,
             run.id,
           );
@@ -822,22 +867,10 @@ export class Store {
                 [t.workspace_id, data.email, this.mode],
               )
             ).rows[0];
-          } else if (data.person_name) {
-            lead = (
-              await c.query(
-                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND person_name=$2 AND execution_mode=$3 AND (domain IS NULL OR domain='') LIMIT 1",
-                [t.workspace_id, data.person_name, this.mode],
-              )
-            ).rows[0];
           }
+          // A name without contact/provider identity is not a deduplication key.
         } else if (data.person_name) {
-          lead = (
-            await c.query(
-              "SELECT * FROM lg_leads WHERE workspace_id=$1 AND domain=$2 AND person_name=$3 AND execution_mode=$4 LIMIT 1",
-              [t.workspace_id, host, data.person_name, this.mode],
-            )
-          ).rows[0];
-          if (!lead && data.email) {
+          if (data.email) {
             lead = (
               await c.query(
                 "SELECT * FROM lg_leads WHERE workspace_id=$1 AND domain=$2 AND lower(contact_email)=lower($3) AND execution_mode=$4 LIMIT 1",
@@ -896,7 +929,14 @@ export class Store {
             fit_score: data.fit_score ?? null,
           });
 
-          const mergedData = { ...data, ...existingUserEdits, data_origin: this.mode };
+          const presentData = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+          const mergedData = { ...lead.data, ...presentData, ...existingUserEdits, data_origin: this.mode };
+          const mergedContacts = [
+            ...contactPoints,
+            ...(Array.isArray(lead.contact_points) ? lead.contact_points : []).filter(
+              (old: { type: string }) => !contactPoints.some((next: { type: string }) => next.type === old.type),
+            ),
+          ];
 
           lead = (
             await c.query(
@@ -913,13 +953,13 @@ export class Store {
               WHERE id=$9 RETURNING *`,
               [
                 JSON.stringify(mergedData),
-                data.person_name ?? null,
-                data.person_role ?? null,
-                data.email ?? null,
-                data.phone ?? null,
+                mergedData.person_name ?? null,
+                mergedData.person_role ?? null,
+                mergedData.email ?? null,
+                mergedData.phone ?? null,
                 (run as any).qualification_mode ?? "strict",
                 JSON.stringify(refreshHistory),
-                JSON.stringify(contactPoints),
+                JSON.stringify(mergedContacts),
                 lead.id,
               ],
             )
@@ -1041,6 +1081,14 @@ export class Store {
       await this.done(c, t, result);
     });
   }
+  async saveResearchPages(t: Task, pages: Array<{url: string; text: string}>) {
+    await this.tx(async (c) => {
+      await this.live(c, t);
+      await c.query("UPDATE lg_tasks SET payload=jsonb_set(payload,'{research_pages}',$2::jsonb) WHERE id=$1", [
+        t.id, JSON.stringify(pages.slice(0, 8).map(page => ({url: page.url, text: page.text.slice(0, 100000)})))
+      ]);
+    });
+  }
   async failed(t: Task, code: string, retryable: boolean, delaySeconds = 0, errorDetail?: string) {
     await this.tx(async (c) => {
       await this.global(c);
@@ -1051,11 +1099,15 @@ export class Store {
         )
       ).rows[0];
       if (!live) return;
-      const maxAttempts = t.kind === "candidate" ? 2 : 5;
-      const retry = retryable && t.attempts < maxAttempts;
-      const delay = Math.max(delaySeconds, Math.min(120, 2 ** t.attempts) + Math.random() * 2);
+      const modelCooldown = ["MODEL_RATE_LIMITED", "MODEL_PROVIDER_UNAVAILABLE"].includes(code);
+      const maxAttempts = modelCooldown ? 6 : t.kind === "candidate" ? 3 : 5;
+      const retry = retryable && (["SOURCE_PENDING", "MODEL_PACING_WAIT"].includes(code) || t.attempts < maxAttempts);
+      const delay = Math.max(delaySeconds, modelCooldown ? Math.min(300, 60 * 2 ** (t.attempts - 1)) : Math.min(120, 2 ** t.attempts) + Math.random() * 2);
+      if (modelCooldown) {
+        await c.query("UPDATE lg_tasks SET available_at=GREATEST(available_at,now()+$2*interval '1 second') WHERE org_id=$1 AND state='queued' AND kind IN ('candidate','search','profile')", [t.org_id, delay]);
+      }
       await c.query(
-        "UPDATE lg_tasks SET state=$2,error_code=$3,available_at=now()+$4*interval '1 second',lease_token=NULL,lease_until=NULL WHERE id=$1",
+        "UPDATE lg_tasks SET state=$2,error_code=$3,available_at=now()+$4*interval '1 second',lease_token=NULL,lease_until=NULL,attempts=CASE WHEN $3 IN ('SOURCE_PENDING','MODEL_PACING_WAIT') THEN GREATEST(0,attempts-1) ELSE attempts END WHERE id=$1",
         [t.id, retry ? "queued" : "failed", code, delay],
       );
       if (!retry && t.run_id && t.kind !== "delivery") {
@@ -1066,6 +1118,10 @@ export class Store {
             failureReason = "Website took too long to respond (timeout after 45s)";
           } else if (code === "PROVIDER_HTTP_429") {
             failureReason = "Upstream provider rate limited (429 Too Many Requests)";
+          } else if (code === "MODEL_OUTPUT_TRUNCATED") {
+            failureReason = "AI response exceeded its output limit; qualification was not completed";
+          } else if (code === "MODEL_QUOTA_EXHAUSTED") {
+            failureReason = "AI provider daily or billing quota exhausted; retry after the provider allowance resets";
           } else if (code === "MODEL_RATE_LIMITED") {
             failureReason = "AI completion quota or rate limit reached on provider";
           } else if (code === "MODEL_PROVIDER_UNAVAILABLE") {
@@ -1103,10 +1159,10 @@ export class Store {
         await c.query("UPDATE lg_profiles SET research_status='failed' WHERE id=$1", [
           t.payload.profile_id,
         ]);
-      if (code === "BUDGET_REACHED" && t.run_id && t.kind !== "delivery") {
+      if (["BUDGET_REACHED", "MODEL_QUOTA_EXHAUSTED"].includes(code) && t.run_id && t.kind !== "delivery") {
         await c.query(
-          "UPDATE lg_runs SET status='completed_with_errors',stop_reason='budget_reached' WHERE id=$1 AND status IN ('queued','running')",
-          [t.run_id],
+          "UPDATE lg_runs SET status='completed_with_errors',stop_reason=$2 WHERE id=$1 AND status IN ('queued','running')",
+          [t.run_id, code === "MODEL_QUOTA_EXHAUSTED" ? "provider_quota_exhausted" : "budget_reached"],
         );
         await c.query(
           "UPDATE lg_tasks SET state='cancelled',lease_token=NULL,lease_until=NULL WHERE run_id=$1 AND kind!='delivery' AND state IN ('queued','running')",
@@ -1122,7 +1178,7 @@ export class Store {
   }
   async finalizeRuns() {
     await this.pool.query(
-      "UPDATE lg_runs r SET status=CASE WHEN errors>0 OR EXISTS(SELECT 1 FROM lg_tasks t WHERE t.run_id=r.id AND t.kind!='delivery' AND t.state='failed') THEN 'completed_with_errors' ELSE 'completed' END,stop_reason='sources_exhausted' WHERE r.status IN ('queued','running') AND NOT EXISTS(SELECT 1 FROM lg_tasks t WHERE t.run_id=r.id AND t.kind!='delivery' AND t.state IN ('queued','running'))",
+      "UPDATE lg_runs r SET status=CASE WHEN errors>0 OR EXISTS(SELECT 1 FROM lg_tasks t WHERE t.run_id=r.id AND t.kind!='delivery' AND t.state='failed') THEN 'completed_with_errors' ELSE 'completed' END,stop_reason=CASE WHEN accepted >= (brief->>'target_count')::int THEN 'target_reached' WHEN errors>0 THEN 'research_errors' ELSE 'research_round_limit' END WHERE r.status IN ('queued','running') AND NOT EXISTS(SELECT 1 FROM lg_tasks t WHERE t.run_id=r.id AND t.kind!='delivery' AND t.state IN ('queued','running'))",
     );
     // Auto-compute shortfall explanation for any finalized runs that fell short of target
     const unfinished = (
@@ -1152,21 +1208,21 @@ export class Store {
     for (const c of candidates) {
       const assessment = c.assessment ?? {};
       const reasons: string[] = Array.isArray(assessment.reject_reasons) ? assessment.reject_reasons : [];
-      for (const r of reasons) {
-        const text = String(r).toLowerCase();
-        if (text.includes("category")) categoryMismatch++;
-        if (text.includes("location")) locationMismatch++;
-        if (text.includes("email") || text.includes("phone") || text.includes("contact")) contactMissing++;
-        if (text.includes("fit score") || text.includes("below")) fitBelowBar++;
-      }
+      const text = reasons.join(" ").toLowerCase();
+      if (text.includes("category")) categoryMismatch++;
+      if (text.includes("location")) locationMismatch++;
+      if (text.includes("email") || text.includes("phone") || text.includes("contact")) contactMissing++;
+      if (text.includes("fit score") || text.includes("below")) fitBelowBar++;
     }
 
     const tasks = (await this.pool.query("SELECT * FROM lg_tasks WHERE run_id=$1", [runId])).rows;
     const providerLimitsHit = tasks.some(
-      (t) => t.error_code === "BUDGET_REACHED" || t.error_code === "PROVIDER_HTTP_429",
+      (t) => ["BUDGET_REACHED", "PROVIDER_HTTP_429", "MODEL_RATE_LIMITED", "MODEL_PROVIDER_UNAVAILABLE", "MODEL_QUOTA_EXHAUSTED"].includes(t.error_code),
     );
 
+    const researchFailed = candidates.filter((candidate) => candidate.status === "failed").length;
     const causes = {
+      research_failed: researchFailed,
       category_mismatch: categoryMismatch,
       location_mismatch: locationMismatch,
       contact_missing: contactMissing,
@@ -1186,15 +1242,15 @@ export class Store {
         suggested_patch: { qualification_mode: "best_match" },
       });
     }
-    if (run.brief?.required_contact === "both" || run.brief?.required_contact === "phone") {
+    if (["both", "phone", "email"].includes(run.brief?.required_contact)) {
       expansionOptions.push({
         type: "relax_contact",
         label: "Relax contact requirement to Either (Email or Phone)",
-        description: "Allow prospects that have either a verified business email or direct telephone number.",
+        description: "Allow prospects that have either a source-observed business email or telephone number.",
         suggested_patch: { required_contact: "either" },
       });
     }
-    if (run.brief?.location) {
+    if (run.brief?.location && locationMismatch > 0 && researchFailed === 0) {
       expansionOptions.push({
         type: "expand_geography",
         label: "Expand target location",
@@ -1211,14 +1267,15 @@ export class Store {
 
     const summaryParts: string[] = [];
     if (categoryMismatch > 0) summaryParts.push(`${categoryMismatch} candidates did not match target industry criteria`);
-    if (locationMismatch > 0) summaryParts.push(`${locationMismatch} candidates were outside the requested location`);
+    if (locationMismatch > 0) summaryParts.push(`${locationMismatch} candidates had missing or nonmatching location evidence`);
     if (contactMissing > 0) summaryParts.push(`${contactMissing} candidates lacked the required contact details`);
     if (fitBelowBar > 0) summaryParts.push(`${fitBelowBar} candidates were below the qualification fit score threshold`);
+    if (researchFailed > 0) summaryParts.push(`${researchFailed} candidate research tasks failed before qualification; inspect their provider errors`);
     if (providerLimitsHit) summaryParts.push("Configured provider rate or budget limits were reached");
 
     const summary = summaryParts.length > 0
       ? `Target of ${target} leads was not fully met (${found} found, shortfall ${shortfall}). Primary causes: ${summaryParts.join("; ")}.`
-      : `Research found ${found} leads out of requested ${target}. Discovered web sources for the specified brief were exhausted.`;
+      : `Research found ${found} leads out of requested ${target}. The configured research rounds ended; this does not mean all available businesses were exhausted.`;
 
     const explanation: ShortfallExplanation = {
       shortfall,
@@ -1605,21 +1662,16 @@ export class Store {
             throw new Error("Record missing company name, person name, and contact details");
           }
 
-          let leadDomain = "";
+          let leadDomain: string | null = null;
           let validUrl = "";
           if (rawWebsite) {
             try {
               validUrl = normalizeWebsite(rawWebsite.includes("://") ? rawWebsite : `https://${rawWebsite}`);
               leadDomain = domain(validUrl);
             } catch {
-              leadDomain = rawWebsite.replace(/^https?:\/\//i, "").split(/[/?#]/)[0].toLowerCase();
+              // An invalid or absent website is not evidence of any domain.
+              validUrl = "";
             }
-          } else if (rawEmail && rawEmail.includes("@")) {
-            leadDomain = rawEmail.split("@")[1].toLowerCase();
-            validUrl = `https://${leadDomain}`;
-          } else {
-            leadDomain = `${(companyName || "company").toLowerCase().replace(/[^a-z0-9]/g, "")}.example`;
-            validUrl = `https://${leadDomain}`;
           }
 
           const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : null;
@@ -1628,7 +1680,8 @@ export class Store {
 
           // Qualification evaluation
           const rejectReasons: string[] = [];
-          if (effectiveMode === "strict") {
+          {
+            // Required contact channels remain mandatory in best-match mode too.
             if (reqContact === "email" && !validEmail) rejectReasons.push("Required email missing");
             if (reqContact === "phone" && !validPhone) rejectReasons.push("Required phone missing");
             if (reqContact === "both" && (!validEmail || !validPhone)) rejectReasons.push("Required email and phone missing");
@@ -1645,27 +1698,17 @@ export class Store {
           if (externalId) {
             const byExt = (
               await c.query(
-                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND data->'provenance'->>'external_id'=$2 AND execution_mode=$3 LIMIT 1",
-                [workspaceId, externalId, this.mode],
+                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND data->'provenance'->>'external_id'=$2 AND execution_mode=$3 AND data->'provenance'->>'connector_id'=$4 LIMIT 1",
+                [workspaceId, externalId, this.mode, connector.id],
               )
             ).rows[0];
             if (byExt) existingLead = byExt;
           }
 
-          if (!existingLead && leadDomain && personName) {
-            const byPerson = (
-              await c.query(
-                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND domain=$2 AND person_name=$3 AND execution_mode=$4 LIMIT 1",
-                [workspaceId, leadDomain, personName, this.mode],
-              )
-            ).rows[0];
-            if (byPerson) existingLead = byPerson;
-          }
-
-          if (!existingLead && leadDomain && validEmail) {
+          if (!existingLead && validEmail) {
             const byEmail = (
               await c.query(
-                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND domain=$2 AND lower(contact_email)=lower($3) AND execution_mode=$4 LIMIT 1",
+                "SELECT * FROM lg_leads WHERE workspace_id=$1 AND domain IS NOT DISTINCT FROM $2 AND lower(contact_email)=lower($3) AND execution_mode=$4 LIMIT 1",
                 [workspaceId, leadDomain, validEmail, this.mode],
               )
             ).rows[0];
@@ -1709,7 +1752,7 @@ export class Store {
 
           const leadData: CampaignLeadDelivery["lead"] = {
             data_origin: this.mode,
-            company_name: companyName || leadDomain,
+            company_name: companyName || personName || "",
             website: validUrl,
             category,
             location,
@@ -1721,17 +1764,17 @@ export class Store {
             email: validEmail,
             phone: validPhone,
             summary: String(mapped.summary ?? `${companyName} (${category}) ingested via ${connector.name}`).slice(0, 2000),
-            fit_score: isQualified ? 85 : 55,
-            fit_reasons: [`Ingested from ${connector.name} (${connector.source_type})`],
+            fit_score: 0,
+            fit_reasons: ["Imported record; business fit has not been researched"],
             reject_reasons: rejectReasons,
             qualification_mode: effectiveMode,
             criterion_evaluations: criterionEvaluations,
             dimensions: {
-              business_fit: { score: isQualified ? 85 : 55, max: 100, reasons: [`Ingested from ${connector.name}`], gaps: rejectReasons },
+              business_fit: { score: 0, max: 100, reasons: [`Ingested from ${connector.name}`], gaps: rejectReasons },
               evidence_completeness: {
-                status: isQualified ? "complete" : "partial",
-                verified_count: isQualified ? 3 : 1,
-                unknown_count: isQualified ? 0 : 2,
+                status: "partial",
+                verified_count: Number(Boolean(companyName)) + Number(Boolean(validEmail)) + Number(Boolean(validPhone)),
+                unknown_count: Number(!validEmail) + Number(!validPhone),
                 verified_criteria: ["company_name", ...(validEmail ? ["email"] : []), ...(validPhone ? ["phone"] : [])],
                 unknown_criteria: [!validEmail ? "email" : "", !validPhone ? "phone" : ""].filter(Boolean),
               },
@@ -1740,7 +1783,7 @@ export class Store {
                 email_verified: false,
                 phone_available: Boolean(validPhone),
                 phone_verified: false,
-                status: (validEmail || validPhone ? "ready" : "missing"),
+                status: (validEmail || validPhone ? "unverified" : "missing"),
               },
               outreach_eligibility: {
                 eligible: false,
@@ -1781,17 +1824,12 @@ export class Store {
             const existingData = (existingLead.data ?? {}) as CampaignLeadDelivery["lead"];
             const mergedData: CampaignLeadDelivery["lead"] = {
               ...existingData,
-              company_name: existingData.company_name || leadData.company_name,
-              website: existingData.website || leadData.website,
-              category: leadData.category || existingData.category,
-              location: leadData.location ?? existingData.location,
-              email: existingData.email ?? leadData.email,
-              phone: existingData.phone ?? leadData.phone,
-              person_name: existingData.person_name ?? leadData.person_name,
-              person_role: existingData.person_role ?? leadData.person_role,
-              discovered_fields: { ...(existingData.discovered_fields ?? {}), ...(leadData.discovered_fields ?? {}) },
+              ...Object.fromEntries(Object.entries(leadData).filter(([, value]) => value !== null && value !== undefined && value !== "")),
+              ...existingLead.user_edits,
+              discovered_fields: { ...existingData.discovered_fields, ...leadData.discovered_fields },
               checked_at: new Date().toISOString(),
             };
+
 
             await c.query(
               `UPDATE lg_leads SET
@@ -1806,10 +1844,10 @@ export class Store {
               WHERE id=$8`,
               [
                 JSON.stringify(mergedData),
-                leadData.person_name,
-                leadData.person_role,
-                leadData.email,
-                leadData.phone,
+                mergedData.person_name,
+                mergedData.person_role,
+                mergedData.email,
+                mergedData.phone,
                 collection?.id ?? null,
                 connector.id,
                 existingLead.id,
@@ -1865,19 +1903,7 @@ export class Store {
             );
           }
 
-          // Best-effort CRM sync to lead-service
-          if (input.config) {
-            try {
-              await syncAcceptedLeadToCrm(input.config, {
-                workspaceId,
-                requestId: effectiveIdempotencyKey,
-                leadId,
-                lead: leadData,
-              });
-            } catch {
-              /* CRM sync non-blocking */
-            }
-          }
+
 
           outcomes.push({
             record_index: idx,
@@ -2055,7 +2081,7 @@ export class Store {
             checked_at=now()
           WHERE id=$6 RETURNING *`,
           [
-            status,
+            effectiveStatus,
             notes !== undefined ? notes : null,
             JSON.stringify(mergedUserEdits),
             JSON.stringify(mergedData),
@@ -2147,8 +2173,8 @@ export class Store {
       await this.pool.query(
         `INSERT INTO lg_schedules(
           org_id, workspace_id, name, brief, timezone, cron_expression,
-          next_run_at, enabled, overlap_policy, budget_limits, destination_config
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          next_run_at, enabled, overlap_policy, budget_limits, destination_config, execution_mode
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           i.orgId,
           i.workspaceId,
@@ -2161,6 +2187,7 @@ export class Store {
           schedule.overlap_policy,
           JSON.stringify(schedule.budget_limits || {}),
           schedule.destination_config ? JSON.stringify(schedule.destination_config) : null,
+          this.mode,
         ],
       )
     ).rows[0];
@@ -2169,8 +2196,8 @@ export class Store {
   async listSchedules(i: Identity) {
     return (
       await this.pool.query(
-        "SELECT * FROM lg_schedules WHERE workspace_id=$1 ORDER BY created_at DESC",
-        [i.workspaceId],
+        "SELECT * FROM lg_schedules WHERE workspace_id=$1 AND execution_mode=$2 ORDER BY created_at DESC",
+        [i.workspaceId, this.mode],
       )
     ).rows;
   }
@@ -2178,8 +2205,8 @@ export class Store {
   async getSchedule(i: Identity, scheduleId: string) {
     const s = (
       await this.pool.query(
-        "SELECT * FROM lg_schedules WHERE id=$1 AND workspace_id=$2",
-        [scheduleId, i.workspaceId],
+        "SELECT * FROM lg_schedules WHERE id=$1 AND workspace_id=$2 AND execution_mode=$3",
+        [scheduleId, i.workspaceId, this.mode],
       )
     ).rows[0];
     if (!s) fail("Schedule not found", ErrorCode.NOT_FOUND);
@@ -2189,9 +2216,10 @@ export class Store {
   async updateSchedule(i: Identity, scheduleId: string, patch: Partial<LeadSchedule>) {
     return this.tx(async (c) => {
       const current = (
-        await c.query("SELECT * FROM lg_schedules WHERE id=$1 AND workspace_id=$2 FOR UPDATE", [
+        await c.query("SELECT * FROM lg_schedules WHERE id=$1 AND workspace_id=$2 AND execution_mode=$3 FOR UPDATE", [
           scheduleId,
           i.workspaceId,
+          this.mode,
         ])
       ).rows[0];
       if (!current) fail("Schedule not found", ErrorCode.NOT_FOUND);
@@ -2208,9 +2236,12 @@ export class Store {
         await c.query(
           `UPDATE lg_schedules SET
             name=$1, brief=$2, timezone=$3, cron_expression=$4,
-            next_run_at=$5, enabled=$6, overlap_policy=$7, updated_at=now()
+            next_run_at=$5, enabled=$6, overlap_policy=$7, updated_at=now(),
+            budget_limits=$9, destination_config=$10
           WHERE id=$8 RETURNING *`,
-          [name, brief, timezone, cron_expression, next_run_at, enabled, overlap_policy, scheduleId],
+          [name, brief, timezone, cron_expression, next_run_at, enabled, overlap_policy, scheduleId,
+            JSON.stringify(patch.budget_limits ?? current.budget_limits),
+            JSON.stringify(patch.destination_config ?? current.destination_config)],
         )
       ).rows[0];
     });
@@ -2218,8 +2249,8 @@ export class Store {
 
   async deleteSchedule(i: Identity, scheduleId: string) {
     const res = await this.pool.query(
-      "DELETE FROM lg_schedules WHERE id=$1 AND workspace_id=$2",
-      [scheduleId, i.workspaceId],
+      "DELETE FROM lg_schedules WHERE id=$1 AND workspace_id=$2 AND execution_mode=$3",
+      [scheduleId, i.workspaceId, this.mode],
     );
     if (!res.rowCount) fail("Schedule not found", ErrorCode.NOT_FOUND);
     return { deleted: true };
@@ -2227,17 +2258,17 @@ export class Store {
 
   async claimDueSchedules(limit = 10) {
     return this.tx(async (c) => {
-      const due = (
-        await c.query(
-          `SELECT * FROM lg_schedules
-           WHERE enabled = true AND next_run_at <= now()
-           ORDER BY next_run_at ASC
-           LIMIT $1
-           FOR UPDATE SKIP LOCKED`,
-          [limit],
-        )
-      ).rows;
-      return due;
+      return (await c.query(
+        `WITH due AS (
+          SELECT id FROM lg_schedules
+          WHERE enabled = true AND next_run_at <= now() AND execution_mode=$2
+            AND (dispatch_lease_until IS NULL OR dispatch_lease_until <= now())
+          ORDER BY next_run_at LIMIT $1 FOR UPDATE SKIP LOCKED
+        ) UPDATE lg_schedules s SET dispatch_lease_token=gen_random_uuid(),
+          dispatch_lease_until=now()+interval '120 seconds'
+          FROM due WHERE s.id=due.id RETURNING s.*`,
+        [limit, this.mode],
+      )).rows;
     });
   }
 
@@ -2246,18 +2277,15 @@ export class Store {
     lastOccurrenceKey: string,
     nextRunAt: Date,
     lastRunId?: string | null,
+    leaseToken?: string,
   ) {
-    return (
-      await this.pool.query(
-        `UPDATE lg_schedules SET
-          last_occurrence_key=$1,
-          next_run_at=$2,
-          last_run_id=COALESCE($3, last_run_id),
-          updated_at=now()
-        WHERE id=$4 RETURNING *`,
-        [lastOccurrenceKey, nextRunAt.toISOString(), lastRunId ?? null, scheduleId],
-      )
-    ).rows[0];
+    return (await this.pool.query(
+      `UPDATE lg_schedules SET last_occurrence_key=$1, next_run_at=$2,
+        last_run_id=COALESCE($3,last_run_id), dispatch_lease_token=NULL,
+        dispatch_lease_until=NULL, updated_at=now()
+        WHERE id=$4 AND execution_mode=$5 AND dispatch_lease_token=$6 RETURNING *`,
+      [lastOccurrenceKey, nextRunAt.toISOString(), lastRunId ?? null, scheduleId, this.mode, leaseToken ?? null],
+    )).rows[0];
   }
 
   async recordCrmMapping(i: Identity, mapping: Omit<CrmMapping, "id" | "created_at">) {

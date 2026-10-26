@@ -43,6 +43,7 @@ test("Phase 1 - Truthful Qualification: Mandatory missing contact never qualifie
   assert.ok(emailEval);
   assert.equal(emailEval.status, "unknown");
   assert.equal(emailEval.mandatory, true);
+  assert.ok(result.data.dimensions?.evidence_completeness.unknown_criteria.includes("email"));
   assert.equal(result.data.dimensions?.contact_readiness.email_available, false);
 });
 
@@ -154,10 +155,21 @@ test("Phase 1 - Contact Validation: Truthful email syntax, role account detectio
   const usPhone = validatePhone("+1 (415) 555-2671", "US");
   assert.equal(usPhone.formatValid, true);
   assert.equal(usPhone.digitsOnly, "14155552671");
-  assert.equal(usPhone.status, "numbering_plan_valid");
-  assert.ok(usPhone.explanation.includes("Active status unverified"), "Must never claim active verification without provider");
+  assert.equal(usPhone.status, "numbering_plan_possible");
+  assert.ok(usPhone.explanation.includes("unverified"), "Must never claim active verification without provider");
 
   const invalidPhone = validatePhone("123", "US");
   assert.equal(invalidPhone.formatValid, false);
   assert.equal(invalidPhone.status, "format_invalid");
+});
+
+test("category_match evidence alias retains a verbatim business category without accepting invented quotes", () => {
+  const page = {url:"https://retailer.example/", text:'{"categoryName":"Watch store"}'};
+  const evidence = validatedEvidence([
+    {field:"category_match",value:"Watch store",quote:'"categoryName":"Watch store"'},
+    {field:"category_match",value:"Independent retailer",quote:"Independently owned"},
+  ], [page]);
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].field, "category");
+  assert.equal(evidence[0].value, "Watch store");
 });

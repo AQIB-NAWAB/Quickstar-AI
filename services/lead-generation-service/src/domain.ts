@@ -1,3 +1,4 @@
+import { computeNextRunAt } from "./schedule-time.js";
 import { createHash } from "node:crypto";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type {
@@ -108,9 +109,31 @@ export function runInput(value: unknown): LeadRunInput {
   if (!categories.length) fail("Select at least one category");
   const contact = b.required_contact ?? "none";
   if (!["none", "email", "phone", "either", "both"].includes(String(contact))) fail("Invalid required_contact");
-  const mode = b.qualification_mode ?? "strict";
+  const mode = b.qualification_mode ?? "best_match";
   if (!["strict", "best_match"].includes(String(mode))) fail("Invalid qualification_mode");
   const rawEntityType = b.entity_type;
+  if (rawEntityType !== undefined && !["business", "professional", "consumer"].includes(String(rawEntityType))) fail("Invalid entity_type");
+  if (b.criteria !== undefined && (!Array.isArray(b.criteria) || b.criteria.length > 50)) fail("criteria must contain at most 50 rules");
+  if (Array.isArray(b.criteria)) {
+    const ids = new Set<string>();
+    for (const raw of b.criteria) {
+      const criterion = object(raw);
+      if (!["equals", "not_equals", "contains", "greater_than", "less_than", "exists", "semantic_match"].includes(String(criterion.operator))) fail("Invalid criterion operator");
+      if (typeof criterion.mandatory !== "boolean") fail("Criterion mandatory must be boolean");
+      if (criterion.weight !== undefined) integer(criterion.weight, "criterion.weight", 1, 100);
+      if (criterion.id !== undefined) {
+        const id = text(criterion.id, "criterion.id", 64);
+        if (ids.has(id)) fail("Duplicate criterion id");
+        ids.add(id);
+      }
+    }
+  }
+  if (b.budget_limits !== undefined) {
+    const budget = object(b.budget_limits);
+    if (budget.max_candidates !== undefined) integer(budget.max_candidates, "max_candidates", 1, 1000);
+    if (budget.max_runtime_seconds !== undefined) integer(budget.max_runtime_seconds, "max_runtime_seconds", 1, 86400);
+    if (budget.max_cost_usd !== undefined && (typeof budget.max_cost_usd !== "number" || !Number.isFinite(budget.max_cost_usd) || budget.max_cost_usd <= 0)) fail("max_cost_usd must be a positive finite number");
+  }
   const entity_type: LeadEntityType =
     rawEntityType === "professional" || rawEntityType === "consumer" ? rawEntityType : "business";
   const exclusions = strings(b.excluded_domains ?? [], "excluded_domains", 100).map((x) =>
@@ -220,6 +243,11 @@ export function scheduleInput(
   const brief = runInput(b.brief);
   const timezone = text(b.timezone ?? "UTC", "timezone", 100);
   const cron_expression = text(b.cron_expression, "cron_expression", 100);
+  try { computeNextRunAt(cron_expression, new Date(), timezone); }
+  catch { fail("Invalid or unsupported schedule expression/timezone"); }
+  if (b.next_run_at !== undefined && (typeof b.next_run_at !== "string" || !Number.isFinite(Date.parse(b.next_run_at)))) {
+    fail("Invalid next_run_at timestamp");
+  }
   const overlap_policy = (["skip", "allow", "queue"].includes(String(b.overlap_policy))
     ? b.overlap_policy
     : "skip") as "skip" | "allow" | "queue";

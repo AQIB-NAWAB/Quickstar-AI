@@ -1,9 +1,12 @@
+import { requestPublicWebhook } from "./public-request.js";
 import * as crypto from "node:crypto";
 import type { CrmMapping, LeadRecord } from "@quickstart/contracts";
 import type { CrmDestinationAdapter, CrmPushResult } from "./adapter.js";
 
 export class CustomWebhookAdapter implements CrmDestinationAdapter {
   readonly name = "webhook";
+
+  constructor(private readonly request = requestPublicWebhook) {}
 
   private getWebhookConfig(credentials: Record<string, unknown>): { url: string; secret: string } {
     const url =
@@ -18,6 +21,10 @@ export class CustomWebhookAdapter implements CrmDestinationAdapter {
 
     if (!url || typeof url !== "string" || !url.startsWith("http")) {
       throw new Error("WEBHOOK_CONFIG_ERROR: A valid HTTP/HTTPS webhook URL must be provided.");
+    }
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+      throw new Error("WEBHOOK_CONFIG_ERROR: HTTPS URL without embedded credentials required.");
     }
     return { url, secret };
   }
@@ -46,7 +53,7 @@ export class CustomWebhookAdapter implements CrmDestinationAdapter {
         headers["X-Quickstart-Signature"] = `sha256=${signature}`;
       }
 
-      const res = await fetch(url, {
+      const res = await this.request(url, {
         method: "POST",
         headers,
         body: testPayload,
@@ -65,7 +72,7 @@ export class CustomWebhookAdapter implements CrmDestinationAdapter {
   async pushLead(
     lead: LeadRecord | any,
     credentials: Record<string, unknown>,
-    _existingMapping?: CrmMapping | null,
+    existingMapping?: CrmMapping | null,
     _options?: { preserveConflicts?: boolean },
   ): Promise<CrmPushResult> {
     const { url, secret } = this.getWebhookConfig(credentials);
@@ -107,7 +114,7 @@ export class CustomWebhookAdapter implements CrmDestinationAdapter {
       headers["X-Quickstart-Signature"] = `sha256=${signature}`;
     }
 
-    const res = await fetch(url, {
+    const res = await this.request(url, {
       method: "POST",
       headers,
       body: payloadStr,
@@ -119,8 +126,8 @@ export class CustomWebhookAdapter implements CrmDestinationAdapter {
     }
 
     return {
-      remote_record_id: `webhook:${res.status}:${Date.now()}`,
-      operation: "created",
+      remote_record_id: existingMapping?.external_object_id ?? `webhook:${leadId}`,
+      operation: existingMapping ? "updated" : "created",
       conflict_detected: false,
       preserved_fields: [],
       details: {

@@ -92,7 +92,7 @@ export class ApifyActorOrchestrator {
 
   constructor(options: ApifyOrchestratorOptions = {}) {
     this.secretsUrl = (options.secretsUrl ?? process.env.SECRETS_URL ?? "http://127.0.0.1:3011").replace(/\/$/, "");
-    this.internalToken = options.internalToken ?? process.env.INTERNAL_TOKEN ?? "";
+    this.internalToken = options.internalToken ?? process.env.SECRETS_INTERNAL_TOKEN ?? process.env.INTERNAL_TOKEN ?? "";
     this.apiBaseUrl = (options.apiBaseUrl ?? process.env.APIFY_BASE_URL ?? "https://api.apify.com").replace(/\/$/, "");
     this.mockDriver = options.mockDriver ?? false;
   }
@@ -252,7 +252,7 @@ export class ApifyActorOrchestrator {
     }
 
     const encodedActorId = encodeURIComponent(actorId);
-    const url = `${this.apiBaseUrl}/v2/acts/${encodedActorId}/runs`;
+    const url = `${this.apiBaseUrl}/v2/acts/${encodedActorId}/runs?timeout=180`;
 
     const res = await fetch(url, {
       method: "POST",
@@ -262,6 +262,7 @@ export class ApifyActorOrchestrator {
       },
       body: JSON.stringify(input),
       signal: AbortSignal.timeout(30000),
+      redirect: "error",
     });
 
     if (!res.ok) {
@@ -269,6 +270,7 @@ export class ApifyActorOrchestrator {
       throw new AppError({
         code: ErrorCode.UPSTREAM_UNAVAILABLE,
         message: `Apify start run failed (HTTP ${res.status}): ${errText.slice(0, 200)}`,
+        details: { upstream_status: res.status, creation_rejected: true },
       });
     }
 
@@ -286,6 +288,21 @@ export class ApifyActorOrchestrator {
       datasetId: data.defaultDatasetId,
       status: data.status || "READY",
     };
+  }
+
+  async getActorRun(token: string, runId: string): Promise<{ status: string; datasetId?: string }> {
+    if (this.mockDriver) {
+      const run = ApifyActorOrchestrator.mockRuns.get(runId);
+      if (!run) throw new Error("APIFY_RUN_NOT_FOUND");
+      return { status: run.status, datasetId: run.datasetId };
+    }
+    const response = await fetch(`${this.apiBaseUrl}/v2/actor-runs/${encodeURIComponent(runId)}`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000), redirect: "error",
+    });
+    if (!response.ok) throw new Error(`APIFY_STATUS_HTTP_${response.status}`);
+    const body = await response.json() as { data?: { status?: string; defaultDatasetId?: string } };
+    if (!body.data?.status) throw new Error("APIFY_INVALID_STATUS");
+    return { status: body.data.status, datasetId: body.data.defaultDatasetId };
   }
 
   /**
@@ -368,6 +385,7 @@ export class ApifyActorOrchestrator {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(30000),
+      redirect: "error",
     });
 
     if (!res.ok) {

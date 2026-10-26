@@ -388,6 +388,7 @@ export type ShortfallExplanation = {
   target: number;
   found: number;
   causes: {
+    research_failed?: number;
     category_mismatch: number;
     location_mismatch: number;
     contact_missing: number;
@@ -400,6 +401,7 @@ export type ShortfallExplanation = {
 };
 
 export type LeadGenerationRunSummary = {
+  source_runs?: Array<{ actor_id: string; status: string; external_run_id?: string | null; dataset_id?: string | null; error?: string | null }>;
   id: string;
   status: string;
   accepted?: number;

@@ -4,6 +4,11 @@ import type { CrmDestinationAdapter, CrmPushResult } from "./adapter.js";
 export class SalesforceAdapter implements CrmDestinationAdapter {
   readonly name = "salesforce";
 
+  private request(url: string, init: RequestInit = {}): Promise<Response> {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(15000), redirect: "error" });
+  }
+
+
   private getCredentials(credentials: Record<string, unknown>): { instanceUrl: string; token: string } {
     const instanceUrl = (credentials.instanceUrl as string) || (credentials.instance_url as string);
     const token =
@@ -17,13 +22,18 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
     if (!token || typeof token !== "string" || token.length < 10) {
       throw new Error("SALESFORCE_AUTHENTICATION_REQUIRED: Valid Salesforce access token must be provided.");
     }
-    return { instanceUrl: instanceUrl.replace(/\/+$/, ""), token };
+    const parsed = new URL(instanceUrl);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port
+      || !parsed.hostname.endsWith(".salesforce.com") || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+      throw new Error("SALESFORCE_CONFIG_ERROR: HTTPS Salesforce instance origin required.");
+    }
+    return { instanceUrl: parsed.origin, token };
   }
 
   async testConnection(credentials: Record<string, unknown>): Promise<{ ok: boolean; message?: string }> {
     try {
       const { instanceUrl, token } = this.getCredentials(credentials);
-      const res = await fetch(`${instanceUrl}/services/data/v58.0/sobjects/Lead/describe`, {
+      const res = await this.request(`${instanceUrl}/services/data/v58.0/sobjects/Lead/describe`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -49,24 +59,24 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
 
     const email = lead.email || lead.contact_email || data.email || null;
     const phone = lead.phone || lead.contact_phone || data.phone || null;
-    const company = data.company_name || data.company || "Independent";
+    const company = data.company_name || data.company || null;
+    if ((lead.entity_type ?? data.entity_type) === "consumer" || !company) {
+      throw new Error("SALESFORCE_MAPPING_REQUIRED: Consumer/no-employer records need a configured person mapping; employer will not be invented.");
+    }
     const website = lead.domain || data.website || null;
     const personName = lead.person_name || data.person_name || null;
 
-    let firstName = "Prospective";
-    let lastName = "Contact";
-    if (personName && typeof personName === "string") {
-      const parts = personName.trim().split(/\s+/);
-      firstName = parts[0] || "Prospective";
-      lastName = parts.slice(1).join(" ") || "Contact";
+    if (!personName || typeof personName !== "string" || !personName.trim()) {
+      throw new Error("SALESFORCE_MAPPING_REQUIRED: A real person name is required for this Lead mapping.");
     }
+    const parts = personName.trim().split(/\s+/);
+    const firstName = parts.length > 1 ? parts[0] : "";
+    const lastName = parts.length > 1 ? parts.slice(1).join(" ") : parts[0];
 
     const targetFields: Record<string, string> = {
       FirstName: firstName,
       LastName: lastName,
       Company: company,
-      Status: "Open - Not Contacted",
-      LeadSource: "QuickStart AI Lead Generation",
       ...(email ? { Email: email } : {}),
       ...(phone ? { Phone: phone } : {}),
       ...(website ? { Website: website } : {}),
@@ -77,8 +87,8 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
 
     // 1. If mapping exists, retrieve remote record to detect conflicts
     if (remoteLeadId) {
-      try {
-        const getRes = await fetch(
+      {
+        const getRes = await this.request(
           `${instanceUrl}/services/data/v58.0/sobjects/Lead/${encodeURIComponent(remoteLeadId)}`,
           {
             headers: {
@@ -91,19 +101,19 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
           remoteRecord = (await getRes.json()) as any;
         } else if (getRes.status === 404) {
           remoteLeadId = null;
+        } else {
+          throw new Error(`Salesforce read failed: HTTP ${getRes.status}; update cancelled`);
         }
-      } catch {
-        // Fall back to upsert
       }
     }
 
     // 2. If no mapping, search by email to prevent duplicate leads
     if (!remoteLeadId && email) {
-      try {
+      {
         const query = encodeURIComponent(
           `SELECT Id, FirstName, LastName, Company, Email, Phone, Website, Status FROM Lead WHERE Email = '${email.replace(/'/g, "\\'")}' LIMIT 1`,
         );
-        const searchRes = await fetch(`${instanceUrl}/services/data/v58.0/query?q=${query}`, {
+        const searchRes = await this.request(`${instanceUrl}/services/data/v58.0/query?q=${query}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -115,9 +125,9 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
             remoteLeadId = searchBody.records[0].Id;
             remoteRecord = searchBody.records[0];
           }
+        } else {
+          throw new Error(`Salesforce search failed: HTTP ${searchRes.status}; create cancelled`);
         }
-      } catch {
-        // Continue to create
       }
     }
 
@@ -127,12 +137,14 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
       let conflictDetected = false;
       const fieldsToUpdate: Record<string, string> = { ...targetFields };
 
-      if (options.preserveConflicts) {
+      const priorFields = (existingMapping?.last_synced_payload?.fields ?? {}) as Record<string, unknown>;
+      if (options.preserveConflicts !== false) {
         for (const [key, remoteVal] of Object.entries(remoteRecord)) {
           if (
             remoteVal &&
             targetFields[key] &&
-            remoteVal.trim().toLowerCase() !== targetFields[key].trim().toLowerCase()
+            String(remoteVal) !== targetFields[key] &&
+            String(remoteVal) !== priorFields[key]
           ) {
             conflictDetected = true;
             preservedFields.push(key);
@@ -142,7 +154,7 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
         }
       }
 
-      const patchRes = await fetch(
+      const patchRes = await this.request(
         `${instanceUrl}/services/data/v58.0/sobjects/Lead/${encodeURIComponent(remoteLeadId)}`,
         {
           method: "PATCH",
@@ -163,12 +175,12 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
         operation: "updated",
         conflict_detected: conflictDetected,
         preserved_fields: preservedFields,
-        details: { updated_fields: fieldsToUpdate, preserved_fields: preservedFields },
+        details: { updated_fields: fieldsToUpdate, written_fields: fieldsToUpdate, preserved_fields: preservedFields },
       };
     }
 
     // 4. Create new Salesforce Lead
-    const createRes = await fetch(`${instanceUrl}/services/data/v58.0/sobjects/Lead`, {
+    const createRes = await this.request(`${instanceUrl}/services/data/v58.0/sobjects/Lead`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -187,7 +199,7 @@ export class SalesforceAdapter implements CrmDestinationAdapter {
       operation: "created",
       conflict_detected: false,
       preserved_fields: [],
-      details: { id: created.id },
+      details: { id: created.id, written_fields: targetFields },
     };
   }
 }

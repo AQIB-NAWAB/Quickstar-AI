@@ -1,78 +1,9 @@
 import * as crypto from "node:crypto";
 import type { Identity, Store } from "./store.js";
+import { runInput } from "./domain.js";
 
-/**
- * Calculates the next run timestamp based on cron expression or recurring interval.
- */
-export function computeNextRunAt(expression: string, fromDate = new Date()): Date {
-  const norm = expression.trim().toLowerCase();
-  const next = new Date(fromDate.getTime());
-
-  if (norm === "@hourly" || norm === "hourly") {
-    next.setUTCHours(next.getUTCHours() + 1);
-    next.setUTCMinutes(0, 0, 0);
-    return next;
-  }
-
-  if (norm === "@daily" || norm === "daily") {
-    next.setUTCDate(next.getUTCDate() + 1);
-    next.setUTCHours(9, 0, 0, 0);
-    return next;
-  }
-
-  if (norm === "@weekly" || norm === "weekly") {
-    next.setUTCDate(next.getUTCDate() + 7);
-    next.setUTCHours(9, 0, 0, 0);
-    return next;
-  }
-
-  // Parse 5-part cron expression: minute hour day-of-month month day-of-week
-  const parts = norm.split(/\s+/);
-  if (parts.length === 5) {
-    const [minPart, hourPart, domPart, monPart, dowPart] = parts;
-
-    // Check next 7 days minute-by-minute with smart stepping
-    const candidate = new Date(fromDate.getTime() + 60000); // at least 1 minute into the future
-    candidate.setUTCSeconds(0, 0);
-
-    const matchPart = (val: number, part: string): boolean => {
-      if (part === "*") return true;
-      if (part.includes(",")) return part.split(",").some((p) => matchPart(val, p));
-      if (part.startsWith("*/")) {
-        const step = parseInt(part.slice(2), 10);
-        return !isNaN(step) && step > 0 && val % step === 0;
-      }
-      if (part.includes("-")) {
-        const [start, end] = part.split("-").map((s) => parseInt(s, 10));
-        return !isNaN(start) && !isNaN(end) && val >= start && val <= end;
-      }
-      return parseInt(part, 10) === val;
-    };
-
-    // Iterate up to 10,080 steps (7 days) to find the next matching slot
-    for (let i = 0; i < 10080; i++) {
-      const min = candidate.getUTCMinutes();
-      const hour = candidate.getUTCHours();
-      const dom = candidate.getUTCDate();
-      const mon = candidate.getUTCMonth() + 1;
-      const dow = candidate.getUTCDay();
-
-      if (
-        matchPart(min, minPart) &&
-        matchPart(hour, hourPart) &&
-        matchPart(dom, domPart) &&
-        matchPart(mon, monPart) &&
-        matchPart(dow, dowPart)
-      ) {
-        return candidate;
-      }
-      candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
-    }
-  }
-
-  // Default fallback: 24 hours from current
-  return new Date(fromDate.getTime() + 86400000);
-}
+import { computeNextRunAt } from "./schedule-time.js";
+export { computeNextRunAt } from "./schedule-time.js";
 
 /**
  * Claims and executes all schedules currently due for dispatch across the database.
@@ -95,11 +26,12 @@ export async function runDueSchedules(
 
   for (const schedule of claimedSchedules) {
     try {
-      const nowIsoMinute = new Date().toISOString().slice(0, 16);
-      const occurrenceKey = `${schedule.id}:${nowIsoMinute}`;
+      const occurrenceKey = `${schedule.id}:${new Date(schedule.next_run_at).toISOString()}`;
+      const nextRunAt = computeNextRunAt(schedule.cron_expression, new Date(), schedule.timezone);
 
       // Prevent redundant run execution if already dispatched in this minute window
       if (schedule.last_occurrence_key === occurrenceKey) {
+        await store.recordScheduleOccurrence(schedule.id, occurrenceKey, nextRunAt, null, schedule.dispatch_lease_token);
         skipped++;
         continue;
       }
@@ -112,12 +44,21 @@ export async function runDueSchedules(
       };
 
       const idempotencyKey = `schedule-run:${occurrenceKey}`;
-      const brief = typeof schedule.brief === "string" ? JSON.parse(schedule.brief) : schedule.brief;
+      if (schedule.last_run_id && schedule.overlap_policy !== "allow") {
+        const previous = await store.run(identity, schedule.last_run_id);
+        if (previous.status === "queued" || previous.status === "running") {
+          if (schedule.overlap_policy === "skip") {
+            await store.recordScheduleOccurrence(schedule.id, occurrenceKey, nextRunAt, null, schedule.dispatch_lease_token);
+          }
+          // queue retains the due occurrence; the durable lease expires before another attempt.
+          skipped++;
+          continue;
+        }
+      }
+      const rawBrief = typeof schedule.brief === "string" ? JSON.parse(schedule.brief) : schedule.brief;
+      const brief = runInput({ ...rawBrief, budget_limits: { ...rawBrief.budget_limits, ...schedule.budget_limits } });
       const created = await store.createRun(identity, brief, idempotencyKey);
-
-      // Compute next run time and record occurrence
-      const nextRunAt = computeNextRunAt(schedule.cron_expression || "@daily", new Date());
-      await store.recordScheduleOccurrence(schedule.id, occurrenceKey, nextRunAt, created.run.id);
+      await store.recordScheduleOccurrence(schedule.id, occurrenceKey, nextRunAt, created.run.id, schedule.dispatch_lease_token);
 
       dispatched++;
     } catch (err: any) {

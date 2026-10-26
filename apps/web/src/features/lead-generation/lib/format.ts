@@ -47,8 +47,16 @@ export function formatStopReason(reason?: string | null): string | null {
   if (!reason) return null;
   const normalized = reason.toLowerCase().trim();
   switch (normalized) {
+    case "provider_quota_exhausted":
+      return "AI provider quota exhausted. Retry after its allowance resets or connect a funded provider";
+    case "user_cancelled":
+      return "Cancelled by user";
+    case "research_round_limit":
+      return "Configured research rounds finished before the target was met";
+    case "research_errors":
+      return "Research finished with provider or task errors";
     case "sources_exhausted":
-      return "Sources exhausted";
+      return "Configured discovery finished";
     case "budget_reached":
       return "Research budget reached";
     case "target_reached":

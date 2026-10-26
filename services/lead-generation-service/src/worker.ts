@@ -1,3 +1,4 @@
+import { runDueSchedules } from "./scheduler.js";
 import type { Logger } from "@quickstart/logging";
 import { runWithSpan } from "@quickstart/tracing";
 import { AppError, ErrorCode } from "@quickstart/errors";
@@ -24,6 +25,11 @@ export async function processTask(store: Store, agent: ResearchAgent, t: Task, l
       latency_ms: Date.now() - start,
     });
   } catch (e) {
+    if (e instanceof ResearchError && ["SOURCE_PENDING", "MODEL_PACING_WAIT"].includes(e.code)) {
+      await store.failed(t, e.code, true, e.retryAfter || 5);
+      logger.info(e.code === "SOURCE_PENDING" ? "lead.source.waiting" : "lead.model.waiting", { task_id: t.id, run_id: t.run_id });
+      return;
+    }
     const quota = e instanceof AppError && e.code === ErrorCode.RATE_LIMITED;
     const known = e instanceof ResearchError;
     const code = quota
@@ -51,10 +57,16 @@ export function startWorker(store: Store, agent: ResearchAgent, config: Config, 
   let stopped = false;
   const active = new Set<Promise<void>>();
   let ticking = false;
+  let lastScheduleTick = 0;
   const tick = async () => {
     if (stopped || ticking) return;
     ticking = true;
     try {
+      if (Date.now() - lastScheduleTick >= 30000) {
+        lastScheduleTick = Date.now();
+        const report = await runDueSchedules(store);
+        for (const error of report.errors) logger.warn("lead.schedule.failed", error);
+      }
       await store.finalizeRuns();
       // Local process ceiling; limit concurrent tasks to avoid bursting rate limits
       while (!stopped && active.size < 2) {

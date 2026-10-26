@@ -54,7 +54,7 @@ test("Qualification - Strict mode rejects missing mandatory criteria while Best 
     qualification_mode: "best_match",
   });
   const bestMatchResult = qualify(rawCandidate, [page], briefBestMatch, "https://mayfair-gems.co.uk", "Fine Jewelry", 50);
-  assert.equal(bestMatchResult.accepted, true, "Best match accepts prospect with high business fit even with missing contact");
+  assert.equal(bestMatchResult.accepted, false, "Best match must not bypass a required contact channel");
   assert.equal(bestMatchResult.data.qualification_mode, "best_match");
   assert.ok(bestMatchResult.data.fit_score >= 50, "Fit score should reflect matched business criteria");
   assert.equal(bestMatchResult.data.dimensions?.contact_readiness.email_available, false);

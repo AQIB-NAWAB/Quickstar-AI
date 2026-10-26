@@ -371,8 +371,10 @@ export function createServer(
   router.patch(
     `${base}/schedules/:scheduleId`,
     asyncHandler(async (req, res) => {
-      const patch = object(req.body);
-      res.json({ schedule: await store.updateSchedule(identity(res), uuid(param(req, "scheduleId")), patch) });
+      const scheduleId = uuid(param(req, "scheduleId"));
+      const current = await store.getSchedule(identity(res), scheduleId);
+      const patch = scheduleInput({ ...current, ...object(req.body) });
+      res.json({ schedule: await store.updateSchedule(identity(res), scheduleId, patch) });
     }),
   );
   router.delete(

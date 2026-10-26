@@ -97,6 +97,7 @@ bold "2) Database Migrations"
 export DATABASE_URL="${DATABASE_URL:-postgresql://quickstart:quickstart@localhost:5433/quickstart}"
 pnpm --filter @quickstart/service-identity migrate || true
 pnpm --filter @quickstart/service-workspace migrate || true
+pnpm --filter @quickstart/service-secrets migrate || true
 pnpm --filter @quickstart/service-lead migrate || true
 pnpm --filter @quickstart/service-lead-generation migrate || true
 pnpm --filter @quickstart/service-web-fetch migrate || true
@@ -105,6 +106,7 @@ pnpm --filter @quickstart/service-campaign migrate || true
 bold "3) Starting Targeted Backend Services"
 start_svc identity services/identity-service "${IDENTITY_PORT:-3001}"
 start_svc workspace services/workspace-service "${WORKSPACE_PORT:-3002}"
+start_svc secrets services/secrets-service "${SECRETS_PORT:-3011}"
 start_svc model-gateway services/model-gateway "${MODEL_GATEWAY_PORT:-3005}"
 start_svc web-fetch services/web-fetch-service "${WEB_FETCH_PORT:-3007}"
 start_svc lead services/lead-service "${LEAD_PORT:-3014}"

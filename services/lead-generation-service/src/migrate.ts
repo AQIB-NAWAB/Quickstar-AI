@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 
 export const MIGRATIONS = [
+  // Keep applied migrations immutable; add fixes as new versions.
   {
     version: "001_lead_generation",
     sql: () => readFileSync(new URL("../migrations/001_lead_generation.sql", import.meta.url), "utf8"),
@@ -14,6 +15,14 @@ export const MIGRATIONS = [
   {
     version: "003_entities_criteria_and_crm",
     sql: () => readFileSync(new URL("../migrations/003_entities_criteria_and_crm.sql", import.meta.url), "utf8"),
+  },
+  {
+    version: "004_schedule_leases",
+    sql: () => readFileSync(new URL("../migrations/004_schedule_leases.sql", import.meta.url), "utf8"),
+  },
+  {
+    version: "005_source_runs",
+    sql: () => readFileSync(new URL("../migrations/005_source_runs.sql", import.meta.url), "utf8"),
   },
 ];
 

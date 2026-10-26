@@ -255,7 +255,7 @@ export class AcquisitionOrchestrator {
 
     for (const profileId of decision.profileIds) {
       let attempt = 0;
-      const maxAttempts = 2;
+      const maxAttempts = this.registry.get(profileId).driver === "apify" ? 1 : 2;
 
       while (attempt < maxAttempts) {
         attempt += 1;
@@ -347,6 +347,7 @@ export class AcquisitionOrchestrator {
     const started = Date.now();
     try {
       const result = await provider.enrichBusinessProfile({
+        workspaceId: body.workspace_id,
         businessName: body.business_name,
         location: body.location,
         website: body.website,

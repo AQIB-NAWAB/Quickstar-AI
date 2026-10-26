@@ -4,6 +4,11 @@ import type { CrmDestinationAdapter, CrmPushResult } from "./adapter.js";
 export class HubSpotAdapter implements CrmDestinationAdapter {
   readonly name = "hubspot";
 
+  private request(url: string, init: RequestInit = {}): Promise<Response> {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(15000), redirect: "error" });
+  }
+
+
   private getAccessToken(credentials: Record<string, unknown>): string {
     const token =
       (credentials.accessToken as string) ||
@@ -18,7 +23,7 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
   async testConnection(credentials: Record<string, unknown>): Promise<{ ok: boolean; message?: string }> {
     try {
       const token = this.getAccessToken(credentials);
-      const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
+      const res = await this.request("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -71,8 +76,8 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
 
     // 1. If mapping exists, retrieve remote record to detect conflicts
     if (remoteContactId) {
-      try {
-        const getRes = await fetch(
+      {
+        const getRes = await this.request(
           `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(remoteContactId)}?properties=email,phone,company,website,firstname,lastname,hs_lead_status`,
           {
             headers: {
@@ -85,17 +90,17 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
           const body = (await getRes.json()) as any;
           remoteProperties = body.properties || {};
         } else if (getRes.status === 404) {
-          remoteContactId = null; // Remote record was deleted in HubSpot
+          remoteContactId = null;
+        } else {
+          throw new Error(`HubSpot read failed: HTTP ${getRes.status}; update cancelled`);
         }
-      } catch {
-        // Fall back to upsert
       }
     }
 
     // 2. If no mapping or remote was deleted, check by email
     if (!remoteContactId && email) {
-      try {
-        const searchRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+      {
+        const searchRes = await this.request("https://api.hubapi.com/crm/v3/objects/contacts/search", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -123,9 +128,9 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
             remoteContactId = searchBody.results[0].id;
             remoteProperties = searchBody.results[0].properties || {};
           }
+        } else {
+          throw new Error(`HubSpot search failed: HTTP ${searchRes.status}; create cancelled`);
         }
-      } catch {
-        // Ignore search errors, continue to create
       }
     }
 
@@ -135,12 +140,14 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
       let conflictDetected = false;
       const propertiesToUpdate: Record<string, string> = { ...targetProperties };
 
-      if (options.preserveConflicts) {
+      const priorFields = (existingMapping?.last_synced_payload?.fields ?? {}) as Record<string, unknown>;
+      if (options.preserveConflicts !== false) {
         for (const [key, remoteVal] of Object.entries(remoteProperties)) {
           if (
             remoteVal &&
             targetProperties[key] &&
-            remoteVal.trim().toLowerCase() !== targetProperties[key].trim().toLowerCase()
+            String(remoteVal) !== targetProperties[key] &&
+            String(remoteVal) !== priorFields[key]
           ) {
             conflictDetected = true;
             preservedFields.push(key);
@@ -150,7 +157,7 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
         }
       }
 
-      const updateRes = await fetch(
+      const updateRes = await this.request(
         `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(remoteContactId)}`,
         {
           method: "PATCH",
@@ -171,12 +178,12 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
         operation: "updated",
         conflict_detected: conflictDetected,
         preserved_fields: preservedFields,
-        details: { updated_properties: propertiesToUpdate, preserved_fields: preservedFields },
+        details: { updated_properties: propertiesToUpdate, written_fields: propertiesToUpdate, preserved_fields: preservedFields },
       };
     }
 
     // 4. Create new contact
-    const createRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+    const createRes = await this.request("https://api.hubapi.com/crm/v3/objects/contacts", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -195,7 +202,7 @@ export class HubSpotAdapter implements CrmDestinationAdapter {
       operation: "created",
       conflict_detected: false,
       preserved_fields: [],
-      details: { created_id: created.id },
+      details: { created_id: created.id, written_fields: targetProperties },
     };
   }
 }

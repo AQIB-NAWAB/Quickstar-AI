@@ -57,6 +57,7 @@ export function decideAcquisitionProviders(input: PolicyInput): PolicyDecision {
       p.driver === "olostep",
   );
   const chain = orderProfiles(allScrapeCapable, input.preferProfileIds);
+  if (!input.preferProfileIds?.length) chain.sort((a, b) => Number(b.driver === "direct_http") - Number(a.driver === "direct_http"));
   const unique = dedupeById(chain);
   if (unique.length === 0) {
     return { allow: false, reason: "no_scrape_provider" };

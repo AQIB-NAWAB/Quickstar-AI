@@ -72,6 +72,7 @@ export type BusinessInput = {
 };
 
 export type LeadRunInput = {
+  source_policy?: { preferred_sources?: string[]; disallowed_sources?: string[]; allow_fallback?: boolean };
   entity_type?: LeadEntityType;
   categories: string[];
   location?: string;
@@ -149,6 +150,7 @@ export type LeadGenerationProfile = {
 };
 
 export type LeadGenerationRunSummary = {
+  source_runs?: Array<{ actor_id: string; status: string; external_run_id?: string | null; dataset_id?: string | null; error?: string | null }>;
   id: string;
   status: string;
   accepted?: number;

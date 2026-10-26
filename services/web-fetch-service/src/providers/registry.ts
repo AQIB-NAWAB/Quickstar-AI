@@ -58,6 +58,15 @@ export function createProviderRegistry(config: WebFetchConfig): ProviderRegistry
     });
   }
 
+  // Public HTTP pages should not require a paid browser actor. Respect an
+  // explicitly configured/disabled direct driver, otherwise provide a safe default.
+  if (!config.providerProfiles.some((profile) => profile.driver === "direct_http")) {
+    const profile = { id: "direct_http_builtin", driver: "direct_http" as const, enabled: true,
+      priority: -100, unitCostMicrosScrape: 0, unitCostMicrosSearch: 0 };
+    providers.set(profile.id, new DirectHttpAcquisitionProvider(profile, config));
+    views.push(profile);
+  }
+
   if (!providers.has("fake")) {
     const onlyCustomProfiles =
       config.providerProfiles.length > 0 &&

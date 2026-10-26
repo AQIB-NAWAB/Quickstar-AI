@@ -3,7 +3,7 @@
  *
  * Distinctly separates:
  * 1. Observed on source (found verbatim on page/document)
- * 2. Format checked (valid RFC 5322 syntax, E.164 phone numbering plan)
+ * 2. Format checked (basic email syntax, plausible phone format)
  * 3. Domain mail routing checked (DNS MX, null MX rejection, A/AAAA fallback, transient DNS = unknown)
  * 4. Provider verified (only when verified by explicit customer-connected third-party provider)
  *
@@ -61,13 +61,20 @@ const ROLE_PREFIXES = new Set([
   "media", "legal", "security", "inquiries", "general", "marketing",
 ]);
 
-// RFC 5322 compatible email pattern
+// Conservative dot-atom syntax subset; quoted/internationalized mailboxes unsupported.
 const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 /**
  * Validates an email address syntax and domain mail routing without destructive local-part modification.
  */
-export async function validateEmail(rawEmail: string): Promise<EmailValidationResult> {
+export async function validateEmail(
+  rawEmail: string,
+  resolver: {
+    resolveMx(host: string): Promise<Array<{ exchange: string; priority: number }>>;
+    resolve4(host: string): Promise<string[]>;
+    resolve6(host: string): Promise<string[]>;
+  } = new dns.Resolver({ timeout: 1500, tries: 1 }),
+): Promise<EmailValidationResult> {
   const trimmed = rawEmail.trim();
   const checkedAt = new Date().toISOString();
 
@@ -91,7 +98,7 @@ export async function validateEmail(rawEmail: string): Promise<EmailValidationRe
   const domainPart = trimmed.slice(atIndex + 1).toLowerCase();
   const normalized = `${localPart}@${domainPart}`;
 
-  if (!EMAIL_REGEX.test(normalized) || domainPart.length > 253 || localPart.length > 64) {
+  if (!EMAIL_REGEX.test(normalized) || domainPart.length > 253 || localPart.length > 64 || normalized.length > 254 || localPart.startsWith(".") || localPart.endsWith(".") || localPart.includes("..")) {
     return {
       raw: trimmed,
       normalized,
@@ -113,70 +120,43 @@ export async function validateEmail(rawEmail: string): Promise<EmailValidationRe
   let status: EmailValidationStatus = "observed_only";
   let explanation = "Syntax valid; domain routing not yet checked.";
 
+  const absent = (error: unknown) => ["ENOTFOUND", "ENODATA"].includes((error as { code?: string }).code ?? "");
   try {
-    // 1. Check MX records
-    const mxRecords = await dns.resolveMx(domainPart);
-
-    if (mxRecords && mxRecords.length > 0) {
-      // Check for Null MX (RFC 7505): a single MX record with exchange "." or ""
-      const isNullMx = mxRecords.some(
-        (mx) => mx.exchange === "." || mx.exchange === "" || (mx.priority === 0 && mx.exchange === "."),
-      );
-
-      if (isNullMx) {
-        mailRoutingStatus = "null_mx_rejected";
-        status = "domain_not_routable";
-        explanation = "Domain explicitly rejects all incoming mail (RFC 7505 Null MX record)";
-      } else {
+    let mxRecords: Awaited<ReturnType<dns.Resolver["resolveMx"]>> = [];
+    try {
+      mxRecords = await resolver.resolveMx(domainPart);
+    } catch (error) {
+      if (!absent(error)) throw error;
+    }
+    if (mxRecords.some((mx) => mx.exchange === "." || mx.exchange === "")) {
+      mailRoutingStatus = "null_mx_rejected";
+      status = "domain_not_routable";
+      explanation = "Domain advertises null MX. Mailbox delivery is not verified.";
+    } else if (mxRecords.length) {
+      mailRoutingStatus = "routable";
+      status = "domain_routable";
+      explanation = "Domain has MX routing. Mailbox delivery is not verified.";
+    } else {
+      const addresses = await Promise.allSettled([
+        resolver.resolve4(domainPart), resolver.resolve6(domainPart),
+      ]);
+      if (addresses.some((result) => result.status === "fulfilled" && result.value.length > 0)) {
         mailRoutingStatus = "routable";
         status = "domain_routable";
-        explanation = `Domain has ${mxRecords.length} configured MX record(s). Delivery not verified.`;
-      }
-    } else {
-      // RFC 5321 fallback to Address records (A/AAAA) if no MX records returned
-      try {
-        const aRecords = await dns.resolve4(domainPart);
-        if (aRecords && aRecords.length > 0) {
-          mailRoutingStatus = "routable";
-          status = "domain_routable";
-          explanation = "No MX records found; routable via RFC 5321 A-record fallback.";
-        } else {
-          mailRoutingStatus = "domain_not_found";
-          status = "domain_not_routable";
-          explanation = "No MX or A records configured for this domain.";
-        }
-      } catch {
+        explanation = "Domain has A/AAAA fallback routing. Mailbox delivery is not verified.";
+      } else if (addresses.some((result) => result.status === "rejected" && !absent(result.reason))) {
+        status = "domain_unknown";
+        explanation = "Transient address lookup failure; routing remains unknown.";
+      } else {
         mailRoutingStatus = "domain_not_found";
         status = "domain_not_routable";
-        explanation = "Domain has no valid mail routing records (neither MX nor A).";
+        explanation = "No MX or A/AAAA mail route found.";
       }
     }
-  } catch (err: unknown) {
-    const code = (err as { code?: string })?.code;
-    if (code === "ENOTFOUND" || code === "ENODATA") {
-      // Try fallback to A record
-      try {
-        const aRecords = await dns.resolve4(domainPart);
-        if (aRecords && aRecords.length > 0) {
-          mailRoutingStatus = "routable";
-          status = "domain_routable";
-          explanation = "No MX records found; routable via RFC 5321 A-record fallback.";
-        } else {
-          mailRoutingStatus = "domain_not_found";
-          status = "domain_not_routable";
-          explanation = "Domain does not exist or has no host records.";
-        }
-      } catch {
-        mailRoutingStatus = "domain_not_found";
-        status = "domain_not_routable";
-        explanation = "Domain does not exist or has no host records.";
-      }
-    } else {
-      // Transient error (ETIMEOUT, ESERVFAIL, ECONNREFUSED)
-      mailRoutingStatus = "unknown";
-      status = "domain_unknown";
-      explanation = `Transient DNS query failure (${code ?? "DNS_ERROR"}); routing status remains unknown.`;
-    }
+  } catch {
+    mailRoutingStatus = "unknown";
+    status = "domain_unknown";
+    explanation = "Transient DNS query failure; routing remains unknown.";
   }
 
   return {
@@ -202,7 +182,7 @@ export function validatePhone(rawPhone: string, countryContext?: string): PhoneV
   const digitsOnly = trimmed.replace(/\D/g, "");
 
   // Minimal sensible phone digits: 7 to 15 digits (ITU-T E.164 max 15 digits)
-  if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+  if (digitsOnly.length < 7 || digitsOnly.length > 15 || !/^\+?[\d\s().-]+$/.test(trimmed) || (trimmed.startsWith("+") && digitsOnly.startsWith("0"))) {
     return {
       raw: trimmed,
       normalized: trimmed,
@@ -218,39 +198,11 @@ export function validatePhone(rawPhone: string, countryContext?: string): PhoneV
   const hasLeadingPlus = trimmed.startsWith("+");
   const normalized = hasLeadingPlus ? `+${digitsOnly}` : digitsOnly;
 
-  let countryCode = countryContext;
-  let status: PhoneValidationStatus = "numbering_plan_possible";
-  let explanation = "Plausible phone numbering format. Active status is unverified.";
-
-  // Detect international dialing prefix
-  if (hasLeadingPlus) {
-    if (digitsOnly.startsWith("1") && digitsOnly.length === 11) {
-      countryCode = "US";
-      status = "numbering_plan_valid";
-      explanation = "Valid NANP (US/Canada) 10-digit number format with +1 country code. Active status unverified.";
-    } else if (digitsOnly.startsWith("44") && (digitsOnly.length === 12 || digitsOnly.length === 13)) {
-      countryCode = "GB";
-      status = "numbering_plan_valid";
-      explanation = "Valid UK international phone number format. Active status unverified.";
-    } else if (digitsOnly.startsWith("92") && digitsOnly.length === 12) {
-      countryCode = "PK";
-      status = "numbering_plan_valid";
-      explanation = "Valid Pakistan international phone number format. Active status unverified.";
-    } else {
-      status = "numbering_plan_valid";
-      explanation = "Valid international E.164 phone numbering format. Active status unverified.";
-    }
-  } else if (countryContext === "US" || countryContext === "CA") {
-    if (digitsOnly.length === 10) {
-      status = "numbering_plan_valid";
-      explanation = "Valid North American 10-digit telephone numbering format. Active status unverified.";
-    }
-  } else if (countryContext === "GB") {
-    if (digitsOnly.length === 10 || digitsOnly.length === 11) {
-      status = "numbering_plan_valid";
-      explanation = "Valid UK national telephone numbering format. Active status unverified.";
-    }
-  }
+  // Digit length alone is not numbering-plan validation. Until a maintained
+  // numbering metadata library is integrated, report only possible format.
+  const countryCode = countryContext && /^[A-Z]{2}$/.test(countryContext) ? countryContext : undefined;
+  const status: PhoneValidationStatus = "numbering_plan_possible";
+  const explanation = "Plausible digit length only; numbering plan and active status are unverified.";
 
   return {
     raw: trimmed,

@@ -38,6 +38,8 @@ function toProviderInput(
     tools: body.tools,
     temperature: body.temperature,
     maxTokens: body.max_tokens,
+    responseFormat: body.response_format,
+    reasoningEffort: body.reasoning_effort,
     context: {
       workspaceId: body.workspace_id,
       requestId: body.request_id,
