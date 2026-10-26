@@ -12,6 +12,8 @@ export type ProviderCompletionInput = {
   tools?: ModelToolDefinition[];
   temperature?: number;
   maxTokens?: number;
+  responseFormat?: { type: "json_object" };
+  reasoningEffort?: "low" | "medium" | "high";
   context: ProviderCallContext;
 };
 
