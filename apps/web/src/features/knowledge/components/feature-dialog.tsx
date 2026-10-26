@@ -14,6 +14,7 @@ interface FeatureDialogProps {
   backdropClass?: string;
   isSubmitting?: boolean;
   layout?: "default" | "lead-wizard" | "settings";
+  bodyClassName?: string;
 }
 
 export function FeatureDialog({
@@ -27,6 +28,7 @@ export function FeatureDialog({
   backdropClass = "bg-accent-black/40 backdrop-blur-sm",
   isSubmitting = false,
   layout = "default",
+  bodyClassName,
 }: FeatureDialogProps) {
   const titleId = useId();
   const descId = useId();
@@ -133,9 +135,10 @@ export function FeatureDialog({
         {/* Body */}
         <div
           className={
-            layout !== "default"
+            bodyClassName ??
+            (layout !== "default"
               ? "lead-wizard-host flex min-h-0 flex-col"
-              : "px-6 py-5 overflow-y-auto min-h-0"
+              : "px-6 py-5 overflow-y-auto min-h-0")
           }
         >
           {children}

@@ -17,6 +17,7 @@ import { createUsageProxyRoutes } from "./proxy-usage.routes.js";
 import { createAuditProxyRoutes } from "./proxy-audit.routes.js";
 import { createWorkspaceProxyRoutes } from "./proxy-workspace.routes.js";
 import { createWidgetPublicRoutes } from "./widget-public.routes.js";
+import { createEmailCampaignPublicRoutes } from "./email-campaign-public.routes.js";
 
 import { createLeadGenerationProxyRoutes } from "./proxy-lead-generation.routes.js";
 import { createCustomLlmRoutes } from "./custom-llm.routes.js";
@@ -26,6 +27,7 @@ const gatewayRouteModules = [
   createLeadGenerationProxyRoutes,
   createHealthRoutes,
   createWidgetPublicRoutes,
+  createEmailCampaignPublicRoutes,
   createIdentityProxyRoutes,
   createWorkspaceProxyRoutes,
   createAgentProxyRoutes,

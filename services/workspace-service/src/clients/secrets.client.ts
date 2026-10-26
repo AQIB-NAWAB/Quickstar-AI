@@ -79,4 +79,59 @@ export class SecretsClient {
       // Best-effort deletion
     }
   }
+
+  async storeNamedSecret(workspaceId: string, name: string, value: string): Promise<void> {
+    const res = await fetchWithPolicy(
+      `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.internalToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name, value }),
+      },
+      { timeoutMs: this.timeoutMs, maxRetries: 0 },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to store encrypted secret in secrets-service: HTTP ${res.status}`);
+    }
+  }
+
+  async getNamedSecret(workspaceId: string, name: string): Promise<string | null> {
+    try {
+      const res = await fetchWithPolicy(
+        `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets/${encodeURIComponent(name)}/value`,
+        {
+          headers: {
+            authorization: `Bearer ${this.internalToken}`,
+          },
+        },
+        { timeoutMs: this.timeoutMs, maxRetries: 0 },
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) return null;
+      const data = (await res.json()) as { value?: string };
+      return typeof data.value === "string" ? data.value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteNamedSecret(workspaceId: string, name: string): Promise<void> {
+    try {
+      await fetchWithPolicy(
+        `${this.baseUrl}/internal/workspaces/${encodeURIComponent(workspaceId)}/secrets/${encodeURIComponent(name)}`,
+        {
+          method: "DELETE",
+          headers: {
+            authorization: `Bearer ${this.internalToken}`,
+          },
+        },
+        { timeoutMs: this.timeoutMs, maxRetries: 0 },
+      );
+    } catch {
+      // Best-effort deletion
+    }
+  }
 }

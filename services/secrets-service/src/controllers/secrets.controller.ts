@@ -67,6 +67,9 @@ export function createSecretsController(secrets: SecretsService) {
   };
 }
 
+/** Audit actor used for trusted internal-service writes (UUID column). */
+const INTERNAL_SERVICE_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
+
 /** Internal controller — decrypts and returns plaintext to trusted callers, and handles internal service secret management */
 export function createInternalSecretsController(secrets: SecretsService) {
   return {
@@ -90,7 +93,7 @@ export function createInternalSecretsController(secrets: SecretsService) {
           name: body.name ?? "",
           value: body.value ?? "",
         },
-        { actorUserId: "00000000-0000-4000-8000-000000000001", serviceActor: true, requestId },
+        { actorUserId: INTERNAL_SERVICE_ACTOR_ID, serviceActor: true, requestId },
       );
       sendPlatformJson(res, 201, { request_id: requestId, secret });
     }) as RequestHandler,
@@ -101,7 +104,8 @@ export function createInternalSecretsController(secrets: SecretsService) {
       const workspaceId = routeParam(req.params.workspaceId);
       const name = routeParam(req.params.name);
       await secrets.delete(workspaceId, name, {
-        actorUserId: "00000000-0000-4000-8000-000000000001", serviceActor: true,
+        actorUserId: INTERNAL_SERVICE_ACTOR_ID,
+        serviceActor: true,
         requestId,
       });
       sendPlatformJson(res, 200, { request_id: requestId, deleted: true });

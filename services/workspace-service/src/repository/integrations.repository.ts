@@ -47,6 +47,20 @@ export type OAuthStateRow = {
   created_at: Date;
 };
 
+export type WorkspaceEmailCampaignRow = {
+  workspace_id: string;
+  provider: string;
+  campaign_id: string;
+  audience_id: string | null;
+  subject: string | null;
+  created_by: string | null;
+  recipient_emails: string[];
+  lead: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+};
+
 export class IntegrationsRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -72,6 +86,124 @@ export class IntegrationsRepository {
     return res.rows[0] ?? null;
   }
 
+  async saveEmailCampaign(params: {
+    workspaceId: string;
+    provider: string;
+    campaignId: string;
+    audienceId?: string | null;
+    subject?: string | null;
+    createdBy?: string | null;
+    recipientEmails?: string[];
+    lead?: Record<string, unknown> | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO workspace_email_campaigns (
+         workspace_id, provider, campaign_id, audience_id, subject, created_by,
+         recipient_emails, lead, metadata
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::jsonb, $9::jsonb)
+       ON CONFLICT (workspace_id, provider, campaign_id) DO UPDATE SET
+         audience_id = EXCLUDED.audience_id,
+         subject = EXCLUDED.subject,
+         recipient_emails = EXCLUDED.recipient_emails,
+         lead = EXCLUDED.lead,
+         metadata = EXCLUDED.metadata,
+         updated_at = now()`,
+      [
+        params.workspaceId,
+        params.provider,
+        params.campaignId,
+        params.audienceId ?? null,
+        params.subject ?? null,
+        params.createdBy ?? null,
+        params.recipientEmails ?? [],
+        params.lead ? JSON.stringify(params.lead) : null,
+        JSON.stringify(params.metadata ?? {}),
+      ],
+    );
+  }
+
+  async getEmailCampaign(
+    workspaceId: string,
+    provider: string,
+    campaignId: string,
+  ): Promise<WorkspaceEmailCampaignRow | null> {
+    const res = await this.pool.query<WorkspaceEmailCampaignRow>(
+      `SELECT * FROM workspace_email_campaigns
+       WHERE workspace_id = $1 AND provider = $2 AND campaign_id = $3`,
+      [workspaceId, provider, campaignId],
+    );
+    return res.rows[0] ?? null;
+  }
+
+  async listEmailCampaignIds(workspaceId: string, provider: string): Promise<string[]> {
+    const res = await this.pool.query<{ campaign_id: string }>(
+      `SELECT campaign_id FROM workspace_email_campaigns
+       WHERE workspace_id = $1 AND provider = $2
+       ORDER BY created_at DESC`,
+      [workspaceId, provider],
+    );
+    return res.rows.map((row) => row.campaign_id);
+  }
+
+  async listEmailCampaigns(
+    workspaceId: string,
+    provider: string,
+  ): Promise<WorkspaceEmailCampaignRow[]> {
+    const res = await this.pool.query<WorkspaceEmailCampaignRow>(
+      `SELECT * FROM workspace_email_campaigns
+       WHERE workspace_id = $1 AND provider = $2
+       ORDER BY created_at DESC`,
+      [workspaceId, provider],
+    );
+    return res.rows;
+  }
+
+  async markEmailCampaignSent(
+    workspaceId: string,
+    provider: string,
+    campaignId: string,
+    sentBy?: string | null,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE workspace_email_campaigns
+       SET metadata = COALESCE(metadata, '{}'::jsonb) ||
+                      jsonb_build_object(
+                        'sent_at', to_jsonb(now()),
+                        'sent_by', to_jsonb($4::text)
+                      ),
+           updated_at = now()
+       WHERE workspace_id = $1 AND provider = $2 AND campaign_id = $3`,
+      [workspaceId, provider, campaignId, sentBy ?? null],
+    );
+  }
+
+  async deleteEmailCampaign(
+    workspaceId: string,
+    provider: string,
+    campaignId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM workspace_email_campaigns
+       WHERE workspace_id = $1 AND provider = $2 AND campaign_id = $3`,
+      [workspaceId, provider, campaignId],
+    );
+  }
+
+  async isEmailCampaignOwned(
+    workspaceId: string,
+    provider: string,
+    campaignId: string,
+  ): Promise<boolean> {
+    const res = await this.pool.query(
+      `SELECT 1 FROM workspace_email_campaigns
+       WHERE workspace_id = $1 AND provider = $2 AND campaign_id = $3
+       LIMIT 1`,
+      [workspaceId, provider, campaignId],
+    );
+    return res.rows.length > 0;
+  }
+
   async upsertConnection(params: {
     workspaceId: string;
     provider: string;
@@ -91,7 +223,7 @@ export class IntegrationsRepository {
          workspace_id, provider, status, account_identifier, account_email, account_name,
          provider_account_id, granted_scopes, metadata, secret_reference_id, token_expires_at,
          last_error, last_verified_at, connected_at, updated_at
-       ) VALUES ($1, $2, $3::text, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, CASE WHEN $3::text = 'connected' THEN now() ELSE NULL END, CASE WHEN $3::text = 'connected' THEN now() ELSE NULL END, now())
+       ) VALUES ($1, $2, $3::varchar, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, CASE WHEN $3::varchar = 'connected'::varchar THEN now() ELSE NULL END, CASE WHEN $3::varchar = 'connected'::varchar THEN now() ELSE NULL END, now())
        ON CONFLICT (workspace_id, provider) DO UPDATE SET
          status = EXCLUDED.status,
          account_identifier = COALESCE(EXCLUDED.account_identifier, workspace_integrations.account_identifier),
@@ -163,10 +295,9 @@ export class IntegrationsRepository {
   }
 
   async deleteOAuthState(stateToken: string): Promise<void> {
-    await this.pool.query(
-      `DELETE FROM workspace_integration_oauth_states WHERE state_token = $1`,
-      [stateToken],
-    );
+    await this.pool.query(`DELETE FROM workspace_integration_oauth_states WHERE state_token = $1`, [
+      stateToken,
+    ]);
   }
 
   async deleteConnection(workspaceId: string, provider: string): Promise<boolean> {
@@ -225,11 +356,7 @@ export class IntegrationsRepository {
     return res.rows[0];
   }
 
-  async listSyncLogs(
-    workspaceId: string,
-    provider?: string,
-    limit = 20,
-  ): Promise<SyncLogRow[]> {
+  async listSyncLogs(workspaceId: string, provider?: string, limit = 20): Promise<SyncLogRow[]> {
     if (provider) {
       const res = await this.pool.query<SyncLogRow>(
         `SELECT * FROM workspace_integration_sync_logs
@@ -250,4 +377,3 @@ export class IntegrationsRepository {
     return res.rows;
   }
 }
-

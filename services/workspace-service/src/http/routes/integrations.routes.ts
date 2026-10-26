@@ -18,6 +18,105 @@ export const createIntegrationsRoutes: RouteModule<WorkspaceHttpContext> = (ctx)
     asyncHandler(integrationsCtrl.list),
   );
 
+  // Mailchimp email campaigns (draft → review → explicit send)
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/audiences",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.mailchimpAudiences),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/campaigns",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.mailchimpCampaigns),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/campaigns/:campaignId",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.mailchimpCampaign),
+  );
+
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/instantly/accounts",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.instantlyAccounts),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/instantly/accounts/google-app-password",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.connectInstantlyGoogleAccount),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.instantlyCampaigns),
+  );
+  router.get(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns/:campaignId",
+    ...tenantMiddleware,
+    readPerm,
+    asyncHandler(integrationsCtrl.instantlyCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.createInstantlyCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns/:campaignId/activate",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.activateInstantlyCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns/:campaignId/pause",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.pauseInstantlyCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns/:campaignId/resume",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.resumeInstantlyCampaign),
+  );
+  router.delete(
+    "/v1/workspaces/:workspaceId/integrations/instantly/campaigns/:campaignId",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.deleteInstantlyCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/email/personalize",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.personalizeEmail),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/personalize",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.personalizeMailchimpEmail),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/campaigns",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.createMailchimpCampaign),
+  );
+  router.post(
+    "/v1/workspaces/:workspaceId/integrations/mailchimp/campaigns/:campaignId/send",
+    ...tenantMiddleware,
+    managePerm,
+    asyncHandler(integrationsCtrl.sendMailchimpCampaign),
+  );
+
   // Single provider details
   router.get(
     "/v1/workspaces/:workspaceId/integrations/:provider",
