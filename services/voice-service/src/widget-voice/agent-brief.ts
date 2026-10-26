@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Logger } from "@quickstart/logging";
 
 const ENGLISH_DEMO_VOICE_ID = "cartesia:6c756032-11c3-4be8-a120-74f9673fb700";
@@ -22,11 +22,22 @@ type AgentJson = {
   name?: string;
   instructions?: string;
   production_version_id?: string | null;
-  voice?: { tts_voice_id?: string };
+  voice?: { tts_voice_id?: string; language?: string };
 };
 
 type VersionJson = {
-  snapshot?: { name?: string; instructions?: string; voice?: { tts_voice_id?: string } };
+  snapshot?: {
+    name?: string;
+    instructions?: string;
+    voice?: { tts_voice_id?: string; language?: string };
+  };
+};
+
+type AgentProfile = {
+  name: string;
+  instructions: string;
+  ttsVoiceId: string;
+  language: string;
 };
 
 export type WidgetVoicePack = {
@@ -34,6 +45,42 @@ export type WidgetVoicePack = {
   ttsVoiceId: string;
   language: string;
 };
+
+/** Agent instructions/voice are stable for a call; cache them briefly. */
+const AGENT_CACHE_TTL_MS = 60_000;
+const KNOWLEDGE_CACHE_TTL_MS = 30_000;
+const CACHE_MAX_ENTRIES = 200;
+const cache = new Map<string, { expiresAt: number; value: unknown }>();
+
+function cacheGet<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value as T;
+}
+
+function cacheSet(key: string, value: unknown, ttlMs: number): void {
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest) cache.delete(oldest);
+  }
+  cache.set(key, { expiresAt: Date.now() + ttlMs, value });
+}
+
+function knowledgeKey(workspaceId: string, query: string): string {
+  const hash = createHash("sha256").update(query).digest("hex").slice(0, 20);
+  return `knowledge:${workspaceId}:${hash}`;
+}
+
+/** "default" is a placeholder, not a catalog voice id. */
+function catalogVoiceId(value: string | undefined): string | null {
+  const id = value?.trim();
+  if (!id || id === "default") return null;
+  return id;
+}
 
 async function getJson<T>(url: string, token: string, requestId: string): Promise<T | null> {
   const res = await fetch(url, {
@@ -71,54 +118,70 @@ export async function loadWidgetVoiceBrief(input: {
     const agentId = conversation?.conversation?.agent_id?.trim();
     if (!agentId) return { brief: FALLBACK_BRIEF, ttsVoiceId: ENGLISH_DEMO_VOICE_ID, language: "en" };
 
-    const agentRes = await getJson<{ agent?: AgentJson }>(
-      `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}`,
-      input.internalToken,
-      requestId,
-    );
-    const agent = agentRes?.agent;
-    let name = agent?.name?.trim() || "QuickStart AI";
-    let instructions = agent?.instructions?.trim() || "";
-    const ttsVoiceId = ENGLISH_DEMO_VOICE_ID;
-    const versionId = agent?.production_version_id?.trim();
-    if (versionId) {
-      const version = await getJson<{ version?: VersionJson }>(
-        `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}`,
+    const profileKey = `agent:${input.workspaceId}:${agentId}`;
+    let profile = cacheGet<AgentProfile>(profileKey);
+    if (!profile) {
+      const agentRes = await getJson<{ agent?: AgentJson }>(
+        `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}`,
         input.internalToken,
         requestId,
       );
-      const snapshot = version?.version?.snapshot;
-      if (snapshot?.instructions?.trim()) instructions = snapshot.instructions.trim();
-      if (snapshot?.name?.trim()) name = snapshot.name.trim();
+      const agent = agentRes?.agent;
+      let name = agent?.name?.trim() || "QuickStart AI";
+      let instructions = agent?.instructions?.trim() || "";
+      let ttsVoiceId = catalogVoiceId(agent?.voice?.tts_voice_id) ?? ENGLISH_DEMO_VOICE_ID;
+      let language = agent?.voice?.language?.trim() || "en";
+      const versionId = agent?.production_version_id?.trim();
+      if (versionId) {
+        const version = await getJson<{ version?: VersionJson }>(
+          `${input.agentUrl}/internal/workspaces/${encodeURIComponent(input.workspaceId)}/widget/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}`,
+          input.internalToken,
+          requestId,
+        );
+        const snapshot = version?.version?.snapshot;
+        if (snapshot?.instructions?.trim()) instructions = snapshot.instructions.trim();
+        if (snapshot?.name?.trim()) name = snapshot.name.trim();
+        if (snapshot?.voice?.tts_voice_id?.trim()) {
+          ttsVoiceId = catalogVoiceId(snapshot.voice.tts_voice_id) ?? ttsVoiceId;
+        }
+        if (snapshot?.voice?.language?.trim()) language = snapshot.voice.language.trim();
+      }
+      profile = { name, instructions, ttsVoiceId, language };
+      cacheSet(profileKey, profile, AGENT_CACHE_TTL_MS);
     }
 
-    const query = `${name}. ${instructions}`.slice(0, 500);
-    let facts = "";
-    try {
-      const retrieved = await fetch(`${input.knowledgeUrl}/internal/retrieve`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${input.internalToken}`,
-          "content-type": "application/json",
-          "x-request-id": requestId,
-        },
-        body: JSON.stringify({ workspace_id: input.workspaceId, query, limit: 4 }),
-      });
-      if (retrieved.ok) {
-        const body = (await retrieved.json()) as { chunks?: Array<{ text?: string }> };
-        facts = (body.chunks ?? [])
-          .map((chunk) => chunk.text?.trim())
-          .filter((text): text is string => Boolean(text))
-          .join("\n")
-          .slice(0, 1800);
-      }
-    } catch {
+    const query = `${profile.name}. ${profile.instructions}`.slice(0, 500);
+    const factsKey = knowledgeKey(input.workspaceId, query);
+    let facts = cacheGet<string>(factsKey);
+    if (facts === null) {
       facts = "";
+      try {
+        const retrieved = await fetch(`${input.knowledgeUrl}/internal/retrieve`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${input.internalToken}`,
+            "content-type": "application/json",
+            "x-request-id": requestId,
+          },
+          body: JSON.stringify({ workspace_id: input.workspaceId, query, limit: 4 }),
+        });
+        if (retrieved.ok) {
+          const body = (await retrieved.json()) as { chunks?: Array<{ text?: string }> };
+          facts = (body.chunks ?? [])
+            .map((chunk) => chunk.text?.trim())
+            .filter((text): text is string => Boolean(text))
+            .join("\n")
+            .slice(0, 1800);
+        }
+      } catch {
+        facts = "";
+      }
+      cacheSet(factsKey, facts, KNOWLEDGE_CACHE_TTL_MS);
     }
 
     const parts = [
-      `You are ${name}, the published voice agent for QuickStart AI.`,
-      instructions ? `Agent instructions:\n${instructions}` : "",
+      `You are ${profile.name}, the published voice agent for QuickStart AI.`,
+      profile.instructions ? `Agent instructions:\n${profile.instructions}` : "",
       facts ? `Product facts:\n${facts}` : "",
       SPOKEN_STYLE,
     ].filter(Boolean);
@@ -126,8 +189,13 @@ export async function loadWidgetVoiceBrief(input: {
       agent_id: agentId,
       chars: parts.join("\n\n").length,
       knowledge: Boolean(facts),
+      voice_id: profile.ttsVoiceId,
     });
-    return { brief: parts.join("\n\n").slice(0, 6000), ttsVoiceId, language: "en" };
+    return {
+      brief: parts.join("\n\n").slice(0, 6000),
+      ttsVoiceId: profile.ttsVoiceId,
+      language: profile.language,
+    };
   } catch (err) {
     input.logger.warn("widget.voice.brief_failed", {
       message: err instanceof Error ? err.message : "brief failed",

@@ -7,12 +7,17 @@ import type {
   CallLogFilters,
   InboundCall,
   InboundCallDetail,
+  PhoneNumberSearchFilters,
+  PhoneNumbersSnapshot,
   ProcessingTurn,
+  PurchasePhoneNumberInput,
   RepositoryResult,
   TranscriptSegment,
+  UpdatePhoneNumberInput,
   VoiceInboundSummary,
   VoiceRepository,
   VoiceWaveform,
+  WorkspacePhoneNumber,
 } from "./types";
 
 class InMemoryVoicePreviewStore implements VoiceRepository {
@@ -35,6 +40,8 @@ class InMemoryVoicePreviewStore implements VoiceRepository {
     _workspaceId: string,
     _signal?: AbortSignal
   ): Promise<RepositoryResult<VoiceInboundSummary>> {
+    void _workspaceId;
+    void _signal;
     return {
       status: "ready",
       data: {
@@ -53,6 +60,8 @@ class InMemoryVoicePreviewStore implements VoiceRepository {
     _callId: string,
     _signal?: AbortSignal
   ): Promise<RepositoryResult<VoiceWaveform>> {
+    void _workspaceId;
+    void _signal;
     return {
       status: "ready",
       data: {
@@ -76,6 +85,8 @@ class InMemoryVoicePreviewStore implements VoiceRepository {
       processingTurns?: ProcessingTurn[];
     }>
   > {
+    void _workspaceId;
+    void _signal;
     const detail = this.callDetails.get(callId);
     return {
       status: "ready",
@@ -168,6 +179,132 @@ class InMemoryVoicePreviewStore implements VoiceRepository {
       message: `Inbound call ${callId} was not found.`,
     };
   }
+
+  async listPhoneNumbers(
+    _workspaceId: string,
+    options?: { sync?: boolean },
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<PhoneNumbersSnapshot>> {
+    void _workspaceId;
+    void options;
+    void signal;
+    return {
+      status: "ready",
+      data: {
+        configured: false,
+        numbers: [previewNumber("+14155550142", "Support line")],
+        pool: [previewNumber("+12125550199", "Platform pool")],
+      },
+    };
+  }
+
+  async searchAvailablePhoneNumbers(
+    _workspaceId: string,
+    filters?: PhoneNumberSearchFilters,
+    _signal?: AbortSignal,
+  ): Promise<
+    RepositoryResult<{
+      configured: boolean;
+      numbers: import("./types").AvailablePhoneNumber[];
+      pool: WorkspacePhoneNumber[];
+    }>
+  > {
+    void _workspaceId;
+    void _signal;
+    const areaCode = filters?.area_code ?? "415";
+    return {
+      status: "ready",
+      data: {
+        configured: false,
+        numbers: [0, 1, 2].map((index) => ({
+          phone_number: `+1${areaCode}5551${String(index).padStart(3, "0")}`,
+          country_code: "US",
+          number_type: filters?.number_type ?? "local",
+          region: "California",
+          locality: filters?.locality ?? "San Francisco",
+          area_code: areaCode,
+          monthly_cost: 1,
+          currency: "USD",
+          features: ["voice", "sms"],
+        })),
+        pool: [previewNumber("+12125550199", "Platform pool")],
+      },
+    };
+  }
+
+  async purchasePhoneNumber(
+    _workspaceId: string,
+    input: PurchasePhoneNumberInput,
+    _signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    void _workspaceId;
+    void _signal;
+    return { status: "ready", data: previewNumber(input.e164, "New number") };
+  }
+
+  async updatePhoneNumber(
+    _workspaceId: string,
+    numberId: string,
+    input: UpdatePhoneNumberInput,
+    _signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    void _workspaceId;
+    void _signal;
+    return {
+      status: "ready",
+      data: {
+        ...previewNumber("+14155550142", "Support line"),
+        id: numberId,
+        assigned_agent_id: input.assigned_agent_id ?? null,
+        friendly_name: input.friendly_name ?? "Support line",
+      },
+    };
+  }
+
+  async releasePhoneNumber(
+    _workspaceId: string,
+    numberId: string,
+    _mode: "pool" | "provider",
+    _signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    void _workspaceId;
+    void _mode;
+    void _signal;
+    return {
+      status: "ready",
+      data: { ...previewNumber("+14155550142", "Support line"), id: numberId, status: "available" },
+    };
+  }
+}
+
+function previewNumber(e164: string, label: string): WorkspacePhoneNumber {
+  const now = new Date().toISOString();
+  return {
+    id: `preview-${e164.replace(/\D/g, "")}`,
+    workspace_id: "preview",
+    phone_number: e164,
+    friendly_name: label,
+    provider: "telnyx",
+    provider_number_id: null,
+    provider_connection_id: null,
+    assigned_agent_id: null,
+    status: "active",
+    inbound_status: "active",
+    livekit_trunk_id: null,
+    livekit_dispatch_rule_id: null,
+    country_code: "US",
+    number_type: "local",
+    region: "California",
+    locality: "San Francisco",
+    monthly_cost: 1,
+    currency: "USD",
+    capabilities: { voice: true, sms: true },
+    provisioning_error: null,
+    purchased_at: now,
+    released_at: null,
+    created_at: now,
+    updated_at: now,
+  };
 }
 
 export const voicePreviewStore = new InMemoryVoicePreviewStore();

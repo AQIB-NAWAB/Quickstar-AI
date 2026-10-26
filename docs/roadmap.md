@@ -2431,7 +2431,7 @@ One inbound and one outbound call through staging CPaaS complete one runtime tur
 
 ### Still unsafe
 
-No live Media Streams PSTN until staging secrets + WS path. No real Telnyx adapter. No AMD/voicemail/opt-out (campaign compliance) — document under Feature 23. No international regulatory bundle.
+No live PSTN until Telnyx + LiveKit Cloud secrets. No outbound PSTN dialing through Telnyx yet. No AMD/voicemail/opt-out (campaign compliance) — document under Feature 23. No international regulatory bundle. Inbound number inventory + LiveKit SIP path shipped (ADR 0023).
 
 ---
 

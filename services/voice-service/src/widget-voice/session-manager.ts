@@ -12,6 +12,12 @@ export type LiveSessionBind = {
   workspaceId: string;
   conversationId: string;
   actorId: string;
+  /** Provider label for call rows created by this session (default widget). */
+  provider?: string;
+  /** Reuse an existing call row instead of creating a widget call. */
+  callId?: string;
+  caller?: string | null;
+  agentId?: string | null;
 };
 
 type BridgedSession = {
@@ -58,6 +64,8 @@ export class WidgetVoiceLiveSessionManager {
     private readonly deps: {
       deepgramApiKey?: string;
       deepgramModel: string;
+      deepgramEndpointingMs?: number;
+      speechTailMs?: number;
       runtimeUrl: string;
       internalToken: string;
       conversationUrl: string;
@@ -67,9 +75,18 @@ export class WidgetVoiceLiveSessionManager {
       geminiLiveModel?: string;
       openaiApiKey?: string;
       openaiRealtimeModel?: string;
+      elevenLabsApiKey?: string;
+      elevenLabsRealtimeModel?: string;
+      elevenLabsVoiceId?: string;
+      /** auto = cascade when configured, else best available S2S provider. */
+      s2sProvider?: "auto" | "gemini" | "openai" | "elevenlabs" | "none";
       tts: TextToSpeech | null;
       /** When set, live widget voice uses STT → runtime → the selected catalog voice. */
       preferCascade: boolean;
+      /** Overall turn budget for live voice (defaults to 20s). */
+      turnTimeoutMs?: number;
+      /** Spoken when a live turn times out. */
+      spokenFallback?: string;
       calls: CallsRepository;
       recordings: RecordingStore;
       logger: Logger;
@@ -77,15 +94,32 @@ export class WidgetVoiceLiveSessionManager {
   ) {}
 
   async create(bind: LiveSessionBind): Promise<string> {
-    const call = await this.deps.calls.create({
-      workspaceId: bind.workspaceId,
-      conversationId: bind.conversationId,
-      direction: "inbound",
-      voiceMode: "cascade",
-      telephonyProvider: "widget",
-      caller: "Website visitor",
-    });
-    await this.deps.calls.updateState(bind.workspaceId, call.id, { state: "live" });
+    let callId: string;
+    if (bind.callId) {
+      const existing = await this.deps.calls.get(bind.workspaceId, bind.callId);
+      if (!existing) {
+        throw new Error(`Call ${bind.callId} not found for live voice session`);
+      }
+      callId = existing.id;
+      await this.deps.calls.updateState(bind.workspaceId, callId, {
+        state: "live",
+        conversationId: bind.conversationId,
+        agentId: bind.agentId ?? existing.agent_id,
+        caller: bind.caller ?? existing.caller,
+      });
+    } else {
+      const call = await this.deps.calls.create({
+        workspaceId: bind.workspaceId,
+        conversationId: bind.conversationId,
+        agentId: bind.agentId ?? null,
+        direction: "inbound",
+        voiceMode: "cascade",
+        telephonyProvider: bind.provider ?? "widget",
+        caller: bind.caller ?? "Website visitor",
+      });
+      await this.deps.calls.updateState(bind.workspaceId, call.id, { state: "live" });
+      callId = call.id;
+    }
     const id = randomUUID();
     const pack = loadWidgetVoiceBrief({
       workspaceId: bind.workspaceId,
@@ -97,47 +131,59 @@ export class WidgetVoiceLiveSessionManager {
       logger: this.deps.logger,
     });
     const brief = pack.then((loaded) => loaded.brief);
-    const session =
-      this.deps.preferCascade && this.deps.tts
+    const provider = this.deps.s2sProvider ?? "auto";
+    const canCascade = Boolean(this.deps.tts && this.deps.deepgramApiKey);
+    const canGemini = Boolean(this.deps.geminiApiKey);
+    const canOpenAi = Boolean(this.deps.openaiApiKey);
+    const canElevenLabs = Boolean(
+      this.deps.elevenLabsApiKey && this.deps.elevenLabsVoiceId,
+    );
+
+    const requireProvider = (name: string, available: boolean) => {
+      if (!available) {
+        throw new Error(
+          `VOICE_S2S_PROVIDER=${name} requires the matching API key; configure ${name} or use auto/none`,
+        );
+      }
+    };
+    if (provider === "gemini") requireProvider("gemini", canGemini);
+    if (provider === "openai") requireProvider("openai", canOpenAi);
+    if (provider === "elevenlabs") {
+      if (!canElevenLabs) {
+        throw new Error(
+          "VOICE_S2S_PROVIDER=elevenlabs requires ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID",
+        );
+      }
+    }
+    if (provider === "none" && !canCascade) {
+      throw new Error(
+        "VOICE_S2S_PROVIDER=none requires a cascade STT/TTS configuration (Deepgram + a TTS provider)",
+      );
+    }
+
+    const useCascade =
+      provider === "none" ||
+      (provider === "auto" && this.deps.preferCascade && canCascade) ||
+      (provider === "auto" && !canGemini && !canOpenAi && !canElevenLabs && canCascade);
+    const useGemini = !useCascade && (provider === "gemini" || (provider === "auto" && canGemini));
+    const useOpenAi =
+      !useCascade &&
+      !useGemini &&
+      (provider === "openai" || (provider === "auto" && canOpenAi));
+    const useElevenLabs =
+      !useCascade &&
+      !useGemini &&
+      !useOpenAi &&
+      (provider === "elevenlabs" || (provider === "auto" && canElevenLabs));
+
+    if (!useCascade && !useGemini && !useOpenAi && !useElevenLabs) {
+      throw new Error(
+        "No live voice model is configured. Set DEEPGRAM_API_KEY + a TTS key, GEMINI_API_KEY, OPENAI_API_KEY, or ELEVENLABS_API_KEY.",
+      );
+    }
+
+    const session = useCascade
       ? new WidgetVoiceLiveSession({
-          workspaceId: bind.workspaceId,
-          conversationId: bind.conversationId,
-          actorId: bind.actorId,
-          deepgramApiKey: this.deps.deepgramApiKey ?? "",
-          deepgramModel: this.deps.deepgramModel,
-          runtimeUrl: this.deps.runtimeUrl,
-          internalToken: this.deps.internalToken,
-          tts: this.deps.tts,
-          ttsVoiceId: pack.then((loaded) => loaded.ttsVoiceId),
-          replyLanguage: pack.then((loaded) => loaded.language),
-          onTransferSpoken: () => this.onTransferSpoken(id),
-          logger: this.deps.logger,
-        })
-      : this.deps.geminiApiKey
-      ? new GeminiLiveSession({
-          apiKey: this.deps.geminiApiKey,
-          model: this.deps.geminiLiveModel ?? "gemini-3.8-live",
-          workspaceId: bind.workspaceId,
-          conversationId: bind.conversationId,
-          actorId: bind.actorId,
-          conversationUrl: this.deps.conversationUrl,
-          internalToken: this.deps.internalToken,
-          logger: this.deps.logger,
-          brief,
-          onTransferSpoken: () => this.onTransferSpoken(id),
-        })
-      : this.deps.openaiApiKey
-      ? new OpenAiRealtimeLiveSession({
-          apiKey: this.deps.openaiApiKey,
-          model: this.deps.openaiRealtimeModel ?? "gpt-realtime-2.1",
-          workspaceId: bind.workspaceId,
-          conversationId: bind.conversationId,
-          actorId: bind.actorId,
-          conversationUrl: this.deps.conversationUrl,
-          internalToken: this.deps.internalToken,
-          logger: this.deps.logger,
-        })
-      : new WidgetVoiceLiveSession({
           workspaceId: bind.workspaceId,
           conversationId: bind.conversationId,
           actorId: bind.actorId,
@@ -148,15 +194,62 @@ export class WidgetVoiceLiveSessionManager {
           tts: this.deps.tts!,
           ttsVoiceId: pack.then((loaded) => loaded.ttsVoiceId),
           replyLanguage: pack.then((loaded) => loaded.language),
+          turnTimeoutMs: this.deps.turnTimeoutMs,
+          endpointingMs: this.deps.deepgramEndpointingMs,
+          speechTailMs: this.deps.speechTailMs,
+          spokenFallback: this.deps.spokenFallback,
           onTransferSpoken: () => this.onTransferSpoken(id),
           logger: this.deps.logger,
-        });
+        })
+      : useGemini
+        ? new GeminiLiveSession({
+            apiKey: this.deps.geminiApiKey!,
+            model: this.deps.geminiLiveModel ?? "gemini-3.8-live",
+            workspaceId: bind.workspaceId,
+            conversationId: bind.conversationId,
+            actorId: bind.actorId,
+            conversationUrl: this.deps.conversationUrl,
+            internalToken: this.deps.internalToken,
+            logger: this.deps.logger,
+            brief,
+            onTransferSpoken: () => this.onTransferSpoken(id),
+          })
+        : useElevenLabs
+          ? new OpenAiRealtimeLiveSession({
+              apiKey: this.deps.elevenLabsApiKey!,
+              model: this.deps.elevenLabsRealtimeModel ?? "eleven_realtime_v1_mini",
+              url: `wss://api.elevenlabs.io/v1/realtime?model=${encodeURIComponent(
+                this.deps.elevenLabsRealtimeModel ?? "eleven_realtime_v1_mini",
+              )}`,
+              headers: {
+                "xi-api-key": this.deps.elevenLabsApiKey!,
+              },
+              voice: this.deps.elevenLabsVoiceId,
+              instructions: brief,
+              workspaceId: bind.workspaceId,
+              conversationId: bind.conversationId,
+              actorId: bind.actorId,
+              conversationUrl: this.deps.conversationUrl,
+              internalToken: this.deps.internalToken,
+              logger: this.deps.logger,
+            })
+          : new OpenAiRealtimeLiveSession({
+              apiKey: this.deps.openaiApiKey!,
+              model: this.deps.openaiRealtimeModel ?? "gpt-realtime-2.1",
+              instructions: brief,
+              workspaceId: bind.workspaceId,
+              conversationId: bind.conversationId,
+              actorId: bind.actorId,
+              conversationUrl: this.deps.conversationUrl,
+              internalToken: this.deps.internalToken,
+              logger: this.deps.logger,
+            });
     const previous = this.findByConversation(bind.workspaceId, bind.conversationId);
     if (previous) await this.close(previous);
     const record: SessionRecord = {
       session,
       bind,
-      callId: call.id,
+      callId,
       startedAtMs: Date.now(),
       transcriptSequence: 0,
       persistChain: Promise.resolve(),

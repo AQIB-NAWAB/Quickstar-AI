@@ -55,11 +55,48 @@ export type AgentMcpToolDefinition = AgentToolDefinitionBase & {
 
 export type AgentBuiltinLeadToolDefinition = AgentToolDefinitionBase & {
   type: "builtin_leads";
-  action: "start" | "status" | "results" | "cancel";
+  action: "start" | "status" | "results" | "cancel" | "capture" | "request_callback";
+};
+
+export type AgentBuiltinCalendarToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_calendar";
+  action: "check_availability" | "book_slot" | "cancel_event";
+  calendar_id?: string;
+  timezone?: string;
+  slot_minutes?: number;
+  working_hours?: { start?: string; end?: string };
+};
+
+export type AgentBuiltinIntegrationProvider =
+  | "zendesk"
+  | "slack"
+  | "hubspot"
+  | "salesforce"
+  | "google_sheets"
+  | "mailchimp"
+  | "twilio";
+
+export type AgentBuiltinIntegrationAction =
+  | "create_ticket"
+  | "get_ticket"
+  | "add_comment"
+  | "post_message"
+  | "create_or_update_contact"
+  | "create_lead"
+  | "append_row"
+  | "add_subscriber"
+  | "send_sms";
+
+export type AgentBuiltinIntegrationToolDefinition = AgentToolDefinitionBase & {
+  type: "builtin_integration";
+  provider: AgentBuiltinIntegrationProvider;
+  action: AgentBuiltinIntegrationAction;
 };
 
 export type AgentToolDefinition =
   | AgentBuiltinLeadToolDefinition
+  | AgentBuiltinCalendarToolDefinition
+  | AgentBuiltinIntegrationToolDefinition
   | AgentHttpToolDefinition
   | AgentBuiltinWebToolDefinition
   | AgentMcpToolDefinition;

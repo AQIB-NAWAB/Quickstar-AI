@@ -13,6 +13,7 @@ const MIGRATION_FILES = [
   "005_recording_track_offsets.sql",
   "006_call_waveform_peaks.sql",
   "007_telephony_lifecycle_and_bindings.sql",
+  "008_inbound_numbers_livekit.sql",
 ] as const;
 
 export async function runVoiceMigrations(pool: Pool): Promise<void> {

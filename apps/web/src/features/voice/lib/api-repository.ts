@@ -1,10 +1,110 @@
 import type {
+  AvailablePhoneNumber,
   CallLogFilters,
   InboundCall,
   InboundCallDetail,
+  PhoneNumberSearchFilters,
+  PhoneNumberStatus,
+  PhoneNumberType,
   RepositoryResult,
+  UpdatePhoneNumberInput,
+  WorkspacePhoneNumber,
   VoiceRepository,
 } from "./types";
+
+async function requestJson<T>(
+  path: string,
+  init?: RequestInit,
+  signal?: AbortSignal,
+): Promise<RepositoryResult<T>> {
+  try {
+    const res = await fetch(path, {
+      ...init,
+      signal,
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { status: "forbidden", message: "Not allowed to manage phone numbers." };
+    }
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    } & Record<string, unknown>;
+    if (!res.ok) {
+      return {
+        status: res.status === 404 ? "not_found" : "error",
+        message: body.error?.message ?? "Phone number request failed.",
+      };
+    }
+    return { status: "ready", data: body as T };
+  } catch {
+    return { status: "unavailable", message: "Voice service is not available." };
+  }
+}
+
+function mapPhoneNumber(raw: Record<string, unknown>): WorkspacePhoneNumber {
+  const capabilities =
+    raw.capabilities && typeof raw.capabilities === "object"
+      ? (raw.capabilities as { voice?: boolean; sms?: boolean })
+      : undefined;
+  return {
+    id: String(raw.id ?? ""),
+    workspace_id: raw.workspace_id == null ? null : String(raw.workspace_id),
+    phone_number: String(raw.phone_number ?? ""),
+    friendly_name: raw.friendly_name == null ? null : String(raw.friendly_name),
+    provider: String(raw.provider ?? "telnyx"),
+    provider_number_id: raw.provider_number_id == null ? null : String(raw.provider_number_id),
+    provider_connection_id:
+      raw.provider_connection_id == null ? null : String(raw.provider_connection_id),
+    assigned_agent_id: raw.assigned_agent_id == null ? null : String(raw.assigned_agent_id),
+    status: String(raw.status ?? "pending") as PhoneNumberStatus,
+    inbound_status: String(raw.inbound_status ?? "pending") as PhoneNumberStatus,
+    livekit_trunk_id: raw.livekit_trunk_id == null ? null : String(raw.livekit_trunk_id),
+    livekit_dispatch_rule_id:
+      raw.livekit_dispatch_rule_id == null ? null : String(raw.livekit_dispatch_rule_id),
+    country_code: raw.country_code == null ? null : String(raw.country_code),
+    number_type: raw.number_type == null ? null : (String(raw.number_type) as PhoneNumberType),
+    region: raw.region == null ? null : String(raw.region),
+    locality: raw.locality == null ? null : String(raw.locality),
+    monthly_cost: raw.monthly_cost == null ? null : Number(raw.monthly_cost),
+    currency: raw.currency == null ? null : String(raw.currency),
+    capabilities: { voice: capabilities?.voice !== false, sms: capabilities?.sms === true },
+    provisioning_error: raw.provisioning_error == null ? null : String(raw.provisioning_error),
+    purchased_at: raw.purchased_at == null ? null : String(raw.purchased_at),
+    released_at: raw.released_at == null ? null : String(raw.released_at),
+    created_at: String(raw.created_at ?? new Date().toISOString()),
+    updated_at: String(raw.updated_at ?? new Date().toISOString()),
+  };
+}
+
+function mapAvailable(raw: Record<string, unknown>): AvailablePhoneNumber {
+  return {
+    phone_number: String(raw.phone_number ?? ""),
+    country_code: String(raw.country_code ?? "US"),
+    number_type: String(raw.number_type ?? "local") as PhoneNumberType,
+    region: raw.region == null ? null : String(raw.region),
+    locality: raw.locality == null ? null : String(raw.locality),
+    area_code: raw.area_code == null ? null : String(raw.area_code),
+    monthly_cost: raw.monthly_cost == null ? null : Number(raw.monthly_cost),
+    upfront_cost: raw.upfront_cost == null ? null : Number(raw.upfront_cost),
+    currency: raw.currency == null ? null : String(raw.currency),
+    features: Array.isArray(raw.features) ? (raw.features as string[]) : [],
+    owned: Boolean(raw.owned),
+    number_id: raw.number_id == null ? null : String(raw.number_id),
+  };
+}
+
+function mapNumberList(raw: Record<string, unknown>): WorkspacePhoneNumber[] {
+  return Array.isArray(raw.numbers)
+    ? (raw.numbers as Record<string, unknown>[]).map(mapPhoneNumber)
+    : [];
+}
+
+function mapPool(raw: Record<string, unknown>): WorkspacePhoneNumber[] {
+  return Array.isArray(raw.pool)
+    ? (raw.pool as Record<string, unknown>[]).map(mapPhoneNumber)
+    : [];
+}
 
 function mapStatus(status: string): InboundCall["status"] {
   if (status === "live" || status === "ringing") return "live";
@@ -256,5 +356,126 @@ export class ApiVoiceRepository implements VoiceRepository {
         processingTurns: turns,
       },
     };
+  }
+
+  async listPhoneNumbers(
+    workspaceId: string,
+    options?: { sync?: boolean },
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<import("./types").PhoneNumbersSnapshot>> {
+    const result = await requestJson<Record<string, unknown>>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/numbers${
+        options?.sync ? "?sync=true" : ""
+      }`,
+      undefined,
+      signal,
+    );
+    if (result.status !== "ready") return result;
+    return {
+      status: "ready",
+      data: {
+        configured: Boolean(result.data.configured),
+        numbers: mapNumberList(result.data),
+        pool: mapPool(result.data),
+      },
+    };
+  }
+
+  async searchAvailablePhoneNumbers(
+    workspaceId: string,
+    filters?: PhoneNumberSearchFilters,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<import("./types").AvailablePhoneNumbersResult>> {
+    const params = new URLSearchParams();
+    if (filters?.country_code) params.set("country_code", filters.country_code);
+    if (filters?.area_code) params.set("area_code", filters.area_code);
+    if (filters?.locality) params.set("locality", filters.locality);
+    if (filters?.state) params.set("state", filters.state);
+    if (filters?.number_type) params.set("number_type", filters.number_type);
+    if (filters?.limit) params.set("limit", String(filters.limit));
+    const qs = params.toString();
+    const result = await requestJson<Record<string, unknown>>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/numbers/available${
+        qs ? `?${qs}` : ""
+      }`,
+      undefined,
+      signal,
+    );
+    if (result.status !== "ready") return result;
+    return {
+      status: "ready",
+      data: {
+        configured: Boolean(result.data.configured),
+        numbers: Array.isArray(result.data.numbers)
+          ? (result.data.numbers as Record<string, unknown>[]).map(mapAvailable)
+          : [],
+        pool: mapPool(result.data),
+      },
+    };
+  }
+
+  async purchasePhoneNumber(
+    workspaceId: string,
+    input: import("./types").PurchasePhoneNumberInput,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    const result = await requestJson<{ number?: Record<string, unknown> }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/numbers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+      signal,
+    );
+    if (result.status !== "ready") return result;
+    if (!result.data.number) {
+      return { status: "error", message: "Phone number purchase returned no number." };
+    }
+    return { status: "ready", data: mapPhoneNumber(result.data.number) };
+  }
+
+  async updatePhoneNumber(
+    workspaceId: string,
+    numberId: string,
+    input: UpdatePhoneNumberInput,
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    const result = await requestJson<{ number?: Record<string, unknown> }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/numbers/${encodeURIComponent(
+        numberId,
+      )}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+      signal,
+    );
+    if (result.status !== "ready") return result;
+    if (!result.data.number) {
+      return { status: "error", message: "Phone number update returned no number." };
+    }
+    return { status: "ready", data: mapPhoneNumber(result.data.number) };
+  }
+
+  async releasePhoneNumber(
+    workspaceId: string,
+    numberId: string,
+    mode: "pool" | "provider",
+    signal?: AbortSignal,
+  ): Promise<RepositoryResult<WorkspacePhoneNumber>> {
+    const result = await requestJson<{ number?: Record<string, unknown> }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/voice/numbers/${encodeURIComponent(
+        numberId,
+      )}?mode=${mode}`,
+      { method: "DELETE" },
+      signal,
+    );
+    if (result.status !== "ready") return result;
+    if (!result.data.number) {
+      return { status: "error", message: "Phone number release returned no number." };
+    }
+    return { status: "ready", data: mapPhoneNumber(result.data.number) };
   }
 }

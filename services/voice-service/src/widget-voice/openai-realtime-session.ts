@@ -45,6 +45,12 @@ export class OpenAiRealtimeLiveSession {
       conversationUrl: string;
       internalToken: string;
       logger: Logger;
+      /** Override for OpenAI-compatible realtime providers such as ElevenLabs. */
+      url?: string;
+      headers?: Record<string, string>;
+      voice?: string;
+      transcriptionModel?: string;
+      instructions?: string | Promise<string>;
     },
   ) {}
 
@@ -59,41 +65,53 @@ export class OpenAiRealtimeLiveSession {
   }
 
   async start(): Promise<void> {
-    const model = this.input.model || "gpt-realtime-2.1";
-    const url = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
+    const model = this.input.model || "gpt-live-1";
+    const url =
+      this.input.url ??
+      `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
+    const headers = this.input.headers ?? {
+      Authorization: `Bearer ${this.input.apiKey}`,
+    };
     const socket = new WebSocket(url, {
-      headers: {
-        Authorization: `Bearer ${this.input.apiKey}`,
-      },
+      headers,
     } as unknown as string[]);
     this.socket = socket;
 
     socket.addEventListener("open", () => {
-      socket.send(
-        JSON.stringify({
-          type: "session.update",
-          session: {
-            type: "realtime",
-            model,
-            output_modalities: ["audio"],
-            instructions:
-              "You are QuickStart's website voice agent. Answer in one or two short spoken sentences. No markdown, lists, or stage directions.",
-            audio: {
-              input: {
-                format: { type: "audio/pcm", rate: 24000 },
-                transcription: { model: "gpt-4o-mini-transcribe" },
-                turn_detection: { type: "semantic_vad" },
-              },
-              output: {
-                format: { type: "audio/pcm", rate: 24000 },
-                voice: "marin",
+      void (async () => {
+        const fallback =
+          "You are QuickStart's website voice agent. Answer in one or two short spoken sentences. No markdown, lists, or stage directions.";
+        const instructions = await Promise.resolve(
+          this.input.instructions ?? fallback,
+        ).catch(() => fallback);
+        if (this.closed || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(
+          JSON.stringify({
+            type: "session.update",
+            session: {
+              type: "realtime",
+              model,
+              output_modalities: ["audio"],
+              instructions,
+              audio: {
+                input: {
+                  format: { type: "audio/pcm", rate: 24000 },
+                  transcription: {
+                    model: this.input.transcriptionModel ?? "gpt-4o-transcribe",
+                  },
+                  turn_detection: { type: "semantic_vad" },
+                },
+                output: {
+                  format: { type: "audio/pcm", rate: 24000 },
+                  voice: this.input.voice ?? "marin",
+                },
               },
             },
-          },
-        }),
-      );
-      this.ready = true;
-      this.emit({ type: "ready" });
+          }),
+        );
+        this.ready = true;
+        this.emit({ type: "ready" });
+      })();
     });
 
     socket.addEventListener("message", (ev) => {

@@ -165,10 +165,15 @@ export class ProviderRegistry {
             grant_type: "refresh_token",
           }).toString(),
         });
-        const json = (await res.json()) as Record<string, any>;
+        const json = (await res.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+          expires_in?: number;
+          error_description?: string;
+        };
         if (!res.ok) throw new Error(json.error_description || "Token refresh failed");
         return {
-          accessToken: json.access_token,
+          accessToken: json.access_token ?? "",
           refreshToken: json.refresh_token || refreshToken,
           expiresIn: json.expires_in,
         };
@@ -289,6 +294,32 @@ export class ProviderRegistry {
           accountName: userinfo.name || null,
           providerAccountId: userinfo.sub || null,
           rawPayload: tokenJson,
+        };
+      },
+      async refreshToken(refreshToken: string) {
+        const clientId = process.env.GOOGLE_CLIENT_ID!;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
+        const res = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: refreshToken,
+            grant_type: "refresh_token",
+          }).toString(),
+        });
+        const json = (await res.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+          expires_in?: number;
+          error_description?: string;
+        };
+        if (!res.ok) throw new Error(json.error_description || "Token refresh failed");
+        return {
+          accessToken: json.access_token ?? "",
+          refreshToken: json.refresh_token || refreshToken,
+          expiresIn: json.expires_in,
         };
       },
       async syncResource({ accessToken, operation }: ProviderSyncParams): Promise<ProviderSyncResult> {

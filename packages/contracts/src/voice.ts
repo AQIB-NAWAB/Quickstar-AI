@@ -86,6 +86,106 @@ export type CallRecord = {
   started_at: string;
   ended_at: string | null;
   recording_object_key: string | null;
+  livekit_room_name?: string | null;
+  livekit_participant_sid?: string | null;
+  phone_number_id?: string | null;
+  sip_call_id?: string | null;
+};
+
+export const PHONE_NUMBER_STATUSES = [
+  "pending",
+  "available",
+  "provisioning",
+  "active",
+  "releasing",
+  "released",
+  "error",
+] as const;
+export type PhoneNumberStatus = (typeof PHONE_NUMBER_STATUSES)[number];
+
+export const PHONE_NUMBER_TYPES = ["local", "national", "toll_free", "mobile"] as const;
+export type PhoneNumberType = (typeof PHONE_NUMBER_TYPES)[number];
+
+export type PhoneNumberCapabilities = {
+  voice: boolean;
+  sms: boolean;
+};
+
+/**
+ * A number owned by the platform. `workspace_id` is null while the number sits in
+ * the platform pool (purchased but not rented to a workspace yet).
+ */
+export type WorkspacePhoneNumber = {
+  id: string;
+  workspace_id: string | null;
+  phone_number: string;
+  friendly_name: string | null;
+  provider: TelephonyProviderId | string;
+  provider_number_id: string | null;
+  provider_connection_id: string | null;
+  assigned_agent_id: string | null;
+  status: PhoneNumberStatus;
+  inbound_status: PhoneNumberStatus;
+  livekit_trunk_id: string | null;
+  livekit_dispatch_rule_id: string | null;
+  country_code: string | null;
+  number_type: PhoneNumberType | null;
+  region: string | null;
+  locality: string | null;
+  monthly_cost: number | null;
+  currency: string | null;
+  capabilities: PhoneNumberCapabilities;
+  provisioning_error: string | null;
+  purchased_at: string | null;
+  released_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AvailablePhoneNumber = {
+  phone_number: string;
+  country_code: string;
+  number_type: PhoneNumberType;
+  region?: string | null;
+  locality?: string | null;
+  area_code?: string | null;
+  monthly_cost?: number | null;
+  upfront_cost?: number | null;
+  currency?: string | null;
+  features?: string[];
+  /** Already purchased on the platform account (can be claimed without a new order). */
+  owned?: boolean;
+  number_id?: string | null;
+};
+
+export type PhoneNumberSearchFilters = {
+  country_code?: string;
+  area_code?: string;
+  locality?: string;
+  state?: string;
+  number_type?: PhoneNumberType;
+  limit?: number;
+  /** Include numbers already sitting in the platform pool. */
+  include_owned?: boolean;
+};
+
+export type PurchasePhoneNumberInput = {
+  e164: string;
+  agent_id?: string | null;
+  friendly_name?: string | null;
+  country_code?: string;
+  number_type?: PhoneNumberType;
+};
+
+export type UpdatePhoneNumberInput = {
+  assigned_agent_id?: string | null;
+  friendly_name?: string | null;
+};
+
+export type PhoneNumberSearchResult = {
+  configured: boolean;
+  numbers: AvailablePhoneNumber[];
+  pool: WorkspacePhoneNumber[];
 };
 
 export function isVoiceMode(value: unknown): value is VoiceMode {

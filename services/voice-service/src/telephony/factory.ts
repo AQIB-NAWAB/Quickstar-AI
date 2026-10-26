@@ -3,15 +3,24 @@ import { FakeCpaasProvider } from "./fake-cpaas.js";
 import { SipBridgeProvider } from "./sip-provider.js";
 import { TwilioCpaasProvider } from "./twilio-cpaas.js";
 import { TelephonyRouter } from "./router.js";
+import { TelnyxClient } from "./telnyx/client.js";
+import { FakeTelnyxClient } from "./telnyx/fake-client.js";
+import { TelnyxProvider } from "./telnyx/provider.js";
+import type { TelnyxNumbersClient } from "./telnyx/types.js";
 import type { TelephonyProvider } from "./types.js";
 
-export type TelephonyProfile = "fake" | "twilio";
+export type TelephonyProfile = "fake" | "twilio" | "telnyx";
 
 export type CreateTelephonyRouterInput = {
   profile: TelephonyProfile;
   twilioAccountSid?: string;
   twilioAuthToken?: string;
   twilioFromNumber?: string;
+  telnyxApiKey?: string;
+  telnyxPublicKey?: string;
+  telnyxFromNumber?: string;
+  telnyxWebhookToleranceSec?: number;
+  livekitConfigured?: boolean;
   publicBaseUrl: string;
   sipBridgeSharedSecret: string;
   requireRealTelephony: boolean;
@@ -23,18 +32,34 @@ export function assertTelephonyBootAllowed(input: {
   profile: TelephonyProfile;
   twilioAccountSid?: string;
   twilioAuthToken?: string;
+  telnyxApiKey?: string;
+  telnyxPublicKey?: string;
+  livekitConfigured?: boolean;
   requireRealTelephony: boolean;
 }): void {
   if (!input.requireRealTelephony) return;
   if (input.profile === "fake") {
     throw new Error(
-      "TELEPHONY_REQUIRE_REAL=1 forbids TELEPHONY_PROFILE=fake; set TELEPHONY_PROFILE=twilio and Twilio credentials",
+      "TELEPHONY_REQUIRE_REAL=1 forbids TELEPHONY_PROFILE=fake; set TELEPHONY_PROFILE=telnyx or twilio and credentials",
     );
   }
-  if (!input.twilioAccountSid || !input.twilioAuthToken) {
+  if (input.profile === "twilio" && (!input.twilioAccountSid || !input.twilioAuthToken)) {
     throw new Error(
       "TELEPHONY_REQUIRE_REAL=1 requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN",
     );
+  }
+  if (input.profile === "telnyx") {
+    const missing: string[] = [];
+    if (!input.telnyxApiKey) missing.push("TELNYX_API_KEY");
+    if (!input.telnyxPublicKey) missing.push("TELNYX_PUBLIC_KEY");
+    if (!input.livekitConfigured) {
+      missing.push("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_SIP_ENDPOINT");
+    }
+    if (missing.length > 0) {
+      throw new Error(
+        `TELEPHONY_REQUIRE_REAL=1 with TELEPHONY_PROFILE=telnyx requires ${missing.join(", ")}`,
+      );
+    }
   }
 }
 
@@ -55,14 +80,17 @@ function createTwilioProvider(input: CreateTelephonyRouterInput): TelephonyProvi
 
 /**
  * Build a TelephonyRouter with swappable adapters.
- * - profile=fake: FakeCpaas registered as twilio + telnyx + fake (local / CI)
- * - profile=twilio: real Twilio as id `twilio`; Telnyx remains Fake stub (fallback profile)
- * SIP bridge always registered.
+ * - profile=fake: fake Twilio/Telnyx adapters (local / CI)
+ * - profile=twilio: real Twilio; Telnyx is a fake fallback
+ * - profile=telnyx: real Telnyx inbound (media handled by LiveKit SIP)
+ * SIP bridge is always registered.
  */
 export function createTelephonyRouter(input: CreateTelephonyRouterInput): {
   router: TelephonyRouter;
   sip: SipBridgeProvider;
   twilio: TelephonyProvider;
+  telnyx: TelephonyProvider;
+  telnyxClient: TelnyxNumbersClient;
 } {
   assertTelephonyBootAllowed(input);
 
@@ -76,7 +104,27 @@ export function createTelephonyRouter(input: CreateTelephonyRouterInput): {
     twilio = new FakeCpaasProvider("twilio");
   }
 
-  const telnyx = new FakeCpaasProvider("telnyx");
+  let telnyxClient: TelnyxNumbersClient;
+  if (input.profile === "telnyx") {
+    if (!input.telnyxApiKey || !input.telnyxPublicKey) {
+      throw new Error("TELEPHONY_PROFILE=telnyx requires TELNYX_API_KEY and TELNYX_PUBLIC_KEY");
+    }
+    if (!input.livekitConfigured) {
+      throw new Error(
+        "TELEPHONY_PROFILE=telnyx requires LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, and LIVEKIT_SIP_ENDPOINT",
+      );
+    }
+    telnyxClient = new TelnyxClient({
+      apiKey: input.telnyxApiKey,
+      publicKey: input.telnyxPublicKey,
+      webhookToleranceSec: input.telnyxWebhookToleranceSec,
+      fetchImpl: input.fetchImpl,
+    });
+  } else {
+    telnyxClient = new FakeTelnyxClient();
+  }
+  const telnyx = new TelnyxProvider(telnyxClient, input.telnyxFromNumber ?? "");
+
   router.register(twilio);
   router.register(telnyx);
   router.register(sip);
@@ -85,20 +133,25 @@ export function createTelephonyRouter(input: CreateTelephonyRouterInput): {
   input.logger?.info("telephony.profile", {
     profile: input.profile,
     twilio_adapter: twilio instanceof TwilioCpaasProvider ? "twilio-cpaas" : "fake-cpaas",
-    telnyx_adapter: "fake-cpaas",
+    telnyx_adapter: telnyxClient.kind === "telnyx" ? "telnyx-client" : "fake-telnyx",
+    livekit: Boolean(input.livekitConfigured),
   });
 
-  return { router, sip, twilio };
+  return { router, sip, twilio, telnyx, telnyxClient };
 }
 
 export function resolveTelephonyProfile(
   rawProfile: string | undefined,
   hasTwilioCreds: boolean,
+  hasTelnyxCreds = false,
 ): TelephonyProfile {
   const value = (rawProfile ?? "").trim().toLowerCase();
   if (value === "twilio") return "twilio";
+  if (value === "telnyx") return "telnyx";
   if (value === "fake") return "fake";
-  // Auto: use real Twilio when creds present and profile unset.
+  // Auto: real Telnyx wins over Twilio when both are configured because the
+  // inbound LiveKit path is Telnyx-first.
+  if (!value && hasTelnyxCreds) return "telnyx";
   if (!value && hasTwilioCreds) return "twilio";
   return "fake";
 }

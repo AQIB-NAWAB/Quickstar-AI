@@ -3,6 +3,8 @@ import type { WorkspaceAccessClient } from "@quickstart/workspace-access";
 import type { ReadinessProbe } from "../controllers/health.controller.js";
 import type { createCallsController } from "../controllers/calls.controller.js";
 import type { createCampaignsController } from "../controllers/campaigns.controller.js";
+import type { createInboundCallsController } from "../controllers/inbound-calls.controller.js";
+import type { createPhoneNumbersController } from "../controllers/phone-numbers.controller.js";
 import type { createTelephonyController } from "../controllers/telephony.controller.js";
 import type { createWidgetVoiceController } from "../controllers/widget-voice.controller.js";
 import type { createWidgetVoiceLiveController } from "../controllers/widget-voice-live.controller.js";
@@ -16,6 +18,8 @@ export type VoiceHttpContext = {
   workspaceAccess: WorkspaceAccessClient;
   callsCtrl: ReturnType<typeof createCallsController>;
   campaignsCtrl: ReturnType<typeof createCampaignsController>;
+  phoneNumbersCtrl: ReturnType<typeof createPhoneNumbersController>;
+  inboundCallsCtrl: ReturnType<typeof createInboundCallsController>;
   telephonyCtrl: ReturnType<typeof createTelephonyController>;
   widgetVoiceCtrl: ReturnType<typeof createWidgetVoiceController>;
   widgetVoiceLiveCtrl: ReturnType<typeof createWidgetVoiceLiveController>;
