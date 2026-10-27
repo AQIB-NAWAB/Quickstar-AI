@@ -447,7 +447,6 @@ export function FrontendPreview({ view }: { view: string[] }) {
       <AppShell
         workspaceId={workspace.id}
         workspaceName={workspace.name}
-        workspaceSlug={workspace.slug}
         userEmail="quickstart@gmail.com"
         workspaces={[workspace]}
         isPreview={true}
