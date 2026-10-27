@@ -9,6 +9,7 @@ import { MemoryAgentStore } from "../repository/memory.js";
 import { MemoryCustomToolStore } from "../repository/memory-custom-tools.js";
 import { AgentsService } from "../services/agents.service.js";
 import { CustomToolsService } from "../services/custom-tools.service.js";
+import type { SecretReadinessClient } from "../clients/secrets-readiness.client.js";
 
 export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): ServiceConfig {
   return {
@@ -17,6 +18,7 @@ export function testServiceConfig(overrides: Partial<ServiceConfig> = {}): Servi
     redisUrl: "redis://unused",
     jwtAccessSecret: "test-secret-at-least-32-characters-long!!",
     internalToken: "test-internal-token-at-least-32-chars!!",
+    secretsUrl: "http://127.0.0.1:9",
     workspaceUrl: "http://127.0.0.1:9",
     httpRequestTimeoutMs: 5_000,
     httpRateLimitWindowMs: 60_000,
@@ -53,11 +55,11 @@ export async function withAgentServer(
     jwtSecret: string;
     createToken: (userId: string, orgId?: string) => Promise<string>;
   }) => Promise<void>,
-  options?: { role?: WorkspaceRole; store?: MemoryAgentStore },
+  options?: { role?: WorkspaceRole; store?: MemoryAgentStore; secrets?: SecretReadinessClient },
 ): Promise<void> {
   const store = options?.store ?? new MemoryAgentStore();
   const config = testServiceConfig();
-  const agents = new AgentsService(store);
+  const agents = new AgentsService(store, options?.secrets);
   const customTools = new CustomToolsService(new MemoryCustomToolStore());
   const workspaceAccess = createMockWorkspaceAccess(options?.role ?? "developer");
 

@@ -30,8 +30,12 @@ export class AiPromptHandler implements GraphNodeHandler<"ai_prompt"> {
     }
 
     const contextText = contextFragments.length > 0 ? contextFragments.join("\n\n") : "";
+    const inheritedInstructions =
+      config.inherit_agent_instructions !== false
+        ? (ctx.sessionState.agent_defaults?.instructions ?? "")
+        : "";
     const systemPrompt =
-      `${ctx.sessionState.agent_defaults?.instructions ?? ""}\n\n${config.instructions ?? ""}\n\n${contextText}`.trim();
+      `${inheritedInstructions}\n\n${config.instructions ?? ""}\n\n${contextText}`.trim();
     const userMessage = ctx.visitorMessage || "Please assist the user.";
 
     if (this.modelGateway) {
@@ -47,6 +51,9 @@ export class AiPromptHandler implements GraphNodeHandler<"ai_prompt"> {
           {
             workspace_id: ctx.workspaceId,
             request_id: ctx.requestId,
+            agent_id: ctx.agentId,
+            conversation_id: ctx.conversationId,
+            channel: ctx.channel,
             model: graphModel(ctx, config.model_override, config.model_profile),
             messages: [
               { role: "system", content: systemPrompt },

@@ -34,7 +34,6 @@ import { InspectorPanel } from "./inspectors/inspector-panel";
 import { TestWorkbench } from "./workbench/test-workbench";
 import { ExecutionTracePanel } from "./workbench/execution-trace-panel";
 import { CanvasControls } from "./canvas-controls";
-import { CanvasMinimap } from "./canvas-minimap";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { PublishReleaseDialog } from "./publishing/publish-release-dialog";
 import { graphToFlowElements, flowElementsToGraph } from "../lib/graph-adapter";
@@ -597,7 +596,6 @@ const InnerCanvas: React.FC<AgentCanvasEditorProps> = (props) => {
             >
               <Background variant={BackgroundVariant.Dots} gap={18} size={0.8} color="#D9DDE3" />
               <CanvasControls />
-              {nodes.length > 0 && <CanvasMinimap />}
             </ReactFlow>
             {!nodes.length && (
               <CanvasEmptyState
@@ -703,10 +701,6 @@ const InnerCanvas: React.FC<AgentCanvasEditorProps> = (props) => {
           onTabChange={(tab) => {
             if (tab !== workbenchTab) {
               setWorkbenchTab(tab);
-              setPreviewSessionId(null);
-              setPreviewMessages([]);
-              setPreviewSessionState(null);
-              setActiveTrace(null);
             }
           }}
           draftRevision={previewRevision}

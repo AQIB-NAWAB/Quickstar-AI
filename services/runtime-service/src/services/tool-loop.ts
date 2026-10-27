@@ -142,6 +142,7 @@ export type ToolExecutionSummary = {
 
 export type ToolLoopInput = {
   workspaceId: string;
+  agentId: string;
   conversationId: string;
   requestId: string;
   turnIdempotencyKey: string;
@@ -158,6 +159,7 @@ export type ToolLoopInput = {
   onToolDone?: (event: ToolExecutionSummary) => void;
   visitorText?: string;
   signal?: AbortSignal;
+  channel?: "chat" | "voice" | "webhook";
 };
 
 export class ToolLoop {
@@ -179,6 +181,7 @@ export class ToolLoop {
     const modelTools = input.tools.length > 0 ? toModelTools(input.tools) : undefined;
     let transferred = false;
     const executedCalls = new Map<string, number>();
+    const toolCallCounts = new Map<string, number>();
     const toolCalls: ToolExecutionSummary[] = [];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS_PER_TURN; round += 1) {
@@ -186,6 +189,9 @@ export class ToolLoop {
       const completion = await this.modelClient.complete({
         workspace_id: input.workspaceId,
         request_id: input.requestId,
+        agent_id: input.agentId,
+        conversation_id: input.conversationId,
+        channel: input.channel,
         model: input.model,
         messages,
         tools: modelTools,
@@ -244,6 +250,37 @@ export class ToolLoop {
           continue;
         }
 
+        const policy = tool.policy;
+        if (policy?.enabled === false) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage("This tool is disabled for this agent. Do not call it again."),
+          });
+          continue;
+        }
+        const channel = input.channel ?? "chat";
+        if (policy?.allowed_channels?.length && !policy.allowed_channels.includes(channel)) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage("This tool is not available on the current channel. Choose another approach."),
+          });
+          continue;
+        }
+        const count = toolCallCounts.get(call.name) ?? 0;
+        if (policy?.max_calls_per_turn !== undefined && count >= policy.max_calls_per_turn) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage(`The per-turn call limit for ${call.name} has been reached.`),
+          });
+          continue;
+        }
+
         const rawCallArgs = call.arguments ?? {};
         const resolvedArgs =
           typeof rawCallArgs.raw === "string"
@@ -278,7 +315,21 @@ export class ToolLoop {
           continue;
         }
 
-        if (toolChangesData(tool) && !visitorConfirmed(input.visitorText)) {
+        const requiresConfirmation =
+          policy?.confirmation === "staff" ||
+          policy?.confirmation === "user" ||
+          policy?.risk === "write" ||
+          (policy?.confirmation !== "never" && toolChangesData(tool));
+        if (policy?.confirmation === "staff") {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: toolGuardMessage("This action requires staff approval and cannot run in the current turn."),
+          });
+          continue;
+        }
+        if (requiresConfirmation && !visitorConfirmed(input.visitorText)) {
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -291,6 +342,7 @@ export class ToolLoop {
         }
 
         executedCalls.set(callFingerprint, round);
+        toolCallCounts.set(call.name, count + 1);
         input.onToolStart?.({
           name: call.name,
           spoken: spokenToolNudge(call.name, input.replyLanguage, input.replyGender),
@@ -345,6 +397,7 @@ export class ToolLoop {
           timeoutMs,
           authorization: input.authHeaders.authorization,
           conversationId: input.conversationId,
+          channel,
         });
 
         await this.remember(input, {
@@ -418,6 +471,9 @@ export class ToolLoop {
         {
           workspace_id: input.workspaceId,
           request_id: input.requestId,
+          agent_id: input.agentId,
+          conversation_id: input.conversationId,
+          channel: input.channel,
           model: input.model,
           messages,
           tools: undefined,

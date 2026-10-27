@@ -8,8 +8,10 @@ import {
   FileText,
   Sliders,
 } from "lucide-react";
+import { getAgentCatalog } from "../lib/client";
 
 type Props = {
+  workspaceId: string;
   model: string;
   temperature: number;
   maxTokens: number;
@@ -26,16 +28,8 @@ type ModelOption = {
   desc: string;
 };
 
-const DEFAULT_MODELS: ModelOption[] = [
-  { id: "gpt-4o-mini", name: "GPT-4o mini", provider: "OpenAI", desc: "Fast, cost-efficient, everyday queries" },
-  { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", desc: "Advanced reasoning and complex tool calls" },
-  { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", provider: "Anthropic", desc: "Superior nuanced writing & instruction following" },
-  { id: "claude-3-haiku", name: "Claude 3 Haiku", provider: "Anthropic", desc: "Sub-second fast streaming response" },
-  { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B", provider: "Groq", desc: "High-throughput open model" },
-  { id: "meta/llama-3.2-11b-vision-instruct", name: "Llama 3.2 11B", provider: "Blueminds", desc: "Fast multimodal open model" },
-];
-
 export function ModelTab({
+  workspaceId,
   model,
   temperature,
   maxTokens,
@@ -45,10 +39,31 @@ export function ModelTab({
   onChangeMaxTokens,
 }: Props) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [catalogModels, setCatalogModels] = useState<ModelOption[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Ensure current model is present in options
-  const models = [...DEFAULT_MODELS];
+  useEffect(() => {
+    let active = true;
+    void getAgentCatalog(workspaceId).then((result) => {
+      if (!active || !result.catalog) return;
+      setCatalogModels(
+        result.catalog.models
+          .filter((item) => item.enabled)
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            provider: item.provider,
+            desc: item.description,
+          })),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [workspaceId]);
+
+  // Keep an already-saved custom model visible until the backend catalog is updated.
+  const models = catalogModels.length > 0 ? [...catalogModels] : [];
   if (!models.some((m) => m.id === model)) {
     models.unshift({
       id: model,
@@ -115,10 +130,10 @@ export function ModelTab({
                 </div>
                 <div className="min-w-0">
                   <span className="block text-[15px] font-semibold text-[#202125] truncate leading-tight">
-                    {selectedModel.name}
+                    {selectedModel?.name ?? model}
                   </span>
                   <span className="block text-[13px] text-[#667085] leading-tight mt-0.5">
-                    {selectedModel.provider}
+                    {selectedModel?.provider ?? "Configured model"}
                   </span>
                 </div>
               </div>

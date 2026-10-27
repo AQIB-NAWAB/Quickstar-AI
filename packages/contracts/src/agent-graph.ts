@@ -158,6 +158,7 @@ export type ConditionNodeConfig = {
 export type AiPromptNodeConfig = {
   instructions?: string;
   system_prompt?: string;
+  inherit_agent_instructions?: boolean;
   model_profile?: string;
   model_override?: {
     provider?: string;
@@ -197,6 +198,7 @@ export type HttpRequestNodeConfig = {
 
 export type KnowledgeSearchNodeConfig = {
   source_ids?: string[];
+  use_all_sources?: boolean;
   query_variable?: string;
   max_results?: number;
   search_method?: "semantic" | "keyword" | "hybrid";
@@ -366,6 +368,9 @@ export type GraphTraceEvent = {
 export type GraphExecutionTrace = {
   run_id: string;
   session_id: string;
+  agent_id?: string;
+  release_id?: string | null;
+  is_preview?: boolean;
   status: "succeeded" | "failed" | "running" | "waiting_for_input";
   total_duration_ms: number;
   duration_ms?: number;

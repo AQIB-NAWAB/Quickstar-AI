@@ -44,6 +44,10 @@ export type ModelReference = {
 export type CompletionRequestBody = {
   workspace_id: string;
   request_id: string;
+  /** Optional runtime attribution for per-agent usage and observability. */
+  agent_id?: string;
+  conversation_id?: string;
+  channel?: "chat" | "voice" | "webhook";
   model: ModelReference;
   messages: ChatMessage[];
   tools?: ModelToolDefinition[];

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AgentGraph, AgentGraphNode } from "@quickstart/contracts";
-import { normalizeAgentGraph, validateAgentGraph } from "@quickstart/contracts";
+import {
+  DEFAULT_AGENT_CONFIGURATION,
+  normalizeAgentGraph,
+  validateAgentGraph,
+} from "@quickstart/contracts";
 import { GraphEngine } from "./engine.js";
 import { GraphNodeRegistry } from "./registry.js";
 import { GraphSessionStore } from "./session-store.js";
@@ -195,6 +199,8 @@ test("session and traces cannot cross workspace boundaries", async () => {
   assert.equal(await store.getSession("b", "session"), null);
   assert.equal(await store.getTrace("b", a.runId), null);
   assert.deepEqual(await store.listTraces("b", "session"), []);
+  assert.equal((await store.listAgentTraces("a", "agent")).length, 1);
+  assert.deepEqual(await store.listAgentTraces("b", "agent"), []);
 });
 test("trace listeners are workspace scoped", async () => {
   const { store } = fixture();
@@ -205,6 +211,98 @@ test("trace listeners are workspace scoped", async () => {
   const event = { event_id: "e" } as never;
   await store.appendTraceEvent("a", "session", event);
   assert.equal(called, false);
+});
+test("agent trace index caps high-volume histories and honors retention", async () => {
+  const store = new GraphSessionStore();
+  const base = {
+    session_id: "session",
+    agent_id: "agent",
+    status: "succeeded" as const,
+    total_duration_ms: 1,
+    steps: [],
+    started_at: new Date().toISOString(),
+  };
+  for (let i = 0; i < 120; i += 1) {
+    await store.saveTrace(
+      { ...base, run_id: `run-${i}`, completed_at: new Date().toISOString() },
+      "a",
+      60,
+    );
+  }
+  assert.equal((await store.listAgentTraces("a", "agent", 200)).length, 100);
+  await store.saveTrace(
+    { ...base, run_id: "expired", completed_at: new Date().toISOString() },
+    "a",
+    0,
+  );
+  assert.ok(await store.getTrace("a", "expired"));
+});
+test("agent trace settings redact PII and can disable input/output capture", async () => {
+  const { engine } = fixture();
+  const g = graph(
+    [node("entry", "entrypoint"), node("end", "end_conversation")],
+    [["entry", "interaction_received", "end"]],
+  );
+  const redacted = await engine.executeTurn({
+    workspaceId: "a",
+    agentId: "agent",
+    conversationId: "trace-redaction",
+    sessionId: "trace-redaction",
+    graph: g,
+    releaseId: "release",
+    channel: "chat",
+    isPreview: false,
+    requestId: crypto.randomUUID(),
+    visitorMessage: "Email me at person@example.com",
+    agentConfiguration: DEFAULT_AGENT_CONFIGURATION,
+  });
+  const serialized = JSON.stringify(redacted.trace);
+  assert.match(serialized, /REDACTED_EMAIL/);
+  assert.doesNotMatch(serialized, /person@example\.com/);
+
+  const result = await engine.executeTurn({
+    workspaceId: "a",
+    agentId: "agent",
+    conversationId: "trace-settings",
+    sessionId: "trace-settings",
+    graph: g,
+    releaseId: "release",
+    channel: "chat",
+    isPreview: false,
+    requestId: crypto.randomUUID(),
+    visitorMessage: "Email me at person@example.com",
+    agentConfiguration: {
+      ...DEFAULT_AGENT_CONFIGURATION,
+      observability: { trace_retention_days: 1, capture_inputs: false, capture_outputs: false },
+    },
+  });
+  assert.equal(result.trace.steps[0]?.inputs, undefined);
+  assert.equal(result.trace.steps[0]?.outputs, undefined);
+});
+test("runtime executes 100 independent turns without cross-session trace leakage", async () => {
+  const { engine, store } = fixture();
+  const g = graph(
+    [node("entry", "entrypoint"), node("end", "end_conversation")],
+    [["entry", "interaction_received", "end"]],
+  );
+  for (let i = 0; i < 100; i += 1) {
+    const id = `load-${i}`;
+    const result = await engine.executeTurn({
+      workspaceId: "a",
+      agentId: "agent",
+      conversationId: id,
+      sessionId: id,
+      graph: g,
+      releaseId: "release",
+      channel: "chat",
+      isPreview: false,
+      requestId: crypto.randomUUID(),
+      visitorMessage: `hello-${i}`,
+    });
+    assert.equal(result.status, "completed");
+  }
+  assert.equal((await store.listAgentTraces("a", "agent", 100)).length, 100);
+  assert.deepEqual(await store.listAgentTraces("b", "agent"), []);
 });
 test("concurrent turns use exclusive session lock", async () => {
   const { store } = fixture();
