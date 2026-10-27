@@ -559,7 +559,7 @@ function validateNodeConfig(
     case "ai_prompt": {
       const cfg = node.config as import("./agent-graph.js").AiPromptNodeConfig;
       if (
-        cfg.inherit_agent_instructions === false &&
+        cfg.inherit_agent_instructions !== true &&
         (!cfg.instructions || !cfg.instructions.trim())
       ) {
         issues.push({

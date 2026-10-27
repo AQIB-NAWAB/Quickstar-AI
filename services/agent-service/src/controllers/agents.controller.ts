@@ -207,7 +207,12 @@ export function createAgentsController(agents: AgentsService) {
       const agent = await agents.getAgent(tenant, agentId);
       const graph =
         agent.draftGraph ??
-        (agent.builderMode === "legacy" ? createDefaultAgentGraph(agent.channels) : null);
+        (agent.builderMode === "legacy"
+          ? createDefaultAgentGraph({
+              channels: agent.channels,
+              knowledge: agent.configuration?.knowledge,
+            })
+          : null);
       sendPlatformJson(res, 200, {
         request_id: requestId,
         graph,

@@ -65,7 +65,10 @@ export class GraphTurnsService {
       draft.graph && draft.graph.nodes.length > 0
         ? draft.graph
         : agent.builder_mode === "legacy"
-          ? createDefaultAgentGraph(agent.channels ?? { chat: true, voice: false })
+          ? createDefaultAgentGraph({
+              channels: agent.channels ?? { chat: true, voice: false },
+              knowledge: agent.configuration?.knowledge,
+            })
           : null;
     if (!graph || graph.nodes.length === 0) {
       throw new AppError({

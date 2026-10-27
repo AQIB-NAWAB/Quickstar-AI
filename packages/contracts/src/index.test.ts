@@ -36,7 +36,10 @@ test("s2s rejects tools and RAG", () => {
 });
 
 test("default manual-agent graph is valid and inherits shared instructions", () => {
-  const graph = createDefaultAgentGraph({ chat: true, voice: true });
+  const graph = createDefaultAgentGraph({
+    channels: { chat: true, voice: true },
+    knowledge: { enabled: true },
+  });
   const validation = validateAgentGraph(graph);
 
   assert.equal(validation.valid, true);
@@ -59,4 +62,19 @@ test("default manual-agent graph is valid and inherits shared instructions", () 
     ).use_all_sources,
     true,
   );
+
+  const withoutKnowledge = createDefaultAgentGraph({
+    channels: { chat: true, voice: false },
+    knowledge: { enabled: false },
+  });
+  assert.equal(
+    withoutKnowledge.nodes.some((node) => node.type === "knowledge_search"),
+    false,
+  );
+  assert.equal(validateAgentGraph(withoutKnowledge).valid, true);
+
+  const noChannelGraph = createDefaultAgentGraph({
+    channels: { chat: false, voice: false },
+  });
+  assert.equal(validateAgentGraph(noChannelGraph).valid, true);
 });
