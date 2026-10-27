@@ -161,7 +161,8 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
   const nodes = [...graph.nodes];
   const edges = graph.edges.map((edge) => ({ ...edge }));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const compact = (value: unknown) =>
+    typeof value === "string" ? value.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
 
   for (const edge of edges) {
     const source = nodeById.get(edge.source ?? "");
@@ -173,9 +174,14 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
     const config = source.config as { intents?: Array<{ id: string; name?: string }> };
     const token = compact((edge.source_port ?? "").replace(/^intent[_:.-]?/i, ""));
     const matchingIntent = config.intents?.find(
-      (intent) => compact(intent.id) === token || compact(intent.name ?? "") === token,
+      (intent) =>
+        Boolean(intent) &&
+        typeof intent.id === "string" &&
+        (compact(intent.id) === token || compact(intent.name) === token),
     );
-    if (matchingIntent) edge.source_port = `intent_${matchingIntent.id}`;
+    if (matchingIntent && typeof matchingIntent.id === "string") {
+      edge.source_port = `intent_${matchingIntent.id}`;
+    }
   }
 
   for (const router of nodes.filter((node) => node.type === "intent_router")) {
