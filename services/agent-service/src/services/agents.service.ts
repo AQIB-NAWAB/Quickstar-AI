@@ -79,6 +79,7 @@ function buildBuilderSystemPrompt(): string {
     "Keep settings.instructions as the complete, concise global agent policy. Preserve model settings, channels, and voice unless the user asks to change them.",
     "For every value a condition checks, collect that value first in a Conversation node. Use captured_fields with required=true; use allowed_values for finite choices. Never substitute visitor.message for a named field. For conditional business identifiers, collect the identifier in a separate required Conversation node on the relevant branch before checking it.",
     "Use an AI response or response node for user-facing output and include a safe fallback path for failures or handoff when appropriate.",
+    "Do not leave a conversational response node without an outgoing connection. If users may ask follow-up questions after a fixed answer, set it to wait for visitor input and connect it to a focused AI response step; explicitly end the path only when the conversation should close.",
     "The returned graph must be usable immediately by the editor, not a partial patch.",
   ].join(" ");
 }
