@@ -82,6 +82,7 @@ export type CapturedFieldDefinition = {
   required: boolean;
   field_name?: string;
   description?: string;
+  allowed_values?: string[];
 };
 
 export type ConversationNodeConfig = {

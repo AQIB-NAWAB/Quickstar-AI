@@ -77,6 +77,7 @@ function buildBuilderSystemPrompt(): string {
     "Only add an http_request node when a listed attached tool is an appropriate match. Set require_confirmation true for irreversible actions.",
     "For knowledge search, use use_all_sources true instead of inventing source IDs.",
     "Keep settings.instructions as the complete, concise global agent policy. Preserve model settings, channels, and voice unless the user asks to change them.",
+    "For every value a condition checks, collect that value first in a Conversation node. Use captured_fields with required=true; use allowed_values for finite choices. Never substitute visitor.message for a named field. For conditional business identifiers, collect the identifier in a separate required Conversation node on the relevant branch before checking it.",
     "Use an AI response or response node for user-facing output and include a safe fallback path for failures or handoff when appropriate.",
     "The returned graph must be usable immediately by the editor, not a partial patch.",
   ].join(" ");
@@ -198,6 +199,28 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
   const compact = (value: unknown) =>
     typeof value === "string" ? value.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
 
+  for (const node of nodes) {
+    if (node.type !== "conversation") continue;
+    const config = node.config as {
+      capture_variable?: string;
+      captured_fields?: Array<Record<string, unknown>>;
+    };
+    if (
+      (!Array.isArray(config.captured_fields) || config.captured_fields.length === 0) &&
+      typeof config.capture_variable === "string" &&
+      config.capture_variable.trim()
+    ) {
+      config.captured_fields = [
+        {
+          variable: config.capture_variable,
+          field_name: config.capture_variable,
+          type: "text",
+          required: true,
+        },
+      ];
+    }
+  }
+
   for (const edge of edges) {
     const source = nodeById.get(edge.source ?? "");
     if (!source) continue;
@@ -265,6 +288,74 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
           .filter(Boolean)
       : [],
   );
+  for (const condition of nodes.filter((node) => node.type === "condition")) {
+    const config = condition.config as {
+      rules?: Array<{ variable?: string; operator?: string; value?: unknown }>;
+    };
+    if (!Array.isArray(config.rules)) continue;
+    for (const rule of config.rules) {
+      if (
+        /business[ _-]*id|check[ _-]*id/i.test(condition.name) &&
+        (!rule.variable || rule.variable === "visitor.message")
+      ) {
+        rule.variable = "business_id";
+      }
+    }
+  }
+
+  for (const condition of nodes.filter(
+    (node) => node.type === "condition" && /business[ _-]*id|check[ _-]*id/i.test(node.name),
+  )) {
+    if (capturedVariables.includes("business_id")) continue;
+    const branchEdge = edges.find((edge) => {
+      const source = nodeById.get(edge.source ?? "");
+      return (
+        edge.target === condition.id &&
+        edge.source_port === "otherwise" &&
+        source?.type === "condition" &&
+        /customer|type/i.test(source.name)
+      );
+    });
+    if (!branchEdge) continue;
+
+    let captureId = "capture_business_id";
+    let suffix = 1;
+    while (nodeById.has(captureId)) captureId = `capture_business_id_${++suffix}`;
+    const captureNode: AgentGraph["nodes"][number] = {
+      id: captureId,
+      type: "conversation",
+      name: "Collect Business ID",
+      position: { x: condition.position.x - 300, y: condition.position.y },
+      config: {
+        instructions: "Ask the visitor for their business ID before checking plan eligibility.",
+        captured_fields: [
+          {
+            variable: "business_id",
+            field_name: "business_id",
+            type: "text",
+            required: true,
+          },
+        ],
+        continue_when: "all_required",
+      },
+    };
+    nodes.push(captureNode);
+    nodeById.set(captureId, captureNode);
+    branchEdge.target = captureId;
+    let edgeId = `${captureId}_complete`;
+    let edgeSuffix = 1;
+    while (edges.some((edge) => edge.id === edgeId))
+      edgeId = `${captureId}_complete_${++edgeSuffix}`;
+    edges.push({
+      id: edgeId,
+      source: captureId,
+      source_port: "details_complete",
+      target: condition.id,
+      target_port: "in",
+    });
+    capturedVariables.push("business_id");
+  }
+
   for (const node of nodes) {
     if (node.type !== "condition") continue;
     const config = node.config as { rules?: unknown[] };
