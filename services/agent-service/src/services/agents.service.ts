@@ -256,7 +256,27 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
     });
   }
 
-  return normalizeAgentGraph({ ...graph, nodes, edges });
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const seenEdgeIds = new Set<string>();
+  const seenOutputPorts = new Set<string>();
+  const cleanEdges = edges.filter((edge) => {
+    const sourceId = edge.source ?? edge.source_node_id;
+    const targetId = edge.target ?? edge.target_node_id;
+    if (!sourceId || !targetId || !nodeIds.has(sourceId) || !nodeIds.has(targetId)) return false;
+
+    let edgeId = edge.id;
+    let suffix = 1;
+    while (seenEdgeIds.has(edgeId)) edgeId = `${edge.id}_repair_${suffix++}`;
+    edge.id = edgeId;
+    seenEdgeIds.add(edgeId);
+
+    const outputPortKey = `${sourceId}:${edge.source_port ?? edge.source_port_id ?? ""}`;
+    if (seenOutputPorts.has(outputPortKey)) return false;
+    seenOutputPorts.add(outputPortKey);
+    return true;
+  });
+
+  return normalizeAgentGraph({ ...graph, nodes, edges: cleanEdges });
 }
 
 export class AgentsService {
