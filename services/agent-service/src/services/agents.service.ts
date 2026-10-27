@@ -2,6 +2,7 @@ import {
   createDefaultAgentGraph,
   normalizeAgentGraph,
   isAgentGraphShape,
+  graphOutputPorts,
   validateAgentGraph,
   validateAgentConfiguration,
 } from "@quickstart/contracts";
@@ -67,7 +68,7 @@ function buildBuilderSystemPrompt(): string {
     "Convert the user's request into a safe, production-quality draft for the visual agent builder.",
     "Return one JSON object only. Do not use markdown fences or explanatory text outside JSON.",
     'The JSON shape is {"summary": string, "changes": string[], "settings": object, "graph": object}.',
-    "The graph must use schema_version 1, exactly one entrypoint, and canonical edge fields: source, source_port, target, target_port.",
+    "The graph must use schema_version 1, exactly one entrypoint, and canonical edge fields: source, source_port, target, target_port (target_port is always 'in'). Use only these exact source_port values: entrypoint=interaction_received; welcome/response=message_sent; conversation=details_complete or needs_assistance; intent_router=intent_<branch id> for each configured branch plus fallback; condition=match or otherwise; ai_prompt/http_request=success or failure; knowledge_search=results_found, no_matches, or failure; human_handoff=resumed; end_conversation has no outputs.",
     "Allowed node types: entrypoint, welcome, conversation, intent_router, condition, ai_prompt, http_request, knowledge_search, response, human_handoff, end_conversation.",
     "Preserve existing node IDs and positions when possible. Add new IDs with stable readable prefixes and avoid duplicate IDs.",
     "Every new node must be reachable from the entrypoint. Never create cycles. Ensure every branch output that is required by validation is connected.",
@@ -155,6 +156,63 @@ function mergeBuilderSettings(
   };
 }
 
+function repairBuilderGraph(input: AgentGraph): AgentGraph {
+  const graph = normalizeAgentGraph(input);
+  const nodes = [...graph.nodes];
+  const edges = graph.edges.map((edge) => ({ ...edge }));
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  for (const edge of edges) {
+    const source = nodeById.get(edge.source ?? "");
+    if (
+      source?.type !== "intent_router" ||
+      graphOutputPorts(source).includes(edge.source_port ?? "")
+    )
+      continue;
+    const config = source.config as { intents?: Array<{ id: string; name?: string }> };
+    const token = compact((edge.source_port ?? "").replace(/^intent[_:.-]?/i, ""));
+    const matchingIntent = config.intents?.find(
+      (intent) => compact(intent.id) === token || compact(intent.name ?? "") === token,
+    );
+    if (matchingIntent) edge.source_port = `intent_${matchingIntent.id}`;
+  }
+
+  for (const router of nodes.filter((node) => node.type === "intent_router")) {
+    if (edges.some((edge) => edge.source === router.id && edge.source_port === "fallback"))
+      continue;
+    let suffix = 1;
+    let responseId = `${router.id}_fallback_response`;
+    while (nodeById.has(responseId)) responseId = `${router.id}_fallback_response_${++suffix}`;
+    const response = {
+      id: responseId,
+      type: "response" as const,
+      name: `${router.name} Fallback`,
+      position: { x: router.position.x + 320, y: router.position.y + 220 },
+      config: {
+        response_mode: "fixed_message" as const,
+        message: "I’m not sure I understood that. Could you rephrase your request?",
+        wait_for_visitor: true,
+      },
+    };
+    nodes.push(response);
+    nodeById.set(responseId, response);
+    let edgeSuffix = 1;
+    let edgeId = `${router.id}_fallback_edge`;
+    while (edges.some((edge) => edge.id === edgeId))
+      edgeId = `${router.id}_fallback_edge_${++edgeSuffix}`;
+    edges.push({
+      id: edgeId,
+      source: router.id,
+      source_port: "fallback",
+      target: responseId,
+      target_port: "in",
+    });
+  }
+
+  return normalizeAgentGraph({ ...graph, nodes, edges });
+}
+
 export class AgentsService {
   constructor(
     private readonly store: AgentStore,
@@ -232,7 +290,7 @@ export class AgentsService {
     });
 
     const parsed = parseBuilderResponse(completion.content);
-    const candidateGraph = normalizeAgentGraph(parsed.graph ?? graph);
+    const candidateGraph = repairBuilderGraph(parsed.graph ?? graph);
     const candidateSettings = mergeBuilderSettings(settings, parsed.settings);
     const validation = validateAgentGraph(candidateGraph, {
       availableTools: agent.tools.map((tool) => tool.name),
