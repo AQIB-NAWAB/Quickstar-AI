@@ -243,9 +243,9 @@ export class OpenSearchClient {
     };
   }
 
-  async search(workspaceId: string, queryText: string, vector: number[], limit: number) {
+  async search(workspaceId: string, queryText: string, vector: number[], limit: number, sourceIds?: string[]) {
     const index = this.config.opensearchIndex;
-    const body = buildHybridSearchBody(workspaceId, queryText, vector, limit);
+    const body = buildHybridSearchBody(workspaceId, queryText, vector, limit, sourceIds);
     const res = await fetch(`${this.config.opensearchUrl}/${index}/_search`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -259,7 +259,10 @@ export class OpenSearchClient {
           size: limit,
           query: {
             bool: {
-              filter: [{ term: { workspace_id: workspaceId } }],
+              filter: [
+                { term: { workspace_id: workspaceId } },
+                ...(sourceIds?.length ? [{ terms: { source_id: sourceIds } }] : []),
+              ],
               must: [{ match: { text: queryText } }],
             },
           },
@@ -295,13 +298,17 @@ export function buildHybridSearchBody(
   queryText: string,
   vector: number[],
   limit: number,
+  sourceIds?: string[],
 ): Record<string, unknown> {
   const k = Math.min(Math.max(limit * 2, limit), 40);
   return {
     size: limit,
     query: {
       bool: {
-        filter: [{ term: { workspace_id: workspaceId } }],
+        filter: [
+          { term: { workspace_id: workspaceId } },
+          ...(sourceIds?.length ? [{ terms: { source_id: sourceIds } }] : []),
+        ],
         must: [
           {
             knn: {

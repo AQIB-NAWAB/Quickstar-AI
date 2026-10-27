@@ -22,6 +22,7 @@ type ToolExecutionContext = {
   timeoutMs: number;
   authorization?: string;
   conversationId?: string;
+  channel?: "chat" | "voice" | "webhook";
 };
 
 function asString(value: unknown): string | null {
@@ -59,6 +60,23 @@ export class ToolExecutor {
     ctx: ToolExecutionContext,
   ): Promise<ToolExecutionResult> {
     try {
+      const policy = tool.policy;
+      if (policy?.enabled === false) {
+        return {
+          ok: false,
+          content: "This tool is disabled for the published agent.",
+          errorCode: "TOOL_DISABLED",
+          status: "failed",
+        };
+      }
+      if (policy?.allowed_channels?.length && ctx.channel && !policy.allowed_channels.includes(ctx.channel)) {
+        return {
+          ok: false,
+          content: "This tool is not enabled for the current channel.",
+          errorCode: "TOOL_CHANNEL_NOT_ALLOWED",
+          status: "failed",
+        };
+      }
       if (tool.type === "builtin_leads") {
         return await this.executeLeads(tool, args, ctx);
       }

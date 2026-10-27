@@ -92,6 +92,9 @@ export class CompletionOrchestrator {
         {
           workspace_id: body.workspace_id,
           request_id: body.request_id,
+          agent_id: body.agent_id,
+          conversation_id: body.conversation_id,
+          channel: body.channel,
           provider: result.provider.profileId,
           model: primary.model_id,
           input_tokens: response.usage.input_tokens,
@@ -159,6 +162,9 @@ export class CompletionOrchestrator {
         {
           workspace_id: body.workspace_id,
           request_id: body.request_id,
+          agent_id: body.agent_id,
+          conversation_id: body.conversation_id,
+          channel: body.channel,
           provider: result.provider.profileId,
           model: primary.model_id,
           input_tokens: response.usage.input_tokens,

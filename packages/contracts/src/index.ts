@@ -29,6 +29,26 @@ export {
   type ToolParameterSchema,
 } from "./agent-tools.js";
 
+export {
+  DEFAULT_AGENT_CONFIGURATION,
+  normalizeAgentConfiguration,
+  validateAgentConfiguration,
+  type AgentConfiguration,
+  type AgentGuardrailSettings,
+  type AgentKnowledgeSettings,
+  type AgentMemorySettings,
+  type AgentObservabilitySettings,
+  type AgentReleaseSettings,
+  type DependencyFailurePolicy,
+  type KnowledgeSearchMethod,
+} from "./agent-configuration.js";
+
+export type {
+  AgentCatalogResponse,
+  AgentModelCatalogItem,
+  AgentToolCatalogItem,
+} from "./agent-catalog.js";
+
 export type { ToolCallRecord, ToolCallStatus, UpsertToolCallBody } from "./tool-calls.js";
 
 export {
@@ -213,12 +233,13 @@ export {
   type WelcomeNodeConfig,
 } from "./agent-graph.js";
 
-export {
-  validateAgentGraph,
-  type GraphValidationOptions,
-} from "./agent-graph-validator.js";
+export { validateAgentGraph, type GraphValidationOptions } from "./agent-graph-validator.js";
 
-export { normalizeAgentGraph, graphOutputPorts, isAgentGraphShape } from "./agent-graph-normalize.js";
+export {
+  normalizeAgentGraph,
+  graphOutputPorts,
+  isAgentGraphShape,
+} from "./agent-graph-normalize.js";
 
 export type { GraphDraftSettings } from "./agent-graph.js";
 
@@ -254,7 +275,11 @@ export {
 
 export { validateWorkflowGraph } from "./workflow-graph-validator.js";
 
-export { evaluateConditionGroup as evaluateWorkflowConditionGroup, compare as compareWorkflowCondition, getByPath as getWorkflowValue } from "./workflow-condition-evaluator.js";
+export {
+  evaluateConditionGroup as evaluateWorkflowConditionGroup,
+  compare as compareWorkflowCondition,
+  getByPath as getWorkflowValue,
+} from "./workflow-condition-evaluator.js";
 export { evaluateRule as evaluateWorkflowRule } from "./workflow-condition-evaluator.js";
 export { isWorkflowGraphShape, workflowOutputPorts } from "./workflow-graph-validator.js";
 
@@ -264,6 +289,7 @@ export type {
   AnalyticsDailyLatencyBucket,
   AnalyticsServiceUsage,
   AnalyticsResponse,
+  AgentOperationalMetrics,
   MetricCoverage,
   MetricCoverageIndicators,
 } from "./analytics.js";
@@ -336,5 +362,3 @@ export type {
   ClaimConversationRequest,
   QueuesListResponse,
 } from "./operator-queues.js";
-
-

@@ -47,6 +47,9 @@ export class AiPromptHandler implements GraphNodeHandler<"ai_prompt"> {
           {
             workspace_id: ctx.workspaceId,
             request_id: ctx.requestId,
+            agent_id: ctx.agentId,
+            conversation_id: ctx.conversationId,
+            channel: ctx.channel,
             model: graphModel(ctx, config.model_override, config.model_profile),
             messages: [
               { role: "system", content: systemPrompt },

@@ -4,6 +4,7 @@ export type ServiceConfig = {
   redisUrl: string;
   jwtAccessSecret: string;
   internalToken: string;
+  secretsUrl: string;
   workspaceUrl: string;
   httpRequestTimeoutMs: number;
   httpRateLimitWindowMs: number;
@@ -30,6 +31,7 @@ export function loadServiceConfig(): ServiceConfig {
     redisUrl: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
     jwtAccessSecret,
     internalToken,
+    secretsUrl: (process.env.SECRETS_URL ?? "http://127.0.0.1:3011").replace(/\/$/, ""),
     workspaceUrl: (process.env.WORKSPACE_URL ?? "http://127.0.0.1:3002").replace(/\/$/, ""),
     httpRequestTimeoutMs: Number(process.env.HTTP_REQUEST_TIMEOUT_MS ?? 30_000),
     httpRateLimitWindowMs: Number(process.env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),

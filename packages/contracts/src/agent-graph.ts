@@ -366,6 +366,9 @@ export type GraphTraceEvent = {
 export type GraphExecutionTrace = {
   run_id: string;
   session_id: string;
+  agent_id?: string;
+  release_id?: string | null;
+  is_preview?: boolean;
   status: "succeeded" | "failed" | "running" | "waiting_for_input";
   total_duration_ms: number;
   duration_ms?: number;

@@ -240,12 +240,15 @@ export class GraphTurnsService {
 
   async listTraces(
     workspaceId: string,
-    sessionId: string,
+    sessionId: string | undefined,
     limit: number | undefined,
     agentId: string,
   ): Promise<GraphExecutionTrace[]> {
-    await this.authorizePreviewSession(workspaceId, agentId, sessionId);
-    return this.sessionStore.listTraces(workspaceId, sessionId, limit);
+    if (sessionId) {
+      await this.authorizePreviewSession(workspaceId, agentId, sessionId);
+      return this.sessionStore.listTraces(workspaceId, sessionId, limit);
+    }
+    return this.sessionStore.listAgentTraces(workspaceId, agentId, limit);
   }
 
   subscribeTrace(

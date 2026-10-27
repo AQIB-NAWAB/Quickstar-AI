@@ -8,14 +8,20 @@ export class RetrieveService {
     private readonly embedder: EmbeddingProvider,
   ) {}
 
-  async retrieve(input: { workspaceId: string; query: string; limit?: number }) {
+  async retrieve(input: {
+    workspaceId: string;
+    query: string;
+    limit?: number;
+    sourceIds?: string[];
+    searchMethod?: "semantic" | "keyword" | "hybrid";
+  }) {
     const query = input.query?.trim();
     if (!query) {
       throw new AppError({ code: ErrorCode.VALIDATION_FAILED, message: "Query text is required" });
     }
     const limit = Math.min(Math.max(input.limit ?? 5, 1), 20);
     const vector = await this.embedder.embed(query);
-    const chunks = await this.opensearch.search(input.workspaceId, query, vector, limit);
+    const chunks = await this.opensearch.search(input.workspaceId, query, vector, limit, input.sourceIds);
     return { chunks };
   }
 }
