@@ -200,6 +200,7 @@ export class GraphEngine {
 
     let stepCount = 0;
     let turnStatus: RunGraphTurnResult["status"] = "succeeded";
+    let visitorMessageConsumed = false;
 
     // 2. Main Step Loop
     while (stepCount < MAX_STEPS_PER_TURN) {
@@ -266,7 +267,7 @@ export class GraphEngine {
         isPreview,
         graph,
         sessionState: session,
-        visitorMessage,
+        visitorMessage: visitorMessageConsumed ? undefined : visitorMessage,
         authHeaders,
         requestId,
         turnIndex: session.turn_count,
@@ -324,6 +325,9 @@ export class GraphEngine {
       // Update session variables
       if (result.outputVariables) {
         session.variables = { ...session.variables, ...result.outputVariables };
+      }
+      if (currentNode.type === "conversation" && visitorMessage) {
+        visitorMessageConsumed = true;
       }
 
       stepCount += 1;

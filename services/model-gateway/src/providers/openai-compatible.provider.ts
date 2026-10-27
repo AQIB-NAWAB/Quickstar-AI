@@ -177,11 +177,7 @@ export class OpenAiCompatibleProvider implements ChatProvider {
     };
     if (input.temperature !== undefined) body.temperature = input.temperature;
     if (input.maxTokens !== undefined) {
-      body.max_tokens = this.config.baseUrl?.includes("groq.com")
-        ? Math.min(input.maxTokens, 220)
-        : input.maxTokens;
-    } else if (this.config.baseUrl?.includes("groq.com")) {
-      body.max_tokens = 220;
+      body.max_tokens = input.maxTokens;
     }
     if (/gpt-oss/i.test(input.modelId)) {
       body.reasoning_effort = "low";

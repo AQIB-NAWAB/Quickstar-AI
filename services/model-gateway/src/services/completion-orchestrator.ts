@@ -1,4 +1,8 @@
-import type { CompletionRequestBody, CompletionResponseBody, ModelReference } from "@quickstart/contracts";
+import type {
+  CompletionRequestBody,
+  CompletionResponseBody,
+  ModelReference,
+} from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { Logger } from "@quickstart/logging";
 import { CircuitBreaker } from "@quickstart/utilities";
@@ -110,7 +114,10 @@ export class CompletionOrchestrator {
     }
   }
 
-  async stream(body: CompletionRequestBody, callbacks: StreamCallbacks): Promise<CompletionResponseBody> {
+  async stream(
+    body: CompletionRequestBody,
+    callbacks: StreamCallbacks,
+  ): Promise<CompletionResponseBody> {
     assertPlatformCredentials(body);
     await this.inflight.acquire();
     const started = Date.now();
@@ -196,7 +203,10 @@ export class CompletionOrchestrator {
     model: ModelReference,
     body: CompletionRequestBody,
     options: { stream: boolean; callbacks?: StreamCallbacks },
-  ): Promise<{ provider: ChatProvider; output: Awaited<ReturnType<ChatProvider["complete"]>> } | null> {
+  ): Promise<{
+    provider: ChatProvider;
+    output: Awaited<ReturnType<ChatProvider["complete"]>>;
+  } | null> {
     const provider = this.registry.get(model.profile);
     const breaker = this.breakerFor(model.profile);
 
@@ -219,10 +229,8 @@ export class CompletionOrchestrator {
           error: error instanceof Error ? error.message : String(error),
         });
         if (error instanceof Error && error.message === "CIRCUIT_OPEN") {
-          throw new AppError({
-            code: ErrorCode.UPSTREAM_UNAVAILABLE,
-            message: "Provider circuit open",
-          });
+          // Let complete()/stream() try the configured fallback provider.
+          return null;
         }
         if (error instanceof ProviderError && error.httpStatus === 429) {
           if (attempt === 1 && !options.callbacks?.tokensStarted()) {
@@ -230,7 +238,10 @@ export class CompletionOrchestrator {
               profile: model.profile,
               attempt,
             });
-            const delayMs = Math.min(2500, Math.max(50, Math.floor(this.config.completionTimeoutMs / 4)));
+            const delayMs = Math.min(
+              2500,
+              Math.max(50, Math.floor(this.config.completionTimeoutMs / 4)),
+            );
             await new Promise((r) => setTimeout(r, delayMs));
             continue;
           }

@@ -102,6 +102,13 @@ export const createAgentsRoutes: RouteModule<AgentHttpContext> = (ctx) => {
     requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_READ),
     asyncHandler(agentsCtrl.validateGraph),
   );
+  router.post(
+    "/v1/workspaces/:workspaceId/agents/:agentId/ai-edit",
+    ...chain,
+    ctx.graphAuthGuard,
+    requireWorkspacePermission(workspaceAccess, WORKSPACE_PERMISSIONS.AGENT_UPDATE),
+    asyncHandler(agentsCtrl.proposeAiEdit),
+  );
 
   router.post(
     "/v1/workspaces/:workspaceId/agents/:agentId/publish",

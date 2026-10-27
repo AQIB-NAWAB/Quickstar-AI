@@ -21,6 +21,7 @@ export const createAgentProxyRoutes: RouteModule<GatewayHttpContext> = (ctx) => 
   router.get("/v1/workspaces/:workspaceId/agents/:agentId/graph", ...chain);
   router.put("/v1/workspaces/:workspaceId/agents/:agentId/graph", ...chain);
   router.post("/v1/workspaces/:workspaceId/agents/:agentId/validate-graph", ...chain);
+  router.post("/v1/workspaces/:workspaceId/agents/:agentId/ai-edit", ...chain);
 
   router.post("/v1/workspaces/:workspaceId/agents/:agentId/publish", ...chain);
   router.post("/v1/workspaces/:workspaceId/agents/:agentId/rollback", ...chain);

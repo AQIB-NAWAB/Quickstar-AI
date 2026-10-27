@@ -243,6 +243,7 @@ export {
 
 export type { GraphDraftSettings } from "./agent-graph.js";
 export { createDefaultAgentGraph } from "./agent-graph-defaults.js";
+export type { AgentAiEditRequest, AgentAiEditProposal } from "./agent-ai-editor.js";
 
 export {
   type WorkflowStatus,
