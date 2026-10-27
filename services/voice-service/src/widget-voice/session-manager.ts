@@ -37,6 +37,7 @@ type SessionRecord = {
   bind: LiveSessionBind;
   callId: string;
   startedAtMs: number;
+  maxDurationTimer: ReturnType<typeof setTimeout>;
   transcriptSequence: number;
   persistChain: Promise<void>;
   recordingObjectKey: string | null;
@@ -49,6 +50,8 @@ type SessionRecord = {
   visitorBridge: Set<(event: VoiceLiveEvent) => void>;
   agentBridge: Set<(event: VoiceLiveEvent) => void>;
 };
+
+const MAX_WIDGET_CALL_DURATION_MS = 60 * 60 * 1000;
 
 export type WidgetLiveCall = {
   conversation_id: string;
@@ -251,6 +254,9 @@ export class WidgetVoiceLiveSessionManager {
       bind,
       callId,
       startedAtMs: Date.now(),
+      maxDurationTimer: setTimeout(() => {
+        void this.close(id);
+      }, MAX_WIDGET_CALL_DURATION_MS),
       transcriptSequence: 0,
       persistChain: Promise.resolve(),
       recordingObjectKey: null,
@@ -263,6 +269,7 @@ export class WidgetVoiceLiveSessionManager {
       visitorBridge: new Set(),
       agentBridge: new Set(),
     };
+    record.maxDurationTimer.unref?.();
     session.subscribe((event) => this.persistCallEvent(record, event));
     this.sessions.set(id, record);
     return id;
@@ -369,7 +376,11 @@ export class WidgetVoiceLiveSessionManager {
 
   list(workspaceId: string): WidgetLiveCall[] {
     const calls = new Map<string, WidgetLiveCall>();
-    for (const record of this.sessions.values()) {
+    for (const [id, record] of this.sessions) {
+      if (Date.now() - record.startedAtMs >= MAX_WIDGET_CALL_DURATION_MS) {
+        void this.close(id);
+        continue;
+      }
       if (record.bind.workspaceId !== workspaceId) continue;
       calls.set(record.bind.conversationId, {
         conversation_id: record.bind.conversationId,
@@ -490,6 +501,7 @@ export class WidgetVoiceLiveSessionManager {
   async close(id: string): Promise<void> {
     const record = this.sessions.get(id);
     if (!record) return;
+    clearTimeout(record.maxDurationTimer);
     record.session.close();
     this.sessions.delete(id);
     await record.persistChain;
