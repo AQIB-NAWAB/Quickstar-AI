@@ -195,7 +195,7 @@ export function validateAgentGraph(
         edge_id: edge.id,
         node_id: sourceNode.id,
         code: "PORT_INVALID",
-        message: "Connection references an unknown output port.",
+        message: `Connection from "${sourceNode.name}" uses unknown output port "${edge.source_port ?? "(missing)"}". Valid outputs: ${graphOutputPorts(sourceNode).join(", ") || "none"}.`,
       });
     if (edge.target_port !== "in")
       issues.push({

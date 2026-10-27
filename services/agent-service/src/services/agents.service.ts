@@ -166,22 +166,62 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
 
   for (const edge of edges) {
     const source = nodeById.get(edge.source ?? "");
-    if (
-      source?.type !== "intent_router" ||
-      graphOutputPorts(source).includes(edge.source_port ?? "")
-    )
+    if (!source) continue;
+    const ports = graphOutputPorts(source);
+    if (ports.includes(edge.source_port ?? "")) continue;
+
+    const rawPort = edge.source_port ?? "";
+    const token = compact(rawPort);
+    const directMatch = ports.find((port) => compact(port) === token);
+    if (directMatch) {
+      edge.source_port = directMatch;
       continue;
-    const config = source.config as { intents?: Array<{ id: string; name?: string }> };
-    const token = compact((edge.source_port ?? "").replace(/^intent[_:.-]?/i, ""));
-    const matchingIntent = config.intents?.find(
-      (intent) =>
-        Boolean(intent) &&
-        typeof intent.id === "string" &&
-        (compact(intent.id) === token || compact(intent.name) === token),
-    );
-    if (matchingIntent && typeof matchingIntent.id === "string") {
-      edge.source_port = `intent_${matchingIntent.id}`;
     }
+
+    let repairedPort: string | undefined;
+    if (source.type === "intent_router") {
+      const config = source.config as { intents?: Array<{ id?: string; name?: string }> };
+      const branchToken = token.replace(/^(intent|branch|out)/, "");
+      const matchingIntent = config.intents?.find((intent) => {
+        const id = compact(intent?.id);
+        const name = compact(intent?.name);
+        const idMatches =
+          id && (id === branchToken || id.includes(branchToken) || branchToken.includes(id));
+        const nameMatches =
+          name &&
+          (name === branchToken || name.includes(branchToken) || branchToken.includes(name));
+        return Boolean(branchToken && (idMatches || nameMatches));
+      });
+      if (matchingIntent?.id) repairedPort = `intent_${matchingIntent.id}`;
+      if (!repairedPort && /fallback|default|otherwise|other|else/.test(token)) {
+        repairedPort = "fallback";
+      }
+      if (!repairedPort) {
+        const indexedBranch = Number(branchToken.match(/\d+$/)?.[0]);
+        const branches = config.intents ?? [];
+        if (indexedBranch > 0 && branches[indexedBranch - 1]?.id) {
+          repairedPort = `intent_${branches[indexedBranch - 1].id}`;
+        }
+      }
+      repairedPort ??= "fallback";
+    } else if (source.type === "condition") {
+      repairedPort = /yes|true|match|pass/.test(token) ? "match" : "otherwise";
+    } else if (source.type === "conversation") {
+      repairedPort = /assist|handoff|help|fail|fallback/.test(token)
+        ? "needs_assistance"
+        : "details_complete";
+    } else if (source.type === "http_request" || source.type === "ai_prompt") {
+      repairedPort = /fail|error|fallback/.test(token) ? "failure" : "success";
+    } else if (source.type === "knowledge_search") {
+      repairedPort = /fail|error/.test(token)
+        ? "failure"
+        : /empty|none|no.?match|not.?found/.test(token)
+          ? "no_matches"
+          : "results_found";
+    } else if (ports.length === 1) {
+      repairedPort = ports[0];
+    }
+    if (repairedPort && ports.includes(repairedPort)) edge.source_port = repairedPort;
   }
 
   for (const router of nodes.filter((node) => node.type === "intent_router")) {
