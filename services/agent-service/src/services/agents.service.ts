@@ -49,6 +49,18 @@ function resolveBuilderModel(modelSettings: Record<string, unknown>) {
   return { profile, model_id: modelId };
 }
 
+function resolveBuilderFallback(primary: { profile: string; model_id: string }) {
+  const profile =
+    process.env.AI_BUILDER_FALLBACK_PROFILE ??
+    (process.env.GROQ_API_KEY ? "groq" : process.env.OPENROUTER_API_KEY ? "openrouter" : undefined);
+  if (!profile || profile === primary.profile) return undefined;
+
+  const modelId =
+    process.env.AI_BUILDER_FALLBACK_MODEL_ID ??
+    (profile === "groq" ? "openai/gpt-oss-120b" : "openai/gpt-4o-mini");
+  return { profile, model_id: modelId };
+}
+
 function buildBuilderSystemPrompt(): string {
   return [
     "You are the QuickStart AI workflow architect.",
@@ -190,6 +202,7 @@ export class AgentsService {
       agent_id: agentId,
       channel: "chat",
       model,
+      fallback_model: resolveBuilderFallback(model),
       temperature: 0.1,
       max_tokens: 12_000,
       messages: [
