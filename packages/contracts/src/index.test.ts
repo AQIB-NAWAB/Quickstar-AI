@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   CONTRACTS_VERSION,
   DEFAULT_VOICE_MODE,
+  createDefaultAgentGraph,
   s2sProfileAllowed,
+  validateAgentGraph,
 } from "./index.js";
 
 test("contracts exports a version string", () => {
@@ -15,8 +17,46 @@ test("default voice mode is cascade", () => {
 });
 
 test("s2s rejects tools and RAG", () => {
-  assert.equal(s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 1, knowledgeEnabled: false }).ok, false);
-  assert.equal(s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 0, knowledgeEnabled: true }).ok, false);
-  assert.equal(s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 0, knowledgeEnabled: false }).ok, true);
-  assert.equal(s2sProfileAllowed({ voice_mode: "cascade", toolsCount: 3, knowledgeEnabled: true }).ok, true);
+  assert.equal(
+    s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 1, knowledgeEnabled: false }).ok,
+    false,
+  );
+  assert.equal(
+    s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 0, knowledgeEnabled: true }).ok,
+    false,
+  );
+  assert.equal(
+    s2sProfileAllowed({ voice_mode: "s2s", toolsCount: 0, knowledgeEnabled: false }).ok,
+    true,
+  );
+  assert.equal(
+    s2sProfileAllowed({ voice_mode: "cascade", toolsCount: 3, knowledgeEnabled: true }).ok,
+    true,
+  );
+});
+
+test("default manual-agent graph is valid and inherits shared instructions", () => {
+  const graph = createDefaultAgentGraph({ chat: true, voice: true });
+  const validation = validateAgentGraph(graph);
+
+  assert.equal(validation.valid, true);
+  assert.deepEqual(graph.nodes.find((node) => node.type === "ai_prompt")?.config, {
+    system_prompt: "",
+    inherit_agent_instructions: true,
+    context_variables: ["search_context", "visitor.message"],
+    temperature: 0.3,
+    output_variable: "ai_output",
+  });
+  assert.deepEqual(graph.nodes.find((node) => node.type === "entrypoint")?.config, {
+    allowed_channels: ["chat", "voice"],
+    visitor_metadata_fields: [],
+  });
+  assert.equal(
+    (
+      graph.nodes.find((node) => node.type === "knowledge_search")?.config as {
+        use_all_sources?: boolean;
+      }
+    ).use_all_sources,
+    true,
+  );
 });

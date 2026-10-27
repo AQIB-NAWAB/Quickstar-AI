@@ -11,6 +11,7 @@ export type AgentInfo = {
   canary_percentage?: number;
   configuration?: AgentConfiguration;
   instructions: string;
+  channels?: { chat: boolean; voice: boolean };
   draft_revision?: number;
   draft_graph?: AgentGraph | null;
   builder_mode?: "legacy" | "canvas";

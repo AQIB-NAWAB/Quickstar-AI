@@ -158,6 +158,7 @@ export type ConditionNodeConfig = {
 export type AiPromptNodeConfig = {
   instructions?: string;
   system_prompt?: string;
+  inherit_agent_instructions?: boolean;
   model_profile?: string;
   model_override?: {
     provider?: string;
@@ -197,6 +198,7 @@ export type HttpRequestNodeConfig = {
 
 export type KnowledgeSearchNodeConfig = {
   source_ids?: string[];
+  use_all_sources?: boolean;
   query_variable?: string;
   max_results?: number;
   search_method?: "semantic" | "keyword" | "hybrid";

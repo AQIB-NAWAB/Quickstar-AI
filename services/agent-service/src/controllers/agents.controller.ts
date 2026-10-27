@@ -3,7 +3,11 @@ import {
   sendPlatformJson,
   type RequestHandler,
 } from "@quickstart/http-server";
-import { normalizeAgentConfiguration, type AgentToolDefinition } from "@quickstart/contracts";
+import {
+  createDefaultAgentGraph,
+  normalizeAgentConfiguration,
+  type AgentToolDefinition,
+} from "@quickstart/contracts";
 import { toAgentJson, toAgentVersionJson } from "../domain/types.js";
 import type { AgentsService } from "../services/agents.service.js";
 import { routeParam } from "../utils/route-param.js";
@@ -201,9 +205,12 @@ export function createAgentsController(agents: AgentsService) {
       const tenant = res.locals.tenantContext!;
       const agentId = routeParam(req.params.agentId);
       const agent = await agents.getAgent(tenant, agentId);
+      const graph =
+        agent.draftGraph ??
+        (agent.builderMode === "legacy" ? createDefaultAgentGraph(agent.channels) : null);
       sendPlatformJson(res, 200, {
         request_id: requestId,
-        graph: agent.draftGraph ?? null,
+        graph,
         schema_version: agent.graphSchemaVersion ?? 1,
         agent_version: agent.version,
         draft_revision: agent.version,

@@ -242,6 +242,7 @@ export {
 } from "./agent-graph-normalize.js";
 
 export type { GraphDraftSettings } from "./agent-graph.js";
+export { createDefaultAgentGraph } from "./agent-graph-defaults.js";
 
 export {
   type WorkflowStatus,
