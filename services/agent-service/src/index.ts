@@ -17,6 +17,7 @@ import { createTypeOrmCustomToolStore } from "./repository/typeorm/custom-tool-t
 import { AgentsService } from "./services/agents.service.js";
 import { CustomToolsService } from "./services/custom-tools.service.js";
 import { createSecretsReadinessClient } from "./clients/secrets-readiness.client.js";
+import { ModelGatewayClient } from "./clients/model-gateway.client.js";
 
 export async function startAgentServer(): Promise<{
   server: Server;
@@ -31,6 +32,11 @@ export async function startAgentServer(): Promise<{
   const dataSource = createAgentDataSource(config.databaseUrl);
   await dataSource.initialize();
   const store = createTypeOrmAgentStore(dataSource);
+  const modelGateway = new ModelGatewayClient(
+    config.modelGatewayUrl,
+    config.modelGatewayInternalToken,
+    config.httpRequestTimeoutMs,
+  );
   const agents = new AgentsService(
     store,
     createSecretsReadinessClient({
@@ -38,6 +44,7 @@ export async function startAgentServer(): Promise<{
       internalToken: config.internalToken,
       timeoutMs: config.httpRequestTimeoutMs,
     }),
+    modelGateway,
   );
   const customTools = new CustomToolsService(createTypeOrmCustomToolStore(dataSource));
 

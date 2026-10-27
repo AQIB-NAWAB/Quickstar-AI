@@ -262,6 +262,15 @@ export function createAgentsController(agents: AgentsService) {
       });
     }) as RequestHandler,
 
+    proposeAiEdit: (async (req, res) => {
+      const requestId = requestIdFromResponse(res);
+      const tenant = res.locals.tenantContext!;
+      const agentId = routeParam(req.params.agentId);
+      const body = req.body as { prompt?: string };
+      const proposal = await agents.proposeAiEdit(tenant, agentId, { prompt: body?.prompt ?? "" });
+      sendPlatformJson(res, 200, { request_id: requestId, ...proposal });
+    }) as RequestHandler,
+
     publishAgent: (async (req, res) => {
       const requestId = requestIdFromResponse(res);
       const tenant = res.locals.tenantContext!;

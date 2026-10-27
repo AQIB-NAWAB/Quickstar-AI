@@ -1,7 +1,15 @@
 import {
+  createDefaultAgentGraph,
   normalizeAgentGraph,
   isAgentGraphShape,
+  validateAgentGraph,
   validateAgentConfiguration,
+} from "@quickstart/contracts";
+import type {
+  AgentAiEditProposal,
+  AgentAiEditRequest,
+  AgentGraph,
+  GraphDraftSettings,
 } from "@quickstart/contracts";
 import type { TenantContext } from "@quickstart/auth";
 import { s2sProfileAllowed } from "@quickstart/contracts";
@@ -15,15 +23,220 @@ import type {
   PublishResult,
 } from "../domain/types.js";
 import type { SecretReadinessClient } from "../clients/secrets-readiness.client.js";
+import type { AgentModelGateway } from "../clients/model-gateway.client.js";
 import { validateAgentTools } from "../lib/validate-tools.js";
 import { snapshotFromAgent } from "../domain/types.js";
 import type { AgentStore, CreateAgentInput, UpdateAgentInput } from "../repository/types.js";
+
+type BuilderResponse = {
+  graph?: AgentGraph;
+  settings?: GraphDraftSettings;
+  summary?: string;
+  changes: string[];
+};
+
+function resolveBuilderModel(modelSettings: Record<string, unknown>) {
+  const modelId = String(modelSettings.model_id ?? modelSettings.model ?? "gpt-4o-mini");
+  const profile = String(
+    modelSettings.profile ??
+      process.env.DEFAULT_CHAT_MODEL_PROFILE ??
+      (modelId.startsWith("claude")
+        ? "anthropic"
+        : /llama|mixtral|gemma|gpt-oss/i.test(modelId)
+          ? "groq"
+          : "openai"),
+  );
+  return { profile, model_id: modelId };
+}
+
+function buildBuilderSystemPrompt(): string {
+  return [
+    "You are the QuickStart AI workflow architect.",
+    "Convert the user's request into a safe, production-quality draft for the visual agent builder.",
+    "Return one JSON object only. Do not use markdown fences or explanatory text outside JSON.",
+    'The JSON shape is {"summary": string, "changes": string[], "settings": object, "graph": object}.',
+    "The graph must use schema_version 1, exactly one entrypoint, and canonical edge fields: source, source_port, target, target_port.",
+    "Allowed node types: entrypoint, welcome, conversation, intent_router, condition, ai_prompt, http_request, knowledge_search, response, human_handoff, end_conversation.",
+    "Preserve existing node IDs and positions when possible. Add new IDs with stable readable prefixes and avoid duplicate IDs.",
+    "Every new node must be reachable from the entrypoint. Never create cycles. Ensure every branch output that is required by validation is connected.",
+    "Keep the existing behavior unless the user's request asks to change it. Do not invent tool IDs, tool names, knowledge source IDs, URLs, secrets, or credentials.",
+    "Only add an http_request node when a listed attached tool is an appropriate match. Set require_confirmation true for irreversible actions.",
+    "For knowledge search, use use_all_sources true instead of inventing source IDs.",
+    "Keep settings.instructions as the complete, concise global agent policy. Preserve model settings, channels, and voice unless the user asks to change them.",
+    "Use an AI response or response node for user-facing output and include a safe fallback path for failures or handoff when appropriate.",
+    "The returned graph must be usable immediately by the editor, not a partial patch.",
+  ].join(" ");
+}
+
+function parseBuilderResponse(content: string): BuilderResponse {
+  const trimmed = content.trim();
+  const candidates = [trimmed, trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")];
+  let value: unknown;
+  for (const candidate of candidates) {
+    try {
+      value = JSON.parse(candidate);
+      break;
+    } catch {
+      /* Try the next safe JSON extraction. */
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        value = JSON.parse(trimmed.slice(start, end + 1));
+      } catch {
+        value = undefined;
+      }
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new AppError({
+      code: ErrorCode.UPSTREAM_UNAVAILABLE,
+      message: "The AI builder returned an unreadable workflow proposal.",
+    });
+  }
+  const result = value as Record<string, unknown>;
+  if (result.graph !== undefined && !isAgentGraphShape(result.graph)) {
+    throw new AppError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "The AI builder returned an invalid workflow graph.",
+    });
+  }
+  return {
+    graph: result.graph as AgentGraph | undefined,
+    settings:
+      result.settings && typeof result.settings === "object" && !Array.isArray(result.settings)
+        ? (result.settings as GraphDraftSettings)
+        : undefined,
+    summary: typeof result.summary === "string" ? result.summary.slice(0, 1000) : undefined,
+    changes: Array.isArray(result.changes)
+      ? result.changes.filter((item): item is string => typeof item === "string").slice(0, 20)
+      : [],
+  };
+}
+
+function mergeBuilderSettings(
+  current: GraphDraftSettings,
+  proposed?: GraphDraftSettings,
+): GraphDraftSettings {
+  const next = proposed ?? {};
+  return {
+    instructions:
+      typeof next.instructions === "string"
+        ? next.instructions.slice(0, 64_000)
+        : current.instructions,
+    model_settings:
+      next.model_settings &&
+      typeof next.model_settings === "object" &&
+      !Array.isArray(next.model_settings)
+        ? next.model_settings
+        : current.model_settings,
+    channels:
+      next.channels &&
+      typeof next.channels.chat === "boolean" &&
+      typeof next.channels.voice === "boolean"
+        ? next.channels
+        : current.channels,
+    voice: next.voice ?? current.voice,
+  };
+}
 
 export class AgentsService {
   constructor(
     private readonly store: AgentStore,
     private readonly secrets?: SecretReadinessClient,
+    private readonly modelGateway?: AgentModelGateway,
   ) {}
+
+  async proposeAiEdit(
+    tenant: TenantContext,
+    agentId: string,
+    request: AgentAiEditRequest,
+  ): Promise<AgentAiEditProposal> {
+    const prompt = request.prompt?.trim();
+    if (!prompt || prompt.length < 4 || prompt.length > 10_000) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "Describe the workflow change in 4 to 10,000 characters.",
+      });
+    }
+    if (!this.modelGateway) {
+      throw new AppError({
+        code: ErrorCode.UPSTREAM_UNAVAILABLE,
+        message: "The AI builder is not configured.",
+      });
+    }
+
+    const agent = await this.getAgent(tenant, agentId);
+    const graph = normalizeAgentGraph(
+      agent.draftGraph ??
+        createDefaultAgentGraph({
+          channels: agent.channels,
+          knowledge: agent.configuration?.knowledge,
+        }),
+    );
+    const settings: GraphDraftSettings = {
+      instructions: agent.instructions,
+      model_settings: agent.modelSettings,
+      channels: agent.channels,
+      voice: agent.voice,
+    };
+    const model = resolveBuilderModel(agent.modelSettings);
+    const completion = await this.modelGateway.complete({
+      workspace_id: tenant.workspaceId,
+      request_id: crypto.randomUUID(),
+      agent_id: agentId,
+      channel: "chat",
+      model,
+      temperature: 0.1,
+      max_tokens: 12_000,
+      messages: [
+        {
+          role: "system",
+          content: buildBuilderSystemPrompt(),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            request: prompt,
+            agent: {
+              name: agent.name,
+              description: agent.description,
+              tools: agent.tools.map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                type: tool.type,
+                description: tool.description,
+              })),
+            },
+            current_graph: graph,
+            current_settings: settings,
+          }),
+        },
+      ],
+    });
+
+    const parsed = parseBuilderResponse(completion.content);
+    const candidateGraph = normalizeAgentGraph(parsed.graph ?? graph);
+    const candidateSettings = mergeBuilderSettings(settings, parsed.settings);
+    const validation = validateAgentGraph(candidateGraph, {
+      availableTools: agent.tools.map((tool) => tool.name),
+      availableToolIds: agent.tools.filter((tool) => tool.type === "http").map((tool) => tool.id),
+    });
+
+    return {
+      graph: candidateGraph,
+      settings: candidateSettings,
+      summary: parsed.summary || "Prepared an updated workflow proposal.",
+      changes:
+        parsed.changes.length > 0
+          ? parsed.changes
+          : ["Updated the agent workflow from your request."],
+      validation,
+    };
+  }
 
   async createAgent(tenant: TenantContext, input: CreateAgentInput): Promise<Agent> {
     if (!input.name || input.name.trim().length === 0) {
