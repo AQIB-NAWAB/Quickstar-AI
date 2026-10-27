@@ -72,6 +72,7 @@ function buildBuilderSystemPrompt(): string {
     "Allowed node types: entrypoint, welcome, conversation, intent_router, condition, ai_prompt, http_request, knowledge_search, response, human_handoff, end_conversation.",
     "Preserve existing node IDs and positions when possible. Add new IDs with stable readable prefixes and avoid duplicate IDs.",
     "Every new node must be reachable from the entrypoint. Never create cycles. Ensure every branch output that is required by validation is connected.",
+    "Every condition node must define at least one non-empty comparison rule in config.rules, using a real captured or context variable, an explicit operator, and a value. Never leave condition rules empty; if the comparison is unclear from the request, ask for clarification instead of inventing it.",
     "Keep the existing behavior unless the user's request asks to change it. Do not invent tool IDs, tool names, knowledge source IDs, URLs, secrets, or credentials.",
     "Only add an http_request node when a listed attached tool is an appropriate match. Set require_confirmation true for irreversible actions.",
     "For knowledge search, use use_all_sources true instead of inventing source IDs.",
@@ -156,6 +157,39 @@ function mergeBuilderSettings(
   };
 }
 
+function inferConditionRule(
+  nodeName: string,
+  variables: string[],
+): { variable: string; operator: "equals"; value: string } | undefined {
+  const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const match = nodeName.match(/\b(equals?|is)\s+["']?([^"']+?)["']?$/i);
+  const hasBusinessCheck = /\bif\s+business\b/i.test(nodeName);
+  if (!match && !hasBusinessCheck) return undefined;
+
+  const prefix = match ? nodeName.slice(0, match.index).trim() : nodeName;
+  const subject = prefix.replace(/^(?:check|verify|test|condition)\s+(?:if\s+)?/i, "").trim();
+  const subjectKey = compact(subject);
+  const candidates = variables.filter(Boolean);
+  const variable = candidates
+    .map((candidate) => {
+      const key = compact(candidate);
+      let score = 0;
+      if (subjectKey && key === subjectKey) score += 100;
+      if (subjectKey && key.endsWith(subjectKey)) score += 70;
+      if (subjectKey && subjectKey.endsWith(key)) score += 60;
+      if (/\bid\b/i.test(subject) && /id$/i.test(candidate)) score += 50;
+      if (hasBusinessCheck && /(?:customer_?)?type$/i.test(candidate)) score += 80;
+      if (hasBusinessCheck && /business/i.test(candidate) && /type/i.test(candidate)) score += 90;
+      return { candidate, score };
+    })
+    .sort((left, right) => right.score - left.score)[0];
+
+  if (!variable || variable.score === 0) return undefined;
+  const value = match?.[2]?.trim() ?? "business";
+  if (!value) return undefined;
+  return { variable: variable.candidate, operator: "equals", value };
+}
+
 function repairBuilderGraph(input: AgentGraph): AgentGraph {
   const graph = normalizeAgentGraph(input);
   const nodes = [...graph.nodes];
@@ -222,6 +256,21 @@ function repairBuilderGraph(input: AgentGraph): AgentGraph {
       repairedPort = ports[0];
     }
     if (repairedPort && ports.includes(repairedPort)) edge.source_port = repairedPort;
+  }
+
+  const capturedVariables = nodes.flatMap((node) =>
+    node.type === "conversation"
+      ? ((node.config as { captured_fields?: Array<{ variable?: string }> }).captured_fields ?? [])
+          .map((field) => field.variable ?? "")
+          .filter(Boolean)
+      : [],
+  );
+  for (const node of nodes) {
+    if (node.type !== "condition") continue;
+    const config = node.config as { rules?: unknown[] };
+    if (Array.isArray(config.rules) && config.rules.length > 0) continue;
+    const inferred = inferConditionRule(node.name, capturedVariables);
+    if (inferred) config.rules = [inferred];
   }
 
   for (const router of nodes.filter((node) => node.type === "intent_router")) {
