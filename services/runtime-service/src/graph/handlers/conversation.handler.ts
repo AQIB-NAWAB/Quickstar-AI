@@ -74,7 +74,10 @@ export class ConversationHandler implements GraphNodeHandler<"conversation"> {
       }
     }
 
-    if (missingFields.length === 0 || config.continue_when === "always") {
+    // `continue_when` controls the node's transition policy after the
+    // conversation is complete; it must never bypass required capture fields.
+    // Doing so made graph agents advance with invented/missing values.
+    if (missingFields.length === 0) {
       return {
         status: "succeeded",
         chosenBranchPort: "details_complete",
@@ -112,7 +115,22 @@ export class ConversationHandler implements GraphNodeHandler<"conversation"> {
         continue; // preserve already supplied values
       }
 
-      if (def.variable === requestedField && def.type === "text") {
+      if (def.type === "text" && /name|person|customer/i.test(def.variable)) {
+        // Do not turn an answer for another field (for example "tomorrow")
+        // into a person's name just because this is the first missing field.
+        const dateLike =
+          /\b(?:today|tomorrow|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(
+            text,
+          ) ||
+          /^\d{1,4}[/-]\d{1,2}(?:[/-]\d{1,4})?$/.test(text.trim());
+        if (dateLike) continue;
+        const nameMatch = text.match(/(?:my name is|i am|this is|name:\s*)\s*([A-Za-z][A-Za-z\s'-]{1,120})/i);
+        if (nameMatch) {
+          updated = setVariablePath(def.variable, nameMatch[1].trim(), updated);
+        } else if (def.variable === requestedField && /^[A-Za-z][A-Za-z\s'-]{1,120}$/.test(text.trim())) {
+          updated = setVariablePath(def.variable, text.trim(), updated);
+        }
+      } else if (def.variable === requestedField && def.type === "text") {
         const acceptedValue = this.matchAllowedValue(text, def.allowed_values ?? []);
         if (def.allowed_values?.length && !acceptedValue) continue;
         updated = setVariablePath(def.variable, acceptedValue ?? text.slice(0, 500), updated);
@@ -142,14 +160,6 @@ export class ConversationHandler implements GraphNodeHandler<"conversation"> {
         );
         if (dateMatch) {
           updated = setVariablePath(def.variable, dateMatch[0].trim(), updated);
-        }
-      } else if (def.type === "text" && def.variable.includes("name")) {
-        const nameMatch = text.match(/(?:my name is|i am|this is|name:\s*)\s*([A-Za-z\s]+)/i);
-        if (nameMatch) {
-          updated = setVariablePath(def.variable, nameMatch[1].trim(), updated);
-        } else if (def.variable === requestedField && text.length > 1) {
-          // Single word entered after being asked for name
-          updated = setVariablePath(def.variable, text.trim(), updated);
         }
       }
     }

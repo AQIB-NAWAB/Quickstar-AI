@@ -37,7 +37,7 @@ type BuilderResponse = {
 };
 
 function resolveBuilderModel(modelSettings: Record<string, unknown>) {
-  const modelId = String(modelSettings.model_id ?? modelSettings.model ?? "gpt-4o-mini");
+  const modelId = String(modelSettings.model_id ?? modelSettings.model ?? "gpt-6-luna");
   const profile = String(
     modelSettings.profile ??
       process.env.DEFAULT_CHAT_MODEL_PROFILE ??
@@ -58,7 +58,7 @@ function resolveBuilderFallback(primary: { profile: string; model_id: string }) 
 
   const modelId =
     process.env.AI_BUILDER_FALLBACK_MODEL_ID ??
-    (profile === "groq" ? "openai/gpt-oss-120b" : "openai/gpt-4o-mini");
+    (profile === "groq" ? "openai/gpt-oss-120b" : "gpt-6-luna");
   return { profile, model_id: modelId };
 }
 

@@ -104,12 +104,20 @@ export class CatalogTextToSpeech implements TextToSpeech {
     }
   }
 
-  async synthesize(text: string, voiceId: string, signal?: AbortSignal): Promise<SynthesisResult> {
+  private selectEntry(voiceId: string): VoiceCatalogEntry {
     const requested = findVoiceCatalogEntry(voiceId);
-    const entry =
-      requested ??
-      this.listVoices().find((voice) => voice.available) ??
-      VOICE_CATALOG[0];
+    const availableVoices = this.listVoices();
+    const requestedAvailable = requested && this.availability[requested.provider];
+    return (
+      (requestedAvailable ? requested : undefined) ??
+      availableVoices.find((voice) => voice.available && voice.language.toLowerCase().startsWith("en")) ??
+      availableVoices.find((voice) => voice.available) ??
+      VOICE_CATALOG[0]
+    );
+  }
+
+  async synthesize(text: string, voiceId: string, signal?: AbortSignal): Promise<SynthesisResult> {
+    const entry = this.selectEntry(voiceId);
     const nativeId = this.nativeVoiceId(entry);
     const impl = this.implementation(entry.provider);
     if (!impl || !nativeId) {
@@ -130,8 +138,7 @@ export class CatalogTextToSpeech implements TextToSpeech {
     onAudio: (audio: AudioChunk) => void,
     signal?: AbortSignal,
   ): Promise<SynthesisStreamMetrics> {
-    const requested = findVoiceCatalogEntry(voiceId);
-    const entry = requested ?? this.listVoices().find((voice) => voice.available) ?? VOICE_CATALOG[0];
+    const entry = this.selectEntry(voiceId);
     const nativeId = this.nativeVoiceId(entry);
     const impl = this.implementation(entry.provider);
     if (!impl || !nativeId) {

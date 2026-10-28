@@ -31,6 +31,8 @@ export type ChatMessage = {
   name?: string;
   /** Present when role is `assistant` and model requests tools. */
   tool_calls?: ModelToolCall[];
+  /** Provider-native response items needed to preserve reasoning across tool calls. */
+  provider_items?: unknown[];
 };
 
 export type CompletionFinishReason = "stop" | "tool_calls";
@@ -53,6 +55,10 @@ export type CompletionRequestBody = {
   tools?: ModelToolDefinition[];
   temperature?: number;
   max_tokens?: number;
+  /** Reasoning effort for models that support it. */
+  reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  /** Output verbosity for Responses-compatible models. */
+  verbosity?: "low" | "medium" | "high";
   fallback_model?: ModelReference;
   routing_mode?: ModelRoutingMode;
   credential_source?: ModelCredentialSource;
@@ -68,6 +74,8 @@ export type CompletionResponseBody = {
   content: string;
   finish_reason: CompletionFinishReason | string;
   tool_calls?: ModelToolCall[];
+  /** Opaque provider items to replay on the next tool loop turn. */
+  provider_items?: unknown[];
   usage: TokenUsage;
   provider: string;
   model: string;

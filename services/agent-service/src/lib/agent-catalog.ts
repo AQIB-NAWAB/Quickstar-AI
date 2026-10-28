@@ -5,6 +5,10 @@ import type {
 } from "@quickstart/contracts";
 
 const DEFAULT_MODELS: AgentModelCatalogItem[] = [
+  { id: "gpt-6-luna", name: "GPT-6 Luna", provider: "OpenAI", description: "Fast, efficient model for low-latency agent turns", enabled: true, supports_tools: true, supports_vision: true },
+  { id: "gpt-6.1-terra", name: "GPT-6.1 Terra", provider: "OpenAI", description: "Fast visual reasoning and precise tool workflows", enabled: true, supports_tools: true, supports_vision: true },
+  { id: "gpt-6.1-sol", name: "GPT-6.1 Sol", provider: "OpenAI", description: "Balanced high-quality reasoning at lower cost", enabled: true, supports_tools: true, supports_vision: true },
+  { id: "gpt-6-astra", name: "GPT-6 Astra", provider: "OpenAI", description: "Highest-reasoning option for complex tool workflows", enabled: true, supports_tools: true, supports_vision: true },
   { id: "gpt-4o-mini", name: "GPT-4o mini", provider: "OpenAI", description: "Fast, cost-efficient, everyday queries", enabled: true, supports_tools: true },
   { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", description: "Advanced reasoning and complex tool calls", enabled: true, supports_tools: true, supports_vision: true },
   { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", provider: "Anthropic", description: "Nuanced writing and instruction following", enabled: true, supports_tools: true },

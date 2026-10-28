@@ -104,6 +104,7 @@ export class WidgetVoiceLiveSession {
       actorId: string;
       deepgramApiKey: string;
       deepgramModel: string;
+      deepgramLanguage?: string;
       runtimeUrl: string;
       internalToken: string;
       tts: TextToSpeech;
@@ -180,7 +181,10 @@ export class WidgetVoiceLiveSession {
       interim_results: "true",
       punctuate: "true",
       smart_format: "true",
-      language: "en",
+      // Do not force every caller through English STT. The agent language is
+      // resolved asynchronously and Deepgram's multilingual mode gives the
+      // recognizer a useful fallback while the brief is loading.
+      language: this.input.deepgramLanguage?.trim() || "multi",
       // Aggressive endpointing lowers dead air; the local speech-tail guard in
       // scheduleCommit prevents cutting off a caller who is still talking.
       endpointing: String(this.input.endpointingMs ?? 100),
@@ -196,7 +200,10 @@ export class WidgetVoiceLiveSession {
     this.dgSocket = dg;
 
     dg.addEventListener("open", () => {
-      this.input.logger.info("widget.voice.stt_connected", { model, language: "en" });
+      this.input.logger.info("widget.voice.stt_connected", {
+        model,
+        language: this.input.deepgramLanguage?.trim() || "multi",
+      });
       this.dgReconnectAttempts = 0;
       if (this.dgReconnectTimer) {
         clearTimeout(this.dgReconnectTimer);

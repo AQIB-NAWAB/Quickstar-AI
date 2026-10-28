@@ -41,7 +41,13 @@ type SessionRecord = {
   transcriptSequence: number;
   persistChain: Promise<void>;
   recordingObjectKey: string | null;
+  callerRecordingObjectKey: string | null;
+  agentRecordingEncoding: "pcm16" | "mp3" | null;
+  agentRecordingSampleRate: number;
   recordingSequence: number;
+  callerRecordingSequence: number;
+  recordingFormat: "webm" | "pcm16" | null;
+  recordingFinalized: boolean;
   started: boolean;
   mode: SessionMode;
   needsHuman: boolean;
@@ -52,6 +58,24 @@ type SessionRecord = {
 };
 
 const MAX_WIDGET_CALL_DURATION_MS = 60 * 60 * 1000;
+
+export function pcm16ToWav(raw: Buffer, sampleRate = 16_000): Buffer {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + raw.length, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(raw.length, 40);
+  return Buffer.concat([header, raw]);
+}
 
 export type WidgetLiveCall = {
   conversation_id: string;
@@ -67,6 +91,7 @@ export class WidgetVoiceLiveSessionManager {
     private readonly deps: {
       deepgramApiKey?: string;
       deepgramModel: string;
+      deepgramLanguage?: string;
       deepgramEndpointingMs?: number;
       speechTailMs?: number;
       runtimeUrl: string;
@@ -78,6 +103,9 @@ export class WidgetVoiceLiveSessionManager {
       geminiLiveModel?: string;
       openaiApiKey?: string;
       openaiRealtimeModel?: string;
+      openaiRealtimeTranscriptionModel?: string;
+      openaiRealtimeVoice?: string;
+      openaiRealtimeTranscriptionDelay?: "minimal" | "low" | "medium" | "high" | "xhigh";
       elevenLabsApiKey?: string;
       elevenLabsRealtimeModel?: string;
       elevenLabsVoiceId?: string;
@@ -185,6 +213,12 @@ export class WidgetVoiceLiveSessionManager {
       );
     }
 
+    // Keep call analytics truthful even when the provider is selected by the
+    // service-level auto policy rather than an explicit request.
+    await this.deps.calls.updateState(bind.workspaceId, callId, {
+      voiceMode: useCascade ? "cascade" : "s2s",
+    });
+
     const session = useCascade
       ? new WidgetVoiceLiveSession({
           workspaceId: bind.workspaceId,
@@ -192,6 +226,7 @@ export class WidgetVoiceLiveSessionManager {
           actorId: bind.actorId,
           deepgramApiKey: this.deps.deepgramApiKey ?? "",
           deepgramModel: this.deps.deepgramModel,
+          deepgramLanguage: this.deps.deepgramLanguage,
           runtimeUrl: this.deps.runtimeUrl,
           internalToken: this.deps.internalToken,
           tts: this.deps.tts!,
@@ -239,6 +274,9 @@ export class WidgetVoiceLiveSessionManager {
           : new OpenAiRealtimeLiveSession({
               apiKey: this.deps.openaiApiKey!,
               model: this.deps.openaiRealtimeModel ?? "gpt-realtime-2.1",
+            transcriptionModel: this.deps.openaiRealtimeTranscriptionModel,
+            transcriptionDelay: this.deps.openaiRealtimeTranscriptionDelay,
+            voice: this.deps.openaiRealtimeVoice ?? "marin",
               instructions: brief,
               workspaceId: bind.workspaceId,
               conversationId: bind.conversationId,
@@ -260,7 +298,13 @@ export class WidgetVoiceLiveSessionManager {
       transcriptSequence: 0,
       persistChain: Promise.resolve(),
       recordingObjectKey: null,
+      callerRecordingObjectKey: null,
+      agentRecordingEncoding: null,
+      agentRecordingSampleRate: 16_000,
       recordingSequence: 0,
+      callerRecordingSequence: 0,
+      recordingFormat: null,
+      recordingFinalized: false,
       started: false,
       mode: "model",
       needsHuman: false,
@@ -276,6 +320,44 @@ export class WidgetVoiceLiveSessionManager {
   }
 
   private persistCallEvent(record: SessionRecord, event: VoiceLiveEvent): void {
+    if (event.type === "audio" && record.recordingFormat === "pcm16") {
+      const bytes = Buffer.from(event.data, "base64");
+      const encoding = event.encoding === "pcm16"
+        ? "pcm16"
+        : event.encoding === "mp3" || event.mime.includes("mpeg")
+          ? "mp3"
+          : null;
+      if (bytes.length > 0 && encoding) {
+        if (record.agentRecordingEncoding && record.agentRecordingEncoding !== encoding) {
+          this.deps.logger.warn("widget.voice.agent_recording_format_changed", {
+            call_id: record.callId,
+            previous: record.agentRecordingEncoding,
+            next: encoding,
+          });
+          return;
+        }
+        record.agentRecordingEncoding ??= encoding;
+        if (encoding === "pcm16" && event.sample_rate && event.sample_rate > 0) {
+          record.agentRecordingSampleRate = event.sample_rate;
+        }
+        const sequence = record.recordingSequence++;
+        record.persistChain = record.persistChain.then(async () => {
+          if (!record.recordingObjectKey) {
+            record.recordingObjectKey = await this.deps.recordings.begin(
+              record.bind.workspaceId,
+              record.callId,
+              encoding === "pcm16" ? "audio/wav" : "audio/mpeg",
+            );
+          }
+          await this.deps.recordings.append(record.recordingObjectKey, sequence, bytes);
+        }).catch((err) => {
+          this.deps.logger.warn("widget.voice.agent_recording_append_failed", {
+            call_id: record.callId,
+            message: err instanceof Error ? err.message : "agent recording append failed",
+          });
+        });
+      }
+    }
     const text = event.type === "transcript" && !event.interim
       ? event.text.trim()
       : event.type === "assistant_done"
@@ -304,30 +386,97 @@ export class WidgetVoiceLiveSessionManager {
 
   async startRecording(id: string, workspaceId: string, contentType: string): Promise<void> {
     const record = this.sessions.get(id);
-    if (!record || record.bind.workspaceId !== workspaceId || record.recordingObjectKey) return;
+    if (!record || record.bind.workspaceId !== workspaceId || record.recordingObjectKey || record.callerRecordingObjectKey) return;
     const normalizedType = contentType.split(";")[0]?.trim().toLowerCase();
-    if (normalizedType !== "audio/webm") throw new Error("Widget call recordings must use audio/webm");
-    record.recordingObjectKey = await this.deps.recordings.begin(
+    if (normalizedType === "audio/webm") {
+      record.recordingFormat = "webm";
+      record.recordingObjectKey = await this.deps.recordings.begin(
+        record.bind.workspaceId,
+        record.callId,
+        normalizedType,
+      );
+      return;
+    }
+    if (normalizedType !== "audio/x-pcm16" && normalizedType !== "audio/pcm") {
+      throw new Error("Widget call recordings must use audio/webm or audio/x-pcm16");
+    }
+    record.recordingFormat = "pcm16";
+    record.callerRecordingObjectKey = await this.deps.recordings.begin(
       record.bind.workspaceId,
       record.callId,
-      normalizedType,
+      "audio/wav",
     );
   }
 
   async appendRecording(id: string, workspaceId: string, bytes: Buffer): Promise<void> {
     const record = this.sessions.get(id);
-    if (!record || record.bind.workspaceId !== workspaceId || !record.recordingObjectKey || bytes.length === 0) return;
-    await this.deps.recordings.append(record.recordingObjectKey, record.recordingSequence++, bytes);
+    if (!record || record.bind.workspaceId !== workspaceId || bytes.length === 0) return;
+    const key = record.recordingFormat === "pcm16"
+      ? record.callerRecordingObjectKey
+      : record.recordingObjectKey;
+    if (!key) return;
+    const sequence = record.recordingFormat === "pcm16"
+      ? record.callerRecordingSequence++
+      : record.recordingSequence++;
+    const append = record.persistChain.then(() => this.deps.recordings.append(key, sequence, bytes));
+    record.persistChain = append.catch((err) => {
+      this.deps.logger.warn("widget.voice.recording_append_failed", {
+        call_id: record.callId,
+        message: err instanceof Error ? err.message : "recording append failed",
+      });
+    });
+    await record.persistChain;
   }
 
   async finishRecording(id: string, workspaceId: string): Promise<void> {
     const record = this.sessions.get(id);
-    if (!record || record.bind.workspaceId !== workspaceId || !record.recordingObjectKey) return;
+    if (!record || record.bind.workspaceId !== workspaceId ||
+        (!record.recordingObjectKey && !record.callerRecordingObjectKey)) return;
+    if (record.recordingFinalized) return;
+    await record.persistChain;
     const key = record.recordingObjectKey;
-    await this.deps.recordings.finish(key);
+    let finalAgentKey: string | null = key;
+    let finalCallerKey = record.callerRecordingObjectKey;
+    if (record.recordingFormat === "pcm16") {
+      if (key && record.recordingSequence > 0) {
+        await this.deps.recordings.finish(key);
+        if (record.agentRecordingEncoding === "pcm16") {
+          const rawAgent = await this.deps.recordings.getBytes(key);
+          if (rawAgent && rawAgent.length > 0) {
+            finalAgentKey = await this.deps.recordings.put(
+              record.bind.workspaceId,
+              record.callId,
+              pcm16ToWav(rawAgent, record.agentRecordingSampleRate),
+              "audio/wav",
+            );
+          }
+        }
+      } else {
+        finalAgentKey = null;
+      }
+      if (record.callerRecordingObjectKey && record.callerRecordingSequence > 0) {
+        await this.deps.recordings.finish(record.callerRecordingObjectKey);
+        const rawCaller = await this.deps.recordings.getBytes(record.callerRecordingObjectKey);
+        if (rawCaller && rawCaller.length > 0) {
+          finalCallerKey = await this.deps.recordings.put(
+            record.bind.workspaceId,
+            record.callId,
+            pcm16ToWav(rawCaller),
+            "audio/wav",
+          );
+        }
+      } else {
+        finalCallerKey = null;
+      }
+    } else {
+      if (key) await this.deps.recordings.finish(key);
+      else finalAgentKey = null;
+    }
     await this.deps.calls.updateState(record.bind.workspaceId, record.callId, {
-      recordingObjectKey: key,
+      recordingObjectKey: finalAgentKey,
+      callerRecordingObjectKey: finalCallerKey ?? null,
     });
+    record.recordingFinalized = true;
   }
 
   private ensureStarted(record: SessionRecord): void {
@@ -503,12 +652,52 @@ export class WidgetVoiceLiveSessionManager {
     if (!record) return;
     clearTimeout(record.maxDurationTimer);
     record.session.close();
+    await this.finishRecording(id, record.bind.workspaceId).catch((err: unknown) => {
+      this.deps.logger.warn("widget.voice.recording_finish_failed", {
+        call_id: record.callId,
+        message: err instanceof Error ? err.message : "recording finish failed",
+      });
+    });
     this.sessions.delete(id);
     await record.persistChain;
     await this.deps.calls.updateState(record.bind.workspaceId, record.callId, {
       state: record.transferSpoken ? "transferred" : "completed",
       endedAt: new Date(),
     });
+  }
+
+  async stopCall(workspaceId: string, callId: string): Promise<boolean> {
+    const session = [...this.sessions.entries()].find(
+      ([, record]) => record.bind.workspaceId === workspaceId && record.callId === callId,
+    );
+    if (session) {
+      await this.close(session[0]);
+      return true;
+    }
+
+    const call = await this.deps.calls.get(workspaceId, callId);
+    if (!call) return false;
+    if (call.state === "live" || call.state === "ringing") {
+      const endedAt = new Date();
+      await this.deps.calls.updateState(workspaceId, callId, {
+        state: "completed",
+        endedAt,
+        durationSeconds: Math.max(1, Math.floor((endedAt.getTime() - call.started_at.getTime()) / 1000)),
+      });
+    }
+    return true;
+  }
+
+  async stopConversation(workspaceId: string, conversationId: string): Promise<boolean> {
+    const sessionId = this.findByConversation(workspaceId, conversationId);
+    if (sessionId) {
+      await this.close(sessionId);
+      return true;
+    }
+
+    const { rows } = await this.deps.calls.list(workspaceId, { direction: "inbound", limit: 100 });
+    const call = rows.find((item) => item.conversation_id === conversationId && (item.state === "live" || item.state === "ringing"));
+    return call ? this.stopCall(workspaceId, call.id) : false;
   }
 }
 

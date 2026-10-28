@@ -171,7 +171,7 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
               });
 
               // Start recording
-              await liveSessionManager.startRecording(liveSessionId, workspaceId, "audio/x-mulaw");
+              await liveSessionManager.startRecording(liveSessionId, workspaceId, "audio/x-pcm16");
 
               // Subscribe to live audio emitted from the AI agent
               unsubscribeLive = liveSessionManager.subscribe(liveSessionId, (event) => {
@@ -231,9 +231,9 @@ export function setupTwilioMediaStreamServer(options: MediaStreamServerOptions):
           if (liveSessionManager && liveSessionId) {
             liveSessionManager.pushAudio(liveSessionId, pcm16);
 
-            // Append raw mulaw frame to dual-track recording
-            const rawMulaw = Buffer.from(msg.media.payload, "base64");
-            void liveSessionManager.appendRecording(liveSessionId, workspaceId, rawMulaw);
+            // Append the decoded caller track. The live session finalizes both
+            // caller and agent PCM tracks as playable WAV files.
+            void liveSessionManager.appendRecording(liveSessionId, workspaceId, pcm16);
           }
           break;
         }

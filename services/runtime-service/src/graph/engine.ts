@@ -31,6 +31,8 @@ export type RunGraphTurnInput = {
   abortSignal?: AbortSignal;
   agentDefaults?: GraphSessionState["agent_defaults"];
   agentConfiguration?: AgentConfiguration;
+  subjectKey?: string;
+  allowTools?: boolean;
   onHandoff?: () => Promise<void>;
   humanReleased?: boolean;
   onAssistantMessage?: (text: string) => Promise<void>;
@@ -277,6 +279,9 @@ export class GraphEngine {
         checkpoint: () => this.sessionStore.saveSession(session),
         onAssistantMessage,
         onTraceEvent: emitTraceEvent,
+        agentConfiguration: input.agentConfiguration,
+        subjectKey: input.subjectKey,
+        allowTools: input.allowTools,
       };
 
       let result: NodeExecutionResult;
