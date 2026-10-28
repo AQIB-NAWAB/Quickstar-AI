@@ -110,6 +110,7 @@ export function TestAgentPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activeSessionRef = useRef<string | null>(null);
+  const sendLockRef = useRef(false);
 
   const isPublished = Boolean(agent.production_version_id);
 
@@ -154,7 +155,8 @@ export function TestAgentPanel({
 
   async function sendMessage(textToSend: string) {
     const text = textToSend.trim();
-    if (!text || isSending || !isPublished) return;
+    if (!text || sendLockRef.current || isSending || !isPublished) return;
+    sendLockRef.current = true;
 
     setError(null);
     setInput("");
@@ -168,6 +170,7 @@ export function TestAgentPanel({
         if (initRes.error || !initRes.conversationId) {
           setError(initRes.error?.message || "Could not start test conversation.");
           setInput(text);
+          sendLockRef.current = false;
           return;
         }
         currentConvId = initRes.conversationId;
@@ -176,6 +179,7 @@ export function TestAgentPanel({
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to initialize test conversation.");
         setInput(text);
+        sendLockRef.current = false;
         return;
       }
     }
@@ -252,6 +256,7 @@ export function TestAgentPanel({
         setError(err instanceof Error ? err.message : "Turn request failed.");
       }
     } finally {
+      sendLockRef.current = false;
       if (activeSessionRef.current === sessionId) {
         setIsSending(false);
         setLiveTools([]);

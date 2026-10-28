@@ -152,6 +152,8 @@ export type ToolLoopInput = {
   tools: AgentToolDefinition[];
   chatMessages: ChatMessage[];
   maxTokens?: number;
+  reasoningEffort?: CompletionRequestBody["reasoning_effort"];
+  verbosity?: CompletionRequestBody["verbosity"];
   replyLanguage?: string;
   replyGender?: "female" | "male" | "neutral";
   /** Spoken before the tool runs so the caller is not left in silence. */
@@ -196,6 +198,8 @@ export class ToolLoop {
         messages,
         tools: modelTools,
         temperature: input.temperature,
+        reasoning_effort: input.reasoningEffort,
+        verbosity: input.verbosity,
         ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
       }, input.signal);
       if (input.signal?.aborted) throw new DOMException("Turn interrupted", "AbortError");
@@ -208,7 +212,12 @@ export class ToolLoop {
         role: "assistant",
         content: completion.content ?? "",
         tool_calls: completion.tool_calls,
+        ...(completion.provider_items ? { provider_items: completion.provider_items } : {}),
       });
+
+      // The audit ledger is shared by every tool call in this model round.
+      // Read it once instead of adding one network round-trip per call.
+      const priorToolCalls = await this.listPrior(input, input.turnIdempotencyKey);
 
       for (const [callIndex, call] of completion.tool_calls.entries()) {
         if (call.name === VOICE_TRANSFER_TOOL_NAME) {
@@ -358,8 +367,7 @@ export class ToolLoop {
           round,
           `${call.name}:${callIndex}`,
         );
-        const existing = await this.listPrior(input, input.turnIdempotencyKey);
-        const prior = existing.find((r) => r.tool_call_key === toolCallKey);
+        const prior = priorToolCalls.find((r) => r.tool_call_key === toolCallKey);
         if (prior && ["succeeded", "failed", "unknown"].includes(prior.status)) {
           const replay =
             prior.response_json != null
@@ -478,6 +486,8 @@ export class ToolLoop {
           messages,
           tools: undefined,
           temperature: input.temperature,
+          reasoning_effort: input.reasoningEffort,
+          verbosity: input.verbosity,
           ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
         },
         input.signal,

@@ -50,6 +50,7 @@ export class OpenAiRealtimeLiveSession {
       headers?: Record<string, string>;
       voice?: string;
       transcriptionModel?: string;
+      transcriptionDelay?: "minimal" | "low" | "medium" | "high" | "xhigh";
       instructions?: string | Promise<string>;
     },
   ) {}
@@ -84,6 +85,13 @@ export class OpenAiRealtimeLiveSession {
         const instructions = await Promise.resolve(
           this.input.instructions ?? fallback,
         ).catch(() => fallback);
+        const transcriptionModel = this.input.transcriptionModel ?? "gpt-live-transcribe";
+        const transcription = {
+          model: transcriptionModel,
+          ...(transcriptionModel === "gpt-live-transcribe"
+            ? { delay: this.input.transcriptionDelay ?? "minimal" }
+            : {}),
+        };
         if (this.closed || socket.readyState !== WebSocket.OPEN) return;
         socket.send(
           JSON.stringify({
@@ -96,9 +104,7 @@ export class OpenAiRealtimeLiveSession {
               audio: {
                 input: {
                   format: { type: "audio/pcm", rate: 24000 },
-                  transcription: {
-                    model: this.input.transcriptionModel ?? "gpt-4o-transcribe",
-                  },
+                  transcription,
                   turn_detection: { type: "semantic_vad" },
                 },
                 output: {

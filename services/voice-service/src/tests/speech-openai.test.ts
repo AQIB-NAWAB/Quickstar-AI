@@ -58,7 +58,7 @@ test("OpenAI STT uses fixture fetch and the current transcription model", async 
   assert.equal(result.text, "fixture transcript");
   assert.equal(result.provider, "openai-stt");
   assert.equal(seenAuth[0], "Bearer sk-secret-should-not-leak");
-  assert.equal(seenModel, "gpt-4o-transcribe");
+  assert.equal(seenModel, "gpt-transcribe");
 });
 
 test("OpenAI TTS fixture path returns mp3 bytes with the current TTS model", async () => {
@@ -79,7 +79,7 @@ test("OpenAI TTS fixture path returns mp3 bytes with the current TTS model", asy
   assert.equal(result.provider, "openai-tts");
   assert.equal(result.audio.encoding, "mp3");
   assert.ok(result.audio.bytes.length > 0);
-  assert.equal(seenModel, "gpt-4o-mini-tts");
+  assert.equal(seenModel, "gpt-4o-mini-tts-2025-12-15");
 });
 
 test("OpenAI TTS streaming emits audio before the full clip is ready", async () => {

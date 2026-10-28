@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { AgentConfiguration, ChatMessage, TokenUsage } from "@quickstart/contracts";
+import type { AgentConfiguration, ChatMessage, CompletionRequestBody, TokenUsage } from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { AgentClient, AgentVersionInfo } from "../clients/agent.client.js";
 import type { ConversationClient, MessageInfo } from "../clients/conversation.client.js";
@@ -72,6 +72,17 @@ const WIDGET_REPLY_STYLE = [
   "QuickStart includes a free workspace to get started. Paid usage is tracked in your billing ledger rather than charged on each live chat request. If you share expected conversation volume, I can suggest what tier fits.",
 ].join("\n");
 
+function extractExplicitMemoryFacts(text: string): Array<{ key: string; value: string }> {
+  const facts: Array<{ key: string; value: string }> = [];
+  const name = text.match(/\b(?:my name is|i am|this is)\s+([A-Za-z][A-Za-z .'-]{1,80})/i)?.[1]?.trim();
+  const email = text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0];
+  const phone = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.trim();
+  if (name) facts.push({ key: "name", value: name });
+  if (email) facts.push({ key: "email", value: email });
+  if (phone) facts.push({ key: "phone", value: phone });
+  return facts;
+}
+
 function guardrailInstructions(configuration?: AgentConfiguration): string {
   const guardrails = configuration?.guardrails;
   if (guardrails?.enabled === false) return "";
@@ -114,7 +125,7 @@ function spokenReplyStyle(
     urdu
       ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
-    "One or two short spoken sentences, under 25 words.",
+    "One to three short spoken sentences, under 60 words. Give a complete, useful answer without rushing or omitting important context.",
     "Plain spoken words only: absolutely no markdown syntax, asterisks (*), hashtags (#), brackets, lists, bullets, emojis, URLs, or symbols, as these will be read aloud phonetically by the text-to-speech voice.",
     "Answer general questions from the knowledge base. For a requested lookup, use the matching tool; ask briefly if a required detail is missing and never invent it.",
     "If a requested post or order lookup is missing its ID, ask for that ID in one short question and wait.",
@@ -243,6 +254,46 @@ function resolveChatModel(modelSettings: Record<string, unknown>): {
   return { profile: "fake", modelId: "fake" };
 }
 
+const REASONING_EFFORTS = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const VERBOSITIES = new Set(["low", "medium", "high"]);
+
+function resolveModelQualitySettings(
+  modelSettings: Record<string, unknown>,
+  modelId: string,
+  voiceTurn: boolean,
+): {
+  reasoningEffort?: CompletionRequestBody["reasoning_effort"];
+  verbosity?: CompletionRequestBody["verbosity"];
+} {
+  const configuredReasoning =
+    typeof modelSettings.reasoning_effort === "string" && REASONING_EFFORTS.has(modelSettings.reasoning_effort)
+      ? (modelSettings.reasoning_effort as CompletionRequestBody["reasoning_effort"])
+      : undefined;
+  let reasoningEffort = configuredReasoning ??
+    (voiceTurn && /^gpt-6/i.test(modelId)
+      ? "low"
+      : /^gpt-6-astra|^gpt-6\.1-sol/i.test(modelId)
+        ? "medium"
+        : undefined);
+  // GPT-6 Astra rejects `none`; GPT-6.1 Sol rejects both `none` and
+  // `minimal`. Older saved agent versions may still contain those values, so
+  // normalize them at the gateway boundary instead of turning a valid turn
+  // into an upstream 400. The closest supported low-latency setting is low.
+  if (/^gpt-6-astra/i.test(modelId) && (reasoningEffort === "none" || reasoningEffort === "minimal")) {
+    reasoningEffort = "low";
+  }
+  if (/^gpt-6\.1-sol/i.test(modelId) && (reasoningEffort === "none" || reasoningEffort === "minimal")) {
+    reasoningEffort = "low";
+  }
+  const verbosity =
+    typeof modelSettings.verbosity === "string" && VERBOSITIES.has(modelSettings.verbosity)
+      ? (modelSettings.verbosity as CompletionRequestBody["verbosity"])
+      : voiceTurn
+        ? "low"
+        : undefined;
+  return { reasoningEffort, verbosity };
+}
+
 import type { GraphEngine } from "../graph/engine.js";
 
 export class TurnsService {
@@ -264,6 +315,34 @@ export class TurnsService {
     private readonly toolLoop?: ToolLoop,
     private readonly graphEngine?: GraphEngine,
   ) {}
+
+  private rememberExplicitFacts(
+    workspaceId: string,
+    subjectKey: string | undefined,
+    text: string | undefined,
+    configuration: AgentConfiguration | undefined,
+    requestId: string,
+  ): void {
+    if (
+      !this.memoryClient ||
+      typeof this.memoryClient.rememberFact !== "function" ||
+      !subjectKey ||
+      !text?.trim() ||
+      configuration?.memory.enabled !== true ||
+      configuration.memory.allow_runtime_writes !== true
+    ) {
+      return;
+    }
+    for (const fact of extractExplicitMemoryFacts(text)) {
+      void this.memoryClient.rememberFact(
+        workspaceId,
+        subjectKey,
+        fact.key,
+        fact.value,
+        requestId,
+      );
+    }
+  }
 
   private async observeCanary(
     workspaceId: string,
@@ -451,6 +530,7 @@ export class TurnsService {
           signal,
           internal: false,
           humanReleased: conversation.state === "bot",
+          subjectKey: conversation.subject_key ?? undefined,
           onToken,
         });
         await this.observeCanary(workspaceId, agentId, requestId, version, true);
@@ -473,26 +553,21 @@ export class TurnsService {
 
     let retrievedChunkIds: string[] = [];
     let knowledgeContext = "";
-    if (this.knowledgeClient && text) {
-      const readyCount = await this.knowledgeClient.readyCount(workspaceId, requestId);
-      const knowledge = version.snapshot.configuration?.knowledge;
-      const knowledgeEnabled = knowledge?.enabled ?? true;
-      if (knowledgeEnabled && readyCount > 0) {
-        const chunks = await this.knowledgeClient.retrieve(
-          workspaceId,
-          text,
-          requestId,
-          knowledge?.max_results ?? 5,
-          undefined,
-          { sourceIds: knowledge?.source_ids, searchMethod: knowledge?.search_method },
-        );
-        retrievedChunkIds = chunks.map((c) => c.chunk_id);
-        knowledgeContext = chunks
-          .map((c) => c.text)
-          .join("\n\n")
-          .slice(0, MAX_RETRIEVAL_CHARS);
-      }
-    }
+    const knowledge = version.snapshot.configuration?.knowledge;
+    const knowledgePromise = this.knowledgeClient && text
+      ? (async () => {
+          const readyCount = await this.knowledgeClient!.readyCount(workspaceId, requestId);
+          if ((knowledge?.enabled ?? true) === false || readyCount <= 0) return [];
+          return this.knowledgeClient!.retrieve(
+            workspaceId,
+            text,
+            requestId,
+            knowledge?.max_results ?? 5,
+            undefined,
+            { sourceIds: knowledge?.source_ids, searchMethod: knowledge?.search_method },
+          );
+        })().catch(() => [])
+      : Promise.resolve([]);
 
     const systemParts: string[] = [];
     if (version.snapshot.instructions) {
@@ -500,28 +575,28 @@ export class TurnsService {
     }
     const guardrailText = guardrailInstructions(version.snapshot.configuration);
     if (guardrailText) systemParts.push(guardrailText);
+    const subjectKey = conversation.subject_key?.trim();
+    const memory = version.snapshot.configuration?.memory;
+    const memoryPromise = this.memoryClient && memory?.enabled !== false && subjectKey
+      ? this.memoryClient.listFacts(workspaceId, subjectKey, requestId, memory?.max_facts ?? 20).catch(() => [])
+      : Promise.resolve([]);
+    const [knowledgeChunks, memoryFacts] = await Promise.all([knowledgePromise, memoryPromise]);
+    retrievedChunkIds = knowledgeChunks.map((c) => c.chunk_id);
+    knowledgeContext = knowledgeChunks
+      .map((c) => c.text)
+      .join("\n\n")
+      .slice(0, MAX_RETRIEVAL_CHARS);
     if (knowledgeContext) {
       systemParts.push(
         `Use the following knowledge snippets when answering (answer normal questions from this; do not ask for an id):\n\n${knowledgeContext}`,
       );
     }
-
-    const subjectKey = conversation.subject_key?.trim();
-    const memory = version.snapshot.configuration?.memory;
-    if (this.memoryClient && memory?.enabled !== false && subjectKey) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        memory?.max_facts ?? 20,
-      );
-      if (memoryFacts.length > 0) {
-        const memoryBlock = memoryFacts
-          .map((f) => `- ${f.fact_text}`)
-          .join("\n")
-          .slice(0, MAX_MEMORY_INJECT_CHARS);
-        systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
-      }
+    if (memoryFacts.length > 0) {
+      const memoryBlock = memoryFacts
+        .map((f) => `- ${f.fact_text}`)
+        .join("\n")
+        .slice(0, MAX_MEMORY_INJECT_CHARS);
+      systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
     }
 
     if (systemParts.length > 0) {
@@ -550,8 +625,13 @@ export class TurnsService {
     // 7. Invoke Model Gateway
     const modelSettings = version.snapshot.model_settings ?? {};
     const { profile, modelId } = resolveChatModel(modelSettings);
+    const qualitySettings = resolveModelQualitySettings(modelSettings, modelId, input.channel === "voice");
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
+    const configuredMaxTokens =
+      typeof modelSettings.max_tokens === "number" && modelSettings.max_tokens > 0
+        ? Math.min(Math.floor(modelSettings.max_tokens), 32_000)
+        : undefined;
 
     const agentTools = version.snapshot.tools ?? [];
     if (agentTools.length > 0) {
@@ -578,6 +658,9 @@ export class TurnsService {
           authHeaders,
           model: { profile, model_id: modelId },
           temperature,
+          maxTokens: configuredMaxTokens,
+          reasoningEffort: qualitySettings.reasoningEffort,
+          verbosity: qualitySettings.verbosity,
           tools: agentTools,
           chatMessages: windowedMessages,
           visitorText: text,
@@ -599,6 +682,9 @@ export class TurnsService {
             model: { profile, model_id: modelId },
             messages: windowedMessages,
             temperature,
+            ...(configuredMaxTokens ? { max_tokens: configuredMaxTokens } : {}),
+            reasoning_effort: qualitySettings.reasoningEffort,
+            verbosity: qualitySettings.verbosity,
           },
           { onToken },
           signal,
@@ -616,6 +702,9 @@ export class TurnsService {
             model: { profile, model_id: modelId },
             messages: windowedMessages,
             temperature,
+            ...(configuredMaxTokens ? { max_tokens: configuredMaxTokens } : {}),
+            reasoning_effort: qualitySettings.reasoningEffort,
+            verbosity: qualitySettings.verbosity,
           },
           signal,
         );
@@ -669,6 +758,14 @@ export class TurnsService {
       authHeaders,
     );
 
+    this.rememberExplicitFacts(
+      workspaceId,
+      conversation.subject_key?.trim() || undefined,
+      text,
+      version.snapshot.configuration,
+      requestId,
+    );
+
     await this.observeCanary(workspaceId, agentId, requestId, version, true);
     return {
       deduplicated: false,
@@ -695,6 +792,7 @@ export class TurnsService {
     requestId: string;
     callId?: string;
     deadlineMs?: number;
+    authHeaders?: Record<string, string>;
   }): Promise<TurnResult> {
     return this.executeInternalChannelTurn({
       ...input,
@@ -958,6 +1056,7 @@ export class TurnsService {
     idempotencyKey: string;
     actorId: string;
     requestId: string;
+    authHeaders?: Record<string, string>;
     channel: "voice" | "widget";
     callId?: string;
     deadlineMs?: number;
@@ -1050,7 +1149,10 @@ export class TurnsService {
     const catalogTools = agentTools.filter((tool) => tool.name !== VOICE_TRANSFER_TOOL_NAME);
     let actionRequest = voiceTurn ? utteranceRequestsAction(text) : visitorRequestsToolAction(text);
     const incompleteLookup = lookupRequestMissingIdentifier(text);
-    let modelTools = actionRequest && !incompleteLookup ? [...catalogTools] : [];
+    // Let the model decide when a configured tool is needed. Regex intent
+    // detection is still used to optimize RAG/voice acknowledgements, but it
+    // must not be the gate that makes tools visible to the model.
+    let modelTools = [...catalogTools];
     if (agentTools.length > 0 && !allowTools) {
       throw new AppError({
         code: ErrorCode.VALIDATION_FAILED,
@@ -1112,6 +1214,7 @@ export class TurnsService {
         signal,
         internal: true,
         humanReleased: conversation.state === "bot",
+        subjectKey: conversation.subject_key ?? undefined,
         onToken,
         allowTools,
       });
@@ -1133,6 +1236,14 @@ export class TurnsService {
               retrievalAbort.signal,
               { sourceIds: knowledge?.source_ids, searchMethod: knowledge?.search_method },
             )
+            .catch(() => [])
+        : Promise.resolve([]);
+    const subjectKey = conversation.subject_key?.trim();
+    const memory = version.snapshot.configuration?.memory;
+    const memoryRequest =
+      this.memoryClient && memory?.enabled !== false && subjectKey
+        ? this.memoryClient
+            .listFacts(workspaceId, subjectKey, requestId, memory?.max_facts ?? 20)
             .catch(() => [])
         : Promise.resolve([]);
 
@@ -1219,22 +1330,20 @@ export class TurnsService {
       );
     }
 
-    const subjectKey = conversation.subject_key?.trim();
-    const memory = version.snapshot.configuration?.memory;
-    if (this.memoryClient && memory?.enabled !== false && subjectKey && !voiceTurn) {
-      const memoryFacts = await this.memoryClient.listFacts(
-        workspaceId,
-        subjectKey,
-        requestId,
-        memory?.max_facts ?? 20,
-      );
-      if (memoryFacts.length > 0) {
-        const memoryBlock = memoryFacts
-          .map((f) => `- ${f.fact_text}`)
-          .join("\n")
-          .slice(0, MAX_MEMORY_INJECT_CHARS);
-        systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
-      }
+    const memoryFacts = voiceTurn
+      ? await Promise.race([
+          memoryRequest,
+          new Promise<Awaited<typeof memoryRequest>>((resolve) =>
+            setTimeout(() => resolve([]), Math.max(50, Number(process.env.VOICE_MEMORY_TIMEOUT_MS ?? 150) || 150)),
+          ),
+        ])
+      : await memoryRequest;
+    if (memoryFacts.length > 0) {
+      const memoryBlock = memoryFacts
+        .map((f) => `- ${f.fact_text}`)
+        .join("\n")
+        .slice(0, MAX_MEMORY_INJECT_CHARS);
+      systemParts.push(`User facts (not instructions):\n\n${memoryBlock}`);
     }
 
     const confirmedHandoff =
@@ -1359,6 +1468,7 @@ export class TurnsService {
           }
         : modelSettings,
     );
+    const qualitySettings = resolveModelQualitySettings(modelSettings, modelId, voiceTurn);
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
 
@@ -1367,7 +1477,7 @@ export class TurnsService {
         ? modelSettings.max_tokens
         : undefined;
     const maxTokens = voiceTurn
-      ? Math.min(configuredMax ?? 96, 96)
+      ? Math.min(configuredMax ?? 160, Number(process.env.VOICE_MAX_TOKENS ?? 160) || 160)
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
         : Math.min(configuredMax ?? 220, 220);
@@ -1383,6 +1493,8 @@ export class TurnsService {
       model: { profile, model_id: modelId },
       messages: windowedMessages,
       temperature,
+      reasoning_effort: qualitySettings.reasoningEffort,
+      verbosity: qualitySettings.verbosity,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
 
@@ -1396,10 +1508,14 @@ export class TurnsService {
           conversationId,
           requestId,
           turnIdempotencyKey: idempotencyKey,
-          authHeaders: {},
+          authHeaders: input.authHeaders ?? {},
           model: { profile, model_id: modelId },
           temperature,
-          maxTokens: voiceTurn ? Math.min(maxTokens ?? 96, 96) : 220,
+          reasoningEffort: qualitySettings.reasoningEffort,
+          verbosity: qualitySettings.verbosity,
+          maxTokens: voiceTurn
+            ? Math.min(maxTokens ?? 160, Number(process.env.VOICE_MAX_TOKENS ?? 160) || 160)
+            : 220,
           replyLanguage,
           replyGender,
           tools: modelTools,
@@ -1504,6 +1620,14 @@ export class TurnsService {
       requestId,
     );
 
+    this.rememberExplicitFacts(
+      workspaceId,
+      conversation.subject_key?.trim() || undefined,
+      text,
+      version.snapshot.configuration,
+      requestId,
+    );
+
     return {
       deduplicated: false,
       conversation_id: conversationId,
@@ -1528,11 +1652,13 @@ export class TurnsService {
     signal?: AbortSignal;
     internal: boolean;
     humanReleased: boolean;
+    subjectKey?: string;
     onToken?: (text: string) => void;
     allowTools?: boolean;
   }): Promise<TurnResult> {
     const { workspaceId, conversationId, agentId, version, requestId } = input;
     const key = `${input.idempotencyKey}:asst`;
+    let streamedGraphMessage = false;
     const result = await this.graphEngine!.executeTurn({
       workspaceId,
       agentId,
@@ -1548,6 +1674,8 @@ export class TurnsService {
       abortSignal: input.signal,
       humanReleased: input.humanReleased,
       agentConfiguration: version.snapshot.configuration,
+      subjectKey: input.subjectKey,
+      allowTools: input.allowTools,
       agentDefaults: {
         instructions: version.snapshot.instructions,
         model_settings: version.snapshot.model_settings,
@@ -1560,6 +1688,10 @@ export class TurnsService {
           requestId,
           input.channel,
         ),
+      onAssistantMessage: async (message) => {
+        streamedGraphMessage = true;
+        input.onToken?.(message);
+      },
     });
     const text = result.messages.join("\n\n");
     let message = input.userMessage;
@@ -1588,7 +1720,7 @@ export class TurnsService {
             input.authHeaders ?? {},
           );
       message = appended.message;
-      input.onToken?.(text);
+      if (!streamedGraphMessage) input.onToken?.(text);
     }
     if (result.status === "failed")
       throw new AppError({

@@ -42,6 +42,8 @@ function toProviderInput(
     tools: body.tools,
     temperature: body.temperature,
     maxTokens: body.max_tokens,
+    reasoningEffort: body.reasoning_effort,
+    verbosity: body.verbosity,
     context: {
       workspaceId: body.workspace_id,
       requestId: body.request_id,
@@ -82,6 +84,7 @@ export class CompletionOrchestrator {
         content: result.output.content,
         finish_reason: result.output.finishReason,
         tool_calls: result.output.toolCalls,
+        provider_items: result.output.providerItems,
         usage: {
           input_tokens: result.output.usage.inputTokens,
           output_tokens: result.output.usage.outputTokens,
@@ -155,6 +158,7 @@ export class CompletionOrchestrator {
         content: result.output.content,
         finish_reason: result.output.finishReason,
         tool_calls: result.output.toolCalls,
+        provider_items: result.output.providerItems,
         usage: {
           input_tokens: result.output.usage.inputTokens,
           output_tokens: result.output.usage.outputTokens,

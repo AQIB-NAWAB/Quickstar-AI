@@ -90,6 +90,7 @@ export type CreateAgentPayload = {
   model_settings?: Record<string, unknown>;
   channels?: Partial<AgentChannels>;
   tools?: AgentToolDefinition[];
+  voice?: AgentVoiceSettings;
   configuration?: AgentConfiguration;
 };
 

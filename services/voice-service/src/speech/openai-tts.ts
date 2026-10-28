@@ -10,6 +10,9 @@ export type OpenAiTtsOptions = {
   apiKey: string;
   baseUrl?: string;
   model?: string;
+  voice?: string;
+  instructions?: string;
+  speed?: number;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
@@ -26,8 +29,8 @@ export class OpenAiTextToSpeech implements TextToSpeech {
   async synthesize(text: string, voiceId: string, signal?: AbortSignal): Promise<SynthesisResult> {
     const started = Date.now();
     const baseUrl = (this.options.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
-    const model = this.options.model ?? "gpt-4o-mini-tts";
-    const voice = voiceId?.trim() || "alloy";
+    const model = this.options.model ?? "gpt-4o-mini-tts-2025-12-15";
+    const voice = voiceId?.trim() || this.options.voice?.trim() || "marin";
 
     const controller = new AbortController();
     const timer = setTimeout(
@@ -51,6 +54,8 @@ export class OpenAiTextToSpeech implements TextToSpeech {
           model,
           input: text,
           voice,
+          ...(this.options.instructions ? { instructions: this.options.instructions } : {}),
+          ...(this.options.speed ? { speed: this.options.speed } : {}),
           response_format: "mp3",
         }),
         signal: controller.signal,
@@ -106,8 +111,8 @@ export class OpenAiTextToSpeech implements TextToSpeech {
   ): Promise<SynthesisStreamMetrics> {
     const started = Date.now();
     const baseUrl = (this.options.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
-    const model = this.options.model ?? "gpt-4o-mini-tts";
-    const voice = voiceId?.trim() || "alloy";
+    const model = this.options.model ?? "gpt-4o-mini-tts-2025-12-15";
+    const voice = voiceId?.trim() || this.options.voice?.trim() || "marin";
 
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -128,6 +133,8 @@ export class OpenAiTextToSpeech implements TextToSpeech {
           model,
           input: text,
           voice,
+          ...(this.options.instructions ? { instructions: this.options.instructions } : {}),
+          ...(this.options.speed ? { speed: this.options.speed } : {}),
           response_format: "mp3",
         }),
         signal: controller.signal,

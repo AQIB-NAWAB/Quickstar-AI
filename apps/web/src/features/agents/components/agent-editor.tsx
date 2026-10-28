@@ -50,17 +50,23 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
   const [chatEnabled, setChatEnabled] = useState(initialAgent.channels.chat);
   const [voiceEnabled, setVoiceEnabled] = useState(initialAgent.channels.voice);
   const [ttsVoiceId, setTtsVoiceId] = useState(
-    initialAgent.voice?.tts_voice_id || "uplift:v_8eelc901",
+    initialAgent.voice?.tts_voice_id || "default",
   );
-  const [voiceLanguage, setVoiceLanguage] = useState(initialAgent.voice?.language || "ur-PK");
+  const [voiceLanguage, setVoiceLanguage] = useState(initialAgent.voice?.language || "en-US");
 
   const modelSettings = initialAgent.model_settings || {};
-  const [model, setModel] = useState((modelSettings.model as string) || "gpt-4o-mini");
+  const [model, setModel] = useState((modelSettings.model as string) || "gpt-6-luna");
   const [temperature, setTemperature] = useState(
     typeof modelSettings.temperature === "number" ? modelSettings.temperature : 0.3,
   );
   const [maxTokens, setMaxTokens] = useState(
-    typeof modelSettings.max_tokens === "number" ? modelSettings.max_tokens : 1024,
+    typeof modelSettings.max_tokens === "number" ? modelSettings.max_tokens : 4096,
+  );
+  const [reasoningEffort, setReasoningEffort] = useState(
+    typeof modelSettings.reasoning_effort === "string" ? modelSettings.reasoning_effort : "auto",
+  );
+  const [verbosity, setVerbosity] = useState(
+    typeof modelSettings.verbosity === "string" ? modelSettings.verbosity : "medium",
   );
 
   const [attachedTools, setAttachedTools] = useState<AgentToolDefinition[]>(
@@ -110,9 +116,9 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
       environment !== agent.environment ||
       chatEnabled !== agent.channels.chat ||
       voiceEnabled !== agent.channels.voice ||
-      ttsVoiceId !== (agent.voice?.tts_voice_id || "uplift:v_8eelc901") ||
-      voiceLanguage !== (agent.voice?.language || "ur-PK") ||
-      model !== ((agent.model_settings?.model as string) || "gpt-4o-mini") ||
+      ttsVoiceId !== (agent.voice?.tts_voice_id || "default") ||
+      voiceLanguage !== (agent.voice?.language || "en-US") ||
+      model !== ((agent.model_settings?.model as string) || "gpt-6-luna") ||
       temperature !==
         (typeof agent.model_settings?.temperature === "number"
           ? agent.model_settings.temperature
@@ -120,7 +126,9 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
       maxTokens !==
         (typeof agent.model_settings?.max_tokens === "number"
           ? agent.model_settings.max_tokens
-          : 1024) ||
+          : 4096) ||
+      reasoningEffort !== ((agent.model_settings?.reasoning_effort as string) || "auto") ||
+      verbosity !== ((agent.model_settings?.verbosity as string) || "medium") ||
       JSON.stringify(attachedTools) !== JSON.stringify(agent.tools || []) ||
       JSON.stringify(configuration) !==
         JSON.stringify(normalizeAgentConfiguration(agent.configuration))
@@ -137,6 +145,8 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
     model,
     temperature,
     maxTokens,
+    reasoningEffort,
+    verbosity,
     attachedTools,
     agent,
     configuration,
@@ -224,6 +234,8 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
               : "openai",
           temperature,
           max_tokens: maxTokens,
+          ...(reasoningEffort !== "auto" ? { reasoning_effort: reasoningEffort } : {}),
+          verbosity,
         },
         tools: attachedTools,
         voice: {
@@ -270,12 +282,14 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
         setEnvironment(a.environment);
         setChatEnabled(a.channels.chat);
         setVoiceEnabled(a.channels.voice);
-        setTtsVoiceId(a.voice?.tts_voice_id || "uplift:v_8eelc901");
-        setVoiceLanguage(a.voice?.language || "ur-PK");
+        setTtsVoiceId(a.voice?.tts_voice_id || "default");
+        setVoiceLanguage(a.voice?.language || "en-US");
         const m = a.model_settings || {};
-        setModel((m.model as string) || "gpt-4o-mini");
+        setModel((m.model as string) || "gpt-6-luna");
         setTemperature(typeof m.temperature === "number" ? m.temperature : 0.3);
         setMaxTokens(typeof m.max_tokens === "number" ? m.max_tokens : 1024);
+        setReasoningEffort(typeof m.reasoning_effort === "string" ? m.reasoning_effort : "auto");
+        setVerbosity(typeof m.verbosity === "string" ? m.verbosity : "medium");
         setAttachedTools(a.tools || []);
         setConfiguration(normalizeAgentConfiguration(a.configuration));
         setIsConflict(false);
@@ -432,6 +446,10 @@ export function AgentEditor({ workspaceId, initialAgent, canManageCustomTools = 
             onChangeTemperature={setTemperature}
             maxTokens={maxTokens}
             onChangeMaxTokens={setMaxTokens}
+            reasoningEffort={reasoningEffort}
+            onChangeReasoningEffort={setReasoningEffort}
+            verbosity={verbosity}
+            onChangeVerbosity={setVerbosity}
             isDirty={isDirty}
           />
         )}

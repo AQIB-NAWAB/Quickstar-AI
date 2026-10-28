@@ -12,6 +12,7 @@ import { GraphSessionStore } from "./session-store.js";
 import { setVariablePath, resolveVariablePath } from "./eval-utils.js";
 import type { KnowledgeClient } from "../clients/knowledge.client.js";
 import type { ModelGatewayClient } from "../clients/model-gateway.client.js";
+import type { AgentClient } from "../clients/agent.client.js";
 
 const node = (
   id: string,
@@ -365,6 +366,70 @@ test("internal channel model calls inherit frozen agent settings without browser
   assert.deepEqual(result.messages, ["Verified answer"]);
   assert.equal(result.status, "completed");
 });
+test("AI prompt can delegate to a different published specialist agent", async () => {
+  let requestAgentId = "";
+  let systemPrompt = "";
+  const modelGateway = {
+    async complete(body: { agent_id?: string; messages: Array<{ role: string; content: string }> }) {
+      requestAgentId = body.agent_id ?? "";
+      systemPrompt = body.messages.find((message) => message.role === "system")?.content ?? "";
+      return { content: "Specialist answer" };
+    },
+  } as unknown as ModelGatewayClient;
+  const agentClient = {
+    async getAgentWidget() {
+      return { production_version_id: "specialist-release" };
+    },
+    async getVersionWidget() {
+      return {
+        id: "specialist-release",
+        agent_id: "specialist",
+        snapshot: {
+          name: "Specialist",
+          instructions: "You are the billing specialist.",
+          model_settings: { profile: "openai", model_id: "specialist-model" },
+        },
+      };
+    },
+  } as unknown as AgentClient;
+  const engine = new GraphEngine(
+    new GraphNodeRegistry({ modelGateway, agentClient }),
+    new GraphSessionStore(),
+  );
+  const g = graph(
+    [
+      node("entry", "entrypoint"),
+      node("ai", "ai_prompt", {
+        delegate_agent_id: "specialist",
+        output_variable: "answer.text",
+      }),
+      node("response", "response", {
+        content_type: "variable_reference",
+        variable_name: "answer.text",
+      }),
+      node("end", "end_conversation"),
+    ],
+    [
+      ["entry", "interaction_received", "ai"],
+      ["ai", "success", "response"],
+      ["response", "message_sent", "end"],
+    ],
+  );
+  const result = await engine.executeTurn({
+    workspaceId: "a",
+    agentId: "parent",
+    conversationId: "c-delegate",
+    graph: g,
+    releaseId: "parent-release",
+    channel: "chat",
+    isPreview: false,
+    requestId: "request-delegate",
+    visitorMessage: "Why was I charged?",
+  });
+  assert.equal(requestAgentId, "specialist");
+  assert.match(systemPrompt, /billing specialist/);
+  assert.deepEqual(result.messages, ["Specialist answer"]);
+});
 test("internal channel knowledge retrieval uses service credentials and selected sources", async () => {
   let requestedWorkspace = "";
   const knowledgeClient = {
@@ -488,6 +553,52 @@ test("duplicate graph turn replays without emitting another message", async () =
     engine.executeTurn({ ...request, visitorMessage: "Changed" }),
     /different message/,
   );
+});
+
+test("ai prompt nodes emit generated text to the caller", async () => {
+  const store = new GraphSessionStore();
+  const model = {
+    complete: async () => ({
+      content: "The specialist found the answer.",
+      finish_reason: "stop",
+      usage: { input_tokens: 1, output_tokens: 1 },
+      provider: "fake",
+      model: "fake",
+      latency_ms: 1,
+    }),
+  } as unknown as ModelGatewayClient;
+  const engine = new GraphEngine(new GraphNodeRegistry({ modelGateway: model }), store);
+  const g = graph(
+    [
+      node("entry", "entrypoint"),
+      node("prompt", "ai_prompt", { instructions: "Answer the visitor.", output_variable: "answer" }),
+      node("end", "end_conversation"),
+    ],
+    [
+      ["entry", "interaction_received", "prompt"],
+      ["prompt", "success", "end"],
+    ],
+  );
+  const emitted: string[] = [];
+  const result = await engine.executeTurn({
+    workspaceId: "a",
+    agentId: "agent",
+    conversationId: "conversation",
+    sessionId: "prompt-session",
+    graph: g,
+    releaseId: null,
+    channel: "chat",
+    isPreview: true,
+    requestId: crypto.randomUUID(),
+    visitorMessage: "What is the answer?",
+    agentDefaults: { instructions: "", model_settings: { model: "fake" }, tools: [] },
+    onAssistantMessage: async (text) => {
+      emitted.push(text);
+    },
+  });
+  assert.equal(result.status, "completed");
+  assert.deepEqual(emitted, ["The specialist found the answer."]);
+  assert.deepEqual(result.messages, emitted);
 });
 
 test("mutating tools stay suspended until exact confirmation and cannot bypass it", async () => {

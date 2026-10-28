@@ -525,7 +525,18 @@ export class ToolExecutor {
       query,
       ctx.toolCallKey,
     );
-    const joined = result.results.map((r) => r.snippet ?? r.title ?? "").join("\n");
+    const joined = result.results
+      .map((result) =>
+        [
+          result.title ? `Title: ${result.title}` : "",
+          result.url ? `URL: ${result.url}` : "",
+          result.snippet ? `Snippet: ${result.snippet}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      )
+      .filter(Boolean)
+      .join("\n\n");
     return { ok: true, content: joined.slice(0, 8000), status: "succeeded" };
   }
 }

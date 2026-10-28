@@ -15,10 +15,14 @@ type Props = {
   model: string;
   temperature: number;
   maxTokens: number;
+  reasoningEffort: string;
+  verbosity: string;
   isDirty: boolean;
   onChangeModel: (model: string) => void;
   onChangeTemperature: (temp: number) => void;
   onChangeMaxTokens: (tokens: number) => void;
+  onChangeReasoningEffort: (effort: string) => void;
+  onChangeVerbosity: (verbosity: string) => void;
 };
 
 type ModelOption = {
@@ -37,6 +41,10 @@ export function ModelTab({
   onChangeModel,
   onChangeTemperature,
   onChangeMaxTokens,
+  reasoningEffort,
+  verbosity,
+  onChangeReasoningEffort,
+  onChangeVerbosity,
 }: Props) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [catalogModels, setCatalogModels] = useState<ModelOption[]>([]);
@@ -74,6 +82,17 @@ export function ModelTab({
   }
 
   const selectedModel = models.find((m) => m.id === model) || models[0];
+  const isAstra = /^gpt-6-astra/i.test(model);
+  const isSol = /^gpt-6\.1-sol/i.test(model);
+
+  useEffect(() => {
+    // Avoid saving settings the selected reasoning model will reject. This is
+    // also guarded at runtime for older saved versions.
+    if ((isAstra && (reasoningEffort === "none" || reasoningEffort === "minimal")) ||
+        (isSol && (reasoningEffort === "none" || reasoningEffort === "minimal"))) {
+      onChangeReasoningEffort("low");
+    }
+  }, [isAstra, isSol, reasoningEffort, onChangeReasoningEffort]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -262,12 +281,12 @@ export function ModelTab({
               id="max-tokens-input"
               type="number"
               min="128"
-              max="4096"
+              max="16384"
               step="128"
               value={maxTokens}
               onChange={(e) => {
                 const v = parseInt(e.target.value, 10);
-                if (!isNaN(v) && v >= 128 && v <= 4096) {
+                if (!isNaN(v) && v >= 128 && v <= 16384) {
                   onChangeMaxTokens(v);
                 }
               }}
@@ -275,6 +294,55 @@ export function ModelTab({
             />
             <p className="text-[13px] text-[#667085]">A limit, not a target length.</p>
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        <div className="bg-white border border-[#DCE1E8] rounded-[8px] p-6 shadow-xs space-y-3">
+          <div>
+            <label htmlFor="reasoning-effort" className="text-[15px] font-semibold text-[#202125]">
+              Reasoning effort
+            </label>
+            <p className="mt-1 text-[14px] text-[#667085]">
+              Higher effort improves difficult planning and tool decisions, with more latency.
+            </p>
+          </div>
+          <select
+            id="reasoning-effort"
+            value={reasoningEffort}
+            onChange={(event) => onChangeReasoningEffort(event.target.value)}
+            className="w-full h-10 px-3 text-[14px] text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A]"
+          >
+            <option value="auto">Auto by model</option>
+            <option value="none" disabled={isAstra || isSol}>None (fastest)</option>
+            <option value="minimal" disabled={isAstra || isSol}>Minimal</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="xhigh">Extra high</option>
+            <option value="max">Maximum</option>
+          </select>
+        </div>
+
+        <div className="bg-white border border-[#DCE1E8] rounded-[8px] p-6 shadow-xs space-y-3">
+          <div>
+            <label htmlFor="output-verbosity" className="text-[15px] font-semibold text-[#202125]">
+              Output verbosity
+            </label>
+            <p className="mt-1 text-[14px] text-[#667085]">
+              Controls answer detail without changing the agent’s instructions.
+            </p>
+          </div>
+          <select
+            id="output-verbosity"
+            value={verbosity}
+            onChange={(event) => onChangeVerbosity(event.target.value)}
+            className="w-full h-10 px-3 text-[14px] text-[#202125] bg-white border border-[#DCE1E8] rounded-[6px] focus:outline-none focus:border-[#FF571A]"
+          >
+            <option value="low">Low — concise</option>
+            <option value="medium">Medium — balanced</option>
+            <option value="high">High — detailed</option>
+          </select>
         </div>
       </div>
 
