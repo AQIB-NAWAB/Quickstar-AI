@@ -158,6 +158,7 @@ export class WidgetVoiceLiveSessionManager {
       conversationUrl: this.deps.conversationUrl,
       agentUrl: this.deps.agentUrl,
       knowledgeUrl: this.deps.knowledgeUrl,
+      runtimeKnowledge: true,
       internalToken: this.deps.internalToken,
       logger: this.deps.logger,
     });
@@ -166,9 +167,7 @@ export class WidgetVoiceLiveSessionManager {
     const canCascade = Boolean(this.deps.tts && this.deps.deepgramApiKey);
     const canGemini = Boolean(this.deps.geminiApiKey);
     const canOpenAi = Boolean(this.deps.openaiApiKey);
-    const canElevenLabs = Boolean(
-      this.deps.elevenLabsApiKey && this.deps.elevenLabsVoiceId,
-    );
+    const canElevenLabs = Boolean(this.deps.elevenLabsApiKey && this.deps.elevenLabsVoiceId);
 
     const requireProvider = (name: string, available: boolean) => {
       if (!available) {
@@ -198,9 +197,7 @@ export class WidgetVoiceLiveSessionManager {
       (provider === "auto" && !canGemini && !canOpenAi && !canElevenLabs && canCascade);
     const useGemini = !useCascade && (provider === "gemini" || (provider === "auto" && canGemini));
     const useOpenAi =
-      !useCascade &&
-      !useGemini &&
-      (provider === "openai" || (provider === "auto" && canOpenAi));
+      !useCascade && !useGemini && (provider === "openai" || (provider === "auto" && canOpenAi));
     const useElevenLabs =
       !useCascade &&
       !useGemini &&
@@ -247,6 +244,8 @@ export class WidgetVoiceLiveSessionManager {
             conversationId: bind.conversationId,
             actorId: bind.actorId,
             conversationUrl: this.deps.conversationUrl,
+            runtimeUrl: this.deps.runtimeUrl,
+            turnTimeoutMs: this.deps.turnTimeoutMs,
             internalToken: this.deps.internalToken,
             logger: this.deps.logger,
             brief,
@@ -268,20 +267,26 @@ export class WidgetVoiceLiveSessionManager {
               conversationId: bind.conversationId,
               actorId: bind.actorId,
               conversationUrl: this.deps.conversationUrl,
+              runtimeUrl: this.deps.runtimeUrl,
+              turnTimeoutMs: this.deps.turnTimeoutMs,
+              onTransferSpoken: () => this.onTransferSpoken(id),
               internalToken: this.deps.internalToken,
               logger: this.deps.logger,
             })
           : new OpenAiRealtimeLiveSession({
               apiKey: this.deps.openaiApiKey!,
               model: this.deps.openaiRealtimeModel ?? "gpt-realtime-2.1",
-            transcriptionModel: this.deps.openaiRealtimeTranscriptionModel,
-            transcriptionDelay: this.deps.openaiRealtimeTranscriptionDelay,
-            voice: this.deps.openaiRealtimeVoice ?? "marin",
+              transcriptionModel: this.deps.openaiRealtimeTranscriptionModel,
+              transcriptionDelay: this.deps.openaiRealtimeTranscriptionDelay,
+              voice: this.deps.openaiRealtimeVoice ?? "marin",
               instructions: brief,
               workspaceId: bind.workspaceId,
               conversationId: bind.conversationId,
               actorId: bind.actorId,
               conversationUrl: this.deps.conversationUrl,
+              runtimeUrl: this.deps.runtimeUrl,
+              turnTimeoutMs: this.deps.turnTimeoutMs,
+              onTransferSpoken: () => this.onTransferSpoken(id),
               internalToken: this.deps.internalToken,
               logger: this.deps.logger,
             });
@@ -322,11 +327,12 @@ export class WidgetVoiceLiveSessionManager {
   private persistCallEvent(record: SessionRecord, event: VoiceLiveEvent): void {
     if (event.type === "audio" && record.recordingFormat === "pcm16") {
       const bytes = Buffer.from(event.data, "base64");
-      const encoding = event.encoding === "pcm16"
-        ? "pcm16"
-        : event.encoding === "mp3" || event.mime.includes("mpeg")
-          ? "mp3"
-          : null;
+      const encoding =
+        event.encoding === "pcm16"
+          ? "pcm16"
+          : event.encoding === "mp3" || event.mime.includes("mpeg")
+            ? "mp3"
+            : null;
       if (bytes.length > 0 && encoding) {
         if (record.agentRecordingEncoding && record.agentRecordingEncoding !== encoding) {
           this.deps.logger.warn("widget.voice.agent_recording_format_changed", {
@@ -341,52 +347,63 @@ export class WidgetVoiceLiveSessionManager {
           record.agentRecordingSampleRate = event.sample_rate;
         }
         const sequence = record.recordingSequence++;
-        record.persistChain = record.persistChain.then(async () => {
-          if (!record.recordingObjectKey) {
-            record.recordingObjectKey = await this.deps.recordings.begin(
-              record.bind.workspaceId,
-              record.callId,
-              encoding === "pcm16" ? "audio/wav" : "audio/mpeg",
-            );
-          }
-          await this.deps.recordings.append(record.recordingObjectKey, sequence, bytes);
-        }).catch((err) => {
-          this.deps.logger.warn("widget.voice.agent_recording_append_failed", {
-            call_id: record.callId,
-            message: err instanceof Error ? err.message : "agent recording append failed",
+        record.persistChain = record.persistChain
+          .then(async () => {
+            if (!record.recordingObjectKey) {
+              record.recordingObjectKey = await this.deps.recordings.begin(
+                record.bind.workspaceId,
+                record.callId,
+                encoding === "pcm16" ? "audio/wav" : "audio/mpeg",
+              );
+            }
+            await this.deps.recordings.append(record.recordingObjectKey, sequence, bytes);
+          })
+          .catch((err) => {
+            this.deps.logger.warn("widget.voice.agent_recording_append_failed", {
+              call_id: record.callId,
+              message: err instanceof Error ? err.message : "agent recording append failed",
+            });
           });
-        });
       }
     }
-    const text = event.type === "transcript" && !event.interim
-      ? event.text.trim()
-      : event.type === "assistant_done"
+    const text =
+      event.type === "transcript" && !event.interim
         ? event.text.trim()
-        : "";
+        : event.type === "assistant_done"
+          ? event.text.trim()
+          : "";
     if (!text) return;
     const speaker = event.type === "assistant_done" ? "agent" : "user";
     const startMs = Math.max(0, Date.now() - record.startedAtMs);
     const sequence = ++record.transcriptSequence;
-    record.persistChain = record.persistChain.then(async () => {
-      await this.deps.calls.addTranscript(record.bind.workspaceId, record.callId, {
-        sequence,
-        speaker,
-        text,
-        start_ms: startMs,
-        end_ms: startMs,
-        finalized: true,
+    record.persistChain = record.persistChain
+      .then(async () => {
+        await this.deps.calls.addTranscript(record.bind.workspaceId, record.callId, {
+          sequence,
+          speaker,
+          text,
+          start_ms: startMs,
+          end_ms: startMs,
+          finalized: true,
+        });
+      })
+      .catch((err) => {
+        this.deps.logger.warn("widget.voice.transcript_persist_failed", {
+          call_id: record.callId,
+          message: err instanceof Error ? err.message : "transcript persistence failed",
+        });
       });
-    }).catch((err) => {
-      this.deps.logger.warn("widget.voice.transcript_persist_failed", {
-        call_id: record.callId,
-        message: err instanceof Error ? err.message : "transcript persistence failed",
-      });
-    });
   }
 
   async startRecording(id: string, workspaceId: string, contentType: string): Promise<void> {
     const record = this.sessions.get(id);
-    if (!record || record.bind.workspaceId !== workspaceId || record.recordingObjectKey || record.callerRecordingObjectKey) return;
+    if (
+      !record ||
+      record.bind.workspaceId !== workspaceId ||
+      record.recordingObjectKey ||
+      record.callerRecordingObjectKey
+    )
+      return;
     const normalizedType = contentType.split(";")[0]?.trim().toLowerCase();
     if (normalizedType === "audio/webm") {
       record.recordingFormat = "webm";
@@ -411,14 +428,18 @@ export class WidgetVoiceLiveSessionManager {
   async appendRecording(id: string, workspaceId: string, bytes: Buffer): Promise<void> {
     const record = this.sessions.get(id);
     if (!record || record.bind.workspaceId !== workspaceId || bytes.length === 0) return;
-    const key = record.recordingFormat === "pcm16"
-      ? record.callerRecordingObjectKey
-      : record.recordingObjectKey;
+    const key =
+      record.recordingFormat === "pcm16"
+        ? record.callerRecordingObjectKey
+        : record.recordingObjectKey;
     if (!key) return;
-    const sequence = record.recordingFormat === "pcm16"
-      ? record.callerRecordingSequence++
-      : record.recordingSequence++;
-    const append = record.persistChain.then(() => this.deps.recordings.append(key, sequence, bytes));
+    const sequence =
+      record.recordingFormat === "pcm16"
+        ? record.callerRecordingSequence++
+        : record.recordingSequence++;
+    const append = record.persistChain.then(() =>
+      this.deps.recordings.append(key, sequence, bytes),
+    );
     record.persistChain = append.catch((err) => {
       this.deps.logger.warn("widget.voice.recording_append_failed", {
         call_id: record.callId,
@@ -430,8 +451,12 @@ export class WidgetVoiceLiveSessionManager {
 
   async finishRecording(id: string, workspaceId: string): Promise<void> {
     const record = this.sessions.get(id);
-    if (!record || record.bind.workspaceId !== workspaceId ||
-        (!record.recordingObjectKey && !record.callerRecordingObjectKey)) return;
+    if (
+      !record ||
+      record.bind.workspaceId !== workspaceId ||
+      (!record.recordingObjectKey && !record.callerRecordingObjectKey)
+    )
+      return;
     if (record.recordingFinalized) return;
     await record.persistChain;
     const key = record.recordingObjectKey;
@@ -511,7 +536,8 @@ export class WidgetVoiceLiveSessionManager {
       listener({ type: "handoff", status: "waiting" });
     }
     const unsub = record.session.subscribe((event) => {
-      if (record.mode === "human" && (event.type === "audio" || event.type === "assistant_token")) return;
+      if (record.mode === "human" && (event.type === "audio" || event.type === "assistant_token"))
+        return;
       listener(event);
       if (event.type === "turn_done" && record.transferSpoken && record.mode !== "human") {
         record.mode = record.human ? "human" : "holding";
@@ -544,7 +570,10 @@ export class WidgetVoiceLiveSessionManager {
   findByConversation(workspaceId: string, conversationId: string): string | null {
     let found: string | null = null;
     for (const [id, record] of this.sessions) {
-      if (record.bind.workspaceId === workspaceId && record.bind.conversationId === conversationId) {
+      if (
+        record.bind.workspaceId === workspaceId &&
+        record.bind.conversationId === conversationId
+      ) {
         found = id;
       }
     }
@@ -564,7 +593,11 @@ export class WidgetVoiceLiveSessionManager {
     };
   }
 
-  join(workspaceId: string, conversationId: string, human: { userId: string; name: string }): "missing" | "conflict" | "ok" {
+  join(
+    workspaceId: string,
+    conversationId: string,
+    human: { userId: string; name: string },
+  ): "missing" | "conflict" | "ok" {
     const id = this.findByConversation(workspaceId, conversationId);
     const record = id ? this.sessions.get(id) : undefined;
     if (!id || !record) return "missing";
@@ -588,7 +621,12 @@ export class WidgetVoiceLiveSessionManager {
     return true;
   }
 
-  pushHumanAudio(workspaceId: string, conversationId: string, userId: string, pcm: Buffer): boolean {
+  pushHumanAudio(
+    workspaceId: string,
+    conversationId: string,
+    userId: string,
+    pcm: Buffer,
+  ): boolean {
     const id = this.findByConversation(workspaceId, conversationId);
     const record = id ? this.sessions.get(id) : undefined;
     if (!record || record.human?.userId !== userId) return false;
@@ -682,7 +720,10 @@ export class WidgetVoiceLiveSessionManager {
       await this.deps.calls.updateState(workspaceId, callId, {
         state: "completed",
         endedAt,
-        durationSeconds: Math.max(1, Math.floor((endedAt.getTime() - call.started_at.getTime()) / 1000)),
+        durationSeconds: Math.max(
+          1,
+          Math.floor((endedAt.getTime() - call.started_at.getTime()) / 1000),
+        ),
       });
     }
     return true;
@@ -696,7 +737,11 @@ export class WidgetVoiceLiveSessionManager {
     }
 
     const { rows } = await this.deps.calls.list(workspaceId, { direction: "inbound", limit: 100 });
-    const call = rows.find((item) => item.conversation_id === conversationId && (item.state === "live" || item.state === "ringing"));
+    const call = rows.find(
+      (item) =>
+        item.conversation_id === conversationId &&
+        (item.state === "live" || item.state === "ringing"),
+    );
     return call ? this.stopCall(workspaceId, call.id) : false;
   }
 }

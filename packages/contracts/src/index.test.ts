@@ -78,3 +78,24 @@ test("default manual-agent graph is valid and inherits shared instructions", () 
   });
   assert.equal(validateAgentGraph(noChannelGraph).valid, true);
 });
+
+test("native realtime runtime bridge permits tools and scoped knowledge", () => {
+  assert.equal(
+    s2sProfileAllowed({
+      voice_mode: "s2s",
+      toolsCount: 3,
+      knowledgeEnabled: true,
+      runtimeBridge: true,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    s2sProfileAllowed({
+      voice_mode: "s2s",
+      toolsCount: 3,
+      knowledgeEnabled: true,
+      runtimeBridge: false,
+    }).ok,
+    false,
+  );
+});

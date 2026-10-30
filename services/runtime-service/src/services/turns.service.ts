@@ -1,5 +1,11 @@
+import { voiceOutputBudget, optionalVoiceContext } from "./voice-response-policy.js";
 import crypto from "node:crypto";
-import type { AgentConfiguration, ChatMessage, CompletionRequestBody, TokenUsage } from "@quickstart/contracts";
+import type {
+  AgentConfiguration,
+  ChatMessage,
+  CompletionRequestBody,
+  TokenUsage,
+} from "@quickstart/contracts";
 import { AppError, ErrorCode } from "@quickstart/errors";
 import type { AgentClient, AgentVersionInfo } from "../clients/agent.client.js";
 import type { ConversationClient, MessageInfo } from "../clients/conversation.client.js";
@@ -74,7 +80,9 @@ const WIDGET_REPLY_STYLE = [
 
 function extractExplicitMemoryFacts(text: string): Array<{ key: string; value: string }> {
   const facts: Array<{ key: string; value: string }> = [];
-  const name = text.match(/\b(?:my name is|i am|this is)\s+([A-Za-z][A-Za-z .'-]{1,80})/i)?.[1]?.trim();
+  const name = text
+    .match(/\b(?:my name is|i am|this is)\s+([A-Za-z][A-Za-z .'-]{1,80})/i)?.[1]
+    ?.trim();
   const email = text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0];
   const phone = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/)?.[0]?.trim();
   if (name) facts.push({ key: "name", value: name });
@@ -125,7 +133,8 @@ function spokenReplyStyle(
     urdu
       ? `Reply only in Urdu, using Urdu script. Do not answer in English, even if the visitor used English words. Use ${gender === "female" ? "feminine" : gender === "male" ? "masculine" : "natural neutral"} Urdu grammatical forms consistently to match the selected voice persona.`
       : "Reply in the same language the visitor just used.",
-    "One to three short spoken sentences, under 60 words. Give a complete, useful answer without rushing or omitting important context.",
+    "One to three short spoken sentences, under 60 words. Lead with the useful answer, then the essential reason or next step. For a complex request, give the key conclusion first and offer to explain further.",
+    "Check the caller's constraints and relevant facts before answering. If an essential detail is ambiguous, ask one focused question. Never narrate internal reasoning or claim an action succeeded before a tool confirms it.",
     "Plain spoken words only: absolutely no markdown syntax, asterisks (*), hashtags (#), brackets, lists, bullets, emojis, URLs, or symbols, as these will be read aloud phonetically by the text-to-speech voice.",
     "Answer general questions from the knowledge base. For a requested lookup, use the matching tool; ask briefly if a required detail is missing and never invent it.",
     "If a requested post or order lookup is missing its ID, ask for that ID in one short question and wait.",
@@ -266,10 +275,12 @@ function resolveModelQualitySettings(
   verbosity?: CompletionRequestBody["verbosity"];
 } {
   const configuredReasoning =
-    typeof modelSettings.reasoning_effort === "string" && REASONING_EFFORTS.has(modelSettings.reasoning_effort)
+    typeof modelSettings.reasoning_effort === "string" &&
+    REASONING_EFFORTS.has(modelSettings.reasoning_effort)
       ? (modelSettings.reasoning_effort as CompletionRequestBody["reasoning_effort"])
       : undefined;
-  let reasoningEffort = configuredReasoning ??
+  let reasoningEffort =
+    configuredReasoning ??
     (voiceTurn && /^gpt-6/i.test(modelId)
       ? "low"
       : /^gpt-6-astra|^gpt-6\.1-sol/i.test(modelId)
@@ -279,10 +290,16 @@ function resolveModelQualitySettings(
   // `minimal`. Older saved agent versions may still contain those values, so
   // normalize them at the gateway boundary instead of turning a valid turn
   // into an upstream 400. The closest supported low-latency setting is low.
-  if (/^gpt-6-astra/i.test(modelId) && (reasoningEffort === "none" || reasoningEffort === "minimal")) {
+  if (
+    /^gpt-6-astra/i.test(modelId) &&
+    (reasoningEffort === "none" || reasoningEffort === "minimal")
+  ) {
     reasoningEffort = "low";
   }
-  if (/^gpt-6\.1-sol/i.test(modelId) && (reasoningEffort === "none" || reasoningEffort === "minimal")) {
+  if (
+    /^gpt-6\.1-sol/i.test(modelId) &&
+    (reasoningEffort === "none" || reasoningEffort === "minimal")
+  ) {
     reasoningEffort = "low";
   }
   const verbosity =
@@ -334,13 +351,7 @@ export class TurnsService {
       return;
     }
     for (const fact of extractExplicitMemoryFacts(text)) {
-      void this.memoryClient.rememberFact(
-        workspaceId,
-        subjectKey,
-        fact.key,
-        fact.value,
-        requestId,
-      );
+      void this.memoryClient.rememberFact(workspaceId, subjectKey, fact.key, fact.value, requestId);
     }
   }
 
@@ -554,20 +565,21 @@ export class TurnsService {
     let retrievedChunkIds: string[] = [];
     let knowledgeContext = "";
     const knowledge = version.snapshot.configuration?.knowledge;
-    const knowledgePromise = this.knowledgeClient && text
-      ? (async () => {
-          const readyCount = await this.knowledgeClient!.readyCount(workspaceId, requestId);
-          if ((knowledge?.enabled ?? true) === false || readyCount <= 0) return [];
-          return this.knowledgeClient!.retrieve(
-            workspaceId,
-            text,
-            requestId,
-            knowledge?.max_results ?? 5,
-            undefined,
-            { sourceIds: knowledge?.source_ids, searchMethod: knowledge?.search_method },
-          );
-        })().catch(() => [])
-      : Promise.resolve([]);
+    const knowledgePromise =
+      this.knowledgeClient && text
+        ? (async () => {
+            const readyCount = await this.knowledgeClient!.readyCount(workspaceId, requestId);
+            if ((knowledge?.enabled ?? true) === false || readyCount <= 0) return [];
+            return this.knowledgeClient!.retrieve(
+              workspaceId,
+              text,
+              requestId,
+              knowledge?.max_results ?? 5,
+              undefined,
+              { sourceIds: knowledge?.source_ids, searchMethod: knowledge?.search_method },
+            );
+          })().catch(() => [])
+        : Promise.resolve([]);
 
     const systemParts: string[] = [];
     if (version.snapshot.instructions) {
@@ -577,9 +589,12 @@ export class TurnsService {
     if (guardrailText) systemParts.push(guardrailText);
     const subjectKey = conversation.subject_key?.trim();
     const memory = version.snapshot.configuration?.memory;
-    const memoryPromise = this.memoryClient && memory?.enabled !== false && subjectKey
-      ? this.memoryClient.listFacts(workspaceId, subjectKey, requestId, memory?.max_facts ?? 20).catch(() => [])
-      : Promise.resolve([]);
+    const memoryPromise =
+      this.memoryClient && memory?.enabled !== false && subjectKey
+        ? this.memoryClient
+            .listFacts(workspaceId, subjectKey, requestId, memory?.max_facts ?? 20)
+            .catch(() => [])
+        : Promise.resolve([]);
     const [knowledgeChunks, memoryFacts] = await Promise.all([knowledgePromise, memoryPromise]);
     retrievedChunkIds = knowledgeChunks.map((c) => c.chunk_id);
     knowledgeContext = knowledgeChunks
@@ -625,7 +640,11 @@ export class TurnsService {
     // 7. Invoke Model Gateway
     const modelSettings = version.snapshot.model_settings ?? {};
     const { profile, modelId } = resolveChatModel(modelSettings);
-    const qualitySettings = resolveModelQualitySettings(modelSettings, modelId, input.channel === "voice");
+    const qualitySettings = resolveModelQualitySettings(
+      modelSettings,
+      modelId,
+      input.channel === "voice",
+    );
     const temperature =
       typeof modelSettings.temperature === "number" ? modelSettings.temperature : undefined;
     const configuredMaxTokens =
@@ -1238,6 +1257,14 @@ export class TurnsService {
             )
             .catch(() => [])
         : Promise.resolve([]);
+    const voiceRetrieval = voiceTurn
+      ? optionalVoiceContext(
+          retrievalPromise,
+          Math.max(50, Number(process.env.VOICE_RETRIEVAL_TIMEOUT_MS ?? 250) || 250),
+          [],
+          () => retrievalAbort.abort(),
+        )
+      : retrievalPromise;
     const subjectKey = conversation.subject_key?.trim();
     const memory = version.snapshot.configuration?.memory;
     const memoryRequest =
@@ -1246,6 +1273,14 @@ export class TurnsService {
             .listFacts(workspaceId, subjectKey, requestId, memory?.max_facts ?? 20)
             .catch(() => [])
         : Promise.resolve([]);
+
+    const voiceMemory = voiceTurn
+      ? optionalVoiceContext(
+          memoryRequest,
+          Math.max(50, Number(process.env.VOICE_MEMORY_TIMEOUT_MS ?? 150) || 150),
+          [],
+        )
+      : memoryRequest;
 
     const history = await this.conversationClient.listMessagesWidget(
       workspaceId,
@@ -1296,20 +1331,7 @@ export class TurnsService {
     let knowledgeContext = "";
     if (this.knowledgeClient && knowledge?.enabled !== false && text && !actionRequest) {
       try {
-        const chunks = voiceTurn
-          ? await Promise.race([
-              retrievalPromise,
-              new Promise<Awaited<ReturnType<KnowledgeClient["retrieve"]>>>((resolve) =>
-                setTimeout(
-                  () => {
-                    retrievalAbort.abort();
-                    resolve([]);
-                  },
-                  Math.max(50, Number(process.env.VOICE_RETRIEVAL_TIMEOUT_MS ?? 250) || 250),
-                ),
-              ),
-            ])
-          : await retrievalPromise;
+        const chunks = await voiceRetrieval;
         retrievedChunkIds = chunks.map((c) => c.chunk_id);
         knowledgeContext = chunks
           .map((c) => c.text)
@@ -1330,14 +1352,7 @@ export class TurnsService {
       );
     }
 
-    const memoryFacts = voiceTurn
-      ? await Promise.race([
-          memoryRequest,
-          new Promise<Awaited<typeof memoryRequest>>((resolve) =>
-            setTimeout(() => resolve([]), Math.max(50, Number(process.env.VOICE_MEMORY_TIMEOUT_MS ?? 150) || 150)),
-          ),
-        ])
-      : await memoryRequest;
+    const memoryFacts = await voiceMemory;
     if (memoryFacts.length > 0) {
       const memoryBlock = memoryFacts
         .map((f) => `- ${f.fact_text}`)
@@ -1477,7 +1492,11 @@ export class TurnsService {
         ? modelSettings.max_tokens
         : undefined;
     const maxTokens = voiceTurn
-      ? Math.min(configuredMax ?? 160, Number(process.env.VOICE_MAX_TOKENS ?? 160) || 160)
+      ? voiceOutputBudget({
+          configuredMax,
+          environmentMax: process.env.VOICE_MAX_TOKENS,
+          reasoningEffort: qualitySettings.reasoningEffort,
+        })
       : compactReply
         ? Math.min(configuredMax ?? WIDGET_MAX_OUTPUT_TOKENS, WIDGET_MAX_OUTPUT_TOKENS)
         : Math.min(configuredMax ?? 220, 220);
@@ -1513,9 +1532,7 @@ export class TurnsService {
           temperature,
           reasoningEffort: qualitySettings.reasoningEffort,
           verbosity: qualitySettings.verbosity,
-          maxTokens: voiceTurn
-            ? Math.min(maxTokens ?? 160, Number(process.env.VOICE_MAX_TOKENS ?? 160) || 160)
-            : 220,
+          maxTokens: voiceTurn ? maxTokens : 220,
           replyLanguage,
           replyGender,
           tools: modelTools,
@@ -1525,7 +1542,7 @@ export class TurnsService {
             nudge = event.spoken;
             if (!proactiveToolAcknowledgement) input.onToolStart?.(event);
           },
-          channel: input.channel === "voice" ? "voice" : "chat",
+          channel: voiceTurn ? "voice" : "chat",
           signal,
         });
         const spoken = (loop.content || "").trim() || (loop.transferred ? nudge : "");
