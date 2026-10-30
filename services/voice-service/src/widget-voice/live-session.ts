@@ -233,51 +233,7 @@ export class WidgetVoiceLiveSession {
       } catch {
         return;
       }
-      if (msg.type === "UtteranceEnd") {
-        if (!this.commitTimer) {
-          const text = this.currentUtterance();
-          this.scheduleCommit(
-            Math.max(
-              eagerCommitDelayMs(text),
-              speechTailDelayMs(
-                this.lastVoiceAt,
-                Date.now(),
-                this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      const transcript = msg.channel?.alternatives?.[0]?.transcript?.trim() ?? "";
-      if (!transcript) return;
-      this.cancelCommit();
-      if (msg.is_final) {
-        this.utteranceParts.push(transcript);
-        this.openInterim = "";
-      } else {
-        this.openInterim = transcript;
-      }
-      this.emit({
-        type: "transcript",
-        text: this.currentUtterance(),
-        interim: true,
-      });
-      if (msg.speech_final) {
-        // Do not hard-commit at 40 ms: an open-ended phrase ("...and", "..."),
-        // a short utterance, or a still-active speech tail should wait longer.
-        this.scheduleCommit(
-          Math.max(
-            40,
-            eagerCommitDelayMs(this.currentUtterance()),
-            speechTailDelayMs(
-              this.lastVoiceAt,
-              Date.now(),
-              this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
-            ),
-          ),
-        );
-      }
+      this.handleTranscript(msg);
     });
 
     dg.addEventListener("error", () => {
@@ -318,6 +274,67 @@ export class WidgetVoiceLiveSession {
     });
   }
 
+  private handleTranscript(msg: {
+    type?: string;
+    is_final?: boolean;
+    speech_final?: boolean;
+    channel?: { alternatives?: Array<{ transcript?: string }> };
+  }): void {
+    if (this.closed || this.held) return;
+    if (msg.type === "UtteranceEnd") {
+      if (!this.commitTimer) {
+        const text = this.currentUtterance();
+        this.scheduleCommit(
+          Math.max(
+            eagerCommitDelayMs(text),
+            speechTailDelayMs(
+              this.lastVoiceAt,
+              Date.now(),
+              this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    const transcript = msg.channel?.alternatives?.[0]?.transcript?.trim() ?? "";
+    // Deepgram can end an utterance with an empty Results event. Preserve
+    // earlier finalized segments and commit them on that endpoint too.
+    if (!transcript) {
+      if (msg.speech_final && this.currentUtterance()) {
+        this.scheduleCommit(eagerCommitDelayMs(this.currentUtterance()));
+      }
+      return;
+    }
+    this.cancelCommit();
+    if (msg.is_final) {
+      this.utteranceParts.push(transcript);
+      this.openInterim = "";
+    } else {
+      this.openInterim = transcript;
+    }
+    this.emit({
+      type: "transcript",
+      text: this.currentUtterance(),
+      interim: true,
+    });
+    if (msg.speech_final) {
+      // Do not hard-commit at 40 ms: an open-ended phrase ("...and", "..."),
+      // a short utterance, or a still-active speech tail should wait longer.
+      this.scheduleCommit(
+        Math.max(
+          40,
+          eagerCommitDelayMs(this.currentUtterance()),
+          speechTailDelayMs(
+            this.lastVoiceAt,
+            Date.now(),
+            this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
+          ),
+        ),
+      );
+    }
+  }
+
   private scheduleDeepgramReconnect(): void {
     if (this.closed || this.dgReconnectTimer) return;
     if (this.dgReconnectAttempts >= 6) {
@@ -341,7 +358,11 @@ export class WidgetVoiceLiveSession {
   }
 
   sayTransfer(name: string): void {
-    const safe = name.replace(/[^\p{L}\p{N} .'-]/gu, " ").trim().slice(0, 40) || "a teammate";
+    const safe =
+      name
+        .replace(/[^\p{L}\p{N} .'-]/gu, " ")
+        .trim()
+        .slice(0, 40) || "a teammate";
     const line = this.replyLanguage.toLowerCase().startsWith("ur")
       ? `ٹھیک ہے، میں آپ کو ${safe} کے پاس بھیج رہا ہوں۔`
       : `Okay, I'm switching you to ${safe}.`;
@@ -458,6 +479,8 @@ export class WidgetVoiceLiveSession {
     this.turnAbort?.abort();
     this.turnAbort = null;
     this.processingTurn = false;
+    // An aborted provider may settle slowly; new speech must not queue behind it.
+    this.speakChain = Promise.resolve();
     // A caller repeating the same words after interrupting must not be
     // suppressed by the duplicate-transcript guard.
     this.lastProcessedText = "";
@@ -471,7 +494,11 @@ export class WidgetVoiceLiveSession {
   }
 
   private currentUtterance(): string {
-    return [...this.utteranceParts, this.openInterim].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    return [...this.utteranceParts, this.openInterim]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   private cancelCommit(): void {
@@ -492,10 +519,22 @@ export class WidgetVoiceLiveSession {
   }
 
   private async commitUtterance(): Promise<void> {
+    if (this.processingTurn || this.closed || this.held) return;
+    // Recheck at execution time: the caller may have resumed while the timer
+    // was pending, before STT has delivered their next transcript.
+    const tailDelay = speechTailDelayMs(
+      this.lastVoiceAt,
+      Date.now(),
+      this.input.speechTailMs ?? SPEECH_TAIL_SILENCE_MS,
+    );
+    if (tailDelay > 0) {
+      this.scheduleCommit(tailDelay);
+      return;
+    }
     const text = this.currentUtterance();
     this.utteranceParts = [];
     this.openInterim = "";
-    if (!text || this.processingTurn || this.closed || this.held) return;
+    if (!text) return;
     if (isFillerOnly(text)) return;
     const now = Date.now();
     // Only suppress the exact same final transcript arriving twice from STT,
@@ -545,6 +584,7 @@ export class WidgetVoiceLiveSession {
 
     try {
       let pending = "";
+      let firstSpeechChunk = true;
       const speak = (sentence: string) => this.speak(sentence, turnAbort.signal);
 
       const turn = await streamWidgetTurn(
@@ -583,6 +623,7 @@ export class WidgetVoiceLiveSession {
           },
         },
         (delta) => {
+          if (turnAbort.signal.aborted || this.turnAbort !== turnAbort) return;
           cancelNudge();
           if (!this.firstTokenAt) {
             this.firstTokenAt = Date.now();
@@ -594,21 +635,30 @@ export class WidgetVoiceLiveSession {
           assistantBuffer += delta;
           pending += delta;
           this.emit({ type: "assistant_token", delta });
-          const cut = firstSpeakableCut(pending);
-          if (cut > 0) {
+          let cut = firstSpeakableCut(pending, firstSpeechChunk);
+          while (cut > 0) {
             speak(pending.slice(0, cut));
+            firstSpeechChunk = false;
             pending = pending.slice(cut);
+            cut = firstSpeakableCut(pending, firstSpeechChunk);
           }
         },
       );
+      if (this.turnAbort !== turnAbort) return;
+      turnAbort.signal.throwIfAborted();
       cancelNudge();
       const assistantText = turn.assistant_text || assistantBuffer;
+      // Idempotent runtime replays can contain only a done event, with no tokens.
+      if (!assistantBuffer) pending = assistantText;
       if (pending.trim()) speak(pending);
       this.emit({ type: "assistant_done", text: assistantText });
       await this.speakChain;
+      if (this.turnAbort !== turnAbort) return;
+      turnAbort.signal.throwIfAborted();
       this.emit({ type: "turn_done" });
       this.logTurnCompleted(requestId, "completed");
     } catch (err) {
+      if (this.turnAbort !== turnAbort) return;
       cancelNudge();
       if (turnAbort.signal.aborted && !timedOut) return; // barge-in owns this path
       if (this.closed) return;
@@ -625,12 +675,16 @@ export class WidgetVoiceLiveSession {
       }
       this.logTurnCompleted(requestId, timedOut ? "timeout" : "failed");
     } finally {
-      this.clearTurnTimers();
+      // An interrupted turn can finish after its replacement has already begun.
+      // Only the owning turn may clear its deadline, nudge and timing state.
       if (this.turnAbort === turnAbort) {
+        this.clearTurnTimers();
         this.turnAbort = null;
         this.processingTurn = false;
+        this.turnStartedAt = 0;
+        if (this.currentUtterance())
+          this.scheduleCommit(eagerCommitDelayMs(this.currentUtterance()));
       }
-      this.turnStartedAt = 0;
     }
   }
 
@@ -674,5 +728,9 @@ export class WidgetVoiceLiveSession {
       this.dgSocket.close();
     }
     this.dgSocket = null;
+    if (this.dgReconnectTimer) {
+      clearTimeout(this.dgReconnectTimer);
+      this.dgReconnectTimer = null;
+    }
   }
 }

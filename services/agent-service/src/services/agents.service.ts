@@ -827,6 +827,7 @@ export class AgentsService {
       voice_mode: agent.voice.voice_mode,
       toolsCount: agent.tools.length,
       knowledgeEnabled,
+      runtimeBridge: true,
     });
     if (!s2sCheck.ok) {
       blockers.push({ code: "MODEL_PROFILE", message: s2sCheck.reason });
@@ -943,6 +944,7 @@ export class AgentsService {
       voice_mode: agent.voice.voice_mode,
       toolsCount: agent.tools.length,
       knowledgeEnabled,
+      runtimeBridge: true,
     });
     if (!s2sCheck.ok) {
       throw new AppError({

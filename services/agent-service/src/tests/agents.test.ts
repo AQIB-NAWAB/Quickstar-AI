@@ -504,3 +504,52 @@ test("analyst cannot create agent (403)", async () => {
     { role: "analyst" },
   );
 });
+
+test("native realtime agents can publish configured tools and selected knowledge", async () => {
+  await withAgentServer(async ({ port, createToken }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const headers = {
+      authorization: `Bearer ${await createToken(USER)}`,
+      "content-type": "application/json",
+    };
+    const created = await fetch(`${base}/v1/workspaces/${WS_A}/agents`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Realtime Tool Agent",
+        instructions: "Use the knowledge base and configured tools.",
+        voice: { voice_mode: "s2s" },
+        tools: [
+          {
+            id: "lookup",
+            name: "lookup_order",
+            description: "Look up an order",
+            type: "http",
+            method: "GET",
+            base_url: "https://orders.example.com",
+            allowed_hosts: ["orders.example.com"],
+            policy: { enabled: true, allowed_channels: ["voice"] },
+          },
+        ],
+        configuration: { knowledge: { enabled: true, source_ids: ["selected-source"] } },
+      }),
+    });
+    assert.equal(created.status, 201);
+    const body = (await created.json()) as { agent: { id: string; version: number } };
+    const readiness = await fetch(
+      `${base}/v1/workspaces/${WS_A}/agents/${body.agent.id}/release-readiness`,
+      { headers },
+    );
+    const checks = (await readiness.json()) as { blockers: { code: string; message: string }[] };
+    assert.equal(
+      checks.blockers.some((blocker) => /s2s.*(?:tools|RAG)/i.test(blocker.message)),
+      false,
+    );
+    const published = await fetch(`${base}/v1/workspaces/${WS_A}/agents/${body.agent.id}/publish`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ base_version: body.agent.version }),
+    });
+    assert.equal(published.status, 201, JSON.stringify(await published.json()));
+  });
+});
